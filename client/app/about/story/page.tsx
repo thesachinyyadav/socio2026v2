@@ -193,7 +193,7 @@ const StoryPage = () => {
             <div>
               <div className="relative w-full max-w-lg mx-auto overflow-hidden rounded-lg shadow-lg mb-6">
                 <img
-                  src="public\images\teaching.jfif"
+                  src="public\images\teaching.png"
                   alt="Sachin Yadav teaching Python to BBA students"
                   className="w-full h-auto object-cover"
                 />
@@ -221,7 +221,7 @@ const StoryPage = () => {
               <div className="space-y-4">
                 <div className="bg-yellow-50 border-l-4 border-[#FFCC00] p-6 rounded-lg">
                   <h3 className="text-lg font-bold text-gray-800 mb-3">
-                    � The Classroom Connection
+                    💡 The Classroom Connection
                   </h3>
                   <p className="text-gray-700 text-sm">
                     "We were Digital Mission trainers teaching Python to BBA students. During our sessions, 

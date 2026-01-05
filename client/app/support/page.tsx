@@ -111,8 +111,9 @@ const SupportPage = () => {
         </svg>
       ),
       bgColor: "bg-red-50",
+      iconBg: "bg-red-100",
       textColor: "text-red-600",
-      buttonColor: "bg-red-600 hover:bg-red-700"
+      buttonClasses: "bg-red-600 hover:bg-red-700 text-white"
     },
     {
       title: "Request a Feature",
@@ -124,8 +125,9 @@ const SupportPage = () => {
         </svg>
       ),
       bgColor: "bg-green-50",
+      iconBg: "bg-green-100",
       textColor: "text-green-600",
-      buttonColor: "bg-green-600 hover:bg-green-700"
+      buttonClasses: "bg-green-600 hover:bg-green-700 text-white"
     },
     {
       title: "Contact Support",
@@ -137,8 +139,24 @@ const SupportPage = () => {
         </svg>
       ),
       bgColor: "bg-blue-50",
+      iconBg: "bg-blue-100",
       textColor: "text-[#154CB3]",
-      buttonColor: "bg-[#154CB3] hover:bg-[#063168]"
+      buttonClasses: "bg-[#154CB3] hover:bg-[#063168] text-white"
+    },
+    {
+      title: "Join the SOCIO Team",
+      description: "Explore internship opportunities and grow with us.",
+      action: "View Careers",
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-2.21 0-4 1.79-4 4 0 2.211 1.79 4 4 4s4-1.789 4-4c0-2.21-1.79-4-4-4zm0-6a3 3 0 013 3v1h2a3 3 0 013 3v1.5a4.5 4.5 0 01-2.41 3.993l-2.43 1.215a2 2 0 00-1.16 1.816V19a2 2 0 11-4 0v-1.476a2 2 0 00-1.16-1.816l-2.43-1.215A4.5 4.5 0 013 10.5V9a3 3 0 013-3h2V4a3 3 0 013-3z" />
+        </svg>
+      ),
+      bgColor: "bg-yellow-50",
+      iconBg: "bg-yellow-100",
+      textColor: "text-[#936400]",
+      buttonClasses: "bg-[#FFCC00] hover:bg-[#ffcc00e6] text-[#063168]",
+      href: "/support/careers"
     }
   ];
 
@@ -201,10 +219,10 @@ const SupportPage = () => {
           <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-6">
             Quick Actions
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {quickActions.map((action, index) => (
               <div key={index} className={`${action.bgColor} p-6 rounded-lg border border-gray-200`}>
-                <div className={`w-12 h-12 ${action.bgColor} rounded-lg flex items-center justify-center ${action.textColor} mb-4`}>
+                <div className={`w-12 h-12 ${(action.iconBg ?? action.bgColor)} rounded-lg flex items-center justify-center ${action.textColor} mb-4`}>
                   {action.icon}
                 </div>
                 <h3 className="text-lg font-bold text-gray-800 mb-2">
@@ -213,9 +231,35 @@ const SupportPage = () => {
                 <p className="text-gray-600 mb-4 text-sm">
                   {action.description}
                 </p>
-                <button className={`${action.buttonColor} text-white px-4 py-2 rounded-lg font-medium transition-all text-sm`}>
-                  {action.action}
-                </button>
+                {action.href ? (
+                  <Link
+                    href={action.href}
+                    className={`${action.buttonClasses} px-4 py-2 rounded-lg font-medium transition-all text-sm inline-flex items-center gap-2`}
+                  >
+                    {action.action}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+                      />
+                    </svg>
+                  </Link>
+                ) : (
+                  <button
+                    className={`${action.buttonClasses} px-4 py-2 rounded-lg font-medium transition-all text-sm`}
+                    type="button"
+                  >
+                    {action.action}
+                  </button>
+                )}
               </div>
             ))}
           </div>

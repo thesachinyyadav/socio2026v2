@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import LoadingIndicator from "../_components/UI/LoadingIndicator";
 
 interface DisplayableEvent {
   id: string;
@@ -167,7 +168,7 @@ const StudentProfile = () => {
   if (!userData) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center text-gray-600">Loading...</div>
+        <LoadingIndicator label="Loading profile" />
       </div>
     );
   }

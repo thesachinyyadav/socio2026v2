@@ -3,6 +3,7 @@
 import React, { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AttendanceManager } from "../_components/AttendanceManager";
+import LoadingIndicator from "../_components/UI/LoadingIndicator";
 
 function AttendanceContent() {
   const searchParams = useSearchParams();
@@ -81,10 +82,7 @@ function AttendanceContent() {
 function LoadingFallback() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#154CB3] mx-auto"></div>
-        <p className="mt-4 text-gray-600">Loading...</p>
-      </div>
+      <LoadingIndicator label="Loading attendance" />
     </div>
   );
 }

@@ -31,6 +31,12 @@ export default function Footer() {
               </svg>
               <a href="mailto:thesocio.blr@gmail.com" className="hover:text-[#154CB3]">thesocio.blr@gmail.com</a>
             </div>
+            <div className="flex items-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#FFCC00]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7V5a3 3 0 013-3h6a3 3 0 013 3v2m-2 4l-1 9H9l-1-9m-2 0h12" />
+              </svg>
+              <a href="mailto:hr.socio.blr@gmail.com" className="hover:text-[#154CB3]">hr.socio.blr@gmail.com</a>
+            </div>
             <div className="flex space-x-4">
               <a href="https://www.instagram.com/the.socio.official" target="_blank" rel="noopener noreferrer" className="bg-gradient-to-br from-purple-600 to-orange-500 p-2 rounded-full">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 24 24">
@@ -74,6 +80,7 @@ export default function Footer() {
                 <li><a href="/about#faqs" className="text-gray-600 hover:text-[#154CB3]">FAQs</a></li>
                 <li><a href="/about#feedback" className="text-gray-600 hover:text-[#154CB3]">Feedback</a></li>
                 <li><a href="/about" className="text-gray-600 hover:text-[#154CB3]">Help Center</a></li>
+                <li><Link href="/support/careers" className="text-gray-600 hover:text-[#154CB3]">Careers</Link></li>
               </ul>
             </div>
             <div>

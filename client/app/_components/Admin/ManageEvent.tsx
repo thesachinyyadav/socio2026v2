@@ -29,6 +29,7 @@ import {
 } from "@/app/_components/UI/FormElements";
 
 import { useAuth } from "@/context/AuthContext";
+import LoadingIndicator from "@/app/_components/UI/LoadingIndicator";
 
 export const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -1061,7 +1062,7 @@ export default function EventForm({
           )}
           {isNavigating && (
             <div className="text-center">
-              <p className="text-lg font-semibold text-[#063168]">Loading...</p>
+              <LoadingIndicator label="Hang tight" />
             </div>
           )}
         </div>

@@ -50,9 +50,9 @@ export default function TeamPage() {
       role: "Co-Founder & Lead Developer",
       bio: "Digital Mission trainer turned entrepreneur. Started as a Python trainer for BBA classes where the SOCIO idea was born. Now leads technical architecture and development.",
       skills: ["React/Next.js", "Node.js", "Database Design", "Digital Training"],
-      email: "thesocio.blr@gmail.com",
+      email: "sachinyadavparasf@gmail.com",
       linkedin: "https://www.linkedin.com/in/thesachinyyadav/",
-      github: "https://github.com/sachinyyadav",
+      github: "https://github.com/thesachinyyadav",
       quote: "From teaching Python in classrooms to building platforms that connect campuses.",
       funFact: "Transitioned from being a Digital Mission trainer to a full-stack developer entrepreneur.",
       image: "/founder-sachin-yadav.jpg"
@@ -62,9 +62,9 @@ export default function TeamPage() {
       role: "Co-Founder & Product Manager", 
       bio: "Former Digital Mission trainer with expertise in product strategy. Co-founded SOCIO after meeting Meeth during BBA Python training sessions.",
       skills: ["Product Strategy", "Digital Training", "Project Management", "User Research"],
-      email: "thesocio.blr@gmail.com",
+      email: "surya.s@bcah.christuniversity.in",
       linkedin: "https://www.linkedin.com/in/suryaavamshi/",
-      github: "https://github.com/suryavamshi",
+      github: "https://github.com/thesachinyyadav",
       quote: "Great ideas often come from the most unexpected classroom conversations.",
       funFact: "Went from training students in programming to building products that serve thousands of students.",
       image: "/founder-surya-vamshi.jpg"
