@@ -193,7 +193,7 @@ const StoryPage = () => {
             <div>
               <div className="relative w-full max-w-lg mx-auto overflow-hidden rounded-lg shadow-lg mb-6">
                 <img
-                  src="public\images\teaching.png"
+                  src="/teaching.png"
                   alt="Sachin Yadav teaching Python to BBA students"
                   className="w-full h-auto object-cover"
                 />
