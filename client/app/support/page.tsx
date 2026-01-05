@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import Footer from "../_components/Home/Footer";
+import { useAuth } from "../../context/AuthContext";
 
 const SupportPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,65 +101,89 @@ const SupportPage = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const quickActions = [
-    {
-      title: "Report a Bug",
-      description: "Found something that's not working right?",
-      action: "Report Issue",
-      icon: (
+  const { isSupport } = useAuth();
+
+  const quickActions = useMemo(() => {
+    const actions = [
+      {
+        title: "Report a Bug",
+        description: "Found something that's not working right?",
+        action: "Report Issue",
+        icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
         </svg>
-      ),
-      bgColor: "bg-red-50",
-      iconBg: "bg-red-100",
-      textColor: "text-red-600",
-      buttonClasses: "bg-red-600 hover:bg-red-700 text-white"
-    },
-    {
-      title: "Request a Feature",
-      description: "Have an idea to make SOCIO better?",
-      action: "Submit Idea",
-      icon: (
+        ),
+        bgColor: "bg-red-50",
+        iconBg: "bg-red-100",
+        textColor: "text-red-600",
+        buttonClasses: "bg-red-600 hover:bg-red-700 text-white"
+      },
+      {
+        title: "Request a Feature",
+        description: "Have an idea to make SOCIO better?",
+        action: "Submit Idea",
+        icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
-      ),
-      bgColor: "bg-green-50",
-      iconBg: "bg-green-100",
-      textColor: "text-green-600",
-      buttonClasses: "bg-green-600 hover:bg-green-700 text-white"
-    },
-    {
-      title: "Contact Support",
-      description: "Need personal assistance from our team?",
-      action: "Get Help",
-      icon: (
+        ),
+        bgColor: "bg-green-50",
+        iconBg: "bg-green-100",
+        textColor: "text-green-600",
+        buttonClasses: "bg-green-600 hover:bg-green-700 text-white"
+      },
+      {
+        title: "Contact Support",
+        description: "Need personal assistance from our team?",
+        action: "Get Help",
+        icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
-      ),
-      bgColor: "bg-blue-50",
-      iconBg: "bg-blue-100",
-      textColor: "text-[#154CB3]",
-      buttonClasses: "bg-[#154CB3] hover:bg-[#063168] text-white"
-    },
-    {
-      title: "Join the SOCIO Team",
-      description: "Explore internship opportunities and grow with us.",
-      action: "View Careers",
-      icon: (
+        ),
+        bgColor: "bg-blue-50",
+        iconBg: "bg-blue-100",
+        textColor: "text-[#154CB3]",
+        buttonClasses: "bg-[#154CB3] hover:bg-[#063168] text-white"
+      },
+      {
+        title: "Join the SOCIO Team",
+        description: "Explore internship opportunities and grow with us.",
+        action: "View Careers",
+        icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-2.21 0-4 1.79-4 4 0 2.211 1.79 4 4 4s4-1.789 4-4c0-2.21-1.79-4-4-4zm0-6a3 3 0 013 3v1h2a3 3 0 013 3v1.5a4.5 4.5 0 01-2.41 3.993l-2.43 1.215a2 2 0 00-1.16 1.816V19a2 2 0 11-4 0v-1.476a2 2 0 00-1.16-1.816l-2.43-1.215A4.5 4.5 0 013 10.5V9a3 3 0 013-3h2V4a3 3 0 013-3z" />
         </svg>
-      ),
-      bgColor: "bg-yellow-50",
-      iconBg: "bg-yellow-100",
-      textColor: "text-[#936400]",
-      buttonClasses: "bg-[#FFCC00] hover:bg-[#ffcc00e6] text-[#063168]",
-      href: "/support/careers"
+        ),
+        bgColor: "bg-yellow-50",
+        iconBg: "bg-yellow-100",
+        textColor: "text-[#936400]",
+        buttonClasses: "bg-[#FFCC00] hover:bg-[#ffcc00e6] text-[#063168]",
+        href: "/support/careers"
+      }
+    ];
+
+    if (isSupport) {
+      actions.unshift({
+        title: "Review Support Inbox",
+        description: "View and respond to new student messages.",
+        action: "Open Inbox",
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M3 7l9 6 9-6M3 7l9-4 9 4" />
+          </svg>
+        ),
+        bgColor: "bg-purple-50",
+        iconBg: "bg-purple-100",
+        textColor: "text-purple-600",
+        buttonClasses: "bg-purple-600 hover:bg-purple-700 text-white",
+        href: "/support/inbox"
+      });
     }
-  ];
+
+    return actions;
+  }, [isSupport]);
 
   return (
     <div className="min-h-screen bg-white">

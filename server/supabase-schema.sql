@@ -1,5 +1,6 @@
 
 -- Drop existing tables if they exist (careful in production!)
+DROP TABLE IF EXISTS contact_messages CASCADE;
 DROP TABLE IF EXISTS qr_scan_logs CASCADE;
 DROP TABLE IF EXISTS attendance_status CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
@@ -16,8 +17,23 @@ CREATE TABLE users (
   name TEXT,
   avatar_url TEXT,
   is_organiser BOOLEAN DEFAULT FALSE,
+  is_support BOOLEAN DEFAULT FALSE,
   course TEXT,
   register_number TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Contact messages table
+CREATE TABLE contact_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL,
+  source TEXT DEFAULT 'contact',
+  status TEXT DEFAULT 'new',
+  handled_by UUID,
+  handled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -129,12 +145,15 @@ CREATE TABLE qr_scan_logs (
 -- Create indexes for better performance
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_auth_uuid ON users(auth_uuid);
+CREATE INDEX idx_contact_messages_status ON contact_messages(status);
+
 CREATE INDEX idx_events_event_id ON events(event_id);
 CREATE INDEX idx_registrations_event_id ON registrations(event_id);
 CREATE INDEX idx_registrations_user_email ON registrations(user_email);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
@@ -144,6 +163,7 @@ ALTER TABLE qr_scan_logs ENABLE ROW LEVEL SECURITY;
 
 -- Create policies to allow all access (you can restrict these later)
 CREATE POLICY "Allow all access to users" ON users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to contact_messages" ON contact_messages FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to events" ON events FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to fests" ON fests FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to registrations" ON registrations FOR ALL USING (true) WITH CHECK (true);

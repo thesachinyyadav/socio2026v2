@@ -145,6 +145,7 @@ router.post("/", async (req, res) => {
         name: name || "New User",
         avatar_url: avatarUrl,
         is_organiser: false,
+        is_support: false,
         register_number: registerNumber,
         course: course
       })

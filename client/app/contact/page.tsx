@@ -5,6 +5,7 @@ import Link from "next/link";
 import Footer from "../_components/Home/Footer";
 
 const ContactPage = () => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -14,6 +15,7 @@ const ContactPage = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"success" | "error" | null>(null);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -27,14 +29,32 @@ const ContactPage = () => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus(null);
+    setSubmitMessage(null);
 
-    // Simulate form submission
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch(`${API_URL}/api/contact`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...formData,
+          source: "contact_page"
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.message || "Unable to send message.");
+      }
+
       setSubmitStatus("success");
+      setSubmitMessage("Message sent successfully! We'll get back to you soon.");
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
       setSubmitStatus("error");
+      const message = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+      setSubmitMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -177,7 +197,7 @@ const ContactPage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <p className="text-green-800 font-medium">Message sent successfully! We'll get back to you soon.</p>
+                  <p className="text-green-800 font-medium">{submitMessage || "Message sent successfully! We'll get back to you soon."}</p>
                 </div>
               </div>
             )}
@@ -188,7 +208,7 @@ const ContactPage = () => {
                   <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <p className="text-red-800 font-medium">Failed to send message. Please try again.</p>
+                  <p className="text-red-800 font-medium">{submitMessage || "Failed to send message. Please try again."}</p>
                 </div>
               </div>
             )}

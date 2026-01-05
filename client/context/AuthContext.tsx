@@ -20,6 +20,7 @@ type UserData = {
   badges: any;
   campus: string | null;
   is_organiser: boolean;
+  is_support: boolean;
   avatar_url: string | null;
 };
 
@@ -27,6 +28,7 @@ type AuthContextType = {
   session: Session | null;
   userData: UserData | null;
   isLoading: boolean;
+  isSupport: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -204,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const data = await response.json();
-      setUserData(data.user);
+      setUserData({ ...data.user, is_support: Boolean(data.user?.is_support) });
     } catch (error) {
       console.error("Error fetching user data:", error);
       setUserData(null);
@@ -236,9 +238,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const isSupport = Boolean(userData?.is_support);
+
   return (
     <AuthContext.Provider
-      value={{ session, userData, isLoading, signInWithGoogle, signOut }}
+      value={{ session, userData, isLoading, isSupport, signInWithGoogle, signOut }}
     >
       {children}
     </AuthContext.Provider>

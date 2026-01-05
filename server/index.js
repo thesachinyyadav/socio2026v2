@@ -13,6 +13,7 @@ import registrationRoutes from "./routes/registrationRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
 
 dotenv.config();
 
@@ -41,7 +42,9 @@ app.get('/', (req, res) => {
       fests: '/api/fests',
       registrations: '/api/registrations',
       attendance: '/api/attendance',
-      notifications: '/api/notifications'
+      notifications: '/api/notifications',
+      contact: '/api/contact',
+      supportMessages: '/api/support/messages'
     }
   });
 });
@@ -53,6 +56,7 @@ app.use("/api", registrationRoutes);
 app.use("/api", attendanceRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", uploadRoutes);
+app.use("/api", contactRoutes);
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
