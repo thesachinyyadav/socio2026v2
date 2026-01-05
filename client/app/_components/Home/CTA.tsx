@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserClient } from "@supabase/ssr";
 import gsap from "gsap";
 import TermsConsentModal from "../TermsConsentModal";
 import { useTermsConsent } from "@/context/TermsConsentContext";
@@ -20,7 +20,10 @@ const CTA = () => {
     }
     
     // If already consented or not requiring consent, proceed with sign in
-    const supabase = createClientComponentClient();
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
     try {
       await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -37,7 +40,10 @@ const CTA = () => {
     setHasConsented(true);
     setShowTermsModal(false);
     // After accepting terms, trigger the sign in
-    const supabase = createClientComponentClient();
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
     try {
       supabase.auth.signInWithOAuth({
         provider: "google",

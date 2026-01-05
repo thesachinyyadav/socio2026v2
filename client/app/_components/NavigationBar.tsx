@@ -8,7 +8,7 @@ import { NotificationSystem } from "./NotificationSystem";
 import { useState } from "react";
 import TermsConsentModal from "./TermsConsentModal";
 import { useTermsConsent } from "@/context/TermsConsentContext";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserClient } from "@supabase/ssr";
 
 const navigationLinks = [
   {
