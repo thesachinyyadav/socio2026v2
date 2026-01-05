@@ -29,6 +29,23 @@ app.use(cors());
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'SOCIO API Server',
+    status: 'running',
+    version: '2.0',
+    endpoints: {
+      users: '/api/users',
+      events: '/api/events',
+      fests: '/api/fests',
+      registrations: '/api/registrations',
+      attendance: '/api/attendance',
+      notifications: '/api/notifications'
+    }
+  });
+});
+
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/fests", festRoutes);
