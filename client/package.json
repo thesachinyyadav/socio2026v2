@@ -12,6 +12,7 @@
     "@hookform/resolvers": "^5.0.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.57.4",
+    "@vercel/speed-insights": "^1.1.0",
     "exceljs": "^4.4.0",
     "gsap": "^3.13.0",
     "moment": "^2.30.1",

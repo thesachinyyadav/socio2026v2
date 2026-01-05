@@ -4,6 +4,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { TermsConsentProvider } from "@/context/TermsConsentContext";
 import NavigationBar from "./_components/NavigationBar";
 import { createClient } from "@supabase/supabase-js";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import {
   EventsProvider,
@@ -195,6 +196,7 @@ export default async function RootLayout({
             </EventsProvider>
           </TermsConsentProvider>
         </AuthProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
