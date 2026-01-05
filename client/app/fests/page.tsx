@@ -36,8 +36,10 @@ const FestsPage = () => {
   ]);
 
   const [allFests, setAllFests] = useState<Fest[]>([]);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  
   useEffect(() => {
-    fetch("http://localhost:8000/api/fests")
+    fetch(`${API_URL}/api/fests`)
       .then((res) => res.json())
       .then((data) => {
         // Assuming the API returns { fests: Fest[] }
