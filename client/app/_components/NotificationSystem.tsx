@@ -41,9 +41,10 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
     if (!session?.access_token) return;
 
     setLoading(true);
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
       const response = await fetch(
-        `http://localhost:8000/api/notifications`,
+        `${API_URL}/api/notifications`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,

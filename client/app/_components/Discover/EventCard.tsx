@@ -185,7 +185,7 @@ export const EventCard = ({
           </div>
         </div>
         {!authLoading && userData?.is_organiser ? (
-          <div className="mt-auto pt-2 border-t border-gray-200 space-y-2">
+          <div className="mt-auto pt-2 border-t border-gray-200 flex gap-4">
             <Link
               href={participantsPageUrl}
               className="inline-flex items-center gap-1 text-sm text-[#154CB3] font-semibold hover:underline"

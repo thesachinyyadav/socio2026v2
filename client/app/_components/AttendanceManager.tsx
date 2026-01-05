@@ -40,10 +40,11 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     
     setLoading(true);
     setError(null);
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     
     try {
       const response = await fetch(
-        `http://localhost:8000/api/events/${eventId}/participants`,
+        `${API_URL}/api/events/${eventId}/participants`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,

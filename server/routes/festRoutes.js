@@ -1,24 +1,26 @@
 import express from "express";
-import db from "../config/database.js";
+import { createClient } from '@supabase/supabase-js';
 import { getPathFromStorageUrl, deleteFileFromLocal } from "../utils/fileUtils.js";
 import { v4 as uuidv4 } from "uuid";
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const router = express.Router();
 
 // GET all fests
 router.get("/", async (req, res) => {
   try {
-    const stmt = db.prepare("SELECT * FROM fests ORDER BY created_at DESC");
-    const fests = stmt.all();
+    const { data: fests, error } = await supabase
+      .from('fest')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    // Parse JSON fields for each fest
-    const processedFests = fests.map(fest => ({
-      ...fest,
-      department_access: fest.department_access ? JSON.parse(fest.department_access) : [],
-      event_heads: fest.event_heads ? JSON.parse(fest.event_heads) : []
-    }));
+    if (error) throw error;
 
-    return res.send({ fests: processedFests });
+    return res.send({ fests: fests || [] });
   } catch (error) {
     console.error("Error fetching fests:", error);
     return res.status(500).json({ error: "Internal server error while fetching fests." });
@@ -29,27 +31,25 @@ router.get("/", async (req, res) => {
 router.get("/:festId", async (req, res) => {
   try {
     const { festId: festSlug } = req.params;
-    if (!festSlug || typeof festSlug !== "string" || festSlug.trim() === "") {
+    if (!festId || typeof festSlug !== "string" || festSlug.trim() === "") {
       return res.status(400).json({
         error: "Fest ID (slug) must be provided in the URL path and be a non-empty string.",
       });
     }
 
-    const stmt = db.prepare("SELECT * FROM fests WHERE fest_id = ?");
-    const fest = stmt.get(festSlug);
+    const { data: fest, error } = await supabase
+      .from('fest')
+      .select('*')
+      .eq('fest_id', festSlug)
+      .single();
 
+    if (error && error.code !== 'PGRST116') throw error;
+    
     if (!fest) {
       return res.status(404).json({ error: `Fest with ID (slug) '${festSlug}' not found.` });
     }
 
-    // Parse JSON fields
-    const processedFest = {
-      ...fest,
-      department_access: fest.department_access ? JSON.parse(fest.department_access) : [],
-      event_heads: fest.event_heads ? JSON.parse(fest.event_heads) : []
-    };
-
-    return res.status(200).json({ fest: processedFest });
+    return res.status(200).json({ fest });
   } catch (error) {
     console.error("Error fetching fest:", error);
     return res.status(500).json({ error: "Internal server error while fetching specific fest." });
