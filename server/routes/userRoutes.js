@@ -1,11 +1,17 @@
 import express from "express";
-import { queryAll, queryOne, executeQuery } from "../config/database.js";
+import { queryAll, queryOne } from "../config/database.js";
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const users = await queryAll("SELECT * FROM users");
+    const users = await queryAll("users");
     return res.status(200).json({ users });
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -16,7 +22,7 @@ router.get("/", async (req, res) => {
 router.get("/:email", async (req, res) => {
   try {
     const { email } = req.params;
-    const user = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+    const user = await queryOne("users", { where: { email } });
     
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -38,42 +44,39 @@ router.post("/", async (req, res) => {
         .json({ error: "Invalid user data: email is required" });
     }
 
-    // Check if user already exists by email or auth_uuid
-    const existingUser = await queryOne(
-      "SELECT * FROM users WHERE email = ? OR (auth_uuid IS NOT NULL AND auth_uuid = ?)", 
-      [authClientUser.email, authClientUser.id]
-    );
+    // Check if user already exists by email
+    const existingUser = await queryOne("users", { where: { email: authClientUser.email } });
 
     if (existingUser) {
-      // If user exists, check if we need to update fields
-      const fieldsToUpdate = [];
+      // Build update object for fields that need updating
+      const updateData = {};
       
       // Check if auth_uuid needs updating
       if (!existingUser.auth_uuid && authClientUser.id) {
-        fieldsToUpdate.push("auth_uuid = ?");
-        params.push(authClientUser.id);
+        updateData.auth_uuid = authClientUser.id;
       }
       
       // Check if register_number needs updating
       if ((!existingUser.register_number || existingUser.register_number === 0) && 
           authClientUser.register_number) {
-        fieldsToUpdate.push("register_number = ?");
-        params.push(authClientUser.register_number);
+        updateData.register_number = authClientUser.register_number;
       }
       
       // Check if course needs updating
       if (!existingUser.course && authClientUser.course) {
-        fieldsToUpdate.push("course = ?");
-        params.push(authClientUser.course);
+        updateData.course = authClientUser.course;
       }
       
       // Update user if needed
-      if (fieldsToUpdate.length > 0) {
-        params.push(authClientUser.email); // Add email for WHERE clause
-        await executeQuery(`UPDATE users SET ${fieldsToUpdate.join(", ")} WHERE email = ?`, params);
+      if (Object.keys(updateData).length > 0) {
+        const { data: updatedUser, error } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('email', authClientUser.email)
+          .select()
+          .single();
         
-        // Get updated user
-        const updatedUser = await queryOne("SELECT * FROM users WHERE email = ?", [authClientUser.email]);
+        if (error) throw error;
         
         return res.status(200).json({
           user: updatedUser,
@@ -134,21 +137,21 @@ router.post("/", async (req, res) => {
       course
     });
 
-    await executeQuery(`
-      INSERT INTO users (auth_uuid, email, name, avatar_url, is_organiser, register_number, course)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [
-      authClientUser.id || null,
-      authClientUser.email,
-      name || "New User",
-      avatarUrl,
-      false, // MySQL uses boolean
-      registerNumber,
-      course
-    ]);
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        auth_uuid: authClientUser.id || null,
+        email: authClientUser.email,
+        name: name || "New User",
+        avatar_url: avatarUrl,
+        is_organiser: false,
+        register_number: registerNumber,
+        course: course
+      })
+      .select()
+      .single();
 
-    // Get the newly created user
-    const newUser = await queryOne("SELECT * FROM users WHERE email = ?", [authClientUser.email]);
+    if (insertError) throw insertError;
 
     return res.status(201).json({
       user: newUser,

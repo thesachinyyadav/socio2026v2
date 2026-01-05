@@ -55,13 +55,14 @@ const DiscoverPage = () => {
   const [upcomingFests, setUpcomingFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);
   const [errorFests, setErrorFests] = useState<string | null>(null);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchFests = async () => {
       setIsLoadingFests(true);
       setErrorFests(null);
       try {
-        const response = await fetch("http://localhost:8000/api/fests");
+        const response = await fetch(`${API_URL}/api/fests`);
         if (!response.ok) {
           throw new Error(
             `Network response for fests was not ok: ${response.status} ${response.statusText}`

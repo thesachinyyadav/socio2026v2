@@ -90,6 +90,7 @@ const StudentProfile = () => {
       // Fetch registered events if possible
       const fetchRegisteredEvents = async () => {
         setIsLoadingRegisteredEvents(true);
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         try {
           // Check if we have a registration number
           if (!userData.register_number) {
@@ -101,7 +102,7 @@ const StudentProfile = () => {
           }
 
           const response = await fetch(
-            `http://localhost:8000/api/registrations/user/${userData.register_number}/events`
+            `${API_URL}/api/registrations/user/${userData.register_number}/events`
           );
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
