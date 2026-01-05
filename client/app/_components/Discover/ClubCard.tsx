@@ -19,7 +19,7 @@ export const CentreClubCard = ({
   type,
 }: CardProps) => {
   // Create URL-friendly version of title for linking
-  const slugTitle = title
+  const slugTitle = (title || "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")

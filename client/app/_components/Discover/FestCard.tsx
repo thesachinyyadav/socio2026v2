@@ -18,7 +18,7 @@ export const FestCard = ({
   image,
   baseUrl = "fest",
 }: FestCardProps) => {
-  const formattedTitle = title
+  const formattedTitle = (title || "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")

@@ -50,10 +50,11 @@ export const EventCard = ({
           {tags.length > 0 && (
             <div className="absolute top-2 right-2 flex gap-2 z-10 items-center flex-wrap justify-end">
               {(tags || []).map((tag, index) => {
-                if (!tag) return null;
+                if (!tag || typeof tag !== 'string') return null;
 
                 const titleTag = tag
                   .split(" ")
+                  .filter(word => word && word.length > 0)
                   .map(
                     (word) =>
                       word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
