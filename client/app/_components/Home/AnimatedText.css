@@ -1,0 +1,176 @@
+/* AnimatedText.css */
+
+.animated-text-container {
+  width: 100%;
+  overflow: hidden;
+  perspective: 1000px;
+  background: linear-gradient(180deg, rgba(21, 76, 179, 0.05) 0%, rgba(255, 204, 0, 0.05) 100%);
+  position: relative;
+}
+
+.animated-text-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(21, 76, 179, 0.3), transparent);
+}
+
+.animated-text-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 204, 0, 0.3), transparent);
+}
+
+.word-group {
+  display: inline-block;
+  position: relative;
+  margin: 0 0.1em;
+}
+
+.char {
+  display: inline-block;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.05s ease;
+  will-change: transform, color, text-shadow;
+  overflow: hidden;
+}
+
+.char.space {
+  display: inline-block;
+  color: rgba(255, 204, 0, 0.7);
+  font-weight: bold;
+}
+
+.word-group {
+  display: inline-block;
+  position: relative;
+  margin: 0 0.2em;
+}
+
+/* Light sweep effect */
+.text-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.shine::before {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 80%;
+  height: 300%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(25deg);
+  animation: shine 3s infinite;
+  z-index: 2;
+  pointer-events: none;
+  filter: blur(3px);
+}
+
+@keyframes shine {
+  0% { 
+    left: -150%; 
+    top: -100%;
+  }
+  100% { 
+    left: 250%; 
+    top: 0%;
+  }
+}
+
+.animate-word .char {
+  display: inline-block;
+  will-change: transform, color, text-shadow;
+}
+
+.space-dot {
+  display: inline-block;
+  position: relative;
+}
+
+@keyframes char-pulse {
+  0%, 100% { 
+    transform: translateY(0) scale(1); 
+    color: inherit;
+    text-shadow: none;
+  }
+  50% { 
+    transform: translateY(-5px) scale(1.1); 
+    color: #FFCC00;
+    text-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
+  }
+}
+
+/* Glitch effect */
+.char::before,
+.char::after {
+  content: attr(data-char);
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform: translateZ(-1px);
+}
+
+.char::before {
+  color: #063168;
+  transform: translateX(-2px) translateZ(-1px);
+}
+
+.char::after {
+  color: #3D75BD;
+  transform: translateX(2px) translateZ(-1px);
+}
+
+.char:hover::before,
+.char:hover::after {
+  opacity: 0.3;
+  animation: glitch 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+}
+
+@keyframes glitch {
+  0% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-3px, 3px);
+  }
+  40% {
+    transform: translate(-3px, -3px);
+  }
+  60% {
+    transform: translate(3px, 3px);
+  }
+  80% {
+    transform: translate(3px, -3px);
+  }
+  100% {
+    transform: translate(0);
+  }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50% }
+  50% { background-position: 100% 50% }
+  100% { background-position: 0% 50% }
+}
