@@ -14,7 +14,7 @@ interface FunkyButtonProps {
 
 const FunkyButton: React.FC<FunkyButtonProps> = ({
   text = "Get Started",
-  link = "/discover",
+  link = "/Discover",
   onClick,
   className = "",
 }) => {
