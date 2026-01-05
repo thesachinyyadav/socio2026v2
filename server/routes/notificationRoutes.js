@@ -1,6 +1,11 @@
 import express from "express";
-import db from "../config/database.js";
+import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from "uuid";
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const router = express.Router();
 
@@ -13,16 +18,16 @@ router.get("/notifications", async (req, res) => {
       return res.status(400).json({ error: "Email parameter is required" });
     }
 
-    const stmt = db.prepare(`
-      SELECT * FROM notifications 
-      WHERE recipient_email = ? 
-      ORDER BY created_at DESC 
-      LIMIT 50
-    `);
-    
-    const notifications = stmt.all(email);
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_email', email)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    return res.json({ notifications });
+    if (error) throw error;
+
+    return res.json({ notifications: notifications || [] });
 
   } catch (error) {
     console.error("Error fetching notifications:", error);
@@ -35,15 +40,18 @@ router.patch("/notifications/:id/read", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const stmt = db.prepare(`
-      UPDATE notifications 
-      SET is_read = 1, read_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-    
-    const result = stmt.run(id);
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ 
+        is_read: true, 
+        read_at: new Date().toISOString() 
+      })
+      .eq('id', id)
+      .select();
 
-    if (result.changes === 0) {
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
       return res.status(404).json({ error: "Notification not found" });
     }
 
@@ -66,27 +74,24 @@ router.post("/notifications", async (req, res) => {
       });
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO notifications (id, title, message, type, event_id, event_title, action_url, recipient_email)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
     const notificationId = uuidv4().replace(/-/g, '');
     
-    const result = stmt.run(
-      notificationId,
-      title,
-      message,
-      type || 'info',
-      event_id || null,
-      event_title || null,
-      action_url || null,
-      recipient_email
-    );
+    const { data: notification, error } = await supabase
+      .from('notifications')
+      .insert({
+        id: notificationId,
+        title,
+        message,
+        type: type || 'info',
+        event_id: event_id || null,
+        event_title: event_title || null,
+        action_url: action_url || null,
+        recipient_email
+      })
+      .select()
+      .single();
 
-    // Get the created notification
-    const getStmt = db.prepare("SELECT * FROM notifications WHERE id = ?");
-    const notification = getStmt.get(notificationId);
+    if (error) throw error;
 
     return res.status(201).json({ notification });
 
@@ -105,16 +110,20 @@ router.patch("/notifications/mark-read", async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
 
-    const stmt = db.prepare(`
-      UPDATE notifications 
-      SET is_read = 1, read_at = CURRENT_TIMESTAMP
-      WHERE recipient_email = ? AND is_read = 0
-    `);
-    
-    const result = stmt.run(email);
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ 
+        is_read: true, 
+        read_at: new Date().toISOString() 
+      })
+      .eq('recipient_email', email)
+      .eq('is_read', false)
+      .select();
+
+    if (error) throw error;
 
     return res.json({ 
-      message: `Marked ${result.changes} notifications as read` 
+      message: `Marked ${data?.length || 0} notifications as read` 
     });
 
   } catch (error) {

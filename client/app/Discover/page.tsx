@@ -110,7 +110,7 @@ const DiscoverPage = () => {
     return baseCategories.map((cat) => {
       const count = allEvents.filter(
         (event: ContextFetchedEvent) =>
-          event.category?.toLowerCase() === cat.title.toLowerCase()
+          event.category?.toLowerCase() === cat.title?.toLowerCase()
       ).length;
       return { ...cat, count: `${count} event${count !== 1 ? "s" : ""}` };
     });
