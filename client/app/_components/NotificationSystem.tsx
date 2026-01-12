@@ -39,13 +39,14 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
   }, [userData?.email]);
 
   const fetchNotifications = async () => {
-    if (!session?.access_token) return;
+    if (!session?.access_token || !userData?.email) return;
 
     setLoading(true);
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
+      const email = userData.email;
       const response = await fetch(
-        `${API_URL}/api/notifications?email=${encodeURIComponent(userData.email)}`,
+        `${API_URL}/api/notifications?email=${encodeURIComponent(email)}`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -94,9 +95,10 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
   };
 
   const markAllAsRead = async () => {
-    if (!session?.access_token) return;
+    if (!session?.access_token || !userData?.email) return;
 
     try {
+      const email = userData.email;
       const response = await fetch(
         `${API_URL}/api/notifications/mark-read`,
         {
@@ -105,7 +107,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ email: userData.email })
+          body: JSON.stringify({ email })
         }
       );
 

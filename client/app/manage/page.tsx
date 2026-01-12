@@ -34,6 +34,7 @@ const Page = () => {
   const [fests, setFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);
   const [festsError, setFestsError] = useState<string | null>(null);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     if (!userData?.email) {
@@ -43,7 +44,7 @@ const Page = () => {
     }
     setIsLoadingFests(true);
     setFestsError(null);
-    fetch("http://localhost:8000/api/fests")
+    fetch(`${API_URL}/api/fests`)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
