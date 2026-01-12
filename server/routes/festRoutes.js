@@ -11,34 +11,51 @@ const normalizeJsonField = (value) => {
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : parsed || [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
+      console.warn("Failed to parse JSON field:", error.message);
       return [];
     }
   }
-  return value;
+  if (typeof value === "object" && value !== null) {
+    return Array.isArray(value) ? value : [];
+  }
+  return [];
 };
 
 const mapFestResponse = (fest) => {
   if (!fest) return fest;
-  return {
-    ...fest,
-    department_access: normalizeJsonField(fest.department_access),
-    event_heads: normalizeJsonField(fest.event_heads)
-  };
+  try {
+    return {
+      ...fest,
+      department_access: normalizeJsonField(fest.department_access),
+      event_heads: normalizeJsonField(fest.event_heads)
+    };
+  } catch (error) {
+    console.error("Error mapping fest response:", error.message, fest);
+    return fest;
+  }
 };
 
 // GET all fests
 router.get("/", async (req, res) => {
   try {
+    console.log("Fetching all fests...");
     const fests = await queryAll("fests", {
       order: { column: "created_at", ascending: false }
     });
-
-    return res.status(200).json({ fests: (fests || []).map(mapFestResponse) });
+    
+    console.log(`Found ${fests?.length || 0} fests`);
+    
+    const processedFests = (fests || []).map(mapFestResponse);
+    return res.status(200).json({ fests: processedFests });
   } catch (error) {
     console.error("Error fetching fests:", error);
-    return res.status(500).json({ error: "Internal server error while fetching fests." });
+    console.error("Error details:", error.message, error.stack);
+    return res.status(500).json({ 
+      error: "Internal server error while fetching fests.",
+      details: error.message 
+    });
   }
 });
 

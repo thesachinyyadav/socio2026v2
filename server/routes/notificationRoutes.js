@@ -21,7 +21,7 @@ router.get("/notifications", async (req, res) => {
     const { data: notifications, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('recipient_email', email)
+      .eq('user_email', email)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -43,8 +43,7 @@ router.patch("/notifications/:id/read", async (req, res) => {
     const { data, error } = await supabase
       .from('notifications')
       .update({ 
-        is_read: true, 
-        read_at: new Date().toISOString() 
+        read: true
       })
       .eq('id', id)
       .select();
@@ -66,11 +65,13 @@ router.patch("/notifications/:id/read", async (req, res) => {
 // Create a notification (for internal use)
 router.post("/notifications", async (req, res) => {
   try {
-    const { title, message, type, event_id, event_title, action_url, recipient_email } = req.body;
+    const { title, message, type, event_id, event_title, action_url, recipient_email, user_email } = req.body;
 
-    if (!title || !message || !recipient_email) {
+    const targetEmail = user_email || recipient_email;
+
+    if (!title || !message || !targetEmail) {
       return res.status(400).json({ 
-        error: "title, message, and recipient_email are required" 
+        error: "title, message, and user_email are required" 
       });
     }
 
@@ -86,7 +87,7 @@ router.post("/notifications", async (req, res) => {
         event_id: event_id || null,
         event_title: event_title || null,
         action_url: action_url || null,
-        recipient_email
+        user_email: targetEmail
       })
       .select()
       .single();
@@ -113,11 +114,10 @@ router.patch("/notifications/mark-read", async (req, res) => {
     const { data, error } = await supabase
       .from('notifications')
       .update({ 
-        is_read: true, 
-        read_at: new Date().toISOString() 
+        read: true
       })
-      .eq('recipient_email', email)
-      .eq('is_read', false)
+      .eq('user_email', email)
+      .eq('read', false)
       .select();
 
     if (error) throw error;
