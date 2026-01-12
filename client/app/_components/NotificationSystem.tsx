@@ -27,6 +27,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { userData, session } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     if (userData?.email) {
@@ -44,7 +45,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
       const response = await fetch(
-        `${API_URL}/api/notifications`,
+        `${API_URL}/api/notifications?email=${encodeURIComponent(userData.email)}`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -69,12 +70,13 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/notifications/${notificationId}/read`,
+        `${API_URL}/api/notifications/${notificationId}/read`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: {
             Authorization: `Bearer ${session.access_token}`,
-          },
+            "Content-Type": "application/json"
+          }
         }
       );
 
@@ -96,12 +98,14 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/notifications/read-all`,
+        `${API_URL}/api/notifications/mark-read`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: {
             Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json"
           },
+          body: JSON.stringify({ email: userData.email })
         }
       );
 
