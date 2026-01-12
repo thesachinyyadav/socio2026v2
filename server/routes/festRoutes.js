@@ -14,7 +14,7 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const { data: fests, error } = await supabase
-      .from('fest')
+      .from('fests')
       .select('*')
       .order('created_at', { ascending: false });
 
