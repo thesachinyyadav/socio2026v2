@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticateUser } from '../middleware/authMiddleware.js';
 import { multerUpload } from '../utils/multerConfig.js';
-import { uploadFileToLocal } from '../utils/fileUtils.js';
+import { uploadFileToSupabase } from '../utils/fileUtils.js';
 import path from 'path';
 
 const router = express.Router();
@@ -13,8 +13,7 @@ router.post('/upload/fest-image', authenticateUser, multerUpload.single('file'),
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Save the file locally
-    const result = await uploadFileToLocal(req.file, 'fest-images');
+    const result = await uploadFileToSupabase(req.file, 'fest-images', 'fest');
     
     // Get the public URL from the result
     const url = result.publicUrl;

@@ -2,14 +2,21 @@ import path from "path";
 import fs from "fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { fileURLToPath } from 'url';
+import { supabase } from "../config/database.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const UPLOAD_BASE_DIR = path.join(__dirname, "..", "uploads");
+const storageMode = (process.env.FILE_STORAGE_MODE || "supabase").toLowerCase();
+const useLocalStorage = storageMode === "local";
 
-// Ensure upload directories exist
+// Ensure upload directories exist (local storage only)
 const createDirectories = async () => {
+  if (!useLocalStorage) {
+    return;
+  }
+
   const dirs = [
     path.join(UPLOAD_BASE_DIR, "event-images"),
     path.join(UPLOAD_BASE_DIR, "event-banners"),
@@ -40,7 +47,7 @@ export const getPathFromStorageUrl = (url, bucketName) => {
   }
 };
 
-// Renamed to reflect that we're only using local storage now
+// Local storage implementation (used only when FILE_STORAGE_MODE=local)
 export async function uploadFileToLocal(file, bucketName, eventIdForPath) {
   if (!file) return null;
 
@@ -67,13 +74,57 @@ export async function uploadFileToLocal(file, bucketName, eventIdForPath) {
 export async function deleteFileFromLocal(filePath, bucketName) {
   if (!filePath || !bucketName) return;
 
+  if (useLocalStorage) {
+    try {
+      const fullPath = path.join(UPLOAD_BASE_DIR, bucketName, filePath);
+      await fs.unlink(fullPath);
+    } catch (error) {
+      console.warn(`Failed to delete file ${filePath} from ${bucketName}:`, error.message);
+    }
+    return;
+  }
+
   try {
-    const fullPath = path.join(UPLOAD_BASE_DIR, bucketName, filePath);
-    await fs.unlink(fullPath);
+    const { error } = await supabase.storage.from(bucketName).remove([filePath]);
+    if (error) {
+      console.warn(`Failed to delete file ${filePath} from ${bucketName}:`, error.message);
+    }
   } catch (error) {
     console.warn(`Failed to delete file ${filePath} from ${bucketName}:`, error.message);
   }
 }
 
-// For backward compatibility
-export const uploadFileToSupabase = uploadFileToLocal;
+export async function uploadFileToSupabase(file, bucketName, eventIdForPath) {
+  if (!file) return null;
+
+  if (useLocalStorage) {
+    return uploadFileToLocal(file, bucketName, eventIdForPath);
+  }
+
+  const fileExtension = path.extname(file.originalname) || "";
+  const safePrefix = eventIdForPath ? `${eventIdForPath}_` : "asset_";
+  const fileName = `${safePrefix}${uuidv4()}${fileExtension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(bucketName)
+    .upload(fileName, file.buffer, {
+      contentType: file.mimetype,
+      cacheControl: "3600",
+      upsert: false
+    });
+
+  if (uploadError) {
+    throw new Error(`Supabase upload failed: ${uploadError.message}`);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(fileName);
+
+  const publicUrl = publicUrlData?.publicUrl;
+  if (!publicUrl) {
+    throw new Error("Unable to generate public URL for uploaded file");
+  }
+
+  return { publicUrl, path: fileName };
+}
