@@ -10,6 +10,7 @@ import {
 } from "../../context/EventContext";
 import moment from "moment";
 import Link from "next/link";
+import { getFests } from "@/lib/api";
 
 interface Fest {
   fest_id: string;
@@ -34,7 +35,6 @@ const Page = () => {
   const [fests, setFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);
   const [festsError, setFestsError] = useState<string | null>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     if (!userData?.email) {
@@ -44,27 +44,30 @@ const Page = () => {
     }
     setIsLoadingFests(true);
     setFestsError(null);
-    fetch(`${API_URL}/api/fests`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
+    getFests()
       .then((data) => {
-        if (data && Array.isArray(data.fests)) {
-          const userSpecificFests = data.fests.filter(
-            (fest: Fest) => fest.created_by === userData.email
-          );
-          setFests(userSpecificFests);
-        } else {
-          setFests([]);
-          setFestsError("Unexpected fest data format from server.");
-        }
+        const mappedFests: Fest[] = Array.isArray(data)
+          ? data.map((fest: any) => ({
+              fest_id: fest.fest_id,
+              fest_title: fest.fest_title || fest.title || "Untitled fest",
+              description: fest.description || "",
+              opening_date: fest.opening_date || null,
+              closing_date: fest.closing_date || null,
+              fest_image_url: fest.fest_image_url || "",
+              organizing_dept: fest.organizing_dept || "",
+              created_by: fest.created_by || null,
+            }))
+          : [];
+
+        const userSpecificFests = mappedFests.filter(
+          (fest) => fest.created_by === userData.email
+        );
+
+        setFests(userSpecificFests);
       })
-      .catch((error) => {
+      .catch((error: any) => {
         setFests([]);
-        setFestsError(error.message || "Failed to fetch fests.");
+        setFestsError(error?.message || "Failed to fetch fests.");
       })
       .finally(() => {
         setIsLoadingFests(false);

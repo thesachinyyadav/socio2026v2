@@ -7,6 +7,7 @@ import { FestsSection } from "../_components/Discover/FestSection";
 import { CategorySection } from "../_components/Discover/CategorySection";
 import { ClubSection } from "../_components/Discover/ClubSection";
 import Footer from "../_components/Home/Footer";
+import { getFests } from "@/lib/api";
 
 import {
   useEvents,
@@ -14,14 +15,14 @@ import {
 } from "../../context/EventContext";
 
 interface Fest {
-  id: number;
+  id: number | null;
   fest_id: string;
   title: string;
-  opening_date: string;
-  closing_date: string;
-  description: string;
-  fest_image_url: string;
-  organizing_dept: string;
+  opening_date: string | null;
+  closing_date: string | null;
+  description: string | null;
+  fest_image_url: string | null;
+  organizing_dept: string | null;
 }
 
 interface Category {
@@ -55,33 +56,34 @@ const DiscoverPage = () => {
   const [upcomingFests, setUpcomingFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);
   const [errorFests, setErrorFests] = useState<string | null>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchFests = async () => {
       setIsLoadingFests(true);
       setErrorFests(null);
       try {
-        const response = await fetch(`${API_URL}/api/fests`);
-        if (!response.ok) {
-          throw new Error(
-            `Network response for fests was not ok: ${response.status} ${response.statusText}`
-          );
-        }
-        const data = await response.json();
+        const data = await getFests();
 
-        if (data.fests && Array.isArray(data.fests)) {
-          const typedFests: Fest[] = data.fests;
-          const sortedFests = typedFests.sort(
-            (a, b) =>
-              new Date(b.opening_date).getTime() -
-              new Date(a.opening_date).getTime()
-          );
-          const recentFests = sortedFests.slice(0, 3);
-          setUpcomingFests(recentFests);
-        } else {
-          setUpcomingFests([]);
-        }
+        const mappedFests: Fest[] = Array.isArray(data)
+          ? data.map((fest: any) => ({
+              id: fest.id ?? null,
+              fest_id: fest.fest_id,
+              title: fest.fest_title || fest.title || "Untitled fest",
+              opening_date: fest.opening_date ?? null,
+              closing_date: fest.closing_date ?? null,
+              description: fest.description ?? null,
+              fest_image_url: fest.fest_image_url ?? null,
+              organizing_dept: fest.organizing_dept ?? null,
+            }))
+          : [];
+
+        const sortedFests = mappedFests.sort(
+          (a, b) =>
+            new Date(b.opening_date ?? 0).getTime() -
+            new Date(a.opening_date ?? 0).getTime()
+        );
+        const recentFests = sortedFests.slice(0, 3);
+        setUpcomingFests(recentFests);
       } catch (err: any) {
         setErrorFests(err.message || "Failed to load fests.");
         setUpcomingFests([]);
