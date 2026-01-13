@@ -41,7 +41,7 @@ const mapFestResponse = (fest) => {
 router.get("/", async (req, res) => {
   try {
     console.log("Fetching all fests...");
-    const fests = await queryAll("fests", {
+  const fests = await queryAll("fest", {
       order: { column: "created_at", ascending: false }
     });
     
@@ -69,7 +69,7 @@ router.get("/:festId", async (req, res) => {
       });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festSlug } });
+  const fest = await queryOne("fest", { where: { fest_id: festSlug } });
 
     if (!fest) {
       return res.status(404).json({ error: `Fest with ID (slug) '${festSlug}' not found.` });
@@ -112,7 +112,7 @@ router.post("/", async (req, res) => {
       created_by: festData.createdBy || festData.created_by || "admin"
     };
 
-    const inserted = await insert("fests", [festPayload]);
+  const inserted = await insert("fest", [festPayload]);
     const createdFest = inserted?.[0];
 
     return res.status(201).json({
@@ -133,7 +133,7 @@ router.put("/:festId", async (req, res) => {
     const updateData = req.body;
 
     // Check if fest exists
-    const existingFest = await queryOne("fests", { where: { fest_id: festId } });
+  const existingFest = await queryOne("fest", { where: { fest_id: festId } });
 
     if (!existingFest) {
       return res.status(404).json({ error: "Fest not found" });
@@ -167,7 +167,7 @@ router.put("/:festId", async (req, res) => {
 
     updatePayload.updated_at = new Date().toISOString();
 
-    const updated = await update("fests", updatePayload, { fest_id: festId });
+  const updated = await update("fest", updatePayload, { fest_id: festId });
     const updatedFest = updated?.[0];
 
     return res.status(200).json({
@@ -187,7 +187,7 @@ router.delete("/:festId", async (req, res) => {
     const { festId } = req.params;
 
     // Get fest details first
-    const existingFest = await queryOne("fests", { where: { fest_id: festId } });
+  const existingFest = await queryOne("fest", { where: { fest_id: festId } });
 
     if (!existingFest) {
       return res.status(404).json({ error: "Fest not found" });
@@ -205,7 +205,7 @@ router.delete("/:festId", async (req, res) => {
     }
 
     // Delete the fest
-    const deleted = await remove("fests", { fest_id: festId });
+  const deleted = await remove("fest", { fest_id: festId });
     if (!deleted || deleted.length === 0) {
       return res.status(404).json({ error: "Fest not found" });
     }

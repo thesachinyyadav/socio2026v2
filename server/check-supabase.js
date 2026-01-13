@@ -37,7 +37,7 @@ async function checkSupabase() {
   
   // Fests
   const { data: fests, count: festCount } = await supabase
-    .from('fests')
+    .from('fest')
     .select('*', { count: 'exact' });
   console.log(`\n🎉 Fests: ${festCount}`);
   

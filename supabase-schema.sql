@@ -48,8 +48,8 @@ CREATE TABLE events (
   total_participants INTEGER DEFAULT 0
 );
 
--- Fests table
-CREATE TABLE fests (
+-- Fest table (singular)
+CREATE TABLE fest (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   fest_id TEXT UNIQUE NOT NULL,
   fest_title TEXT NOT NULL,
@@ -133,7 +133,7 @@ CREATE INDEX idx_notifications_user_email ON notifications(user_email);
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE fests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fest ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
@@ -142,7 +142,7 @@ ALTER TABLE qr_scan_logs ENABLE ROW LEVEL SECURITY;
 -- Create policies to allow all access (you can restrict these later for production)
 CREATE POLICY "Allow all access to users" ON users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to events" ON events FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to fests" ON fests FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to fest" ON fest FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to registrations" ON registrations FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to attendance_status" ON attendance_status FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to notifications" ON notifications FOR ALL USING (true) WITH CHECK (true);

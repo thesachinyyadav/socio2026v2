@@ -73,7 +73,7 @@ export async function deleteEvent(eventId: string) {
 
 export async function getFests() {
   const { data, error } = await supabase
-    .from('fests')
+    .from('fest')
     .select('*')
     .order('created_at', { ascending: false });
   
@@ -83,7 +83,7 @@ export async function getFests() {
 
 export async function getFestById(festId: string) {
   const { data, error } = await supabase
-    .from('fests')
+    .from('fest')
     .select('*')
     .eq('fest_id', festId)
     .single();
@@ -94,7 +94,7 @@ export async function getFestById(festId: string) {
 
 export async function createFest(festData: any) {
   const { data, error } = await supabase
-    .from('fests')
+    .from('fest')
     .insert(festData)
     .select()
     .single();
@@ -105,7 +105,7 @@ export async function createFest(festData: any) {
 
 export async function updateFest(festId: string, festData: any) {
   const { data, error } = await supabase
-    .from('fests')
+    .from('fest')
     .update(festData)
     .eq('fest_id', festId)
     .select()
@@ -117,7 +117,7 @@ export async function updateFest(festId: string, festData: any) {
 
 export async function deleteFest(festId: string) {
   const { error } = await supabase
-    .from('fests')
+    .from('fest')
     .delete()
     .eq('fest_id', festId);
   
