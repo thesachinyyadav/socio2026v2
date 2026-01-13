@@ -1,5 +1,11 @@
 import express from "express";
-import db from "../config/database.js";
+import {
+  queryAll,
+  queryOne,
+  insert,
+  update,
+  remove,
+} from "../config/database.js";
 import { multerUpload } from "../utils/multerConfig.js";
 import { uploadFileToSupabase, getPathFromStorageUrl, deleteFileFromLocal } from "../utils/fileUtils.js";
 import { parseOptionalFloat, parseOptionalInt, parseJsonField } from "../utils/parsers.js";
@@ -17,8 +23,7 @@ const router = express.Router();
 // GET all events - PUBLIC ACCESS (no auth required)
 router.get("/", async (req, res) => {
   try {
-    const stmt = db.prepare("SELECT * FROM events ORDER BY created_at DESC");
-    const events = stmt.all();
+    const events = await queryAll("events", { order: { column: "created_at", ascending: false } });
 
     // Parse JSON fields for each event
     const processedEvents = events.map(event => ({
@@ -47,8 +52,7 @@ router.get("/:eventId", async (req, res) => {
       });
     }
 
-    const stmt = db.prepare("SELECT * FROM events WHERE event_id = ?");
-    const event = stmt.get(eventId);
+  const event = await queryOne("events", { where: { event_id: eventId } });
 
     if (!event) {
       return res.status(404).json({ error: `Event with ID '${eventId}' not found.` });
@@ -79,7 +83,7 @@ router.post(
     { name: "pdfFile", maxCount: 1 },
   ]),
   authenticateUser,           // Verify JWT token
-  getUserInfo(db),           // Get user info from local DB
+  getUserInfo(),           // Get user info from DB via helper
   requireOrganiser,          // Check if user is organiser
   async (req, res) => {
     const uploadedFilePaths = {
@@ -168,47 +172,37 @@ router.post(
       });
 
       // Insert event with creator's auth_uuid
-      const insertStmt = db.prepare(`
-        INSERT INTO events (
-          event_id, title, description, event_date, event_time, end_date, venue, category,
-          department_access, claims_applicable, registration_fee, participants_per_team,
-          event_image_url, banner_url, pdf_url, rules, schedule, prizes,
-          organizer_email, organizer_phone, whatsapp_invite_link, organizing_dept, fest,
-          created_by, registration_deadline, total_participants, max_participants
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      const result = insertStmt.run(
+      const created = await insert("events", [{
         event_id,
-        title.trim(),
-        description || null,
-        event_date || null,
-        event_time || null,
-        req.body.end_date || null,
-        venue || null,
-        category || null,
-        JSON.stringify(parsedDepartmentAccess),
-        claims_applicable === "true" || claims_applicable === true ? 1 : 0,
-        parseOptionalFloat(registration_fee),
-        parseOptionalInt(max_participants, 1), // participants_per_team
-        uploadedFilePaths.image,
-        uploadedFilePaths.banner,
-        uploadedFilePaths.pdf,
-        JSON.stringify(parsedRules),
-        JSON.stringify(parsedSchedule),
-        JSON.stringify(parsedPrizes),
-        req.body.organizer_email || req.userInfo?.email || null,
-        req.body.organizer_phone || null,
-        req.body.whatsapp_invite_link || null,
-        organizing_dept || null,
-        fest || null,
-        req.userId, // created_by (Creator's auth_uuid)
-        req.body.registration_deadline || null,
-        0, // total_participants (default to 0)
-        parseOptionalInt(max_participants) // max_participants
-      );
+        title: title.trim(),
+        description: description || null,
+        event_date: event_date || null,
+        event_time: event_time || null,
+        end_date: req.body.end_date || null,
+        venue: venue || null,
+        category: category || null,
+        department_access: parsedDepartmentAccess,
+        claims_applicable: claims_applicable === "true" || claims_applicable === true,
+        registration_fee: parseOptionalFloat(registration_fee),
+        participants_per_team: parseOptionalInt(max_participants, 1),
+        max_participants: parseOptionalInt(max_participants),
+        event_image_url: uploadedFilePaths.image,
+        banner_url: uploadedFilePaths.banner,
+        pdf_url: uploadedFilePaths.pdf,
+        rules: parsedRules,
+        schedule: parsedSchedule,
+        prizes: parsedPrizes,
+        organizer_email: req.body.organizer_email || req.userInfo?.email || null,
+        organizer_phone: req.body.organizer_phone || null,
+        whatsapp_invite_link: req.body.whatsapp_invite_link || null,
+        organizing_dept: organizing_dept || null,
+        fest: fest || null,
+        created_by: req.userId,
+        registration_deadline: req.body.registration_deadline || null,
+        total_participants: 0,
+      }]);
 
-      if (result.changes === 0) {
+      if (!created || created.length === 0) {
         throw new Error("Event was not created successfully.");
       }
 
@@ -257,9 +251,9 @@ router.put(
     { name: "pdfFile", maxCount: 1 },
   ]),
   authenticateUser,
-  getUserInfo(db),
+  getUserInfo(),
   requireOrganiser,
-  requireOwnership(db, 'events', 'eventId', 'auth_uuid'),  // Check ownership
+  requireOwnership('events', 'eventId', 'created_by'),  // Check ownership
   async (req, res) => {
     // Implementation similar to POST but with UPDATE logic
     // ... (truncated for brevity, but would include full update logic with ownership checks)
@@ -271,9 +265,9 @@ router.put(
 router.delete(
   "/:eventId", 
   authenticateUser,
-  getUserInfo(db),
+  getUserInfo(),
   requireOrganiser,
-  requireOwnership(db, 'events', 'eventId', 'auth_uuid'),
+  requireOwnership('events', 'eventId', 'created_by'),
   async (req, res) => {
     try {
       const { eventId } = req.params;
@@ -295,14 +289,11 @@ router.delete(
         }
       }
 
-      // Delete related records (cascading delete)
-      db.prepare("DELETE FROM attendance_status WHERE event_id = ?").run(eventId);
-      db.prepare("DELETE FROM registrations WHERE event_id = ?").run(eventId);
-      
-      // Delete the event
-      const deleteResult = db.prepare("DELETE FROM events WHERE event_id = ?").run(eventId);
+      await remove("attendance_status", { event_id: eventId });
+      await remove("registrations", { event_id: eventId });
+      const deleted = await remove("events", { event_id: eventId });
 
-      if (deleteResult.changes === 0) {
+      if (!deleted || deleted.length === 0) {
         return res.status(404).json({ error: "Event not found or already deleted." });
       }
 
