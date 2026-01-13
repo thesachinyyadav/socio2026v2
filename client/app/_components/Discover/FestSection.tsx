@@ -9,7 +9,7 @@ interface Fest {
   organizing_dept: string;
   description: string;
   dateRange: string;
-  fest_image_url: string;
+  fest_image_url: string | null;
   opening_date: Date;
   closing_date: Date;
 }
