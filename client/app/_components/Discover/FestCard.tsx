@@ -6,7 +6,7 @@ interface FestCardProps {
   dept: string;
   description: string;
   dateRange: string;
-  image: string;
+  image: string | null;
   baseUrl?: string;
 }
 

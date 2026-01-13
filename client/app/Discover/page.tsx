@@ -333,7 +333,7 @@ const DiscoverPage = () => {
                   organizing_dept: fest.organizing_dept || "",
                   description: fest.description || "",
                   dateRange: `${fest.opening_date ?? "TBD"} - ${fest.closing_date ?? "TBD"}`,
-                  fest_image_url: fest.fest_image_url || null,
+                  fest_image_url: fest.fest_image_url || "",
                   opening_date: openingDate,
                   closing_date: closingDate,
                 };

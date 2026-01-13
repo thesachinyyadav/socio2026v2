@@ -9,7 +9,7 @@ interface Fest {
   organizing_dept: string;
   description: string;
   dateRange: string;
-  fest_image_url: string | null;
+  fest_image_url: string;
   opening_date: Date;
   closing_date: Date;
 }
@@ -33,19 +33,20 @@ export const FestsSection = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
         {fests.map((fest) => (
-          <FestCard
-            key={fest.fest_id}
-            title={fest.fest_title}
-            dept={fest.organizing_dept}
-            description={fest.description}
-            dateRange={
-              moment(fest.opening_date).format("MMM DD, YYYY") +
-              " - " +
-              moment(fest.closing_date).format("MMM DD, YYYY")
-            }
-            image={fest.fest_image_url}
-            baseUrl={baseUrl}
-          />
+          <div key={fest.fest_id}>
+            <FestCard
+              title={fest.fest_title}
+              dept={fest.organizing_dept}
+              description={fest.description}
+              dateRange={
+                moment(fest.opening_date).format("MMM DD, YYYY") +
+                " - " +
+                moment(fest.closing_date).format("MMM DD, YYYY")
+              }
+              image={fest.fest_image_url}
+              baseUrl={baseUrl}
+            />
+          </div>
         ))}
       </div>
     </div>
