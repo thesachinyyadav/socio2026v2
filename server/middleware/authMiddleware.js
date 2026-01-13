@@ -1,4 +1,5 @@
 import supabase from "../config/supabaseClient.js";
+import { queryOne } from "../config/database.js";
 
 /**
  * Middleware to verify Supabase JWT token and extract user info
@@ -43,19 +44,17 @@ export const authenticateUser = async (req, res, next) => {
 /**
  * Middleware to check if user exists in local database and get their info
  */
-export const getUserInfo = (db) => {
-  return (req, res, next) => {
+export const getUserInfo = () => {
+  return async (req, res, next) => {
     try {
       if (!req.userId) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      // Get user info from local SQLite database
-      const stmt = db.prepare("SELECT * FROM users WHERE auth_uuid = ?");
-      const user = stmt.get(req.userId);
-      
+      const user = await queryOne('users', { where: { auth_uuid: req.userId } });
+
       if (!user) {
-        return res.status(404).json({ error: 'User not found in local database' });
+        return res.status(404).json({ error: 'User not found in database' });
       }
 
       req.userInfo = user;
@@ -85,8 +84,8 @@ export const requireOrganiser = (req, res, next) => {
 /**
  * Middleware to check if user owns the resource (for updates/deletes)
  */
-export const requireOwnership = (db, table, idField, ownerField = 'auth_uuid') => {
-  return (req, res, next) => {
+export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
+  return async (req, res, next) => {
     try {
       const resourceId = req.params[idField] || req.params.id;
       
@@ -94,9 +93,7 @@ export const requireOwnership = (db, table, idField, ownerField = 'auth_uuid') =
         return res.status(400).json({ error: `${idField} parameter is required` });
       }
 
-      // Check if resource exists and belongs to user
-      const stmt = db.prepare(`SELECT * FROM ${table} WHERE ${idField} = ?`);
-      const resource = stmt.get(resourceId);
+      const resource = await queryOne(table, { where: { [idField]: resourceId } });
       
       if (!resource) {
         return res.status(404).json({ error: `${table.slice(0, -1)} not found` });
