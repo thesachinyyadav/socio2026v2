@@ -318,16 +318,26 @@ const DiscoverPage = () => {
           {!isLoadingFests && !errorFests && (
             <FestsSection
               title="Upcoming fests"
-              fests={upcomingFests.map(fest => ({
-                fest_id: parseInt(fest.fest_id) || fest.id,
-                fest_title: fest.title,
-                organizing_dept: fest.organizing_dept,
-                description: fest.description,
-                dateRange: `${fest.opening_date} - ${fest.closing_date}`,
-                fest_image_url: fest.fest_image_url,
-                opening_date: new Date(fest.opening_date),
-                closing_date: new Date(fest.closing_date)
-              }))}
+              fests={upcomingFests.map((fest: Fest) => {
+                const festIdNum = Number(fest.fest_id) || Number(fest.id) || 0;
+                const openingDate = fest.opening_date
+                  ? new Date(fest.opening_date)
+                  : new Date();
+                const closingDate = fest.closing_date
+                  ? new Date(fest.closing_date)
+                  : openingDate;
+
+                return {
+                  fest_id: festIdNum,
+                  fest_title: fest.title || "Untitled fest",
+                  organizing_dept: fest.organizing_dept || "",
+                  description: fest.description || "",
+                  dateRange: `${fest.opening_date ?? "TBD"} - ${fest.closing_date ?? "TBD"}`,
+                  fest_image_url: fest.fest_image_url || null,
+                  opening_date: openingDate,
+                  closing_date: closingDate,
+                };
+              })}
               showAll={true}
               baseUrl="fest"
             />
