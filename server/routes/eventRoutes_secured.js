@@ -185,7 +185,6 @@ router.post(
         claims_applicable: claims_applicable === "true" || claims_applicable === true,
         registration_fee: parseOptionalFloat(registration_fee),
         participants_per_team: parseOptionalInt(max_participants, 1),
-        max_participants: parseOptionalInt(max_participants),
         event_image_url: uploadedFilePaths.image,
         banner_url: uploadedFilePaths.banner,
         pdf_url: uploadedFilePaths.pdf,
