@@ -9,6 +9,7 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -1125,7 +1126,6 @@ function CreateFestForm(props?: CreateFestProps) {
         formData.append("file", imageFile);
         
         // Use the server's file upload API instead of Supabase storage
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         const uploadResponse = await fetch(`${API_URL}/api/upload/fest-image`, {
           method: 'POST',
           body: formData,
