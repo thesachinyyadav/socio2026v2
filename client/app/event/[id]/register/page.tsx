@@ -29,21 +29,11 @@ interface FormErrors {
 const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
-  const { userData, isLoading: authIsLoading } = useAuth();
+  const { user: userData, isLoading: authIsLoading } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  const eventId =
-    routeParams && typeof routeParams.id === "string"
-      ? routeParams.id
-      : undefined;
-
-  const {
-    allEvents,
-    isLoading: contextIsLoading,
-    error: contextError,
-  } = useEvents();
-
-  const [selectedEvent, setSelectedEvent] =
-    useState<ContextFetchedEvent | null>(null);
+  // State
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [eventLoading, setEventLoading] = useState(true);
   const [eventPageError, setEventPageError] = useState<string | null>(null);
 
@@ -275,7 +265,7 @@ const Page = () => {
       };
 
       try {
-        const response = await fetch(`http://localhost:8000/api/register`, {
+        const response = await fetch(`${API_URL}/api/register`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

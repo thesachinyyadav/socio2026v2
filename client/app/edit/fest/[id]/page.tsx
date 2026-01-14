@@ -21,6 +21,7 @@ const EditPage = () => {
   const params = useParams();
   const festId = params?.id as string;
   const { session } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const [festData, setFestData] = useState<FestDataForEdit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -42,7 +43,7 @@ const EditPage = () => {
         setErrorMessage(null);
         try {
           const response = await fetch(
-            `http://localhost:8000/api/fests/${festId}`,
+            `${API_URL}/api/fests/${festId}`,
             {
               headers: { Authorization: `Bearer ${session.access_token}` },
             }

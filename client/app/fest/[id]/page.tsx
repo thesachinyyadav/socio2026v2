@@ -60,7 +60,9 @@ const FestPage = () => {
     setLoadingFestDetails(true);
     setErrorFestDetails(null);
 
-    fetch(`http://localhost:8000/api/fests/${festIdSlug}`)
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+    fetch(`${API_URL}/api/fests/${festIdSlug}`)
       .then((res) => {
         if (!res.ok) {
           if (res.status === 404) {

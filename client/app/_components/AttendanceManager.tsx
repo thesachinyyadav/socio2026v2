@@ -82,9 +82,11 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const markAttendance = async (participantId: string, status: "attended" | "absent") => {
     if (!session?.access_token) return;
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
     try {
       const response = await fetch(
-        `http://localhost:8000/api/events/${eventId}/attendance`,
+        `${API_URL}/api/events/${eventId}/attendance`,
         {
           method: "POST",
           headers: {

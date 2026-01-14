@@ -32,8 +32,10 @@ interface EventData {
 }
 
 export default function Page() {
-  const params = useParams();
-  const eventIdSlug = params.id;
+  const params = useParams(); // { id: string }
+  const eventIdSlug = params?.id ? String(params.id) : null;
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const router = useRouter();
 
   const {
@@ -267,7 +269,7 @@ export default function Page() {
       setPageLoading(true);
       
       // Make direct API call to fetch the event
-      fetch(`http://localhost:8000/api/events/${currentEventIdString}`)
+      fetch(`${API_URL}/api/events/${currentEventIdString}`)
         .then(response => {
           if (!response.ok) {
             throw new Error(`Event with ID "${currentEventIdString}" not found.`);
@@ -307,7 +309,7 @@ export default function Page() {
     if (userData && userData.register_number && !authIsLoading) {
       setLoadingUserRegistrations(true);
       fetch(
-        `http://localhost:8000/api/registrations/${userData.register_number}`
+        `${API_URL}/api/registrations/${userData.register_number}`
       )
         .then((res) =>
           res.ok ? res.json() : Promise.resolve({ registeredEventIds: [] })
@@ -358,7 +360,7 @@ export default function Page() {
           teamName: null,
           teammates: [{ registerNumber: regNumStr }],
         };
-        const response = await fetch(`http://localhost:8000/api/register`, {
+        const response = await fetch(`${API_URL}/api/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -928,7 +930,7 @@ const CalendarIcon = () => (
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
-      d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+      d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
     />
   </svg>
 );

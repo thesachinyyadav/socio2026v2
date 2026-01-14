@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface QRCodeDisplayProps {
   registrationId: string;
   eventTitle: string;
@@ -33,7 +35,7 @@ export const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
       setError(null);
 
       const response = await fetch(
-        `http://localhost:8000/api/registrations/${registrationId}/qr-code`,
+        `${API_URL}/api/registrations/${registrationId}/qr-code`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,

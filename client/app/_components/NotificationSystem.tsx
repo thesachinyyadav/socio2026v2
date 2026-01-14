@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export interface Notification {
   id: string;
   title: string;
@@ -27,7 +29,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { userData, session } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  // API_URL moved to module scope
 
   useEffect(() => {
     if (userData?.email) {
@@ -42,7 +44,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
     if (!session?.access_token || !userData?.email) return;
 
     setLoading(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    // API_URL already defined
     try {
       const email = userData.email;
       const response = await fetch(
@@ -125,7 +127,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/notifications/${notificationId}`,
+        `${API_URL}/api/notifications/${notificationId}`,
         {
           method: "DELETE",
           headers: {
@@ -347,7 +349,7 @@ export const createEventNotification = async (
   };
 
   try {
-    const response = await fetch(`http://localhost:8000/api/notifications/bulk`, {
+    const response = await fetch(`${API_URL}/api/notifications/bulk`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

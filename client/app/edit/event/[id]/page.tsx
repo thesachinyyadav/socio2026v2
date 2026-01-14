@@ -12,14 +12,13 @@ import { SubmitHandler } from "react-hook-form";
 import { useAuth } from "@/context/AuthContext";
 
 export default function EditEventPage() {
-  const { session, userData, isLoading: authIsLoading } = useAuth();
-  const [initialData, setInitialData] = useState<
-    Partial<EventFormData> | undefined
-  >(undefined);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const params = useParams();
+  const eventIdSlug = params?.id as string;
+  const router = useRouter();
+  const { session, user: userData, isLoading: authIsLoading } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+  const [initialData, setInitialData] = useState<Partial<EventFormData>>();
   const [existingImageFileUrl, setExistingImageFileUrl] = useState<
     string | null
   >(null);
@@ -29,10 +28,9 @@ export default function EditEventPage() {
   const [existingPdfFileUrl, setExistingPdfFileUrl] = useState<string | null>(
     null
   );
-
-  const params = useParams();
-  const eventIdSlug = params?.id as string;
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (authIsLoading) return;
@@ -61,7 +59,7 @@ export default function EditEventPage() {
       let response: Response | undefined = undefined;
       try {
         response = await fetch(
-          `http://localhost:8000/api/events/${eventIdSlug}`
+          `${API_URL}/api/events/${eventIdSlug}`
         );
 
         // Try to clone the response to read text, as .json() consumes the body
@@ -349,7 +347,7 @@ export default function EditEventPage() {
       }
 
       response = await fetch(
-        `http://localhost:8000/api/events/${eventIdSlug}`,
+        `${API_URL}/api/events/${eventIdSlug}`,
         {
           method: "PUT",
           body: payload,

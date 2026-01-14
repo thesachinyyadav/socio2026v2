@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from "react";
 import QrScanner from "qr-scanner";
 import { useAuth } from "@/context/AuthContext";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface QRScannerProps {
   eventId: string;
   eventTitle: string;
@@ -109,7 +111,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       }
 
       const response = await fetch(
-        `http://localhost:8000/api/events/${eventId}/scan-qr`,
+        `${API_URL}/api/events/${eventId}/scan-qr`,
         {
           method: "POST",
           headers: {
