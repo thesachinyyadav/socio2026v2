@@ -15,7 +15,7 @@ export default function EditEventPage() {
   const params = useParams();
   const eventIdSlug = params?.id as string;
   const router = useRouter();
-  const { session, user: userData, isLoading: authIsLoading } = useAuth();
+  const { session, userData, isLoading: authIsLoading } = useAuth();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const [initialData, setInitialData] = useState<Partial<EventFormData>>();

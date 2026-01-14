@@ -29,7 +29,7 @@ interface FormErrors {
 const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
-  const { user: userData, isLoading: authIsLoading } = useAuth();
+  const { userData, isLoading: authIsLoading } = useAuth();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   // State
