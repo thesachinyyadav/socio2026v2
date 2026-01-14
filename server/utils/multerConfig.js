@@ -5,7 +5,13 @@ const multerStorage = multer.memoryStorage();
 export const multerUpload = multer({
   storage: multerStorage,
   fileFilter: (req, file, cb) => {
-    if (file.fieldname === "imageFile" || file.fieldname === "bannerFile") {
+    // Allow both general "file" (fest uploads) and specific image/banner fields
+    const isImageField =
+      file.fieldname === "imageFile" ||
+      file.fieldname === "bannerFile" ||
+      file.fieldname === "file";
+
+    if (isImageField) {
       if (
         file.mimetype === "image/jpeg" ||
         file.mimetype === "image/png" ||
@@ -21,15 +27,19 @@ export const multerUpload = multer({
           false
         );
       }
-    } else if (file.fieldname === "pdfFile") {
+      return;
+    }
+
+    if (file.fieldname === "pdfFile") {
       if (file.mimetype === "application/pdf") {
         cb(null, true);
       } else {
         cb(new Error("Invalid file type for PDF. Only PDF allowed."), false);
       }
-    } else {
-      cb(new Error("Invalid file field."), false);
+      return;
     }
+
+    cb(new Error("Invalid file field."), false);
   },
   limits: {
     fileSize: 5 * 1024 * 1024,
