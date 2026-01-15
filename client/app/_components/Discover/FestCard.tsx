@@ -2,6 +2,7 @@ import Link from "next/link";
 import React from "react";
 
 interface FestCardProps {
+  id?: string;
   title: string;
   dept: string;
   description: string;
@@ -11,6 +12,7 @@ interface FestCardProps {
 }
 
 export const FestCard = ({
+  id,
   title,
   dept,
   description,
@@ -23,9 +25,12 @@ export const FestCard = ({
     .trim()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
+    
+  // Use id if available, otherwise fallback to title slug
+  const slug = id || formattedTitle;
 
   return (
-    <Link href={`/${baseUrl}/${formattedTitle}`} className="w-full">
+    <Link href={`/${baseUrl}/${slug}`} className="w-full">
       <div className="bg-[#F9F9F9] rounded-lg overflow-hidden cursor-pointer transform transition duration-100 ease-in-out hover:scale-101">
         <div className="h-40 bg-gray-200 border border-gray-100">
           {image ? (

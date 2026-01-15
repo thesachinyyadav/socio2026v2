@@ -261,6 +261,7 @@ const Page = () => {
                 {searchedUserFests.map((fest) => (
                   <FestCard
                     key={fest.fest_id}
+                    id={fest.fest_id}
                     title={fest.fest_title}
                     dept={fest.organizing_dept}
                     description={fest.description}
@@ -301,6 +302,7 @@ const Page = () => {
                 {searchedUserEvents.map((event) => (
                   <EventCard
                     key={event.id}
+                    idForLink={event.event_id}
                     title={event.title}
                     festName={event.fest || ""}
                     dept={event.organizing_dept || "N/A"}
