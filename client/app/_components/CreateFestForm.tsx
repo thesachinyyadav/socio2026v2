@@ -1171,20 +1171,20 @@ function CreateFestForm(props?: CreateFestProps) {
       if (!session) throw new Error("You must be logged in.");
 
       const payload: any = {
-        title: formData.title,
-        opening_date: formData.openingDate,
-        closing_date: formData.closingDate,
-        detailed_description: formData.detailedDescription,
-        department: formData.department,
+        festTitle: formData.title,
+        openingDate: formData.openingDate,
+        closingDate: formData.closingDate,
+        detailedDescription: formData.detailedDescription,
+        departmentAccess: formData.department,
         category: formData.category,
-        contact_email: formData.contactEmail,
-        contact_phone: formData.contactPhone,
-        event_heads: formData.eventHeads.filter((head) => head.trim() !== ""),
-        organizing_dept: formData.organizingDept,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
+        eventHeads: formData.eventHeads.filter((head) => head.trim() !== ""),
+        organizingDept: formData.organizingDept,
       };
 
-      if (uploadedFestImageUrl) {
-        payload.festImageUrl = uploadedFestImageUrl;
+      if (uploadedFestImageUrl || existingImageFileUrl) {
+        payload.festImageUrl = uploadedFestImageUrl || existingImageFileUrl;
       }
 
       let response;
