@@ -32,7 +32,7 @@ const Page = () => {
   const { userData, isLoading: authIsLoading } = useAuth();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  const { events: allEvents, loading: contextIsLoading, error: contextError } = useEvents();
+  const { allEvents, isLoading: contextIsLoading, error: contextError } = useEvents();
   const eventId = routeParams?.id;
 
   // State
