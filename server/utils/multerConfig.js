@@ -9,6 +9,8 @@ export const multerUpload = multer({
     const isImageField =
       file.fieldname === "imageFile" ||
       file.fieldname === "bannerFile" ||
+      file.fieldname === "eventImage" ||
+      file.fieldname === "bannerImage" ||
       file.fieldname === "file";
 
     if (isImageField) {

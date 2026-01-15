@@ -197,7 +197,8 @@ router.post(
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,
         fest: fest || null,
-        created_by: req.userId,
+        created_by: req.body.created_by || req.userInfo?.email || req.userId, // Prefer email for created_by
+        auth_uuid: req.userId, // Store UUID in auth_uuid
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
       }]);
