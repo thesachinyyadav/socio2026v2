@@ -97,8 +97,20 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Fest title and organizing department are required" });
     }
 
-    // Generate unique fest ID
-    const fest_id = uuidv4().replace(/-/g, '');
+    // Generate slug-based ID from title
+    const titleForSlug = festData.festTitle || festData.title || "";
+    let fest_id = titleForSlug
+      ? titleForSlug
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, "")
+          .replace(/[\s_-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+      : "";
+
+    if (!fest_id) {
+      fest_id = uuidv4().replace(/-/g, "");
+    }
 
     const festPayload = {
       fest_id,
