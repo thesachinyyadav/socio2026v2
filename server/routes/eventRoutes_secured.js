@@ -164,37 +164,29 @@ router.post(
       
       // Upload Event Image
       if (files?.eventImage && files.eventImage[0]) {
-        try {
-          const result = await uploadFileToSupabase(files.eventImage[0], "event-images", event_id);
-          uploadedFilePaths.image = result?.publicUrl || null;
-          console.log(`Successfully uploaded event image: ${uploadedFilePaths.image}`);
-        } catch (error) {
-          console.error(`Failed to upload event image for event ${event_id}:`, error);
-          // Failing to upload the main image should perhaps be a warning, but we'll proceed for now
-          // Could return a 500 here if strict consistency is needed
-        }
+        // Removed try/catch to ensure errors bubble up to the user
+        console.log(`Attempting to upload eventImage: ${files.eventImage[0].originalname}`);
+        const result = await uploadFileToSupabase(files.eventImage[0], "event-images", event_id);
+        uploadedFilePaths.image = result?.publicUrl || null;
+        console.log(`Successfully uploaded event image: ${uploadedFilePaths.image}`);
+      } else {
+        console.warn("WARNING: No eventImage found in request files.");
       }
 
       // Upload Banner Image
       if (files?.bannerImage && files.bannerImage[0]) {
-        try {
+          console.log(`Attempting to upload bannerImage: ${files.bannerImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", event_id);
           uploadedFilePaths.banner = result?.publicUrl || null;
           console.log(`Successfully uploaded banner image: ${uploadedFilePaths.banner}`);
-        } catch (error) {
-          console.error(`Failed to upload banner image for event ${event_id}:`, error);
-        }
       }
 
       // Upload PDF
       if (files?.pdfFile && files.pdfFile[0]) {
-        try {
+          console.log(`Attempting to upload pdfFile: ${files.pdfFile[0].originalname}`);
           const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", event_id);
           uploadedFilePaths.pdf = result?.publicUrl || null;
           console.log(`Successfully uploaded PDF for event ${event_id}: ${uploadedFilePaths.pdf}`);
-        } catch (error) {
-          console.error(`Failed to upload PDF for event ${event_id}:`, error);
-        }
       }
 
       // Parse and validate JSON fields
