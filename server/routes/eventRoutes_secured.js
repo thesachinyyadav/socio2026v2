@@ -110,10 +110,12 @@ router.post(
     };
 
     console.log("POST /api/events - Request received");
+    console.log("Content-Type:", req.headers['content-type']); // Log content type
+    
     if (req.files) {
       console.log("Files keys:", Object.keys(req.files));
-      if (req.files.eventImage) console.log("eventImage:", req.files.eventImage[0].originalname, req.files.eventImage[0].mimetype);
-      if (req.files.bannerImage) console.log("bannerImage:", req.files.bannerImage[0].originalname, req.files.bannerImage[0].mimetype);
+      if (req.files.eventImage) console.log("eventImage:", req.files.eventImage[0].originalname, req.files.eventImage[0].mimetype, req.files.eventImage[0].size);
+      if (req.files.bannerImage) console.log("bannerImage:", req.files.bannerImage[0].originalname, req.files.bannerImage[0].mimetype, req.files.bannerImage[0].size);
     } else {
       console.log("No files in req.files");
     }
