@@ -141,7 +141,7 @@ export default function CreateEventPage() {
     appendIfExists("created_by", userEmail);
 
     if (dataFromHookForm.imageFile instanceof File) {
-      formData.append("imageFile", dataFromHookForm.imageFile);
+      formData.append("eventImage", dataFromHookForm.imageFile);
     } else if (dataFromHookForm.imageFile) {
       console.warn(
         "CreateEventPage: imageFile is present but not a File object:",
@@ -149,7 +149,7 @@ export default function CreateEventPage() {
       );
     }
     if (dataFromHookForm.bannerFile instanceof File) {
-      formData.append("bannerFile", dataFromHookForm.bannerFile);
+      formData.append("bannerImage", dataFromHookForm.bannerFile);
     } else if (dataFromHookForm.bannerFile) {
       console.warn(
         "CreateEventPage: bannerFile is present but not a File object:",

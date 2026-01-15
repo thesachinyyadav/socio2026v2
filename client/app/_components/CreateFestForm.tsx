@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
+import { departments as baseDepartments } from "../../lib/eventFormSchema";
 import { createBrowserClient } from "@supabase/ssr";
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -377,84 +378,7 @@ function DepartmentAndCategoryInputs({
       value: "all_departments",
       label: "All Departments",
     },
-    {
-      value: "dept_english_cultural_studies",
-      label: "Department of English and Cultural Studies",
-    },
-    { value: "dept_languages", label: "Department of Languages" },
-    { value: "dept_media_studies", label: "Department of Media Studies" },
-    {
-      value: "dept_performing_arts_theatre_music",
-      label: "Department of Performing Arts, Theatre Studies and Music",
-    },
-    {
-      value: "dept_philosophy_theology",
-      label: "Department of Philosophy and Theology",
-    },
-    {
-      value: "dept_business_management",
-      label: "Department of Business and Management",
-    },
-    { value: "dept_hotel_management", label: "Department of Hotel Management" },
-    {
-      value: "dept_tourism_management",
-      label: "Department of Tourism Management",
-    },
-    { value: "dept_commerce", label: "Department of Commerce" },
-    {
-      value: "dept_professional_studies",
-      label: "Department of Professional Studies",
-    },
-    {
-      value: "dept_civil_engineering",
-      label: "Department of Civil Engineering",
-    },
-    {
-      value: "dept_computer_science_engineering",
-      label: "Department of Computer Science and Engineering",
-    },
-    {
-      value: "dept_electrical_electronics_engineering",
-      label: "Department of Electrical and Electronics Engineering",
-    },
-    {
-      value: "dept_electronics_communication_engineering",
-      label: "Department of Electronics and Communication Engineering",
-    },
-    {
-      value: "dept_mechanical_automobile_engineering",
-      label: "Department of Mechanical and Automobile Engineering",
-    },
-    {
-      value: "dept_sciences_humanities_eng",
-      label: "Department of Sciences and Humanities",
-    },
-    {
-      value: "dept_computer_science_sci",
-      label: "Department of Computer Science",
-    },
-    { value: "dept_chemistry", label: "Department of Chemistry" },
-    { value: "dept_life_sciences", label: "Department of Life Sciences" },
-    { value: "dept_mathematics", label: "Department of Mathematics" },
-    {
-      value: "dept_physics_electronics",
-      label: "Department of Physics and Electronics",
-    },
-    {
-      value: "dept_statistics_data_science",
-      label: "Department of Statistics and Data Science",
-    },
-    { value: "dept_economics", label: "Department of Economics" },
-    {
-      value: "dept_international_studies_political_science_history",
-      label:
-        "Department of International Studies, Political Science, and History",
-    },
-    {
-      value: "dept_sociology_social_work",
-      label: "Department of Sociology and Social Work",
-    },
-    { value: "dept_liberal_arts", label: "Department of Liberal Arts" },
+    ...baseDepartments
   ];
   
   const categories = [
@@ -1552,10 +1476,16 @@ function CreateFestForm(props?: CreateFestProps) {
                     Organizing department:{" "}
                     <span className="text-red-500">*</span>
                   </label>
+                  <datalist id="organizing-dept-list">
+                    {baseDepartments.map((dept) => (
+                      <option key={dept.value} value={dept.label} />
+                    ))}
+                  </datalist>
                   <input
                     type="text"
                     id="organizingDept"
-                    placeholder="Enter organizing department"
+                    list="organizing-dept-list"
+                    placeholder="Enter or select organizing department"
                     value={formData.organizingDept}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}

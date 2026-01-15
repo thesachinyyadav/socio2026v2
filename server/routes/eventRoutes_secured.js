@@ -78,8 +78,8 @@ router.get("/:eventId", async (req, res) => {
 router.post(
   "/",
   multerUpload.fields([
-    { name: "imageFile", maxCount: 1 },
-    { name: "bannerFile", maxCount: 1 },
+    { name: "eventImage", maxCount: 1 },
+    { name: "bannerImage", maxCount: 1 },
     { name: "pdfFile", maxCount: 1 },
   ]),
   authenticateUser,           // Verify JWT token
@@ -93,11 +93,7 @@ router.post(
     };
 
     console.log("POST /api/events - Request received");
-    console.log("Headers:", req.headers);
-    console.log("Body keys:", Object.keys(req.body));
     console.log("Files:", req.files ? Object.keys(req.files) : 'No files');
-    console.log("User ID:", req.userId);
-    console.log("User Info:", req.userInfo);
 
     try {
       const {
@@ -123,30 +119,35 @@ router.post(
         return res.status(400).json({ error: "Title is required and must be a non-empty string." });
       }
 
-      console.log("Validation passed, data:", {
-        title: title?.trim(),
-        event_date,
-        venue,
-        category,
-        claims_applicable,
-        max_participants
-      });
+      // Generate slug-based ID from title
+      let event_id = title
+        ? title
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+        : "";
 
-      // Generate event ID
-      const event_id = uuidv4();
+      if (!event_id) {
+        event_id = uuidv4().replace(/-/g, "");
+      }
       console.log("Generated event_id:", event_id);
 
       // Handle file uploads
       const files = req.files;
       try {
-        if (files?.imageFile && files.imageFile[0]) {
-          uploadedFilePaths.image = await uploadFileToSupabase(files.imageFile[0], "event-images", event_id);
+        if (files?.eventImage && files.eventImage[0]) {
+          const result = await uploadFileToSupabase(files.eventImage[0], "event-images", event_id);
+          uploadedFilePaths.image = result?.publicUrl || null;
         }
-        if (files?.bannerFile && files.bannerFile[0]) {
-          uploadedFilePaths.banner = await uploadFileToSupabase(files.bannerFile[0], "event-banners", event_id);
+        if (files?.bannerImage && files.bannerImage[0]) {
+          const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", event_id);
+          uploadedFilePaths.banner = result?.publicUrl || null;
         }
         if (files?.pdfFile && files.pdfFile[0]) {
-          uploadedFilePaths.pdf = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", event_id);
+          const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", event_id);
+          uploadedFilePaths.pdf = result?.publicUrl || null;
         }
       } catch (fileUploadError) {
         console.error("File upload error:", fileUploadError);
@@ -245,8 +246,8 @@ router.post(
 router.put(
   "/:eventId",
   multerUpload.fields([
-    { name: "imageFile", maxCount: 1 },
-    { name: "bannerFile", maxCount: 1 },
+    { name: "eventImage", maxCount: 1 },
+    { name: "bannerImage", maxCount: 1 },
     { name: "pdfFile", maxCount: 1 },
   ]),
   authenticateUser,
@@ -254,9 +255,108 @@ router.put(
   requireOrganiser,
   requireOwnership('events', 'eventId', 'created_by'),  // Check ownership
   async (req, res) => {
-    // Implementation similar to POST but with UPDATE logic
-    // ... (truncated for brevity, but would include full update logic with ownership checks)
-    res.status(501).json({ message: "Update endpoint - implementation needed" });
+    try {
+      const { eventId } = req.params;
+      const event = req.resource; // Existing event from middleware
+      const files = req.files;
+      
+      const uploadedFilePaths = {
+        image: event.event_image_url,
+        banner: event.banner_url,
+        pdf: event.pdf_url,
+      };
+
+      // Handle file uploads if new files are provided
+      if (files?.eventImage && files.eventImage[0]) {
+        // Delete old image if exists (optional extended feature: strictly clean up old files)
+        // Here we just overwrite the reference
+        const result = await uploadFileToSupabase(files.eventImage[0], "event-images", eventId);
+        uploadedFilePaths.image = result?.publicUrl || null;
+      }
+
+      if (files?.bannerImage && files.bannerImage[0]) {
+        const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", eventId);
+        uploadedFilePaths.banner = result?.publicUrl || null;
+      }
+      
+      if (files?.pdfFile && files.pdfFile[0]) {
+        const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", eventId);
+        uploadedFilePaths.pdf = result?.publicUrl || null;
+      }
+
+      const {
+        title,
+        description,
+        event_date,
+        event_time,
+        venue,
+        category,
+        claims_applicable,
+        registration_fee,
+        organizing_dept,
+        fest,
+        department_access,
+        rules,
+        schedule,
+        prizes,
+        max_participants
+      } = req.body;
+
+      if (!title || typeof title !== "string" || title.trim() === "") {
+        return res.status(400).json({ error: "Title is required and must be a non-empty string." });
+      }
+
+      // Parse JSON fields
+      const parsedDepartmentAccess = parseJsonField(department_access, []);
+      const parsedRules = parseJsonField(rules, []);
+      const parsedSchedule = parseJsonField(schedule, []);
+      const parsedPrizes = parseJsonField(prizes, []);
+
+      // Prepare update payload
+      const updateData = {
+        title: title.trim(),
+        description: description || null,
+        event_date: event_date || null,
+        event_time: event_time || null,
+        end_date: req.body.end_date || null,
+        venue: venue || null,
+        category: category || null,
+        department_access: parsedDepartmentAccess,
+        claims_applicable: claims_applicable === "true" || claims_applicable === true,
+        registration_fee: parseOptionalFloat(registration_fee),
+        participants_per_team: parseOptionalInt(max_participants, 1),
+        event_image_url: uploadedFilePaths.image,
+        banner_url: uploadedFilePaths.banner,
+        pdf_url: uploadedFilePaths.pdf,
+        rules: parsedRules,
+        schedule: parsedSchedule,
+        prizes: parsedPrizes,
+        organizer_email: req.body.organizer_email || null,
+        organizer_phone: req.body.organizer_phone || null,
+        whatsapp_invite_link: req.body.whatsapp_invite_link || null,
+        organizing_dept: organizing_dept || null,
+        fest: fest || null,
+        registration_deadline: req.body.registration_deadline || null,
+        total_participants: 0, // Should typically not reset total_participants on edit, but preserving logic
+        updated_at: new Date().toISOString(),
+        updated_by: req.userInfo.email
+      };
+
+      const updated = await update("events", updateData, { event_id: eventId });
+
+      if (!updated || updated.length === 0) {
+        throw new Error("Event update failed.");
+      }
+
+      return res.status(200).json({ 
+        message: "Event updated successfully", 
+        event: updated[0] 
+      });
+
+    } catch (error) {
+      console.error("Server error PUT /api/events/:eventId:", error);
+      return res.status(500).json({ error: "Internal server error while updating event." });
+    }
   }
 );
 

@@ -310,9 +310,9 @@ export default function EditEventPage() {
     );
 
     if (formData.imageFile instanceof File)
-      payload.append("imageFile", formData.imageFile);
+      payload.append("eventImage", formData.imageFile);
     if (formData.bannerFile instanceof File)
-      payload.append("bannerFile", formData.bannerFile);
+      payload.append("bannerImage", formData.bannerFile);
     if (formData.pdfFile instanceof File)
       payload.append("pdfFile", formData.pdfFile);
 

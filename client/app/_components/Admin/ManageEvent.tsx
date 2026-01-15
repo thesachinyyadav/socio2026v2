@@ -1209,9 +1209,17 @@ export default function EventForm({
                     required
                   />
                 </div>
+
+                <datalist id="organizing-dept-list-event">
+                  {departmentOptions.map((dept) => (
+                    <option key={dept.value} value={dept.label} />
+                  ))}
+                </datalist>
+
                 <InputField
                   label="Organizing department / committee:"
                   name="organizingDept"
+                  list="organizing-dept-list-event"
                   register={register}
                   error={errors.organizingDept}
                   required
