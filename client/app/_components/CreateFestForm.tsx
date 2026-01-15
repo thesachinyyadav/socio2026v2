@@ -373,13 +373,7 @@ function DepartmentAndCategoryInputs({
     setIsCategoryDropdownOpen(false);
   };
 
-  const departments = [
-    {
-      value: "all_departments",
-      label: "All Departments",
-    },
-    ...baseDepartments
-  ];
+  const departments = baseDepartments;
   
   const categories = [
     { value: "technology", label: "Technology" },
@@ -1477,9 +1471,11 @@ function CreateFestForm(props?: CreateFestProps) {
                     <span className="text-red-500">*</span>
                   </label>
                   <datalist id="organizing-dept-list">
-                    {baseDepartments.map((dept) => (
-                      <option key={dept.value} value={dept.label} />
-                    ))}
+                    {baseDepartments
+                      .filter((d) => d.value !== "all_departments")
+                      .map((dept) => (
+                        <option key={dept.value} value={dept.label} />
+                      ))}
                   </datalist>
                   <input
                     type="text"

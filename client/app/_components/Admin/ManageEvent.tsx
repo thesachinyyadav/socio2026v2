@@ -1211,9 +1211,11 @@ export default function EventForm({
                 </div>
 
                 <datalist id="organizing-dept-list-event">
-                  {departmentOptions.map((dept) => (
-                    <option key={dept.value} value={dept.label} />
-                  ))}
+                  {departmentOptions
+                    .filter((d) => d.value !== "all_departments")
+                    .map((dept) => (
+                      <option key={dept.value} value={dept.label} />
+                    ))}
                 </datalist>
 
                 <InputField
