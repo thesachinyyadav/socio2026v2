@@ -25,6 +25,7 @@ export default function CreateEventPage() {
     setIsSubmitting(true);
 
     let token;
+    let userEmail: string | undefined;
     try {
       console.log("CreateEventPage: Attempting to get session...");
       
@@ -53,6 +54,7 @@ export default function CreateEventPage() {
       }
       
       token = session.access_token;
+      userEmail = session.user.email;
       console.log("CreateEventPage: Session obtained, token acquired.");
       
       // Verify token is not expired
@@ -135,7 +137,7 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("schedule", dataFromHookForm.scheduleItems);
     appendJsonArrayOrObject("rules", dataFromHookForm.rules);
     appendJsonArrayOrObject("prizes", dataFromHookForm.prizes);
-    appendJsonArrayOrObject("event_heads", dataFromHookForm.eventHeads);
+    appendJsonArrayOrObject("evenuserEFromHookForm.eventHeads);
     appendIfExists("created_by", session.user.email);
 
     if (dataFromHookForm.imageFile instanceof File) {
