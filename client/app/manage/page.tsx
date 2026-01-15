@@ -59,11 +59,7 @@ const Page = () => {
             }))
           : [];
 
-        const userSpecificFests = mappedFests.filter(
-          (fest) => fest.created_by === userData.email
-        );
-
-        setFests(userSpecificFests);
+        setFests(mappedFests);
       })
       .catch((error: any) => {
         setFests([]);
@@ -84,9 +80,11 @@ const Page = () => {
     event.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const searchedUserFests = fests.filter((fest) =>
-    fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const searchedUserFests = fests
+    .filter((fest) => fest.created_by === userData?.email)
+    .filter((fest) =>
+      fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   const getDisplayTagsForEvent = (event: ContextEvent): string[] => {
     const tags: string[] = [];
@@ -298,23 +296,26 @@ const Page = () => {
               </p>
             ) : searchedUserEvents.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
-                {searchedUserEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    title={event.title}
-                    festName={event.fest || ""}
-                    dept={event.organizing_dept || "N/A"}
-                    date={formatDate(event.event_date)}
-                    time={formatTime(event.event_time)}
-                    location={event.venue || "TBD"}
-                    tags={getDisplayTagsForEvent(event)}
-                    image={
-                      event.event_image_url ||
-                      "https://via.placeholder.com/400x250.png?text=No+Image"
-                    }
-                    baseUrl="edit/event"
-                  />
-                ))}
+                {searchedUserEvents.map((event) => {
+                  const linkedFest = fests.find((f) => f.fest_id === event.fest);
+                  return (
+                    <EventCard
+                      key={event.id}
+                      title={event.title}
+                      festName={linkedFest ? linkedFest.fest_title : "No Fest"}
+                      dept={event.organizing_dept || "N/A"}
+                      date={formatDate(event.event_date)}
+                      time={formatTime(event.event_time)}
+                      location={event.venue || "TBD"}
+                      tags={getDisplayTagsForEvent(event)}
+                      image={
+                        event.event_image_url ||
+                        "https://via.placeholder.com/400x250.png?text=No+Image"
+                      }
+                      baseUrl="edit/event"
+                    />
+                  );
+                })}
               </div>
             ) : (
               <p className="text-gray-500">
