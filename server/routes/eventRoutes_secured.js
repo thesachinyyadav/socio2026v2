@@ -20,6 +20,23 @@ import {
 
 const router = express.Router();
 
+const normalizeJsonField = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "object") return value; // Already an object/array
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed;
+    } catch (e) {
+      console.warn("JSON Parse warning for value:", value, e.message);
+      return []; // fallback
+    }
+  }
+  return [];
+};
+
+
 // GET all events - PUBLIC ACCESS (no auth required)
 router.get("/", async (req, res) => {
   try {
@@ -28,10 +45,10 @@ router.get("/", async (req, res) => {
     // Parse JSON fields for each event
     const processedEvents = events.map(event => ({
       ...event,
-      department_access: event.department_access ? JSON.parse(event.department_access) : [],
-      rules: event.rules ? JSON.parse(event.rules) : [],
-      schedule: event.schedule ? JSON.parse(event.schedule) : [],
-      prizes: event.prizes ? JSON.parse(event.prizes) : []
+      department_access: normalizeJsonField(event.department_access),
+      rules: normalizeJsonField(event.rules),
+      schedule: normalizeJsonField(event.schedule),
+      prizes: normalizeJsonField(event.prizes)
     }));
 
     return res.status(200).json({ events: processedEvents });
@@ -52,7 +69,7 @@ router.get("/:eventId", async (req, res) => {
       });
     }
 
-  const event = await queryOne("events", { where: { event_id: eventId } });
+    const event = await queryOne("events", { where: { event_id: eventId } });
 
     if (!event) {
       return res.status(404).json({ error: `Event with ID '${eventId}' not found.` });
@@ -61,10 +78,10 @@ router.get("/:eventId", async (req, res) => {
     // Parse JSON fields
     const processedEvent = {
       ...event,
-      department_access: event.department_access ? JSON.parse(event.department_access) : [],
-      rules: event.rules ? JSON.parse(event.rules) : [],
-      schedule: event.schedule ? JSON.parse(event.schedule) : [],
-      prizes: event.prizes ? JSON.parse(event.prizes) : []
+      department_access: normalizeJsonField(event.department_access),
+      rules: normalizeJsonField(event.rules),
+      schedule: normalizeJsonField(event.schedule),
+      prizes: normalizeJsonField(event.prizes)
     };
 
     return res.status(200).json({ event: processedEvent });
@@ -93,7 +110,13 @@ router.post(
     };
 
     console.log("POST /api/events - Request received");
-    console.log("Files:", req.files ? Object.keys(req.files) : 'No files');
+    if (req.files) {
+      console.log("Files keys:", Object.keys(req.files));
+      if (req.files.eventImage) console.log("eventImage:", req.files.eventImage[0].originalname, req.files.eventImage[0].mimetype);
+      if (req.files.bannerImage) console.log("bannerImage:", req.files.bannerImage[0].originalname, req.files.bannerImage[0].mimetype);
+    } else {
+      console.log("No files in req.files");
+    }
 
     try {
       const {
@@ -136,25 +159,40 @@ router.post(
 
       // Handle file uploads
       const files = req.files;
-      try {
-        if (files?.eventImage && files.eventImage[0]) {
+      
+      // Upload Event Image
+      if (files?.eventImage && files.eventImage[0]) {
+        try {
           const result = await uploadFileToSupabase(files.eventImage[0], "event-images", event_id);
           uploadedFilePaths.image = result?.publicUrl || null;
+          console.log(`Successfully uploaded event image: ${uploadedFilePaths.image}`);
+        } catch (error) {
+          console.error(`Failed to upload event image for event ${event_id}:`, error);
+          // Failing to upload the main image should perhaps be a warning, but we'll proceed for now
+          // Could return a 500 here if strict consistency is needed
         }
-        if (files?.bannerImage && files.bannerImage[0]) {
+      }
+
+      // Upload Banner Image
+      if (files?.bannerImage && files.bannerImage[0]) {
+        try {
           const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", event_id);
           uploadedFilePaths.banner = result?.publicUrl || null;
+          console.log(`Successfully uploaded banner image: ${uploadedFilePaths.banner}`);
+        } catch (error) {
+          console.error(`Failed to upload banner image for event ${event_id}:`, error);
         }
-        if (files?.pdfFile && files.pdfFile[0]) {
+      }
+
+      // Upload PDF
+      if (files?.pdfFile && files.pdfFile[0]) {
+        try {
           const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", event_id);
           uploadedFilePaths.pdf = result?.publicUrl || null;
+          console.log(`Successfully uploaded PDF for event ${event_id}: ${uploadedFilePaths.pdf}`);
+        } catch (error) {
+          console.error(`Failed to upload PDF for event ${event_id}:`, error);
         }
-      } catch (fileUploadError) {
-        console.error("File upload error:", fileUploadError);
-        // Continue without file uploads - don't fail the entire event creation
-        uploadedFilePaths.image = null;
-        uploadedFilePaths.banner = null;
-        uploadedFilePaths.pdf = null;
       }
 
       // Parse and validate JSON fields
