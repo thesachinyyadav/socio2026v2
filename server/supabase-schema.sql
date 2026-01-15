@@ -104,7 +104,7 @@ CREATE TABLE registrations (
   team_leader_name TEXT,
   team_leader_email TEXT,
   team_leader_register_number TEXT,
-  teammates JSONB,
+  teammates JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   qr_code_data JSONB,
   qr_code_generated_at TIMESTAMPTZ
@@ -113,10 +113,10 @@ CREATE TABLE registrations (
 -- Attendance status table
 CREATE TABLE attendance_status (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  registration_id TEXT,
+  registration_id TEXT UNIQUE NOT NULL,
   event_id TEXT,
   status TEXT CHECK (status IN ('attended', 'absent', 'pending')),
-  marked_at TIMESTAMPTZ,
+  marked_at TIMESTAMPTZ DEFAULT NOW(),
   marked_by TEXT
 );
 

@@ -32,6 +32,9 @@ const Page = () => {
   const { userData, isLoading: authIsLoading } = useAuth();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+  const { events: allEvents, loading: contextIsLoading, error: contextError } = useEvents();
+  const eventId = routeParams?.id;
+
   // State
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [eventLoading, setEventLoading] = useState(true);
