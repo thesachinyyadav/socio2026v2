@@ -137,8 +137,8 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("schedule", dataFromHookForm.scheduleItems);
     appendJsonArrayOrObject("rules", dataFromHookForm.rules);
     appendJsonArrayOrObject("prizes", dataFromHookForm.prizes);
-    appendJsonArrayOrObject("evenuserEFromHookForm.eventHeads);
-    appendIfExists("created_by", session.user.email);
+    appendJsonArrayOrObject("event_heads", dataFromHookForm.eventHeads);
+    appendIfExists("created_by", userEmail);
 
     if (dataFromHookForm.imageFile instanceof File) {
       formData.append("imageFile", dataFromHookForm.imageFile);
