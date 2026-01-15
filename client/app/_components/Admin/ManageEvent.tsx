@@ -739,7 +739,7 @@ export default function EventForm({
         const fests = await getFests();
         if (fests) {
           const options = fests.map((f: any) => ({
-            value: f.fest_id, 
+            value: f.fest_title || f.title || "Untitled Fest",
             label: f.fest_title || f.title || "Untitled Fest"
           }));
           setFetchedFests([{ value: "none", label: "None" }, ...options]);
