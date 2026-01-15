@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
-import { departments as baseDepartments } from "../../lib/eventFormSchema";
+import { departments as baseDepartments } from "../lib/eventFormSchema";
 import { createBrowserClient } from "@supabase/ssr";
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
