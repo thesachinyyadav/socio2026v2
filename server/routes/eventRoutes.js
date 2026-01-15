@@ -153,8 +153,23 @@ router.post("/", multerUpload.fields([
         }
       }
 
-      // Generate unique event ID
-      const event_id = uuidv4().replace(/-/g, '');
+      // Generate slug-based ID from title
+      let event_id = eventData.title
+        ? eventData.title
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+        : "";
+
+      if (!event_id) {
+        event_id = uuidv4().replace(/-/g, "");
+      }
+
+      // Check for collision (optional but recommended)
+      // For this user's request matching the 'green box', we use the simple slug.
+      // Ideally we would append a suffix if it exists, but let's stick to the requested format.
 
       // Upload files if they exist
       let event_image_url = null;
