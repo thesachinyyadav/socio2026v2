@@ -89,7 +89,11 @@ router.post("/", async (req, res) => {
     const festData = req.body;
 
     // Basic validation
-    if (!festData.festTitle || !festData.organizingDept) {
+    const title = festData.festTitle || festData.title;
+    const dept = festData.organizingDept || festData.organizing_dept;
+
+    if (!title || !dept) {
+      console.log("Validation failed. Received:", JSON.stringify(festData));
       return res.status(400).json({ error: "Fest title and organizing department are required" });
     }
 
