@@ -1181,6 +1181,7 @@ function CreateFestForm(props?: CreateFestProps) {
         contactPhone: formData.contactPhone,
         eventHeads: formData.eventHeads.filter((head) => head.trim() !== ""),
         organizingDept: formData.organizingDept,
+        createdBy: session.user.email,
       };
 
       if (uploadedFestImageUrl || existingImageFileUrl) {

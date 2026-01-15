@@ -27,7 +27,7 @@ router.get("/", async (req, res) => {
       order: { column: "created_at", ascending: false },
     });
 
-    const processedEvents = events.map((event) => ({
+    const processedEvents = (events || []).map((event) => ({
       ...event,
       department_access: Array.isArray(event.department_access)
         ? event.department_access
