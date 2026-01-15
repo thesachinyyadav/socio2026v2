@@ -20,6 +20,8 @@ import {
   festEvents as festEventOptions,
 } from "@/app/lib/eventFormSchema";
 
+import { getFests } from "@/lib/api";
+
 import {
   InputField,
   CustomDropdown,
@@ -729,6 +731,26 @@ export default function EventForm({
   existingBannerFileUrl,
   existingPdfFileUrl,
 }: EventFormProps) {
+  const [fetchedFests, setFetchedFests] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    async function fetchFests() {
+      try {
+        const fests = await getFests();
+        if (fests) {
+          const options = fests.map((f: any) => ({
+            value: f.fest_id, 
+            label: f.fest_title || f.title || "Untitled Fest"
+          }));
+          setFetchedFests([{ value: "none", label: "None" }, ...options]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch fests:", error);
+      }
+    }
+    fetchFests();
+  }, []);
+
   const router = useRouter();
   const {
     register,
@@ -1200,10 +1222,7 @@ export default function EventForm({
                   <CustomDropdown
                     name="festEvent"
                     control={control}
-                    options={[
-                      { value: "none", label: "None" },
-                      ...festEventOptions,
-                    ]}
+                    options={fetchedFests.length > 0 ? fetchedFests : [{ value: "none", label: "None" }]}
                     placeholder="Select fest event (if any)"
                     label="Fest event: (optional)"
                     error={errors.festEvent}
