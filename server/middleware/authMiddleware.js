@@ -83,24 +83,36 @@ export const requireOrganiser = (req, res, next) => {
 
 /**
  * Middleware to check if user owns the resource (for updates/deletes)
+ * @param {string} table - Database table name (e.g., 'events', 'fest')
+ * @param {string} paramName - URL parameter name (e.g., 'eventId', 'festId')
+ * @param {string} ownerField - Database column to check ownership (default: 'auth_uuid')
  */
-export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
+export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => {
   return async (req, res, next) => {
     try {
-      const resourceId = req.params[idField] || req.params.id;
+      const resourceId = req.params[paramName] || req.params.id;
       
       if (!resourceId) {
         console.error('requireOwnership: Missing resourceId');
-        return res.status(400).json({ error: `${idField} parameter is required` });
+        return res.status(400).json({ error: `${paramName} parameter is required` });
       }
 
-      console.log(`[Ownership] Checking: table=${table}, idField=${idField}, resourceId=${resourceId}, ownerField=${ownerField}`);
+      // Map parameter names to actual database column names
+      const columnMapping = {
+        'eventId': 'event_id',
+        'festId': 'fest_id',
+        'id': 'id'
+      };
+      
+      const dbColumnName = columnMapping[paramName] || paramName;
+
+      console.log(`[Ownership] Checking: table=${table}, paramName=${paramName}, dbColumn=${dbColumnName}, resourceId=${resourceId}, ownerField=${ownerField}`);
       console.log(`[Ownership] User: userId=${req.userId}, email=${req.userInfo?.email}`);
       
-      // Query the resource
+      // Query the resource using the correct database column name
       let resource;
       try {
-        resource = await queryOne(table, { where: { [idField]: resourceId } });
+        resource = await queryOne(table, { where: { [dbColumnName]: resourceId } });
       } catch (queryError) {
         console.error('[Ownership] Database query failed:', {
           error: queryError.message,
@@ -108,7 +120,8 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
           details: queryError.details,
           hint: queryError.hint,
           table,
-          idField,
+          paramName,
+          dbColumnName,
           resourceId
         });
         return res.status(500).json({ 
@@ -121,7 +134,7 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
       }
       
       if (!resource) {
-        console.log(`[Ownership] Resource not found: ${table} with ${idField}=${resourceId}`);
+        console.log(`[Ownership] Resource not found: ${table} with ${dbColumnName}=${resourceId}`);
         return res.status(404).json({ error: `${table.slice(0, -1)} not found` });
       }
 
@@ -152,9 +165,7 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
           setImmediate(async () => {
             try {
               const updateWhere = {};
-              if (table === 'events') updateWhere.event_id = resourceId;
-              else if (table === 'fest') updateWhere.fest_id = resourceId;
-              else updateWhere[idField] = resourceId;
+              updateWhere[dbColumnName] = resourceId;
               
               await update(table, { auth_uuid: req.userId }, updateWhere);
               console.log(`[Ownership] Auto-updated auth_uuid for ${table}/${resourceId}`);
