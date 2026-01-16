@@ -1,5 +1,5 @@
 import supabase from "../config/supabaseClient.js";
-import { queryOne } from "../config/database.js";
+import { queryOne, update } from "../config/database.js";
 
 /**
  * Middleware to verify Supabase JWT token and extract user info
@@ -104,14 +104,33 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
 
       console.log(`Ownership check: resource[${ownerField}]=${resource[ownerField]}, req.userId=${req.userId}`);
       
-      if (resource[ownerField] !== req.userId) {
-        console.log(`Ownership check failed: ${resource[ownerField]} !== ${req.userId}`);
-        return res.status(403).json({ error: 'Access denied: You can only modify your own resources' });
+      // Primary check: Compare auth_uuid
+      if (resource[ownerField] && resource[ownerField] === req.userId) {
+        console.log(`Ownership check passed via auth_uuid for user ${req.userId}`);
+        req.resource = resource;
+        return next();
       }
-
-      console.log(`Ownership check passed for user ${req.userId}`);
-      req.resource = resource;
-      next();
+      
+      // Fallback for legacy records without auth_uuid: Compare email
+      if (!resource[ownerField] && resource.created_by && req.userInfo?.email) {
+        if (resource.created_by === req.userInfo.email) {
+          console.log(`Ownership check passed via email fallback for ${req.userInfo.email}`);
+          // Automatically update the record with auth_uuid for future requests
+          try {
+            const updateField = table === 'events' ? 'event_id' : table === 'fest' ? 'fest_id' : idField;
+            await update(table, { auth_uuid: req.userId }, { [updateField]: resourceId });
+            console.log(`Auto-updated auth_uuid for ${table} ${resourceId}`);
+          } catch (updateError) {
+            console.warn('Failed to auto-update auth_uuid:', updateError.message);
+          }
+          req.resource = resource;
+          return next();
+        }
+      }
+      
+      console.log(`Ownership check failed: User ${req.userId} (${req.userInfo?.email}) does not own this resource`);
+      return res.status(403).json({ error: 'Access denied: You can only modify your own resources' });
+      
     } catch (error) {
       console.error('Ownership check error:', error);
       console.error('Error details:', {
