@@ -93,20 +93,34 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
         return res.status(400).json({ error: `${idField} parameter is required` });
       }
 
+      console.log(`Ownership check: table=${table}, idField=${idField}, resourceId=${resourceId}, ownerField=${ownerField}`);
+      
       const resource = await queryOne(table, { where: { [idField]: resourceId } });
       
       if (!resource) {
+        console.log(`Ownership check failed: Resource not found in ${table} with ${idField}=${resourceId}`);
         return res.status(404).json({ error: `${table.slice(0, -1)} not found` });
       }
 
+      console.log(`Ownership check: resource[${ownerField}]=${resource[ownerField]}, req.userId=${req.userId}`);
+      
       if (resource[ownerField] !== req.userId) {
+        console.log(`Ownership check failed: ${resource[ownerField]} !== ${req.userId}`);
         return res.status(403).json({ error: 'Access denied: You can only modify your own resources' });
       }
 
+      console.log(`Ownership check passed for user ${req.userId}`);
       req.resource = resource;
       next();
     } catch (error) {
       console.error('Ownership check error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        table,
+        idField,
+        ownerField
+      });
       return res.status(500).json({ error: 'Database error while checking ownership' });
     }
   };

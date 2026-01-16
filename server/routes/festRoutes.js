@@ -2,6 +2,12 @@ import express from "express";
 import { getPathFromStorageUrl, deleteFileFromLocal } from "../utils/fileUtils.js";
 import { v4 as uuidv4 } from "uuid";
 import { queryAll, queryOne, insert, update, remove } from "../config/database.js";
+import { 
+  authenticateUser, 
+  getUserInfo, 
+  requireOrganiser, 
+  requireOwnership 
+} from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -82,10 +88,14 @@ router.get("/:festId", async (req, res) => {
   }
 });
 
-// POST - Create new fest
-router.post("/", async (req, res) => {
+// POST - Create new fest - REQUIRES AUTHENTICATION + ORGANISER PRIVILEGES
+router.post(
+  "/",
+  authenticateUser,
+  getUserInfo(),
+  requireOrganiser,
+  async (req, res) => {
   try {
-    // For now, simplified without authentication checks
     const festData = req.body;
 
     // Basic validation
@@ -125,7 +135,8 @@ router.post("/", async (req, res) => {
       contact_email: festData.contactEmail || festData.contact_email || "",
       contact_phone: festData.contactPhone || festData.contact_phone || "",
       event_heads: festData.eventHeads || festData.event_heads || [],
-      created_by: festData.createdBy || festData.created_by || "admin"
+      created_by: festData.createdBy || festData.created_by || req.userInfo?.email || req.userId,
+      auth_uuid: req.userId
     };
 
   const inserted = await insert("fest", [festPayload]);
@@ -142,18 +153,18 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT - Update fest
-router.put("/:festId", async (req, res) => {
+// PUT - Update fest - REQUIRES AUTHENTICATION + OWNERSHIP + ORGANISER PRIVILEGES
+router.put(
+  "/:festId",
+  authenticateUser,
+  getUserInfo(),
+  requireOrganiser,
+  requireOwnership('fest', 'festId', 'auth_uuid'),
+  async (req, res) => {
   try {
     const { festId } = req.params;
     const updateData = req.body;
-
-    // Check if fest exists
-  const existingFest = await queryOne("fest", { where: { fest_id: festId } });
-
-    if (!existingFest) {
-      return res.status(404).json({ error: "Fest not found" });
-    }
+    const existingFest = req.resource; // From ownership middleware
 
     const updatePayload = {};
 
@@ -197,17 +208,17 @@ router.put("/:festId", async (req, res) => {
   }
 });
 
-// DELETE fest
-router.delete("/:festId", async (req, res) => {
+// DELETE fest - REQUIRES AUTHENTICATION + OWNERSHIP + ORGANISER PRIVILEGES
+router.delete(
+  "/:festId",
+  authenticateUser,
+  getUserInfo(),
+  requireOrganiser,
+  requireOwnership('fest', 'festId', 'auth_uuid'),
+  async (req, res) => {
   try {
     const { festId } = req.params;
-
-    // Get fest details first
-  const existingFest = await queryOne("fest", { where: { fest_id: festId } });
-
-    if (!existingFest) {
-      return res.status(404).json({ error: "Fest not found" });
-    }
+    const existingFest = req.resource; // From ownership middleware
 
     // Delete associated events first
     await remove("events", { fest: festId });

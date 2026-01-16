@@ -64,7 +64,9 @@ CREATE TABLE fest (
   contact_phone TEXT,
   event_heads JSONB,
   created_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  auth_uuid UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
 );
 
 -- Registrations table

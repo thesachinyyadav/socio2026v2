@@ -286,7 +286,7 @@ router.put(
   authenticateUser,
   getUserInfo(),
   requireOrganiser,
-  requireOwnership('events', 'eventId', 'created_by'),  // Check ownership
+  requireOwnership('events', 'eventId', 'auth_uuid'),  // Check ownership using auth_uuid
   async (req, res) => {
     try {
       const { eventId } = req.params;
@@ -399,7 +399,7 @@ router.delete(
   authenticateUser,
   getUserInfo(),
   requireOrganiser,
-  requireOwnership('events', 'eventId', 'created_by'),
+  requireOwnership('events', 'eventId', 'auth_uuid'),
   async (req, res) => {
     try {
       const { eventId } = req.params;
