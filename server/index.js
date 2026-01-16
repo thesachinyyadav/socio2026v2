@@ -14,6 +14,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import debugRoutes from "./routes/debugRoutes.js";
 
 dotenv.config();
 
@@ -57,6 +58,7 @@ app.use("/api", attendanceRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", contactRoutes);
+app.use("/api/debug", debugRoutes);
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {

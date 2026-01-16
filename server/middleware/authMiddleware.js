@@ -90,57 +90,97 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
       const resourceId = req.params[idField] || req.params.id;
       
       if (!resourceId) {
+        console.error('requireOwnership: Missing resourceId');
         return res.status(400).json({ error: `${idField} parameter is required` });
       }
 
-      console.log(`Ownership check: table=${table}, idField=${idField}, resourceId=${resourceId}, ownerField=${ownerField}`);
+      console.log(`[Ownership] Checking: table=${table}, idField=${idField}, resourceId=${resourceId}, ownerField=${ownerField}`);
+      console.log(`[Ownership] User: userId=${req.userId}, email=${req.userInfo?.email}`);
       
-      const resource = await queryOne(table, { where: { [idField]: resourceId } });
+      // Query the resource
+      let resource;
+      try {
+        resource = await queryOne(table, { where: { [idField]: resourceId } });
+      } catch (queryError) {
+        console.error('[Ownership] Query error:', queryError);
+        return res.status(500).json({ error: 'Database error while fetching resource' });
+      }
       
       if (!resource) {
-        console.log(`Ownership check failed: Resource not found in ${table} with ${idField}=${resourceId}`);
+        console.log(`[Ownership] Resource not found: ${table} with ${idField}=${resourceId}`);
         return res.status(404).json({ error: `${table.slice(0, -1)} not found` });
       }
 
-      console.log(`Ownership check: resource[${ownerField}]=${resource[ownerField]}, req.userId=${req.userId}`);
+      console.log(`[Ownership] Resource found:`, {
+        auth_uuid: resource.auth_uuid,
+        created_by: resource.created_by,
+        hasAuthUuid: !!resource.auth_uuid
+      });
       
-      // Primary check: Compare auth_uuid
-      if (resource[ownerField] && resource[ownerField] === req.userId) {
-        console.log(`Ownership check passed via auth_uuid for user ${req.userId}`);
-        req.resource = resource;
-        return next();
+      // Strategy 1: Check auth_uuid (preferred for new records)
+      if (resource.auth_uuid) {
+        if (resource.auth_uuid === req.userId) {
+          console.log(`[Ownership] ✅ PASSED via auth_uuid match`);
+          req.resource = resource;
+          return next();
+        } else {
+          console.log(`[Ownership] ❌ FAILED: auth_uuid mismatch (${resource.auth_uuid} !== ${req.userId})`);
+          return res.status(403).json({ error: 'Access denied: You can only modify your own resources' });
+        }
       }
       
-      // Fallback for legacy records without auth_uuid: Compare email
-      if (!resource[ownerField] && resource.created_by && req.userInfo?.email) {
+      // Strategy 2: Fallback to email comparison (for legacy records)
+      if (resource.created_by && req.userInfo?.email) {
         if (resource.created_by === req.userInfo.email) {
-          console.log(`Ownership check passed via email fallback for ${req.userInfo.email}`);
-          // Automatically update the record with auth_uuid for future requests
-          try {
-            const updateField = table === 'events' ? 'event_id' : table === 'fest' ? 'fest_id' : idField;
-            await update(table, { auth_uuid: req.userId }, { [updateField]: resourceId });
-            console.log(`Auto-updated auth_uuid for ${table} ${resourceId}`);
-          } catch (updateError) {
-            console.warn('Failed to auto-update auth_uuid:', updateError.message);
-          }
+          console.log(`[Ownership] ✅ PASSED via email fallback (${req.userInfo.email})`);
+          
+          // Try to auto-populate auth_uuid for future requests (non-blocking)
+          setImmediate(async () => {
+            try {
+              const updateWhere = {};
+              if (table === 'events') updateWhere.event_id = resourceId;
+              else if (table === 'fest') updateWhere.fest_id = resourceId;
+              else updateWhere[idField] = resourceId;
+              
+              await update(table, { auth_uuid: req.userId }, updateWhere);
+              console.log(`[Ownership] Auto-updated auth_uuid for ${table}/${resourceId}`);
+            } catch (updateError) {
+              console.warn('[Ownership] Failed to auto-update auth_uuid (non-critical):', updateError.message);
+            }
+          });
+          
           req.resource = resource;
           return next();
         }
       }
       
-      console.log(`Ownership check failed: User ${req.userId} (${req.userInfo?.email}) does not own this resource`);
-      return res.status(403).json({ error: 'Access denied: You can only modify your own resources' });
+      // No match found
+      console.log(`[Ownership] ❌ FAILED: No ownership match found`);
+      console.log(`[Ownership] Checked: auth_uuid=${resource.auth_uuid}, created_by=${resource.created_by}`);
+      console.log(`[Ownership] Against: userId=${req.userId}, email=${req.userInfo?.email}`);
+      
+      return res.status(403).json({ 
+        error: 'Access denied: You can only modify your own resources',
+        debug: process.env.NODE_ENV === 'development' ? {
+          resource_created_by: resource.created_by,
+          your_email: req.userInfo?.email
+        } : undefined
+      });
       
     } catch (error) {
-      console.error('Ownership check error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
+      console.error('[Ownership] Unexpected error:', error);
+      console.error('[Ownership] Error stack:', error.stack);
+      console.error('[Ownership] Context:', {
         table,
         idField,
-        ownerField
+        ownerField,
+        userId: req.userId,
+        userEmail: req.userInfo?.email
       });
-      return res.status(500).json({ error: 'Database error while checking ownership' });
+      return res.status(500).json({ 
+        error: 'Database error while checking ownership',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   };
 };
