@@ -102,8 +102,22 @@ export const requireOwnership = (table, idField, ownerField = 'auth_uuid') => {
       try {
         resource = await queryOne(table, { where: { [idField]: resourceId } });
       } catch (queryError) {
-        console.error('[Ownership] Query error:', queryError);
-        return res.status(500).json({ error: 'Database error while fetching resource' });
+        console.error('[Ownership] Database query failed:', {
+          error: queryError.message,
+          code: queryError.code,
+          details: queryError.details,
+          hint: queryError.hint,
+          table,
+          idField,
+          resourceId
+        });
+        return res.status(500).json({ 
+          error: 'Database error while fetching resource',
+          debug: process.env.NODE_ENV === 'development' ? {
+            message: queryError.message,
+            code: queryError.code
+          } : undefined
+        });
       }
       
       if (!resource) {
