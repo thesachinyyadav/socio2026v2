@@ -17,17 +17,22 @@ const fileSchema = (
   isRequired: boolean = true
 ) =>
   z
-    .custom<FileList>()
-    .transform((files) => (files && files.length > 0 ? files[0] : null))
-    .superRefine((file, ctx) => {
-      if (isRequired && !file) {
+    .custom<FileList>((val) => {
+      // Accept FileList or null/undefined
+      if (!val) return !isRequired;
+      if (val instanceof FileList) return true;
+      return false;
+    }, "Expected a FileList")
+    .superRefine((files, ctx) => {
+      if (isRequired && (!files || files.length === 0)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "File is required.",
         });
         return;
       }
-      if (file) {
+      if (files && files.length > 0) {
+        const file = files[0];
         if (file.size > maxSize) {
           ctx.addIssue({
             code: z.ZodIssueCode.too_big,
@@ -169,6 +174,8 @@ export const eventFormSchema = z
     }
   );
 
+// TypeScript type inferred from schema
+// Note: imageFile, bannerFile, and pdfFile are FileList | null (browser native type)
 export type EventFormData = z.infer<typeof eventFormSchema>;
 export type ScheduleItem = z.infer<typeof scheduleItemSchema>;
 

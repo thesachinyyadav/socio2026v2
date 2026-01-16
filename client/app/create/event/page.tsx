@@ -140,41 +140,50 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("event_heads", dataFromHookForm.eventHeads);
     appendIfExists("created_by", userEmail);
 
-    if (dataFromHookForm.imageFile instanceof File) {
-      formData.append("eventImage", dataFromHookForm.imageFile);
-    } else if (dataFromHookForm.imageFile) {
-      console.warn(
-        "CreateEventPage: imageFile is present but not a File object:",
-        dataFromHookForm.imageFile
-      );
-    }
-    if (dataFromHookForm.bannerFile instanceof File) {
-      formData.append("bannerImage", dataFromHookForm.bannerFile);
-    } else if (dataFromHookForm.bannerFile) {
-      console.warn(
-        "CreateEventPage: bannerFile is present but not a File object:",
-        dataFromHookForm.bannerFile
-      );
-    }
-    if (dataFromHookForm.pdfFile instanceof File) {
-      formData.append("pdfFile", dataFromHookForm.pdfFile);
-    } else if (dataFromHookForm.pdfFile) {
-      console.warn(
-        "CreateEventPage: pdfFile is present but not a File object:",
-        dataFromHookForm.pdfFile
-      );
-    }
+    const appendFile = (key: string, file: any) => {
+      if (!file) {
+        console.log(`Skipping ${key}: No file provided.`);
+        return;
+      }
+      
+      // Handle FileList (the native browser object)
+      if (file instanceof FileList) {
+        if (file.length > 0) {
+          formData.append(key, file[0]);
+          console.log(`✅ ${key}: ${file[0].name} (${file[0].size} bytes, ${file[0].type})`);
+        } else {
+          console.warn(`⚠️ ${key}: FileList is empty`);
+        }
+        return;
+      }
+      
+      // Handle direct File object
+      if (file instanceof File) {
+        formData.append(key, file);
+        console.log(`✅ ${key}: ${file.name} (${file.size} bytes, ${file.type})`);
+        return;
+      }
+      
+      // If we get here, something unexpected happened
+      console.error(`❌ ${key}: Unexpected type`, typeof file, file);
+    };
+
+    appendFile("eventImage", dataFromHookForm.imageFile);
+    appendFile("bannerImage", dataFromHookForm.bannerFile);
+    appendFile("pdfFile", dataFromHookForm.pdfFile);
 
     console.log("CreateEventPage: FormData prepared. Content snapshot:");
+    console.log("=== RAW FORM DATA BEFORE SENDING ===");
     for (let [key, value] of formData.entries()) {
       if (value instanceof File) {
         console.log(
-          `${key}: File - ${value.name}, Type - ${value.type}, Size - ${value.size} bytes`
+          `  ${key}: [FILE] ${value.name}, ${value.type}, ${value.size} bytes`
         );
       } else {
-        console.log(`${key}: ${value}`);
+        console.log(`  ${key}: ${value}`);
       }
     }
+    console.log("=== END FORM DATA ===");
     console.log(`CreateEventPage: API_URL is: ${API_URL}`);
 
     try {
