@@ -64,6 +64,7 @@ export interface FetchedEvent {
   updated_at: string | null;
   registration_deadline: string | null;
   total_participants: number | null;
+  allow_outsiders?: boolean | null;
 }
 
 interface EventsProviderProps {

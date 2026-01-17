@@ -22,6 +22,7 @@ interface FetchedEvent {
   registration_fee: number | null;
   event_image_url: string | null;
   organizing_dept: string | null;
+  allow_outsiders?: boolean | null;
 }
 
 interface FilterOption {
