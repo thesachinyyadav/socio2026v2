@@ -263,7 +263,9 @@ const Page = () => {
         eventId: selectedEvent.event_id,
         teamName: isIndividualEvent ? null : formData.teamName.trim() || null,
         teammates: formData.teammates.map((tm) => ({
-          registerNumber: tm.registerNumber.trim(), // Ensure trimmed value is sent
+          name: tm.name.trim(),
+          registerNumber: tm.registerNumber.trim(),
+          email: tm.email.trim(),
         })),
       };
 

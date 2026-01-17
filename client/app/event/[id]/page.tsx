@@ -309,15 +309,21 @@ export default function Page() {
     if (userData && userData.register_number && !authIsLoading) {
       setLoadingUserRegistrations(true);
       fetch(
-        `${API_URL}/api/registrations/${userData.register_number}`
+        `${API_URL}/api/registrations/user/${userData.register_number}/events`
       )
         .then((res) =>
-          res.ok ? res.json() : Promise.resolve({ registeredEventIds: [] })
+          res.ok ? res.json() : Promise.resolve({ events: [] })
         )
-        .then((data) =>
-          setUserRegisteredEventIds(data.registeredEventIds || [])
-        )
-        .catch(() => setUserRegisteredEventIds([]))
+        .then((data) => {
+          // Extract event_ids from events array
+          const eventIds = (data.events || []).map(e => e.event_id || e.id).filter(Boolean);
+          console.log('User registered event IDs:', eventIds);
+          setUserRegisteredEventIds(eventIds);
+        })
+        .catch((err) => {
+          console.error('Error fetching user registrations:', err);
+          setUserRegisteredEventIds([]);
+        })
         .finally(() => setLoadingUserRegistrations(false));
     } else if (!authIsLoading && !userData) {
       setUserRegisteredEventIds([]);
@@ -358,7 +364,11 @@ export default function Page() {
         const payload = {
           eventId: eventData.id,
           teamName: null,
-          teammates: [{ registerNumber: regNumStr }],
+          teammates: [{ 
+            name: userData.name || "Unknown",
+            registerNumber: regNumStr,
+            email: userData.email || "unknown@example.com"
+          }],
         };
         const response = await fetch(`${API_URL}/api/register`, {
           method: "POST",
