@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
+import toast from "react-hot-toast";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const ITEMS_PER_PAGE = 20;
@@ -76,6 +78,11 @@ export default function MasterAdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
 
+  // Debounced search queries for better performance
+  const debouncedUserSearch = useDebounce(userSearchQuery, 300);
+  const debouncedEventSearch = useDebounce(eventSearchQuery, 300);
+  const debouncedFestSearch = useDebounce(festSearchQuery, 300);
+
   useEffect(() => {
     const getToken = async () => {
       const supabase = createBrowserClient(
@@ -115,8 +122,8 @@ export default function MasterAdminPage() {
   useEffect(() => {
     let filtered = users;
 
-    if (userSearchQuery) {
-      const query = userSearchQuery.toLowerCase();
+    if (debouncedUserSearch) {
+      const query = debouncedUserSearch.toLowerCase();
       filtered = filtered.filter(
         (user) =>
           user.email.toLowerCase().includes(query) ||
@@ -140,13 +147,13 @@ export default function MasterAdminPage() {
 
     setFilteredUsers(filtered);
     setUserPage(1);
-  }, [users, userSearchQuery, roleFilter]);
+  }, [users, debouncedUserSearch, roleFilter]);
 
   useEffect(() => {
     let filtered = events;
 
-    if (eventSearchQuery) {
-      const query = eventSearchQuery.toLowerCase();
+    if (debouncedEventSearch) {
+      const query = debouncedEventSearch.toLowerCase();
       filtered = filtered.filter(
         (event) =>
           event.title.toLowerCase().includes(query) ||
@@ -156,13 +163,13 @@ export default function MasterAdminPage() {
 
     setFilteredEvents(filtered);
     setEventPage(1);
-  }, [events, eventSearchQuery]);
+  }, [events, debouncedEventSearch]);
 
   useEffect(() => {
     let filtered = fests;
 
-    if (festSearchQuery) {
-      const query = festSearchQuery.toLowerCase();
+    if (debouncedFestSearch) {
+      const query = debouncedFestSearch.toLowerCase();
       filtered = filtered.filter(
         (fest) =>
           fest.fest_title.toLowerCase().includes(query) ||
@@ -172,7 +179,7 @@ export default function MasterAdminPage() {
 
     setFilteredFests(filtered);
     setFestPage(1);
-  }, [fests, festSearchQuery]);
+  }, [fests, debouncedFestSearch]);
 
   const fetchDashboardData = async () => {
     try {
@@ -203,7 +210,7 @@ export default function MasterAdminPage() {
       setUsers(data.users || []);
     } catch (error) {
       console.error("Error fetching users:", error);
-      alert("Failed to load users. Check console for details.");
+      toast.error("Failed to load users. Check console for details.");
     } finally {
       setIsLoading(false);
     }
@@ -247,7 +254,7 @@ export default function MasterAdminPage() {
       setEvents(eventsWithCounts);
     } catch (error) {
       console.error("Error fetching events:", error);
-      alert("Failed to load events");
+      toast.error("Failed to load events");
     } finally {
       setIsLoading(false);
     }
@@ -313,7 +320,7 @@ export default function MasterAdminPage() {
       setFests(festsWithCounts);
     } catch (error) {
       console.error("Error fetching fests:", error);
-      alert("Failed to load fests");
+      toast.error("Failed to load fests");
     } finally {
       setIsLoading(false);
     }
@@ -379,10 +386,10 @@ export default function MasterAdminPage() {
       ));
       setEditingUserId(null);
       setEditingUserRoles({});
-      alert("Roles updated successfully");
+      toast.success("Roles updated successfully");
     } catch (error: any) {
       console.error("Error updating roles:", error);
-      alert(error.message || "Failed to update roles");
+      toast.error(error.message || "Failed to update roles");
     }
   };
 
@@ -402,10 +409,10 @@ export default function MasterAdminPage() {
 
       setUsers((prev) => prev.filter((u) => u.email !== email));
       setShowDeleteUserConfirm(null);
-      alert("User deleted successfully");
+      toast.success("User deleted successfully");
     } catch (error: any) {
       console.error("Error deleting user:", error);
-      alert(error.message || "Failed to delete user");
+      toast.error(error.message || "Failed to delete user");
     }
   };
 
@@ -425,10 +432,10 @@ export default function MasterAdminPage() {
 
       setEvents((prev) => prev.filter((e) => e.event_id !== eventId));
       setShowDeleteEventConfirm(null);
-      alert("Event deleted successfully");
+      toast.success("Event deleted successfully");
     } catch (error: any) {
       console.error("Error deleting event:", error);
-      alert(error.message || "Failed to delete event");
+      toast.error(error.message || "Failed to delete event");
     }
   };
 
@@ -448,10 +455,10 @@ export default function MasterAdminPage() {
 
       setFests((prev) => prev.filter((f) => f.fest_id !== festId));
       setShowDeleteFestConfirm(null);
-      alert("Fest deleted successfully");
+      toast.success("Fest deleted successfully");
     } catch (error: any) {
       console.error("Error deleting fest:", error);
-      alert(error.message || "Failed to delete fest");
+      toast.error(error.message || "Failed to delete fest");
     }
   };
 

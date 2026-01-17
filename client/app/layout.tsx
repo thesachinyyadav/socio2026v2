@@ -6,6 +6,7 @@ import NavigationBar from "./_components/NavigationBar";
 import { createClient } from "@supabase/supabase-js";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/react";
+import { Toaster } from "react-hot-toast";
 
 import {
   EventsProvider,
@@ -194,6 +195,30 @@ export default async function RootLayout({
               initialIsLoading={isLoading}
               initialError={error}
             >
+              <Toaster 
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: '#363636',
+                    color: '#fff',
+                  },
+                  success: {
+                    duration: 3000,
+                    iconTheme: {
+                      primary: '#10b981',
+                      secondary: '#fff',
+                    },
+                  },
+                  error: {
+                    duration: 4000,
+                    iconTheme: {
+                      primary: '#ef4444',
+                      secondary: '#fff',
+                    },
+                  },
+                }}
+              />
               <div className="relative w-full overflow-hidden">
                 <NavigationBar />
                 {children}

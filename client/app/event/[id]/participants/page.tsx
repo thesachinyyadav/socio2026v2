@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ExcelJS from "exceljs";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
 interface Student {
   id: number;
@@ -26,6 +27,9 @@ export default function StudentsPage() {
 
   const params = useParams();
   const event_id = params?.id as string;
+
+  // Debounce search for better performance
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -194,7 +198,7 @@ export default function StudentsPage() {
   };
 
   const filteredStudents = students.filter((student) => {
-    const searchLower = searchQuery.toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase();
     const nameMatch = student.name?.toLowerCase().includes(searchLower);
     const registerNumberString =
       student.register_number != null ? String(student.register_number) : "";
@@ -214,7 +218,7 @@ export default function StudentsPage() {
   // Reset to page 1 when search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [debouncedSearch]);
 
   if (params && !event_id && isDataLoading) {
     return (
