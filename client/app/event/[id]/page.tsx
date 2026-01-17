@@ -351,6 +351,16 @@ export default function Page() {
         );
         return;
       }
+
+      // If the user is an outsider and the event disallows outsiders,
+      // show a clear message indicating the event is restricted.
+      if (userData.organization_type === "outsider" && eventData && !eventData.allow_outsiders) {
+        setRegistrationApiError(
+          "This event is restricted to Christ University members only."
+        );
+        return;
+      }
+
       const regNumStr = String(userData.register_number);
       if (!/^\d{7}$/.test(regNumStr)) {
         setRegistrationApiError(
