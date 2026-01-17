@@ -231,8 +231,9 @@ export default function MasterAdminPage() {
     try {
       setIsLoading(true);
       
-      const [festsResponse, registrationsResponse] = await Promise.all([
+      const [festsResponse, eventsResponse, registrationsResponse] = await Promise.all([
         fetch(`${API_URL}/api/fests`),
+        fetch(`${API_URL}/api/events`),
         fetch(`${API_URL}/api/registrations`)
       ]);
 
@@ -243,24 +244,39 @@ export default function MasterAdminPage() {
       const festsData = await festsResponse.json();
       const festsList = festsData.fests || festsData || [];
 
-      // Get registration counts if available
-      let registrationCounts: Record<string, number> = {};
+      // Get events data
+      let eventsData: any[] = [];
+      if (eventsResponse.ok) {
+        const eventsJson = await eventsResponse.json();
+        eventsData = eventsJson.events || [];
+      }
+
+      // Get registration counts by event_id
+      let eventRegistrationCounts: Record<string, number> = {};
       if (registrationsResponse.ok) {
         const regData = await registrationsResponse.json();
-        // Count registrations by fest_id
         if (regData.registrations) {
           regData.registrations.forEach((reg: any) => {
-            if (reg.fest_id) {
-              registrationCounts[reg.fest_id] = (registrationCounts[reg.fest_id] || 0) + 1;
+            if (reg.event_id) {
+              eventRegistrationCounts[reg.event_id] = (eventRegistrationCounts[reg.event_id] || 0) + 1;
             }
           });
         }
       }
 
+      // Calculate fest registration counts: sum of all registrations for events belonging to that fest
+      const festRegistrationCounts: Record<string, number> = {};
+      eventsData.forEach((event: any) => {
+        if (event.fest_id) {
+          const eventRegCount = eventRegistrationCounts[event.event_id] || 0;
+          festRegistrationCounts[event.fest_id] = (festRegistrationCounts[event.fest_id] || 0) + eventRegCount;
+        }
+      });
+
       // Add registration counts to fests
       const festsWithCounts = festsList.map((fest: Fest) => ({
         ...fest,
-        registration_count: registrationCounts[fest.fest_id] || 0
+        registration_count: festRegistrationCounts[fest.fest_id] || 0
       }));
 
       setFests(festsWithCounts);
