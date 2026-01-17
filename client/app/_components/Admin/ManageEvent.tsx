@@ -783,6 +783,9 @@ export default function EventForm({
       scheduleItems: [],
       prizes: [],
       provideClaims: false,
+      allowOutsiders: false,
+      outsiderRegistrationFee: "",
+      outsiderMaxParticipants: "",
       imageFile: null,
       bannerFile: null,
       pdfFile: null,
@@ -1288,6 +1291,62 @@ export default function EventForm({
                     <p className="text-red-500 text-xs mt-1">
                       {errors.provideClaims.message}
                     </p>
+                  )}
+                </div>
+
+                {/* Outsider Registration Section */}
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between sm:justify-start mb-4">
+                    <label
+                      htmlFor="allowOutsiders"
+                      className="text-sm font-medium text-gray-700 mr-4"
+                    >
+                      Allow outsider registrations
+                      <span className="block text-xs text-gray-500 font-normal mt-1">
+                        Permit non-Christ University members to register
+                      </span>
+                    </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <Controller
+                        name="allowOutsiders"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="allowOutsiders"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
+                  </div>
+
+                  {/* Conditional outsider fields - only show when allowOutsiders is true */}
+                  {watch("allowOutsiders") && (
+                    <div className="space-y-4 pl-4 border-l-2 border-[#154CB3]">
+                      <InputField
+                        label="Outsider Registration Fee: (optional)"
+                        name="outsiderRegistrationFee"
+                        type="text"
+                        register={register}
+                        error={errors.outsiderRegistrationFee}
+                        placeholder="e.g., 500"
+                      />
+                      <InputField
+                        label="Maximum Outsider Participants: (optional)"
+                        name="outsiderMaxParticipants"
+                        type="text"
+                        register={register}
+                        error={errors.outsiderMaxParticipants}
+                        placeholder="e.g., 50"
+                      />
+                      <p className="text-xs text-gray-600 italic">
+                        💡 Leave blank to use standard event settings for outsiders
+                      </p>
+                    </div>
                   )}
                 </div>
 

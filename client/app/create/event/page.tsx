@@ -133,6 +133,11 @@ export default function CreateEventPage() {
       "send_notifications",
       String(dataFromHookForm.sendNotifications)
     );
+    
+    // Outsider registration fields
+    formData.append("allow_outsiders", String(dataFromHookForm.allowOutsiders));
+    appendIfExists("outsider_registration_fee", dataFromHookForm.outsiderRegistrationFee);
+    appendIfExists("outsider_max_participants", dataFromHookForm.outsiderMaxParticipants);
 
     appendJsonArrayOrObject("schedule", dataFromHookForm.scheduleItems);
     appendJsonArrayOrObject("rules", dataFromHookForm.rules);
