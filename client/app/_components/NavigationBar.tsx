@@ -5,11 +5,12 @@ import Image from "next/image";
 import Logo from "@/app/logo.svg";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationSystem } from "./NotificationSystem";
-import { useState } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import TermsConsentModal from "./TermsConsentModal";
 import { useTermsConsent } from "@/context/TermsConsentContext";
 import { createBrowserClient } from "@supabase/ssr";
 
+// OPTIMIZATION: Move static data outside component to prevent recreation on every render
 const navigationLinks = [
   {
     name: "Home",
@@ -49,7 +50,7 @@ const navigationLinks = [
   }
 ];
 
-export default function NavigationBar() {
+function NavigationBar() {
   const { session, userData, isLoading, signInWithGoogle, signOut } = useAuth();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -57,47 +58,46 @@ export default function NavigationBar() {
   const [isSignUp, setIsSignUp] = useState(false);
   const { hasConsented, setHasConsented, checkConsentStatus } = useTermsConsent();
 
-  const handleSignIn = async (isSignUpButton = false) => {
-    // Set whether this is a sign up or login attempt (for UI messaging)
+  // OPTIMIZATION: Memoize callbacks to prevent recreation on every render
+  const handleSignIn = useCallback(async (isSignUpButton = false) => {
     setIsSignUp(isSignUpButton);
     
-    // Only show terms consent for Sign Up, not Login
     if (isSignUpButton && !checkConsentStatus()) {
-      // If not consented and this is sign up, show the terms modal
       setShowTermsModal(true);
       return;
     }
     
-    // If already consented or this is just login, proceed with sign in
     await signInWithGoogle();
-  };
+  }, [checkConsentStatus, signInWithGoogle]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     await signOut();
-  };
+  }, [signOut]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      // Navigate to Discover page with search query
       window.location.href = `/Discover?search=${encodeURIComponent(searchQuery.trim())}`;
     }
-  };
+  }, [searchQuery]);
 
-  const handleDropdownHover = (linkName: string | null) => {
+  const handleDropdownHover = useCallback((linkName: string | null) => {
     setActiveDropdown(linkName);
-  };
+  }, []);
+
+  // OPTIMIZATION: Memoize loading state JSX
+  const loadingView = useMemo(() => (
+    <>
+      <nav className="w-full flex justify-between items-center pt-8 pb-7 px-12 text-[#154CB3] select-none">
+        <div className="h-10 w-24"></div>
+        <div className="h-10 w-24"></div>
+      </nav>
+      <hr className="border-[#3030304b]" />
+    </>
+  ), []);
 
   if (isLoading) {
-    return (
-      <>
-        <nav className="w-full flex justify-between items-center pt-8 pb-7 px-12 text-[#154CB3] select-none">
-          <div className="h-10 w-24"></div>
-          <div className="h-10 w-24"></div>
-        </nav>
-        <hr className="border-[#3030304b]" />
-      </>
-    );
+    return loadingView;
   }
 
   const handleTermsAccept = async () => {
@@ -290,3 +290,6 @@ export default function NavigationBar() {
     </>
   );
 }
+
+// OPTIMIZATION: Wrap with React.memo to prevent re-renders when props haven't changed
+export default memo(NavigationBar);

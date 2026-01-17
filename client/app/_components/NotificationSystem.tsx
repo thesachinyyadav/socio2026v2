@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -21,7 +21,8 @@ interface NotificationSystemProps {
   className?: string;
 }
 
-export const NotificationSystem: React.FC<NotificationSystemProps> = ({ 
+// OPTIMIZATION: Memoize NotificationSystem to prevent unnecessary re-renders
+const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({ 
   className = "" 
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -29,18 +30,9 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { userData, session } = useAuth();
-  // API_URL moved to module scope
 
-  useEffect(() => {
-    if (userData?.email) {
-      fetchNotifications();
-      // Set up polling for new notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [userData?.email]);
-
-  const fetchNotifications = async () => {
+  // OPTIMIZATION: Memoize fetchNotifications with useCallback
+  const fetchNotifications = useCallback(async () => {
     if (!session?.access_token || !userData?.email) return;
 
     setLoading(true);
@@ -66,9 +58,19 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.access_token, userData?.email]);
 
-  const markAsRead = async (notificationId: string) => {
+  useEffect(() => {
+    if (userData?.email) {
+      fetchNotifications();
+      // Set up polling for new notifications every 30 seconds
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [userData?.email, fetchNotifications]);
+
+  // OPTIMIZATION: Memoize markAsRead with useCallback
+  const markAsRead = useCallback(async (notificationId: string) => {
     if (!session?.access_token) return;
 
     try {
@@ -94,9 +96,10 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
-  };
+  }, [session?.access_token]);
 
-  const markAllAsRead = async () => {
+  // OPTIMIZATION: Memoize markAllAsRead with useCallback
+  const markAllAsRead = useCallback(async () => {
     if (!session?.access_token || !userData?.email) return;
 
     try {
@@ -120,7 +123,7 @@ export const NotificationSystem: React.FC<NotificationSystemProps> = ({
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
-  };
+  }, [session?.access_token, userData?.email]);
 
   const deleteNotification = async (notificationId: string) => {
     if (!session?.access_token) return;
@@ -373,4 +376,6 @@ export const createEventNotification = async (
   }
 };
 
+// OPTIMIZATION: Export memoized component
+export const NotificationSystem = memo(NotificationSystemComponent);
 export default NotificationSystem;
