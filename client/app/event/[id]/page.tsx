@@ -29,6 +29,7 @@ interface EventData {
   organizers?: Array<{ name: string; email: string; phone: string }>;
   whatsappLink?: string;
   registrationDeadlineISO?: string | null;
+  allow_outsiders?: boolean;
 }
 
 export default function Page() {
