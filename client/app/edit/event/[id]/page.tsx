@@ -198,10 +198,10 @@ export default function EditEventPage() {
           const transformedData: Partial<EventFormData> = {
             eventTitle: data.title || "",
             eventDate: data.event_date
-              ? moment.utc(data.event_date, moment.ISO_8601, true).format("YYYY-MM-DD")
+              ? moment(data.event_date).format("YYYY-MM-DD")
               : "",
             endDate: data.end_date
-              ? moment.utc(data.end_date, moment.ISO_8601, true).format("YYYY-MM-DD")
+              ? moment(data.end_date).format("YYYY-MM-DD")
               : "",
             eventTime: formEventTimeString,
             detailedDescription: data.description || "",
@@ -210,7 +210,7 @@ export default function EditEventPage() {
             organizingDept: data.organizing_dept || "",
             festEvent: data.fest || "none",
             registrationDeadline: data.registration_deadline
-              ? moment.utc(data.registration_deadline, moment.ISO_8601, true).format("YYYY-MM-DD")
+              ? moment(data.registration_deadline).format("YYYY-MM-DD")
               : "",
             location: data.venue || "",
             registrationFee: data.registration_fee?.toString() ?? "0",

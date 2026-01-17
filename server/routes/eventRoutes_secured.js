@@ -239,21 +239,19 @@ router.post(
         throw new Error("Event was not created successfully.");
       }
 
-      // Send notifications to all users about the new event
-      try {
-        await sendBroadcastNotification({
-          title: '🎉 New Event Published!',
-          message: `${title} - Check out this new event!`,
-          type: 'info',
-          event_id: event_id,
-          event_title: title,
-          action_url: `/event/${event_id}`
-        });
-        console.log(`Sent notifications for new event: ${title}`);
-      } catch (notifError) {
-        console.error('Failed to send event notifications:', notifError);
-        // Don't fail the event creation if notifications fail
-      }
+      // Send notifications to all users about the new event (non-blocking)
+      sendBroadcastNotification({
+        title: '🎉 New Event Published!',
+        message: `${title} - Check out this new event!`,
+        type: 'info',
+        event_id: event_id,
+        event_title: title,
+        action_url: `/event/${event_id}`
+      }).then(() => {
+        console.log(`✅ Sent notifications for new event: ${title}`);
+      }).catch((notifError) => {
+        console.error('❌ Failed to send event notifications:', notifError);
+      });
 
       return res.status(201).json({ 
         message: "Event created successfully", 

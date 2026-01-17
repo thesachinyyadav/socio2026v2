@@ -142,21 +142,19 @@ router.post(
   const inserted = await insert("fest", [festPayload]);
     const createdFest = inserted?.[0];
 
-    // Send notifications to all users about the new fest
-    try {
-      await sendBroadcastNotification({
-        title: '🎊 New Fest Announced!',
-        message: `${festPayload.fest_title} - Don't miss this fest!`,
-        type: 'info',
-        event_id: fest_id,
-        event_title: festPayload.fest_title,
-        action_url: `/fest/${fest_id}`
-      });
-      console.log(`Sent notifications for new fest: ${festPayload.fest_title}`);
-    } catch (notifError) {
-      console.error('Failed to send fest notifications:', notifError);
-      // Don't fail the fest creation if notifications fail
-    }
+    // Send notifications to all users about the new fest (non-blocking)
+    sendBroadcastNotification({
+      title: '🎊 New Fest Announced!',
+      message: `${festPayload.fest_title} - Don't miss this fest!`,
+      type: 'info',
+      event_id: fest_id,
+      event_title: festPayload.fest_title,
+      action_url: `/fest/${fest_id}`
+    }).then(() => {
+      console.log(`✅ Sent notifications for new fest: ${festPayload.fest_title}`);
+    }).catch((notifError) => {
+      console.error('❌ Failed to send fest notifications:', notifError);
+    });
 
     return res.status(201).json({
       message: "Fest created successfully",

@@ -156,17 +156,25 @@ router.patch("/notifications/mark-read", async (req, res) => {
 
 // Helper function to send notifications to all users (broadcast)
 export async function sendBroadcastNotification({ title, message, type = 'info', event_id = null, event_title = null, action_url = null }) {
+  console.log('[BROADCAST] Starting notification broadcast:', { title, event_id, event_title });
+  
   try {
     // Get all users
+    console.log('[BROADCAST] Fetching users from database...');
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('email')
       .not('email', 'is', null);
 
-    if (usersError) throw usersError;
+    if (usersError) {
+      console.error('[BROADCAST] Error fetching users:', usersError);
+      throw usersError;
+    }
+
+    console.log(`[BROADCAST] Found ${users?.length || 0} users`);
 
     if (!users || users.length === 0) {
-      console.log('No users found to send notifications');
+      console.log('[BROADCAST] No users found to send notifications');
       return { success: true, sent: 0 };
     }
 
@@ -183,28 +191,33 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
       read: false
     }));
 
+    console.log(`[BROADCAST] Prepared ${notifications.length} notifications, inserting...`);
+
     // Insert in batches of 100 to avoid query limits
     const batchSize = 100;
     let totalInserted = 0;
 
     for (let i = 0; i < notifications.length; i += batchSize) {
       const batch = notifications.slice(i, i + batchSize);
+      console.log(`[BROADCAST] Inserting batch ${Math.floor(i / batchSize) + 1} (${batch.length} notifications)`);
+      
       const { error: insertError } = await supabase
         .from('notifications')
         .insert(batch);
 
       if (insertError) {
-        console.error('Error inserting notification batch:', insertError);
+        console.error('[BROADCAST] Error inserting notification batch:', insertError);
       } else {
         totalInserted += batch.length;
+        console.log(`[BROADCAST] Successfully inserted ${batch.length} notifications`);
       }
     }
 
-    console.log(`Sent ${totalInserted} notifications to users`);
+    console.log(`[BROADCAST] ✅ Sent ${totalInserted} notifications to users`);
     return { success: true, sent: totalInserted };
 
   } catch (error) {
-    console.error('Error sending broadcast notification:', error);
+    console.error('[BROADCAST] ❌ Error sending broadcast notification:', error);
     return { success: false, error: error.message };
   }
 }

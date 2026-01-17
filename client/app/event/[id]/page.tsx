@@ -207,7 +207,7 @@ export default function Page() {
       numTeammates: foundEvent.participants_per_team ?? 1,
       daysLeft: (() => {
         if (!foundEvent.registration_deadline) return 0;
-        const target = moment.utc(foundEvent.registration_deadline, moment.ISO_8601, true);
+        const target = moment(foundEvent.registration_deadline);
         const today = moment().startOf("day");
         if (target.isBefore(today)) return 0;
         return target.diff(today, "days");
