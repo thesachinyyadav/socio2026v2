@@ -110,6 +110,8 @@ router.post("/", async (req, res) => {
     // Determine organization type from email
     const organizationType = getOrganizationType(authClientUser.email);
     
+    console.log(`📧 User login: ${authClientUser.email} | Organization: ${organizationType}`);
+    
     // Check if user already exists by email
     const existingUser = await queryOne("users", { where: { email: authClientUser.email } });
 
@@ -117,14 +119,26 @@ router.post("/", async (req, res) => {
       // Build update object for fields that need updating
       const updateData = {};
       
+      // SAFETY CHECK: If user is already a Christ member, NEVER convert to outsider
+      if (existingUser.organization_type === 'christ_member' && organizationType === 'outsider') {
+        console.warn(`⚠️  Attempted to convert Christ member to outsider: ${authClientUser.email}. Blocked.`);
+        return res.status(200).json({
+          user: existingUser,
+          isNew: false,
+          message: "User already exists.",
+        });
+      }
+      
       // Check if auth_uuid needs updating
       if (!existingUser.auth_uuid && authClientUser.id) {
         updateData.auth_uuid = authClientUser.id;
       }
       
       // Check if register_number needs updating
+      // NEVER overwrite existing register_number for Christ members
       if ((!existingUser.register_number || existingUser.register_number === 0) && 
-          authClientUser.register_number) {
+          authClientUser.register_number &&
+          existingUser.organization_type !== 'christ_member') {
         updateData.register_number = authClientUser.register_number;
       }
       
