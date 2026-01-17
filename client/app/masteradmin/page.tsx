@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const ITEMS_PER_PAGE = 20;
 
 type User = {
   id: number;
@@ -39,6 +40,7 @@ type Fest = {
   opening_date: string;
   created_by: string;
   created_at: string;
+  registration_count?: number;
 };
 
 export default function MasterAdminPage() {
@@ -51,25 +53,28 @@ export default function MasterAdminPage() {
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editingUserRoles, setEditingUserRoles] = useState<Partial<User>>({});
   const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<string | null>(null);
+  const [userPage, setUserPage] = useState(1);
   
   // Event management state
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [eventSearchQuery, setEventSearchQuery] = useState("");
   const [showDeleteEventConfirm, setShowDeleteEventConfirm] = useState<string | null>(null);
+  const [eventPage, setEventPage] = useState(1);
   
   // Fest management state
   const [fests, setFests] = useState<Fest[]>([]);
   const [filteredFests, setFilteredFests] = useState<Fest[]>([]);
   const [festSearchQuery, setFestSearchQuery] = useState("");
   const [showDeleteFestConfirm, setShowDeleteFestConfirm] = useState<string | null>(null);
+  const [festPage, setFestPage] = useState(1);
   
   const [isLoading, setIsLoading] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
 
-  // Get auth token from Supabase
   useEffect(() => {
     const getToken = async () => {
       const supabase = createBrowserClient(
@@ -86,14 +91,12 @@ export default function MasterAdminPage() {
     getToken();
   }, []);
 
-  // Redirect if not master admin
   useEffect(() => {
     if (!authLoading && !isMasterAdmin) {
       router.push("/");
     }
   }, [authLoading, isMasterAdmin, router]);
 
-  // Load data when tab changes
   useEffect(() => {
     if (!isMasterAdmin || !authToken) return;
     
@@ -108,7 +111,6 @@ export default function MasterAdminPage() {
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
-  // Filter users
   useEffect(() => {
     let filtered = users;
 
@@ -136,9 +138,9 @@ export default function MasterAdminPage() {
     }
 
     setFilteredUsers(filtered);
+    setUserPage(1);
   }, [users, userSearchQuery, roleFilter]);
 
-  // Filter events
   useEffect(() => {
     let filtered = events;
 
@@ -152,9 +154,9 @@ export default function MasterAdminPage() {
     }
 
     setFilteredEvents(filtered);
+    setEventPage(1);
   }, [events, eventSearchQuery]);
 
-  // Filter fests
   useEffect(() => {
     let filtered = fests;
 
@@ -168,6 +170,7 @@ export default function MasterAdminPage() {
     }
 
     setFilteredFests(filtered);
+    setFestPage(1);
   }, [fests, festSearchQuery]);
 
   const fetchDashboardData = async () => {
@@ -228,13 +231,39 @@ export default function MasterAdminPage() {
     try {
       setIsLoading(true);
       
-      const response = await fetch(`${API_URL}/api/fests`);
-      if (!response.ok) {
+      const [festsResponse, registrationsResponse] = await Promise.all([
+        fetch(`${API_URL}/api/fests`),
+        fetch(`${API_URL}/api/registrations`)
+      ]);
+
+      if (!festsResponse.ok) {
         throw new Error("Failed to fetch fests");
       }
 
-      const data = await response.json();
-      setFests(data.fests || data || []);
+      const festsData = await festsResponse.json();
+      const festsList = festsData.fests || festsData || [];
+
+      // Get registration counts if available
+      let registrationCounts: Record<string, number> = {};
+      if (registrationsResponse.ok) {
+        const regData = await registrationsResponse.json();
+        // Count registrations by fest_id
+        if (regData.registrations) {
+          regData.registrations.forEach((reg: any) => {
+            if (reg.fest_id) {
+              registrationCounts[reg.fest_id] = (registrationCounts[reg.fest_id] || 0) + 1;
+            }
+          });
+        }
+      }
+
+      // Add registration counts to fests
+      const festsWithCounts = festsList.map((fest: Fest) => ({
+        ...fest,
+        registration_count: registrationCounts[fest.fest_id] || 0
+      }));
+
+      setFests(festsWithCounts);
     } catch (error) {
       console.error("Error fetching fests:", error);
       alert("Failed to load fests");
@@ -243,22 +272,33 @@ export default function MasterAdminPage() {
     }
   };
 
-  const handleRoleToggle = (user: User, role: "is_organiser" | "is_support" | "is_masteradmin") => {
-    setEditingUser({
-      ...user,
-      [role]: !user[role],
+  const startEditUser = (user: User) => {
+    setEditingUserId(user.id);
+    setEditingUserRoles({
+      is_organiser: user.is_organiser,
+      organiser_expires_at: user.organiser_expires_at,
+      is_support: user.is_support,
+      support_expires_at: user.support_expires_at,
+      is_masteradmin: user.is_masteradmin,
+      masteradmin_expires_at: user.masteradmin_expires_at,
     });
   };
 
+  const handleRoleToggle = (role: "is_organiser" | "is_support" | "is_masteradmin") => {
+    setEditingUserRoles(prev => ({
+      ...prev,
+      [role]: !prev[role]
+    }));
+  };
+
   const handleExpirationChange = (
-    user: User,
     field: "organiser_expires_at" | "support_expires_at" | "masteradmin_expires_at",
     value: string | null
   ) => {
-    setEditingUser({
-      ...user,
-      [field]: value,
-    });
+    setEditingUserRoles(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const saveRoleChanges = async (user: User) => {
@@ -270,12 +310,12 @@ export default function MasterAdminPage() {
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          is_organiser: user.is_organiser,
-          organiser_expires_at: user.organiser_expires_at || null,
-          is_support: user.is_support,
-          support_expires_at: user.support_expires_at || null,
-          is_masteradmin: user.is_masteradmin,
-          masteradmin_expires_at: user.masteradmin_expires_at || null,
+          is_organiser: editingUserRoles.is_organiser,
+          organiser_expires_at: editingUserRoles.organiser_expires_at || null,
+          is_support: editingUserRoles.is_support,
+          support_expires_at: editingUserRoles.support_expires_at || null,
+          is_masteradmin: editingUserRoles.is_masteradmin,
+          masteradmin_expires_at: editingUserRoles.masteradmin_expires_at || null,
         }),
       });
 
@@ -284,8 +324,14 @@ export default function MasterAdminPage() {
         throw new Error(error.error || "Failed to update roles");
       }
 
-      setUsers((prev) => prev.map((u) => (u.email === user.email ? user : u)));
-      setEditingUser(null);
+      // Update local state
+      setUsers((prev) => prev.map((u) => 
+        u.id === user.id 
+          ? { ...u, ...editingUserRoles }
+          : u
+      ));
+      setEditingUserId(null);
+      setEditingUserRoles({});
       alert("Roles updated successfully");
     } catch (error: any) {
       console.error("Error updating roles:", error);
@@ -362,10 +408,75 @@ export default function MasterAdminPage() {
     }
   };
 
+  // Pagination helpers
+  const paginateArray = <T,>(array: T[], page: number) => {
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    return {
+      items: array.slice(start, end),
+      totalPages: Math.ceil(array.length / ITEMS_PER_PAGE),
+      hasNext: end < array.length,
+      hasPrev: page > 1
+    };
+  };
+
+  const PaginationControls = ({ 
+    currentPage, 
+    totalPages, 
+    hasNext, 
+    hasPrev, 
+    onNext, 
+    onPrev 
+  }: { 
+    currentPage: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+    onNext: () => void;
+    onPrev: () => void;
+  }) => (
+    <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200">
+      <div className="text-sm text-gray-600">
+        Page {currentPage} of {totalPages}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onPrev}
+          disabled={!hasPrev}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            hasPrev
+              ? "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          }`}
+        >
+          Previous
+        </button>
+        <button
+          onClick={onNext}
+          disabled={!hasNext}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            hasNext
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          }`}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+
+  const paginatedUsers = paginateArray(filteredUsers, userPage);
+  const paginatedEvents = paginateArray(filteredEvents, eventPage);
+  const paginatedFests = paginateArray(filteredFests, festPage);
+
   if (authLoading || !authToken) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="text-xl font-semibold text-gray-700">Loading Admin Panel...</div>
+        </div>
       </div>
     );
   }
@@ -375,601 +486,679 @@ export default function MasterAdminPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Master Admin Panel</h1>
-        <p className="text-gray-600">Complete system management and control</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md mb-6">
-        <div className="flex border-b border-gray-200 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
-              activeTab === "dashboard"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab("users")}
-            className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
-              activeTab === "users"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            User Management
-          </button>
-          <button
-            onClick={() => setActiveTab("events")}
-            className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
-              activeTab === "events"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Event Management
-          </button>
-          <button
-            onClick={() => setActiveTab("fests")}
-            className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
-              activeTab === "fests"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Fest Management
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl">
+            <h1 className="text-4xl font-bold mb-2">Master Admin Control Center</h1>
+            <p className="text-blue-100 text-lg">Complete system management and oversight</p>
+          </div>
         </div>
-      </div>
 
-      {activeTab === "dashboard" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Total Users</h3>
-              <p className="text-3xl font-bold text-gray-900">{users.length}</p>
-              <div className="mt-4 text-sm text-gray-600">
-                <div>Organisers: {users.filter(u => u.is_organiser).length}</div>
-                <div>Support: {users.filter(u => u.is_support).length}</div>
-                <div>Master Admins: {users.filter(u => u.is_masteradmin).length}</div>
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
+            {[
+              { id: "dashboard", label: "Dashboard", icon: "📊" },
+              { id: "users", label: "User Management", icon: "👥" },
+              { id: "events", label: "Event Management", icon: "📅" },
+              { id: "fests", label: "Fest Management", icon: "🎪" }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-6 py-4 font-medium transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "border-b-4 border-blue-600 text-blue-600 bg-blue-50"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                <span className="text-xl">{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Dashboard Tab */}
+        {activeTab === "dashboard" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium opacity-90">Total Users</h3>
+                  <div className="text-4xl">👥</div>
+                </div>
+                <p className="text-4xl font-bold mb-4">{users.length}</p>
+                <div className="space-y-1 text-sm opacity-90">
+                  <div className="flex justify-between">
+                    <span>Organisers:</span>
+                    <span className="font-semibold">{users.filter(u => u.is_organiser).length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Support:</span>
+                    <span className="font-semibold">{users.filter(u => u.is_support).length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Admins:</span>
+                    <span className="font-semibold">{users.filter(u => u.is_masteradmin).length}</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Total Events</h3>
-              <p className="text-3xl font-bold text-gray-900">{events.length}</p>
-              <div className="mt-4">
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium opacity-90">Total Events</h3>
+                  <div className="text-4xl">📅</div>
+                </div>
+                <p className="text-4xl font-bold mb-4">{events.length}</p>
                 <button
                   onClick={() => setActiveTab("events")}
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors backdrop-blur-sm"
                 >
-                  View all events
+                  View all events →
                 </button>
               </div>
+
+              <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium opacity-90">Total Fests</h3>
+                  <div className="text-4xl">🎪</div>
+                </div>
+                <p className="text-4xl font-bold mb-4">{fests.length}</p>
+                <div className="text-sm opacity-90">
+                  <div className="flex justify-between">
+                    <span>Total Registrations:</span>
+                    <span className="font-semibold">{fests.reduce((sum, f) => sum + (f.registration_count || 0), 0)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Total Fests</h3>
-              <p className="text-3xl font-bold text-gray-900">{fests.length}</p>
-              <div className="mt-4">
-                <button
-                  onClick={() => setActiveTab("fests")}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  View all fests
-                </button>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-6 text-gray-800">Quick Actions</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { tab: "users", title: "Manage Users", desc: "Edit roles, permissions, and delete users", color: "blue" },
+                  { tab: "events", title: "Manage Events", desc: "View, edit, or delete any event", color: "purple" },
+                  { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete any fest", color: "pink" },
+                  { href: "/manage", title: "View Manage Page", desc: "See all events and fests in one place", color: "indigo" }
+                ].map((action, idx) => (
+                  action.tab ? (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveTab(action.tab as any)}
+                      className={`p-6 border-2 border-${action.color}-200 rounded-xl hover:border-${action.color}-400 hover:bg-${action.color}-50 transition-all text-left group`}
+                    >
+                      <div className="font-semibold text-gray-800 text-lg mb-2 group-hover:text-${action.color}-600">{action.title}</div>
+                      <div className="text-sm text-gray-600">{action.desc}</div>
+                    </button>
+                  ) : (
+                    <a
+                      key={idx}
+                      href={action.href}
+                      className={`p-6 border-2 border-${action.color}-200 rounded-xl hover:border-${action.color}-400 hover:bg-${action.color}-50 transition-all text-left block group`}
+                    >
+                      <div className="font-semibold text-gray-800 text-lg mb-2 group-hover:text-${action.color}-600">{action.title}</div>
+                      <div className="text-sm text-gray-600">{action.desc}</div>
+                    </a>
+                  )
+                ))}
               </div>
             </div>
           </div>
+        )}
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-bold mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setActiveTab("users")}
-                className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition-all text-left"
-              >
-                <div className="font-semibold">Manage Users</div>
-                <div className="text-sm text-gray-600">Edit roles, permissions, and delete users</div>
-              </button>
-              <button
-                onClick={() => setActiveTab("events")}
-                className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition-all text-left"
-              >
-                <div className="font-semibold">Manage Events</div>
-                <div className="text-sm text-gray-600">View, edit, or delete any event</div>
-              </button>
-              <button
-                onClick={() => setActiveTab("fests")}
-                className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition-all text-left"
-              >
-                <div className="font-semibold">Manage Fests</div>
-                <div className="text-sm text-gray-600">View, edit, or delete any fest</div>
-              </button>
-              <a
-                href="/manage"
-                className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition-all text-left block"
-              >
-                <div className="font-semibold">View Manage Page</div>
-                <div className="text-sm text-gray-600">See all events and fests in one place</div>
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* User Management Tab */}
+        {activeTab === "users" && (
+          <div className="space-y-6">
+            {/* Search and Filter */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Search Users
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search by email or name..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
 
-      {activeTab === "users" && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search Users
-                </label>
-                <input
-                  type="text"
-                  placeholder="Search by email or name..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Filter by Role
-                </label>
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">All Users ({users.length})</option>
-                  <option value="organiser">Organisers ({users.filter((u) => u.is_organiser).length})</option>
-                  <option value="support">Support ({users.filter((u) => u.is_support).length})</option>
-                  <option value="masteradmin">Master Admins ({users.filter((u) => u.is_masteradmin).length})</option>
-                </select>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Filter by Role
+                  </label>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  >
+                    <option value="all">All Users ({users.length})</option>
+                    <option value="organiser">Organisers ({users.filter((u) => u.is_organiser).length})</option>
+                    <option value="support">Support ({users.filter((u) => u.is_support).length})</option>
+                    <option value="masteradmin">Master Admins ({users.filter((u) => u.is_masteradmin).length})</option>
+                  </select>
+                </div>
               </div>
             </div>
+
+            {/* Users Table */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              {isLoading ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-500">Loading users...</div>
+                </div>
+              ) : paginatedUsers.items.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="text-6xl mb-4">👥</div>
+                  <div className="text-xl font-semibold text-gray-700 mb-2">No users found</div>
+                  <div className="text-gray-500">Try adjusting your search or filter</div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            User
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Organiser
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Support
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Master Admin
+                          </th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {paginatedUsers.items.map((user) => {
+                          const isEditing = editingUserId === user.id;
+                          const displayRoles = isEditing ? editingUserRoles : user;
+
+                          return (
+                            <tr key={user.email} className="hover:bg-blue-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col">
+                                  <div className="font-semibold text-gray-900">{user.name}</div>
+                                  <div className="text-sm text-gray-500">{user.email}</div>
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={displayRoles.is_organiser || false}
+                                      onChange={() => isEditing && handleRoleToggle("is_organiser")}
+                                      disabled={!isEditing}
+                                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                                    />
+                                    <span className="text-sm font-medium">Enabled</span>
+                                  </label>
+                                  {displayRoles.is_organiser && isEditing && (
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="date"
+                                        value={displayRoles.organiser_expires_at?.split('T')[0] || ""}
+                                        onChange={(e) =>
+                                          handleExpirationChange(
+                                            "organiser_expires_at",
+                                            e.target.value ? new Date(e.target.value).toISOString() : null
+                                          )
+                                        }
+                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-blue-500"
+                                      />
+                                      <button
+                                        onClick={() => handleExpirationChange("organiser_expires_at", null)}
+                                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
+                                      >
+                                        Always
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={displayRoles.is_support || false}
+                                      onChange={() => isEditing && handleRoleToggle("is_support")}
+                                      disabled={!isEditing}
+                                      className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer disabled:opacity-50"
+                                    />
+                                    <span className="text-sm font-medium">Enabled</span>
+                                  </label>
+                                  {displayRoles.is_support && isEditing && (
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="date"
+                                        value={displayRoles.support_expires_at?.split('T')[0] || ""}
+                                        onChange={(e) =>
+                                          handleExpirationChange(
+                                            "support_expires_at",
+                                            e.target.value ? new Date(e.target.value).toISOString() : null
+                                          )
+                                        }
+                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-green-500"
+                                      />
+                                      <button
+                                        onClick={() => handleExpirationChange("support_expires_at", null)}
+                                        className="text-xs text-green-600 hover:text-green-700 font-semibold"
+                                      >
+                                        Always
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={displayRoles.is_masteradmin || false}
+                                      onChange={() => isEditing && handleRoleToggle("is_masteradmin")}
+                                      disabled={!isEditing}
+                                      className="w-5 h-5 text-red-600 rounded focus:ring-red-500 cursor-pointer disabled:opacity-50"
+                                    />
+                                    <span className="text-sm font-medium">Enabled</span>
+                                  </label>
+                                  {displayRoles.is_masteradmin && isEditing && (
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="date"
+                                        value={displayRoles.masteradmin_expires_at?.split('T')[0] || ""}
+                                        onChange={(e) =>
+                                          handleExpirationChange(
+                                            "masteradmin_expires_at",
+                                            e.target.value ? new Date(e.target.value).toISOString() : null
+                                          )
+                                        }
+                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-red-500"
+                                      />
+                                      <button
+                                        onClick={() => handleExpirationChange("masteradmin_expires_at", null)}
+                                        className="text-xs text-red-600 hover:text-red-700 font-semibold"
+                                      >
+                                        Always
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {isEditing ? (
+                                    <>
+                                      <button
+                                        onClick={() => saveRoleChanges(user)}
+                                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-green-600 hover:to-green-700 shadow-md transform hover:scale-105 transition-all"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingUserId(null);
+                                          setEditingUserRoles({});
+                                        }}
+                                        className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300 transition-all"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => startEditUser(user)}
+                                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md transform hover:scale-105 transition-all"
+                                      >
+                                        Edit
+                                      </button>
+                                      {user.email !== userData?.email && (
+                                        <button
+                                          onClick={() => setShowDeleteUserConfirm(user.email)}
+                                          className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg hover:from-red-600 hover:to-red-700 shadow-md transform hover:scale-105 transition-all"
+                                        >
+                                          Delete
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <PaginationControls
+                    currentPage={userPage}
+                    totalPages={paginatedUsers.totalPages}
+                    hasNext={paginatedUsers.hasNext}
+                    hasPrev={paginatedUsers.hasPrev}
+                    onNext={() => setUserPage(p => p + 1)}
+                    onPrev={() => setUserPage(p => p - 1)}
+                  />
+                </>
+              )}
+            </div>
           </div>
+        )}
 
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            {isLoading ? (
-              <div className="p-8 text-center text-gray-500">Loading users...</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        User
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Organiser
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Support
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Master Admin
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                          No users found
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredUsers.map((user) => (
-                        <tr key={user.email} className="hover:bg-gray-50">
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <div className="font-medium text-gray-900">{user.name}</div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
-                            </div>
-                          </td>
+        {/* Event Management Tab */}
+        {activeTab === "events" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <input
+                type="text"
+                placeholder="Search events by title or department..."
+                value={eventSearchQuery}
+                onChange={(e) => setEventSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+              />
+            </div>
 
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-2">
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={editingUser?.email === user.email ? editingUser.is_organiser : user.is_organiser}
-                                  onChange={() => handleRoleToggle(user, "is_organiser")}
-                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                />
-                                <span className="text-sm">Enabled</span>
-                              </label>
-                              {(editingUser?.email === user.email ? editingUser.is_organiser : user.is_organiser) && (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="date"
-                                    value={
-                                      (editingUser?.email === user.email ? editingUser.organiser_expires_at : user.organiser_expires_at)?.split('T')[0] || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleExpirationChange(
-                                        editingUser || user,
-                                        "organiser_expires_at",
-                                        e.target.value ? new Date(e.target.value).toISOString() : null
-                                      )
-                                    }
-                                    className="text-xs px-2 py-1 border rounded"
-                                  />
-                                  <button
-                                    onClick={() =>
-                                      handleExpirationChange(editingUser || user, "organiser_expires_at", null)
-                                    }
-                                    className="text-xs text-blue-600 hover:underline"
-                                  >
-                                    Always
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-2">
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={editingUser?.email === user.email ? editingUser.is_support : user.is_support}
-                                  onChange={() => handleRoleToggle(user, "is_support")}
-                                  className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                                />
-                                <span className="text-sm">Enabled</span>
-                              </label>
-                              {(editingUser?.email === user.email ? editingUser.is_support : user.is_support) && (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="date"
-                                    value={
-                                      (editingUser?.email === user.email ? editingUser.support_expires_at : user.support_expires_at)?.split('T')[0] || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleExpirationChange(
-                                        editingUser || user,
-                                        "support_expires_at",
-                                        e.target.value ? new Date(e.target.value).toISOString() : null
-                                      )
-                                    }
-                                    className="text-xs px-2 py-1 border rounded"
-                                  />
-                                  <button
-                                    onClick={() =>
-                                      handleExpirationChange(editingUser || user, "support_expires_at", null)
-                                    }
-                                    className="text-xs text-green-600 hover:underline"
-                                  >
-                                    Always
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-2">
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={editingUser?.email === user.email ? editingUser.is_masteradmin : user.is_masteradmin}
-                                  onChange={() => handleRoleToggle(user, "is_masteradmin")}
-                                  className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
-                                />
-                                <span className="text-sm">Enabled</span>
-                              </label>
-                              {(editingUser?.email === user.email ? editingUser.is_masteradmin : user.is_masteradmin) && (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="date"
-                                    value={
-                                      (editingUser?.email === user.email ? editingUser.masteradmin_expires_at : user.masteradmin_expires_at)?.split('T')[0] || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleExpirationChange(
-                                        editingUser || user,
-                                        "masteradmin_expires_at",
-                                        e.target.value ? new Date(e.target.value).toISOString() : null
-                                      )
-                                    }
-                                    className="text-xs px-2 py-1 border rounded"
-                                  />
-                                  <button
-                                    onClick={() =>
-                                      handleExpirationChange(editingUser || user, "masteradmin_expires_at", null)
-                                    }
-                                    className="text-xs text-red-600 hover:underline"
-                                  >
-                                    Always
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4 text-right space-x-2">
-                            {editingUser?.email === user.email ? (
-                              <>
-                                <button
-                                  onClick={() => saveRoleChanges(editingUser)}
-                                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingUser(null)}
-                                  className="px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400"
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => setEditingUser(user)}
-                                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              {isLoading ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-500">Loading events...</div>
+                </div>
+              ) : paginatedEvents.items.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="text-6xl mb-4">📅</div>
+                  <div className="text-xl font-semibold text-gray-700 mb-2">No events found</div>
+                  <div className="text-gray-500">Try adjusting your search</div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-purple-50 to-purple-100">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Event</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Department</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Date</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Created By</th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {paginatedEvents.items.map((event) => (
+                          <tr key={event.event_id} className="hover:bg-purple-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-gray-900">{event.title}</div>
+                              <div className="text-sm text-gray-500">ID: {event.event_id}</div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.department}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">
+                              {new Date(event.event_date).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              })}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{event.created_by}</td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <a
+                                  href={`/edit/event/${event.event_id}`}
+                                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md transform hover:scale-105 transition-all"
                                 >
                                   Edit
+                                </a>
+                                <a
+                                  href={`/event/${event.event_id}`}
+                                  className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white text-sm font-semibold rounded-lg hover:from-gray-600 hover:to-gray-700 shadow-md transform hover:scale-105 transition-all"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  onClick={() => setShowDeleteEventConfirm(event.event_id)}
+                                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg hover:from-red-600 hover:to-red-700 shadow-md transform hover:scale-105 transition-all"
+                                >
+                                  Delete
                                 </button>
-                                {user.email !== userData?.email && (
-                                  <button
-                                    onClick={() => setShowDeleteUserConfirm(user.email)}
-                                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "events" && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <input
-              type="text"
-              placeholder="Search events by title or department..."
-              value={eventSearchQuery}
-              onChange={(e) => setEventSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            {isLoading ? (
-              <div className="p-8 text-center text-gray-500">Loading events...</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created By</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredEvents.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No events found</td>
-                      </tr>
-                    ) : (
-                      filteredEvents.map((event) => (
-                        <tr key={event.event_id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4">
-                            <div className="font-medium text-gray-900">{event.title}</div>
-                            <div className="text-sm text-gray-500">ID: {event.event_id}</div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{event.department}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {new Date(event.event_date).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{event.created_by}</td>
-                          <td className="px-6 py-4 text-right space-x-2">
-                            <a
-                              href={`/edit/event/${event.event_id}`}
-                              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 inline-block"
-                            >
-                              Edit
-                            </a>
-                            <a
-                              href={`/event/${event.event_id}`}
-                              className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 inline-block"
-                            >
-                              View
-                            </a>
-                            <button
-                              onClick={() => setShowDeleteEventConfirm(event.event_id)}
-                              className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "fests" && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <input
-              type="text"
-              placeholder="Search fests by title or department..."
-              value={festSearchQuery}
-              onChange={(e) => setFestSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            {isLoading ? (
-              <div className="p-8 text-center text-gray-500">Loading fests...</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fest</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Opening Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created By</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredFests.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No fests found</td>
-                      </tr>
-                    ) : (
-                      filteredFests.map((fest) => (
-                        <tr key={fest.fest_id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4">
-                            <div className="font-medium text-gray-900">{fest.fest_title}</div>
-                            <div className="text-sm text-gray-500">ID: {fest.fest_id}</div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{fest.organizing_dept}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {new Date(fest.opening_date).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{fest.created_by}</td>
-                          <td className="px-6 py-4 text-right space-x-2">
-                            <a
-                              href={`/edit/fest/${fest.fest_id}`}
-                              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 inline-block"
-                            >
-                              Edit
-                            </a>
-                            <a
-                              href={`/fest/${fest.fest_id}`}
-                              className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 inline-block"
-                            >
-                              View
-                            </a>
-                            <button
-                              onClick={() => setShowDeleteFestConfirm(fest.fest_id)}
-                              className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showDeleteUserConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete user <strong>{showDeleteUserConfirm}</strong>?
-              This action cannot be undone.
-            </p>
-            <div className="flex gap-4 justify-end">
-              <button
-                onClick={() => setShowDeleteUserConfirm(null)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteUser(showDeleteUserConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete User
-              </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <PaginationControls
+                    currentPage={eventPage}
+                    totalPages={paginatedEvents.totalPages}
+                    hasNext={paginatedEvents.hasNext}
+                    hasPrev={paginatedEvents.hasPrev}
+                    onNext={() => setEventPage(p => p + 1)}
+                    onPrev={() => setEventPage(p => p - 1)}
+                  />
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showDeleteEventConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this event? This action cannot be undone.
-            </p>
-            <div className="flex gap-4 justify-end">
-              <button
-                onClick={() => setShowDeleteEventConfirm(null)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteEvent(showDeleteEventConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete Event
-              </button>
+        {/* Fest Management Tab */}
+        {activeTab === "fests" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <input
+                type="text"
+                placeholder="Search fests by title or department..."
+                value={festSearchQuery}
+                onChange={(e) => setFestSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all"
+              />
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              {isLoading ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 border-4 border-pink-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-500">Loading fests...</div>
+                </div>
+              ) : paginatedFests.items.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="text-6xl mb-4">🎪</div>
+                  <div className="text-xl font-semibold text-gray-700 mb-2">No fests found</div>
+                  <div className="text-gray-500">Try adjusting your search</div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-pink-50 to-pink-100">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Fest</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Department</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Opening Date</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Registrations</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Created By</th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {paginatedFests.items.map((fest) => (
+                          <tr key={fest.fest_id} className="hover:bg-pink-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-gray-900">{fest.fest_title}</div>
+                              <div className="text-sm text-gray-500">ID: {fest.fest_id}</div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600 font-medium">{fest.organizing_dept}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">
+                              {new Date(fest.opening_date).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-green-100 to-green-200 text-green-800">
+                                {fest.registration_count || 0} Registered
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{fest.created_by}</td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <a
+                                  href={`/edit/fest/${fest.fest_id}`}
+                                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md transform hover:scale-105 transition-all"
+                                >
+                                  Edit
+                                </a>
+                                <a
+                                  href={`/fest/${fest.fest_id}`}
+                                  className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white text-sm font-semibold rounded-lg hover:from-gray-600 hover:to-gray-700 shadow-md transform hover:scale-105 transition-all"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  onClick={() => setShowDeleteFestConfirm(fest.fest_id)}
+                                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg hover:from-red-600 hover:to-red-700 shadow-md transform hover:scale-105 transition-all"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <PaginationControls
+                    currentPage={festPage}
+                    totalPages={paginatedFests.totalPages}
+                    hasNext={paginatedFests.hasNext}
+                    hasPrev={paginatedFests.hasPrev}
+                    onNext={() => setFestPage(p => p + 1)}
+                    onPrev={() => setFestPage(p => p - 1)}
+                  />
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showDeleteFestConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this fest? This action cannot be undone.
-            </p>
-            <div className="flex gap-4 justify-end">
-              <button
-                onClick={() => setShowDeleteFestConfirm(null)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteFest(showDeleteFestConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete Fest
-              </button>
+        {/* Delete Modals */}
+        {showDeleteUserConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl transform animate-scale-in">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Confirm Delete</h3>
+                <p className="text-gray-600">
+                  Are you sure you want to delete user <strong className="text-gray-900">{showDeleteUserConfirm}</strong>?
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteUserConfirm(null)}
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteUser(showDeleteUserConfirm)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-red-700 shadow-lg transition-all"
+                >
+                  Delete User
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {showDeleteEventConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl transform animate-scale-in">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Confirm Delete</h3>
+                <p className="text-gray-600">
+                  Are you sure you want to delete this event? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteEventConfirm(null)}
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteEvent(showDeleteEventConfirm)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-red-700 shadow-lg transition-all"
+                >
+                  Delete Event
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDeleteFestConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl transform animate-scale-in">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Confirm Delete</h3>
+                <p className="text-gray-600">
+                  Are you sure you want to delete this fest? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteFestConfirm(null)}
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteFest(showDeleteFestConfirm)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-red-700 shadow-lg transition-all"
+                >
+                  Delete Fest
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
