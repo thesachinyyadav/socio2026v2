@@ -57,14 +57,14 @@ export default function StudentsPage() {
           throw new Error(errorMessage);
         }
         const data = await response.json();
-        const mappedStudents = (data.users || []).map((user: any) => ({
-          id: user.registration_id || user.id || 0,
-          name: user.name?.toString() || "",
-          register_number: user.register_number?.toString() || "",
-          course: user.course?.toString() || "",
-          department: user.department?.toString() || "",
-          email: user.email?.toString() || "",
-          created_at: user.created_at || user.registration_time || "", // Use a consistent timestamp
+        const mappedStudents = (data.registrations || []).map((reg: any) => ({
+          id: reg.registration_id || reg.id || 0,
+          name: reg.registration_type === 'individual' ? reg.individual_name : reg.team_leader_name || "",
+          register_number: reg.registration_type === 'individual' ? reg.individual_register_number : reg.team_leader_register_number || "",
+          course: "",
+          department: "",
+          email: reg.registration_type === 'individual' ? reg.individual_email : reg.team_leader_email || "",
+          created_at: reg.created_at || "",
         }));
         setStudents(mappedStudents);
       } catch (err) {
