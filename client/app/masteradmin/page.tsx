@@ -267,9 +267,14 @@ export default function MasterAdminPage() {
       // Calculate fest registration counts: sum of all registrations for events belonging to that fest
       const festRegistrationCounts: Record<string, number> = {};
       eventsData.forEach((event: any) => {
-        if (event.fest_id) {
+        // Match by fest NAME (the 'fest' column contains fest title, not ID)
+        if (event.fest) {
           const eventRegCount = eventRegistrationCounts[event.event_id] || 0;
-          festRegistrationCounts[event.fest_id] = (festRegistrationCounts[event.fest_id] || 0) + eventRegCount;
+          // Find fest by matching title
+          const matchingFest = festsList.find((f: any) => f.fest_title === event.fest);
+          if (matchingFest) {
+            festRegistrationCounts[matchingFest.fest_id] = (festRegistrationCounts[matchingFest.fest_id] || 0) + eventRegCount;
+          }
         }
       });
 
