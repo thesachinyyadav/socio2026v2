@@ -31,6 +31,7 @@ type Event = {
   created_by: string;
   created_at: string;
   registration_fee: number;
+  registration_count?: number;
 };
 
 type Fest = {
@@ -212,13 +213,38 @@ export default function MasterAdminPage() {
     try {
       setIsLoading(true);
       
-      const response = await fetch(`${API_URL}/api/events`);
-      if (!response.ok) {
+      const [eventsResponse, registrationsResponse] = await Promise.all([
+        fetch(`${API_URL}/api/events`),
+        fetch(`${API_URL}/api/registrations`)
+      ]);
+
+      if (!eventsResponse.ok) {
         throw new Error("Failed to fetch events");
       }
 
-      const data = await response.json();
-      setEvents(data.events || []);
+      const data = await eventsResponse.json();
+      const eventsList = data.events || [];
+
+      // Get registration counts by event_id
+      let eventRegistrationCounts: Record<string, number> = {};
+      if (registrationsResponse.ok) {
+        const regData = await registrationsResponse.json();
+        if (regData.registrations) {
+          regData.registrations.forEach((reg: any) => {
+            if (reg.event_id) {
+              eventRegistrationCounts[reg.event_id] = (eventRegistrationCounts[reg.event_id] || 0) + 1;
+            }
+          });
+        }
+      }
+
+      // Add registration counts to events
+      const eventsWithCounts = eventsList.map((event: Event) => ({
+        ...event,
+        registration_count: eventRegistrationCounts[event.event_id] || 0
+      }));
+
+      setEvents(eventsWithCounts);
     } catch (error) {
       console.error("Error fetching events:", error);
       alert("Failed to load events");
@@ -914,6 +940,7 @@ export default function MasterAdminPage() {
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Event</th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Registrations</th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
@@ -932,6 +959,11 @@ export default function MasterAdminPage() {
                                 day: 'numeric', 
                                 year: 'numeric' 
                               })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800">
+                                {event.registration_count || 0} Registered
+                              </span>
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">{event.created_by}</td>
                             <td className="px-6 py-4 text-right">
