@@ -159,7 +159,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
         setNotifications(prev => {
           const notification = prev.find(n => n.id === notificationId);
           const newNotifications = prev.filter(n => n.id !== notificationId);
-          if (notification && !notification.isRead) {
+          if (notification && !notification.read) {
             setUnreadCount(count => Math.max(0, count - 1));
           }
           return newNotifications;
