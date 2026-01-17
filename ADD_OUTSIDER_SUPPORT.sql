@@ -52,6 +52,12 @@ WHERE visitor_id IS NOT NULL;
 COMMENT ON COLUMN users.organization_type IS 'User organization membership: christ_member or outsider';
 COMMENT ON COLUMN users.visitor_id IS 'Unique visitor ID for outsiders (format: VISXXXXXXX)';
 
+-- Add flag to allow one-time name edit for outsiders
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS outsider_name_edit_used BOOLEAN DEFAULT FALSE;
+
+COMMENT ON COLUMN users.outsider_name_edit_used IS 'Flag indicating outsider has used their one-time name edit';
+
 
 -- ============================================================================
 -- STEP 2: Update EVENTS table

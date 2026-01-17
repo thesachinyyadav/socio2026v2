@@ -27,6 +27,7 @@ type UserData = {
   avatar_url: string | null;
   organization_type?: 'christ_member' | 'outsider';
   visitor_id?: string | null;
+  outsider_name_edit_used?: boolean | null;
 };
 
 type AuthContextType = {

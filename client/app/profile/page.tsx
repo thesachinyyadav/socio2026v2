@@ -166,6 +166,47 @@ const StudentProfile = () => {
     window.location.href = "/";
   };
 
+  // One-time name edit for outsiders
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [isSubmittingName, setIsSubmittingName] = useState(false);
+  const [nameEditError, setNameEditError] = useState<string | null>(null);
+
+  const canEditName = (userData as any)?.organization_type === 'outsider' && !(userData as any)?.outsider_name_edit_used;
+
+  const submitNameEdit = async () => {
+    setNameEditError(null);
+    if (!nameInput || nameInput.trim() === "") {
+      setNameEditError("Name cannot be empty");
+      return;
+    }
+    setIsSubmittingName(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nameInput.trim() })
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setNameEditError(data.error || 'Failed to update name');
+        setIsSubmittingName(false);
+        return;
+      }
+
+      // Update local display and reload to refresh auth context
+      setStudent(prev => ({ ...prev, name: nameInput.trim() }));
+      setIsEditingName(false);
+      // reload so AuthContext picks up updated name and outsider_name_edit_used flag
+      window.location.reload();
+    } catch (error) {
+      console.error('Error submitting name edit:', error);
+      setNameEditError('Network error');
+      setIsSubmittingName(false);
+    }
+  };
+
   if (!userData) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -226,6 +267,43 @@ const StudentProfile = () => {
                 <h2 className="text-lg sm:text-xl font-bold text-white">
                   {student.name}
                 </h2>
+                {canEditName && (
+                  <div className="mt-2">
+                    {!isEditingName ? (
+                      <button
+                        onClick={() => { setNameInput(student.name); setIsEditingName(true); }}
+                        className="mt-2 bg-yellow-400 text-black font-semibold px-3 py-1 rounded-md text-sm"
+                      >
+                        Edit name (one-time)
+                      </button>
+                    ) : (
+                      <div className="mt-2 flex gap-2 items-center">
+                        <input
+                          value={nameInput}
+                          onChange={(e) => setNameInput(e.target.value)}
+                          className="px-3 py-2 rounded border border-gray-300"
+                          placeholder="Enter your name"
+                        />
+                        <button
+                          onClick={submitNameEdit}
+                          disabled={isSubmittingName}
+                          className="bg-[#154CB3] text-white px-3 py-2 rounded font-medium"
+                        >
+                          {isSubmittingName ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => { setIsEditingName(false); setNameEditError(null); }}
+                          className="text-sm text-gray-200 underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                    {nameEditError && (
+                      <p className="mt-2 text-sm text-red-600">{nameEditError}</p>
+                    )}
+                  </div>
+                )}
                 <p className="text-gray-200 text-xs sm:text-sm">
                   {student.registerNumber}
                 </p>

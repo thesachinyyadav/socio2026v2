@@ -69,6 +69,51 @@ router.get("/:email", async (req, res) => {
   }
 });
 
+// Allow outsider to edit their name once
+router.put("/:email/name", authenticateUser, getUserInfo(), async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { name } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return res.status(400).json({ error: 'Name must be a non-empty string' });
+    }
+
+    // Ensure the requester is the owner (or master admin) - getUserInfo sets req.userInfo
+    if (!req.userInfo || (req.userInfo.email !== email && !req.userInfo.is_masteradmin)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const existingUser = await queryOne('users', { where: { email } });
+    if (!existingUser) return res.status(404).json({ error: 'User not found' });
+
+    // Only outsiders allowed
+    if (existingUser.organization_type !== 'outsider') {
+      return res.status(403).json({ error: 'Only outsider users can edit name using this endpoint' });
+    }
+
+    // Check if outsider has already used their one-time edit
+    if (existingUser.outsider_name_edit_used) {
+      return res.status(400).json({ error: 'Name edit already used' });
+    }
+
+    // Update name and mark edit used
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({ name: name.trim(), outsider_name_edit_used: true })
+      .eq('email', email)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ user: updatedUser, message: 'Name updated successfully' });
+  } catch (error) {
+    console.error('Error updating outsider name:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Helper function to generate unique visitor ID for outsiders
 async function generateVisitorId() {
   let attempts = 0;
