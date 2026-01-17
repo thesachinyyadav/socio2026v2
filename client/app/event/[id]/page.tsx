@@ -675,7 +675,11 @@ export default function Page() {
             isIndividualEventForButton &&
             !isUserRegisteredForThisEvent &&
             !isDeadlineOverForThisEvent && (
-              <p className="text-red-500 text-xs mt-1 text-right max-w-xs">
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-2 w-full text-sm text-yellow-700 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 text-left"
+              >
                 {registrationApiError}
               </p>
             )}
@@ -921,7 +925,11 @@ export default function Page() {
               isIndividualEventForButton &&
               !isUserRegisteredForThisEvent &&
               !isDeadlineOverForThisEvent && (
-                <p className="text-red-500 text-sm mb-2 text-center px-4">
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="text-yellow-700 text-sm mb-2 text-center px-4 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 w-full max-w-lg"
+                >
                   {registrationApiError}
                 </p>
               )}
