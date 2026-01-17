@@ -58,7 +58,7 @@ const transformToEventCardData = (event: FetchedEvent): EventForCard => {
     tags: deriveTags(event),
     image:
       event.event_image_url ||
-      "https://via.placeholder.com/400x250.png?text=Event+Image",
+      "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image",
     organizing_dept: event.organizing_dept || "TBD",
   };
 };
@@ -71,7 +71,7 @@ const transformToCarouselImage = (
     src:
       event.banner_url ||
       event.event_image_url ||
-      "https://via.placeholder.com/1200x400.png?text=Event+Banner",
+      "https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner",
     link: `/event/${event.event_id}`,
     title: event.title,
     department: event.organizing_dept || "",

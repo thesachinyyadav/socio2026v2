@@ -213,7 +213,7 @@ const EventsPage = () => {
                     tags={event.category ? [event.category] : []}
                     image={
                       event.event_image_url ||
-                      "https://via.placeholder.com/400x250.png?text=No+Image+Available"
+                      "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
                     }
                   />
                 ))}

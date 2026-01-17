@@ -219,7 +219,7 @@ export default function Page() {
       image:
         foundEvent.banner_url ||
         foundEvent.event_image_url ||
-        "https://via.placeholder.com/1200x600?text=Event+Image",
+        "https://placehold.co/1200x600/e2e8f0/64748b?text=Event+Image",
       pdf: foundEvent.pdf_url || undefined,
       organizers:
         transformedOrganizers.length > 0 ? transformedOrganizers : undefined,

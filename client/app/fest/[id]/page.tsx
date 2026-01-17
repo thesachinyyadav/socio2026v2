@@ -347,7 +347,7 @@ const FestPage = () => {
                       tags={tags.slice(0, 3)}
                       image={
                         event.event_image_url ||
-                        "https://via.placeholder.com/400x250.png?text=Event+Image"
+                        "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image"
                       }
                     />
                   );

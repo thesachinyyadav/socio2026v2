@@ -270,7 +270,7 @@ const Page = () => {
                     )}`}
                     image={
                       fest.fest_image_url ||
-                      "https://via.placeholder.com/400x250.png?text=No+Image"
+                      "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
                     }
                     baseUrl="edit/fest"
                   />
@@ -312,7 +312,7 @@ const Page = () => {
                     tags={getDisplayTagsForEvent(event)}
                     image={
                       event.event_image_url ||
-                      "https://via.placeholder.com/400x250.png?text=No+Image"
+                      "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
                     }
                     baseUrl="edit/event"
                   />

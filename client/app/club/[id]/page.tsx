@@ -175,7 +175,7 @@ const ClubDetailsPage = () => {
                   >
                     <div className="relative w-20 h-20 rounded-full overflow-hidden mb-3">
                       <Image
-                        src={leader.image || "https://via.placeholder.com/200"}
+                        src={leader.image || "https://placehold.co/200x200/e2e8f0/64748b?text=Leader"}
                         alt={leader.name}
                         fill
                         className="object-cover"
