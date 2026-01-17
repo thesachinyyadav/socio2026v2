@@ -219,6 +219,9 @@ export default function EditEventPage() {
             contactPhone: data.organizer_phone?.toString() ?? "",
             whatsappLink: data.whatsapp_invite_link || "",
             provideClaims: data.claims_applicable || false,
+            allowOutsiders: data.allow_outsiders || false,
+            outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
+            outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
             scheduleItems: transformScheduleForForm(data.schedule),
             rules: transformSimpleListForForm(data.rules),
             prizes: transformSimpleListForForm(data.prizes),
@@ -309,6 +312,11 @@ export default function EditEventPage() {
       "prizes",
       JSON.stringify(formData.prizes ? formData.prizes.map((p) => p.value) : [])
     );
+
+    // Outsider support fields
+    payload.append("allow_outsiders", String(formData.allowOutsiders || false));
+    payload.append("outsider_registration_fee", formData.outsiderRegistrationFee || "");
+    payload.append("outsider_max_participants", formData.outsiderMaxParticipants || "");
 
     if (formData.imageFile instanceof File)
       payload.append("eventImage", formData.imageFile);

@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const ALLOWED_DOMAIN = "christuniversity.in";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export async function GET(request: NextRequest) {
@@ -65,11 +64,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${APP_URL}/?error=auth_incomplete`);
     }
 
-    if (!session.user.email.endsWith(ALLOWED_DOMAIN)) {
-      await supabase.auth.signOut();
-      return NextResponse.redirect(`${APP_URL}/error?error=invalid_domain`);
-    }
-
+    // Allow all Gmail users (both Christ members and outsiders)
+    console.log(`Auth callback successful for: ${session.user.email}`);
     return NextResponse.redirect(`${APP_URL}/Discover`);
   } catch (error) {
     console.error("Unexpected error in auth callback:", error);

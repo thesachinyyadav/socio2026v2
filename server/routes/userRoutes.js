@@ -69,6 +69,35 @@ router.get("/:email", async (req, res) => {
   }
 });
 
+// Helper function to generate unique visitor ID for outsiders
+async function generateVisitorId() {
+  let attempts = 0;
+  const maxAttempts = 10;
+  
+  while (attempts < maxAttempts) {
+    // Generate random 7-digit number
+    const randomNumber = Math.floor(1000000 + Math.random() * 9000000);
+    const visitorId = `VIS${randomNumber}`;
+    
+    // Check if this visitor ID already exists
+    const existing = await queryOne("users", { where: { visitor_id: visitorId } });
+    
+    if (!existing) {
+      return visitorId;
+    }
+    
+    attempts++;
+  }
+  
+  throw new Error("Failed to generate unique visitor ID after 10 attempts");
+}
+
+// Helper function to determine organization type from email
+function getOrganizationType(email) {
+  if (!email) return 'outsider';
+  return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+}
+
 router.post("/", async (req, res) => {
   try {
     const { user: authClientUser } = req.body;
@@ -78,6 +107,9 @@ router.post("/", async (req, res) => {
         .json({ error: "Invalid user data: email is required" });
     }
 
+    // Determine organization type from email
+    const organizationType = getOrganizationType(authClientUser.email);
+    
     // Check if user already exists by email
     const existingUser = await queryOne("users", { where: { email: authClientUser.email } });
 
@@ -99,6 +131,18 @@ router.post("/", async (req, res) => {
       // Check if course needs updating
       if (!existingUser.course && authClientUser.course) {
         updateData.course = authClientUser.course;
+      }
+      
+      // Check if organization_type needs updating (for users created before this feature)
+      if (!existingUser.organization_type) {
+        updateData.organization_type = organizationType;
+      }
+      
+      // Check if visitor_id needs to be generated (for outsiders without one)
+      if (organizationType === 'outsider' && !existingUser.visitor_id) {
+        const visitorId = await generateVisitorId();
+        updateData.visitor_id = visitorId;
+        updateData.register_number = visitorId; // Use visitor_id as register_number for outsiders
       }
       
       // Update user if needed
@@ -130,28 +174,39 @@ router.post("/", async (req, res) => {
     let name = authClientUser.name || authClientUser.user_metadata?.full_name || "";
     let registerNumber = authClientUser.register_number || authClientUser.user_metadata?.register_number || null;
     let course = authClientUser.course || null;
+    let visitorId = null;
     
-    // If registration number wasn't found and we have a name with digits at the end
-    if (!registerNumber && name) {
-      const nameParts = name.split(" ");
-      if (nameParts.length > 1) {
-        const lastPart = nameParts[nameParts.length - 1];
-        if (/^\d+$/.test(lastPart)) {
-          registerNumber = parseInt(lastPart);
-          name = nameParts.slice(0, -1).join(" ");
+    // Handle outsiders differently
+    if (organizationType === 'outsider') {
+      // Generate visitor ID for outsiders
+      visitorId = await generateVisitorId();
+      registerNumber = visitorId; // Use visitor_id as register_number for outsiders
+      course = null; // Outsiders don't have a course
+      
+      console.log(`Generated visitor ID for outsider: ${visitorId}`);
+    } else {
+      // Christ member - extract registration number from name if not provided
+      if (!registerNumber && name) {
+        const nameParts = name.split(" ");
+        if (nameParts.length > 1) {
+          const lastPart = nameParts[nameParts.length - 1];
+          if (/^\d+$/.test(lastPart)) {
+            registerNumber = lastPart; // Store as string to match TEXT column
+            name = nameParts.slice(0, -1).join(" ");
+          }
         }
       }
-    }
-    
-    // If no course was provided, try extracting from email
-    if (!course && authClientUser.email) {
-      const emailParts = authClientUser.email.split("@");
-      if (emailParts.length === 2) {
-        const domainParts = emailParts[1].split(".");
-        if (domainParts.length > 0) {
-          const possibleCourse = domainParts[0].toUpperCase();
-          if (possibleCourse && possibleCourse !== "CHRISTUNIVERSITY") {
-            course = possibleCourse;
+      
+      // Extract course from email for Christ members
+      if (!course && authClientUser.email) {
+        const emailParts = authClientUser.email.split("@");
+        if (emailParts.length === 2) {
+          const domainParts = emailParts[1].split(".");
+          if (domainParts.length > 0) {
+            const possibleCourse = domainParts[0].toUpperCase();
+            if (possibleCourse && possibleCourse !== "CHRISTUNIVERSITY") {
+              course = possibleCourse;
+            }
           }
         }
       }
@@ -168,7 +223,9 @@ router.post("/", async (req, res) => {
       name,
       email: authClientUser.email,
       registerNumber,
-      course
+      course,
+      organizationType,
+      visitorId
     });
 
     const { data: newUser, error: insertError } = await supabase
@@ -178,10 +235,12 @@ router.post("/", async (req, res) => {
         email: authClientUser.email,
         name: name || "New User",
         avatar_url: avatarUrl,
-        is_organiser: false,
+        is_organiser: organizationType === 'christ_member', // Only Christ members can be organisers
         is_support: false,
         register_number: registerNumber,
-        course: course
+        course: course,
+        organization_type: organizationType,
+        visitor_id: visitorId
       })
       .select()
       .single();

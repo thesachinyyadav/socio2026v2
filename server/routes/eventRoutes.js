@@ -224,12 +224,17 @@ router.post("/", multerUpload.fields([
         claims_applicable: eventData.claimsApplicable === "true" ? 1 : 0,
         registration_fee: parseOptionalFloat(eventData.registrationFee, 0),
         participants_per_team: parseOptionalInt(eventData.participantsPerTeam, 1),
+        max_participants: parseOptionalInt(eventData.maxParticipants, null),
         organizer_email: eventData.organizerEmail || "",
         organizer_phone: eventData.organizerPhone || "",
         whatsapp_invite_link: eventData.whatsappInviteLink || "",
         organizing_dept: eventData.organizingDept,
         fest: eventData.fest || null,
         registration_deadline: eventData.registrationDeadline || null,
+        // Outsider registration fields
+        allow_outsiders: eventData.allowOutsiders === "true" || eventData.allow_outsiders === true ? 1 : 0,
+        outsider_registration_fee: parseOptionalFloat(eventData.outsiderRegistrationFee || eventData.outsider_registration_fee, null),
+        outsider_max_participants: parseOptionalInt(eventData.outsiderMaxParticipants || eventData.outsider_max_participants, null),
         schedule: Array.isArray(eventData.scheduleItems)
           ? eventData.scheduleItems
           : parseJsonField(eventData.scheduleItems, []),
