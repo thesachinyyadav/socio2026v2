@@ -47,7 +47,7 @@ interface UserData {
 }
 
 const StudentProfile = () => {
-  const { userData, signOut } = useAuth();
+  const { userData, signOut, session } = useAuth();
 
   const [student, setStudent] = useState<Student>({
     name: "",
@@ -183,10 +183,23 @@ const StudentProfile = () => {
     setIsSubmittingName(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const headers: any = { 'Content-Type': 'application/json' };
+      const token = (session as any)?.access_token || (session as any)?.provider_token || (session as any)?.refresh_token;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      // include email for debugging/fallback on server if needed
+      if (userData?.email) headers['X-User-Email'] = userData.email;
+
+      const bodyPayload: any = { name: nameInput.trim() };
+      if ((userData as any)?.organization_type === 'outsider') {
+        bodyPayload.visitor_id = (userData as any)?.visitor_id || (userData as any)?.register_number;
+      }
+
       const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nameInput.trim() })
+        headers,
+        body: JSON.stringify(bodyPayload)
       });
       const data = await resp.json();
       if (!resp.ok) {

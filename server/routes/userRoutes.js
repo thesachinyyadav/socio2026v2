@@ -5,7 +5,8 @@ import {
   authenticateUser, 
   getUserInfo, 
   checkRoleExpiration,
-  requireMasterAdmin 
+  requireMasterAdmin,
+  optionalAuth
 } from "../middleware/authMiddleware.js";
 
 const supabase = createClient(
@@ -70,7 +71,7 @@ router.get("/:email", async (req, res) => {
 });
 
 // Allow outsider to edit their name once
-router.put("/:email/name", authenticateUser, getUserInfo(), async (req, res) => {
+router.put("/:email/name", optionalAuth, async (req, res) => {
   try {
     const { email } = req.params;
     const { name } = req.body;
@@ -79,11 +80,7 @@ router.put("/:email/name", authenticateUser, getUserInfo(), async (req, res) => 
       return res.status(400).json({ error: 'Name must be a non-empty string' });
     }
 
-    // Ensure the requester is the owner (or master admin) - getUserInfo sets req.userInfo
-    if (!req.userInfo || (req.userInfo.email !== email && !req.userInfo.is_masteradmin)) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-
+    // Fetch user record by email
     const existingUser = await queryOne('users', { where: { email } });
     if (!existingUser) return res.status(404).json({ error: 'User not found' });
 
@@ -97,7 +94,33 @@ router.put("/:email/name", authenticateUser, getUserInfo(), async (req, res) => 
       return res.status(400).json({ error: 'Name edit already used' });
     }
 
-    // Update name and mark edit used
+    // Authorization options:
+    // 1) Authenticated user (req.user via optionalAuth) matches email or is masteradmin
+    // 2) Fallback: visitor_id provided in body matches user's visitor_id (outsider-only)
+
+    let authorized = false;
+    if (req.user && req.user.email && req.user.email === email) {
+      authorized = true;
+    }
+    // allow masteradmin (if optionalAuth resolved req.user and we can check DB)
+    if (!authorized && req.user && req.user.id) {
+      const requester = await queryOne('users', { where: { auth_uuid: req.user.id } });
+      if (requester && requester.is_masteradmin) authorized = true;
+    }
+
+    // Fallback: visitor_id match
+    if (!authorized && req.body && req.body.visitor_id) {
+      const providedVis = String(req.body.visitor_id).toUpperCase();
+      if (existingUser.visitor_id && String(existingUser.visitor_id).toUpperCase() === providedVis) {
+        authorized = true;
+      }
+    }
+
+    if (!authorized) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Perform update
     const { data: updatedUser, error } = await supabase
       .from('users')
       .update({ name: name.trim(), outsider_name_edit_used: true })
