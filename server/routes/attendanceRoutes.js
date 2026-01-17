@@ -20,22 +20,11 @@ router.get("/events/:eventId/participants", async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    // Query registrations by both event_id and fest_id (in case event was registered under fest)
-    const registrationsByEventId = await queryAll("registrations", {
+    // Query registrations by event_id
+    const registrations = await queryAll("registrations", {
       where: { event_id: eventId },
       order: { column: "created_at", ascending: false },
     });
-
-    const registrationsByFestId = await queryAll("registrations", {
-      where: { fest_id: eventId },
-      order: { column: "created_at", ascending: false },
-    });
-
-    // Combine and deduplicate registrations
-    const registrations = [...registrationsByEventId, ...registrationsByFestId];
-    const uniqueRegistrations = Array.from(
-      new Map(registrations.map(reg => [reg.id, reg])).values()
-    );
 
     const attendanceRows = await queryAll("attendance_status", {
       where: { event_id: eventId },
@@ -44,7 +33,7 @@ router.get("/events/:eventId/participants", async (req, res) => {
       (attendanceRows || []).map((row) => [row.registration_id, row])
     );
 
-    const participants = (uniqueRegistrations || []).map((reg) => {
+    const participants = (registrations || []).map((reg) => {
       const attendance = attendanceMap.get(reg.id) || attendanceMap.get(reg.registration_id) || {};
       const base = {
         id: reg.id,

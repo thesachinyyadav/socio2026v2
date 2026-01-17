@@ -62,7 +62,7 @@ app.use("/api/debug", debugRoutes);
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Upload directory: ${path.join(__dirname, 'uploads')}`);
-  console.log(`Database path: ${path.join(__dirname, 'data', 'socio-copy.db')}`);
+  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
+  console.log(`🗄️  Database: Supabase (${process.env.SUPABASE_URL || 'https://vkappuaapscvteexogtp.supabase.co'})`);
 });

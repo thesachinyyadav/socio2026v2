@@ -15,10 +15,20 @@ const router = express.Router();
 router.get("/registrations", async (req, res) => {
   try {
     const { event_id } = req.query;
-    if (!event_id || typeof event_id !== "string" || event_id.trim() === "") {
+    
+    // If no event_id provided, return empty array instead of error
+    if (!event_id) {
+      return res.status(200).json({
+        registrations: [],
+        count: 0,
+        message: "No event_id provided"
+      });
+    }
+    
+    if (typeof event_id !== "string" || event_id.trim() === "") {
       return res
         .status(400)
-        .json({ error: "Missing or invalid event_id parameter" });
+        .json({ error: "Invalid event_id parameter" });
     }
 
     const registrations = await queryAll("registrations", {
@@ -103,8 +113,12 @@ router.post("/register", async (req, res) => {
       const firstTeammate = teammates && teammates.length > 0 ? teammates[0] : null;
 
       processedData = {
-        user_email: null,
+        user_email: firstTeammate?.email || null,
+        individual_name: firstTeammate?.name || null,
+        individual_email: firstTeammate?.email || null,
         individual_register_number: firstTeammate?.registerNumber || null,
+        team_leader_name: firstTeammate?.name || null,
+        team_leader_email: firstTeammate?.email || null,
         team_leader_register_number: firstTeammate?.registerNumber || null,
       };
 
@@ -123,7 +137,8 @@ router.post("/register", async (req, res) => {
 
     let participantEmail;
     if (isNewFormat) {
-      participantEmail = "unknown@example.com";
+      const firstTeammate = teammates && teammates.length > 0 ? teammates[0] : null;
+      participantEmail = firstTeammate?.email || "unknown@example.com";
     } else {
       participantEmail =
         normalizedRegistrationType === "individual"
