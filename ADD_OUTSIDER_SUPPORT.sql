@@ -20,9 +20,26 @@ ALTER TABLE users
 ADD CONSTRAINT valid_organization_type 
 CHECK (organization_type IN ('christ_member', 'outsider'));
 
+-- Add check constraint: Christ members can NEVER have visitor_id (must be NULL)
+ALTER TABLE users
+ADD CONSTRAINT christ_member_no_visitor_id
+CHECK (
+  (organization_type = 'christ_member' AND visitor_id IS NULL) OR
+  (organization_type = 'outsider')
+);
+
+-- Add check constraint: Outsiders MUST have visitor_id
+ALTER TABLE users
+ADD CONSTRAINT outsider_must_have_visitor_id
+CHECK (
+  (organization_type = 'outsider' AND visitor_id IS NOT NULL) OR
+  (organization_type = 'christ_member')
+);
+
 -- Update existing users to be Christ members (since they authenticated with christuniversity.in)
 UPDATE users 
-SET organization_type = 'christ_member' 
+SET organization_type = 'christ_member',
+    visitor_id = NULL
 WHERE organization_type IS NULL OR organization_type = '';
 
 -- Create index on organization_type for filtering
@@ -135,6 +152,8 @@ COMMENT ON COLUMN registrations.participant_organization IS 'Organization type o
 -- DROP INDEX IF EXISTS idx_registrations_participant_org;
 -- DROP INDEX IF EXISTS idx_registrations_event_org;
 -- ALTER TABLE users DROP CONSTRAINT IF EXISTS valid_organization_type;
+-- ALTER TABLE users DROP CONSTRAINT IF EXISTS christ_member_no_visitor_id;
+-- ALTER TABLE users DROP CONSTRAINT IF EXISTS outsider_must_have_visitor_id;
 -- ALTER TABLE users DROP COLUMN IF EXISTS organization_type;
 -- ALTER TABLE users DROP COLUMN IF EXISTS visitor_id;
 -- ALTER TABLE events DROP COLUMN IF EXISTS allow_outsiders;
