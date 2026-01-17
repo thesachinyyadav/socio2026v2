@@ -280,7 +280,7 @@ const Page = () => {
               <p className="text-gray-500">
                 {searchTerm && !isLoadingFests
                   ? "No fests found matching your search."
-                  : "You haven't created any fests yet."}
+                  : "No fests created yet."}
               </p>
             )}
           </div>
@@ -322,7 +322,7 @@ const Page = () => {
               <p className="text-gray-500">
                 {searchTerm && !isLoadingContextEvents
                   ? "No events found matching your search."
-                  : "You haven't created any events yet, or the event data from context is missing 'created_by' field."}
+                  : "No events created yet."}
               </p>
             )}
           </div>
