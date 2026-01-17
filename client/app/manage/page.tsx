@@ -25,7 +25,7 @@ interface Fest {
 
 const Page = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const { userData } = useAuth();
+  const { userData, isMasterAdmin } = useAuth();
   const {
     allEvents: contextAllEvents,
     isLoading: isLoadingContextEvents,
@@ -59,9 +59,10 @@ const Page = () => {
             }))
           : [];
 
-        const userSpecificFests = mappedFests.filter(
-          (fest) => fest.created_by === userData.email
-        );
+        // Show all fests for master admin, otherwise filter by created_by
+        const userSpecificFests = isMasterAdmin 
+          ? mappedFests 
+          : mappedFests.filter((fest) => fest.created_by === userData.email);
 
         setFests(userSpecificFests);
       })
@@ -72,12 +73,15 @@ const Page = () => {
       .finally(() => {
         setIsLoadingFests(false);
       });
-  }, [userData?.email]);
+  }, [userData?.email, isMasterAdmin]);
 
+  // Show all events for master admin, otherwise filter by created_by
   const userSpecificContextEvents = userData?.email
-    ? (contextAllEvents as ContextEvent[]).filter(
-        (event) => event.created_by === userData.email
-      )
+    ? isMasterAdmin
+      ? (contextAllEvents as ContextEvent[])
+      : (contextAllEvents as ContextEvent[]).filter(
+          (event) => event.created_by === userData.email
+        )
     : [];
 
   const searchedUserEvents = userSpecificContextEvents.filter((event) =>

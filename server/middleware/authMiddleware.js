@@ -2,6 +2,72 @@ import supabase from "../config/supabaseClient.js";
 import { queryOne, update } from "../config/database.js";
 
 /**
+ * Middleware to check and clear expired roles
+ * Run this after getUserInfo() to auto-expire roles
+ */
+export const checkRoleExpiration = async (req, res, next) => {
+  try {
+    if (!req.userInfo) {
+      return next();
+    }
+
+    const user = req.userInfo;
+    const now = new Date();
+    let hasExpiredRoles = false;
+    const updates = {};
+
+    // Check each role expiration
+    if (user.organiser_expires_at) {
+      const expiresAt = new Date(user.organiser_expires_at);
+      if (expiresAt < now) {
+        updates.is_organiser = false;
+        updates.organiser_expires_at = null;
+        user.is_organiser = false;
+        user.organiser_expires_at = null;
+        hasExpiredRoles = true;
+        console.log(`[RoleExpiration] Expired organiser role for ${user.email}`);
+      }
+    }
+
+    if (user.support_expires_at) {
+      const expiresAt = new Date(user.support_expires_at);
+      if (expiresAt < now) {
+        updates.is_support = false;
+        updates.support_expires_at = null;
+        user.is_support = false;
+        user.support_expires_at = null;
+        hasExpiredRoles = true;
+        console.log(`[RoleExpiration] Expired support role for ${user.email}`);
+      }
+    }
+
+    if (user.masteradmin_expires_at) {
+      const expiresAt = new Date(user.masteradmin_expires_at);
+      if (expiresAt < now) {
+        updates.is_masteradmin = false;
+        updates.masteradmin_expires_at = null;
+        user.is_masteradmin = false;
+        user.masteradmin_expires_at = null;
+        hasExpiredRoles = true;
+        console.log(`[RoleExpiration] Expired masteradmin role for ${user.email}`);
+      }
+    }
+
+    // Update database if any roles expired
+    if (hasExpiredRoles) {
+      await update('users', updates, { auth_uuid: user.auth_uuid });
+      console.log(`[RoleExpiration] Updated expired roles for ${user.email}`);
+    }
+
+    next();
+  } catch (error) {
+    console.error('[RoleExpiration] Error checking role expiration:', error);
+    // Continue even if expiration check fails
+    next();
+  }
+};
+
+/**
  * Middleware to verify Supabase JWT token and extract user info
  * Only uses Supabase for auth token validation
  */
@@ -82,6 +148,22 @@ export const requireOrganiser = (req, res, next) => {
 };
 
 /**
+ * Middleware to check if user is a master admin
+ */
+export const requireMasterAdmin = (req, res, next) => {
+  if (!req.userInfo) {
+    return res.status(401).json({ error: 'User info not available' });
+  }
+
+  if (!req.userInfo.is_masteradmin) {
+    return res.status(403).json({ error: 'Access denied: Master Admin privileges required' });
+  }
+
+  console.log(`[MasterAdmin] ✅ Access granted to ${req.userInfo.email}`);
+  next();
+};
+
+/**
  * Middleware to check if user owns the resource (for updates/deletes)
  * @param {string} table - Database table name (e.g., 'events', 'fest')
  * @param {string} paramName - URL parameter name (e.g., 'eventId', 'festId')
@@ -90,6 +172,31 @@ export const requireOrganiser = (req, res, next) => {
 export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => {
   return async (req, res, next) => {
     try {
+      // Master admin bypass - can access any resource
+      if (req.userInfo?.is_masteradmin) {
+        console.log(`[Ownership] ✅ BYPASSED for master admin: ${req.userInfo.email}`);
+        
+        // Still fetch the resource for req.resource
+        const resourceId = req.params[paramName] || req.params.id;
+        const columnMapping = {
+          'eventId': 'event_id',
+          'festId': 'fest_id',
+          'id': 'id'
+        };
+        const dbColumnName = columnMapping[paramName] || paramName;
+        
+        try {
+          const resource = await queryOne(table, { where: { [dbColumnName]: resourceId } });
+          if (resource) {
+            req.resource = resource;
+          }
+        } catch (err) {
+          console.warn('[Ownership] Failed to fetch resource for master admin:', err.message);
+        }
+        
+        return next();
+      }
+
       const resourceId = req.params[paramName] || req.params.id;
       
       if (!resourceId) {
@@ -232,4 +339,13 @@ export const optionalAuth = async (req, res, next) => {
     // Continue without authentication if there's an error
     next();
   }
+};
+
+/**
+ * Helper to create middleware that checks master admin OR ownership
+ * Convenience wrapper around requireOwnership with master admin bypass
+ */
+export const requireMasterAdminOrOwnership = (table, paramName, ownerField = 'auth_uuid') => {
+  // requireOwnership already has master admin bypass built-in now
+  return requireOwnership(table, paramName, ownerField);
 };

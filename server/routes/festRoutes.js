@@ -5,6 +5,7 @@ import { queryAll, queryOne, insert, update, remove } from "../config/database.j
 import { 
   authenticateUser, 
   getUserInfo, 
+  checkRoleExpiration,
   requireOrganiser, 
   requireOwnership 
 } from "../middleware/authMiddleware.js";
@@ -172,8 +173,9 @@ router.put(
   "/:festId",
   authenticateUser,
   getUserInfo(),
+  checkRoleExpiration,
   requireOrganiser,
-  requireOwnership('fest', 'festId', 'auth_uuid'),
+  requireOwnership('fest', 'festId', 'auth_uuid'),  // Master admin bypass built-in
   async (req, res) => {
   try {
     const { festId } = req.params;
@@ -227,8 +229,9 @@ router.delete(
   "/:festId",
   authenticateUser,
   getUserInfo(),
+  checkRoleExpiration,
   requireOrganiser,
-  requireOwnership('fest', 'festId', 'auth_uuid'),
+  requireOwnership('fest', 'festId', 'auth_uuid'),  // Master admin bypass built-in
   async (req, res) => {
   try {
     const { festId } = req.params;

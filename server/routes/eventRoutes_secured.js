@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 import { 
   authenticateUser, 
   getUserInfo, 
+  checkRoleExpiration,
   requireOrganiser, 
   requireOwnership, 
   optionalAuth 
@@ -299,8 +300,9 @@ router.put(
   ]),
   authenticateUser,
   getUserInfo(),
+  checkRoleExpiration,
   requireOrganiser,
-  requireOwnership('events', 'eventId', 'auth_uuid'),  // Check ownership using auth_uuid
+  requireOwnership('events', 'eventId', 'auth_uuid'),  // Check ownership using auth_uuid (master admin bypass built-in)
   async (req, res) => {
     try {
       const { eventId } = req.params;
@@ -420,8 +422,9 @@ router.delete(
   "/:eventId", 
   authenticateUser,
   getUserInfo(),
+  checkRoleExpiration,
   requireOrganiser,
-  requireOwnership('events', 'eventId', 'auth_uuid'),
+  requireOwnership('events', 'eventId', 'auth_uuid'),  // Master admin bypass built-in
   async (req, res) => {
     try {
       const { eventId } = req.params;

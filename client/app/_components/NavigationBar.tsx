@@ -198,9 +198,16 @@ function NavigationBar() {
           {/* Auth Buttons */}
           <div className="flex gap-3 items-center">
             {session && userData ? (
-              userData.is_organiser ? (
+              userData.is_organiser || (userData as any).is_masteradmin ? (
                 <div className="flex gap-4 items-center">
                   <NotificationSystem />
+                  {(userData as any).is_masteradmin && (
+                    <Link href="/masteradmin">
+                      <button className="cursor-pointer font-semibold px-4 py-2 border-2 rounded-full text-sm hover:bg-red-50 border-red-600 text-red-600 transition-all duration-200 ease-in-out">
+                        Admin Panel
+                      </button>
+                    </Link>
+                  )}
                   <Link href="/manage">
                     <button className="cursor-pointer font-semibold px-4 py-2 border-2 rounded-full text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out">
                       Manage events

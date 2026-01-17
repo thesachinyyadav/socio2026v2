@@ -273,7 +273,7 @@ const StudentProfile = () => {
                       {student.joined}
                     </p>
                   </div>
-                  {(userData.is_organiser || userData.is_support) && (
+                  {(userData.is_organiser || userData.is_support || (userData as any).is_masteradmin) && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-500">
                         Role
@@ -289,7 +289,20 @@ const StudentProfile = () => {
                             Support
                           </p>
                         )}
+                        {(userData as any).is_masteradmin && (
+                          <p className="text-gray-800 font-medium bg-red-100 px-2 py-1 rounded-full text-xs inline-block">
+                            Master Admin
+                          </p>
+                        )}
                       </div>
+                      {(userData as any).is_masteradmin && (
+                        <a
+                          href="/masteradmin"
+                          className="mt-3 block text-sm text-red-600 hover:text-red-700 font-medium hover:underline"
+                        >
+                          Master Admin Panel →
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>

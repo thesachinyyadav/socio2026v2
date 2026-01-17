@@ -21,6 +21,10 @@ type UserData = {
   campus: string | null;
   is_organiser: boolean;
   is_support: boolean;
+  is_masteradmin: boolean;
+  organiser_expires_at?: string | null;
+  support_expires_at?: string | null;
+  masteradmin_expires_at?: string | null;
   avatar_url: string | null;
 };
 
@@ -29,6 +33,7 @@ type AuthContextType = {
   userData: UserData | null;
   isLoading: boolean;
   isSupport: boolean;
+  isMasterAdmin: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -239,10 +244,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isSupport = Boolean(userData?.is_support);
+  const isMasterAdmin = Boolean(userData?.is_masteradmin);
 
   return (
     <AuthContext.Provider
-      value={{ session, userData, isLoading, isSupport, signInWithGoogle, signOut }}
+      value={{ session, userData, isLoading, isSupport, isMasterAdmin, signInWithGoogle, signOut }}
     >
       {children}
     </AuthContext.Provider>

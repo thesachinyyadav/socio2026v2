@@ -1,6 +1,12 @@
 import express from "express";
-import { queryAll, queryOne } from "../config/database.js";
+import { queryAll, queryOne, update } from "../config/database.js";
 import { createClient } from '@supabase/supabase-js';
+import { 
+  authenticateUser, 
+  getUserInfo, 
+  checkRoleExpiration,
+  requireMasterAdmin 
+} from "../middleware/authMiddleware.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -9,9 +15,37 @@ const supabase = createClient(
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+// Get all users with optional search and role filter (master admin only)
+router.get("/", authenticateUser, getUserInfo(), checkRoleExpiration, requireMasterAdmin, async (req, res) => {
   try {
-    const users = await queryAll("users");
+    const { search, role } = req.query;
+    
+    let users = await queryAll("users");
+    
+    // Apply search filter (email or name)
+    if (search) {
+      const searchLower = search.toLowerCase();
+      users = users.filter(user => 
+        user.email?.toLowerCase().includes(searchLower) ||
+        user.name?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply role filter
+    if (role) {
+      switch (role) {
+        case 'organiser':
+          users = users.filter(user => user.is_organiser);
+          break;
+        case 'support':
+          users = users.filter(user => user.is_support);
+          break;
+        case 'masteradmin':
+          users = users.filter(user => user.is_masteradmin);
+          break;
+      }
+    }
+    
     return res.status(200).json({ users });
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -161,6 +195,126 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating user:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update user roles (master admin only)
+router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration, requireMasterAdmin, async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { 
+      is_organiser, 
+      organiser_expires_at,
+      is_support, 
+      support_expires_at,
+      is_masteradmin, 
+      masteradmin_expires_at 
+    } = req.body;
+
+    // Check if user exists
+    const existingUser = await queryOne("users", { where: { email } });
+    if (!existingUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Prevent removing last master admin
+    if (existingUser.is_masteradmin && is_masteradmin === false) {
+      const allMasterAdmins = await queryAll("users");
+      const masterAdminCount = allMasterAdmins.filter(u => u.is_masteradmin).length;
+      
+      if (masterAdminCount <= 1) {
+        return res.status(400).json({ 
+          error: "Cannot remove the last master admin. Promote another user first." 
+        });
+      }
+    }
+
+    // Build update object
+    const updates = {};
+    
+    if (typeof is_organiser === 'boolean') {
+      updates.is_organiser = is_organiser;
+      updates.organiser_expires_at = organiser_expires_at || null;
+    }
+    
+    if (typeof is_support === 'boolean') {
+      updates.is_support = is_support;
+      updates.support_expires_at = support_expires_at || null;
+    }
+    
+    if (typeof is_masteradmin === 'boolean') {
+      updates.is_masteradmin = is_masteradmin;
+      updates.masteradmin_expires_at = masteradmin_expires_at || null;
+    }
+
+    // Update user
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('email', email)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    console.log(`[MasterAdmin] User roles updated: ${email} by ${req.userInfo.email}`);
+    
+    return res.status(200).json({ 
+      user: updatedUser,
+      message: "User roles updated successfully" 
+    });
+  } catch (error) {
+    console.error("Error updating user roles:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete user (master admin only)
+router.delete("/:email", authenticateUser, getUserInfo(), checkRoleExpiration, requireMasterAdmin, async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    // Check if user exists
+    const existingUser = await queryOne("users", { where: { email } });
+    if (!existingUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Prevent deleting last master admin
+    if (existingUser.is_masteradmin) {
+      const allMasterAdmins = await queryAll("users");
+      const masterAdminCount = allMasterAdmins.filter(u => u.is_masteradmin).length;
+      
+      if (masterAdminCount <= 1) {
+        return res.status(400).json({ 
+          error: "Cannot delete the last master admin" 
+        });
+      }
+    }
+
+    // Prevent self-deletion
+    if (email === req.userInfo.email) {
+      return res.status(400).json({ 
+        error: "Cannot delete your own account" 
+      });
+    }
+
+    // Delete user (cascade deletes will handle related records via DB constraints)
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('email', email);
+
+    if (deleteError) throw deleteError;
+
+    console.log(`[MasterAdmin] User deleted: ${email} by ${req.userInfo.email}`);
+    
+    return res.status(200).json({ 
+      message: "User deleted successfully" 
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
