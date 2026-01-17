@@ -278,26 +278,27 @@ export default function EditEventPage() {
 
     const payload = new FormData();
 
-    payload.append("eventTitle", formData.eventTitle);
-    payload.append("eventDate", formData.eventDate || "");
-    payload.append("endDate", formData.endDate || "");
-    payload.append("eventTime", formData.eventTime || "");
-    payload.append("detailedDescription", formData.detailedDescription);
+    // Use backend field names (match create page)
+    payload.append("title", formData.eventTitle);
+    payload.append("event_date", formData.eventDate || "");
+    payload.append("end_date", formData.endDate || "");
+    payload.append("event_time", formData.eventTime || "");
+    payload.append("description", formData.detailedDescription);
     payload.append("category", formData.category);
-    payload.append("organizingDept", formData.organizingDept || "");
-    payload.append("festEvent", formData.festEvent || "none");
-    payload.append("registrationDeadline", formData.registrationDeadline || "");
-    payload.append("location", formData.location);
-    payload.append("registrationFee", formData.registrationFee || "0");
-    payload.append("maxParticipants", formData.maxParticipants || "1");
-    payload.append("contactEmail", formData.contactEmail);
-    payload.append("contactPhone", formData.contactPhone || "");
-    payload.append("whatsappLink", formData.whatsappLink || "");
-    payload.append("provideClaims", String(formData.provideClaims));
+    payload.append("organizing_dept", formData.organizingDept || "");
+    payload.append("fest", formData.festEvent || "none");
+    payload.append("registration_deadline", formData.registrationDeadline || "");
+    payload.append("venue", formData.location);
+    payload.append("registration_fee", formData.registrationFee || "0");
+    payload.append("max_participants", formData.maxParticipants || "1");
+    payload.append("organizer_email", formData.contactEmail);
+    payload.append("organizer_phone", formData.contactPhone || "");
+    payload.append("whatsapp_invite_link", formData.whatsappLink || "");
+    payload.append("claims_applicable", String(formData.provideClaims));
 
-    payload.append("department", JSON.stringify(formData.department || []));
+    payload.append("department_access", JSON.stringify(formData.department || []));
     payload.append(
-      "scheduleItems",
+      "schedule",
       JSON.stringify(formData.scheduleItems || [])
     );
     payload.append(
