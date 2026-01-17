@@ -7,6 +7,8 @@ import { useEvents } from "../../context/EventContext";
 import { EventCard } from "../_components/Discover/EventCard";
 import Footer from "../_components/Home/Footer";
 
+const ITEMS_PER_PAGE = 12;
+
 interface FetchedEvent {
   fest: string;
   id: number;
@@ -31,6 +33,7 @@ const EventsPage = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const categoryParam = searchParams.get("category");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { allEvents, isLoading, error } = useEvents();
 
@@ -94,6 +97,16 @@ const EventsPage = () => {
       (tag) => tag.toLowerCase() === activeFilterName.toLowerCase()
     );
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredEvents.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedEvents = filteredEvents.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilterName]);
 
   const handleFilterClick = (clickedFilterName: string) => {
     setFilterOptions(
@@ -198,26 +211,51 @@ const EventsPage = () => {
                 activeFilterName === "All" ? "All" : activeFilterName
               } events (${filteredEvents.length})`}
             </h2>
-            {filteredEvents.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
-                {filteredEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    idForLink={event.event_id}
-                    title={event.title}
-                    festName={event.fest}
-                    dept={event.organizing_dept || ""}
-                    date={event.event_date}
-                    time={event.event_time}
-                    location={event.venue || "Venue TBD"}
-                    tags={event.category ? [event.category] : []}
-                    image={
-                      event.event_image_url ||
-                      "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
-                    }
-                  />
-                ))}
-              </div>
+            {paginatedEvents.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
+                  {paginatedEvents.map((event) => (
+                    <EventCard
+                      key={event.id}
+                      idForLink={event.event_id}
+                      title={event.title}
+                      festName={event.fest}
+                      dept={event.organizing_dept || ""}
+                      date={event.event_date}
+                      time={event.event_time}
+                      location={event.venue || "Venue TBD"}
+                      tags={event.category ? [event.category] : []}
+                      image={
+                        event.event_image_url ||
+                        "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
+                      }
+                    />
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {filteredEvents.length > ITEMS_PER_PAGE && (
+                  <div className="flex justify-center items-center gap-4 mt-12">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-6 py-3 bg-[#154CB3] text-white rounded-full disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors font-medium"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-gray-700 font-medium">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-6 py-3 bg-[#154CB3] text-white rounded-full disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors font-medium"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-8 sm:py-12">
                 <svg

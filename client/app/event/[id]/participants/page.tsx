@@ -15,9 +15,12 @@ interface Student {
   created_at?: string;
 }
 
+const ITEMS_PER_PAGE = 20;
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -202,6 +205,17 @@ export default function StudentsPage() {
     return nameMatch || registerNumberMatch || emailMatch;
   });
 
+  // Pagination
+  const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   if (params && !event_id && isDataLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-white">
@@ -312,8 +326,8 @@ export default function StudentsPage() {
           </div>
         ) : (
           <>
-            {filteredStudents.length > 0 ? (
-              filteredStudents.map((student: Student) => (
+            {paginatedStudents.length > 0 ? (
+              paginatedStudents.map((student: Student) => (
                 <div
                   key={student.id}
                   className="mb-4 md:mb-0 border rounded-lg md:rounded-none shadow-sm md:shadow-none md:border-0 md:border-b border-gray-200 hover:bg-gray-50 transition-colors"
@@ -370,6 +384,29 @@ export default function StudentsPage() {
                 {searchQuery
                   ? "No participants found matching your search criteria."
                   : "No participants registered for this event yet."}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {filteredStudents.length > ITEMS_PER_PAGE && (
+              <div className="flex justify-center items-center gap-4 py-8 border-t mt-6">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors font-medium"
+                >
+                  Previous
+                </button>
+                <span className="text-gray-700 font-medium">
+                  Page {currentPage} of {totalPages} ({filteredStudents.length} total)
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors font-medium"
+                >
+                  Next
+                </button>
               </div>
             )}
           </>

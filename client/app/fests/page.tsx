@@ -7,6 +7,8 @@ import moment from "moment";
 import { FestCard } from "../_components/Discover/FestCard";
 import Footer from "../_components/Home/Footer";
 
+const ITEMS_PER_PAGE = 12;
+
 interface Fest {
   fest_id: number;
   fest_title: string;
@@ -24,6 +26,7 @@ interface FilterOption {
 }
 
 const FestsPage = () => {
+  const [currentPage, setCurrentPage] = useState(1);
   const [filterOptions, setFilterOptions] = useState<FilterOption[]>([
     { name: "All", active: true },
     { name: "Technology", active: false },
@@ -68,6 +71,16 @@ const FestsPage = () => {
       : allFests.filter(
           (fest: Fest) => fest.category === activeFilter.toLowerCase()
         );
+
+  // Pagination
+  const totalPages = Math.ceil(filteredFests.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedFests = filteredFests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter]);
 
   const handleFilterClick = (clickedFilter: string) => {
     setFilterOptions(
@@ -133,23 +146,48 @@ const FestsPage = () => {
               })`}
             </h2>
 
-            {filteredFests.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
-                {filteredFests.map((fest) => (
-                  <FestCard
-                    key={fest.fest_id}
-                    title={fest.fest_title}
-                    dept={fest.organizing_dept}
-                    description={fest.description}
-                    dateRange={
-                      moment(fest.opening_date).format("MMM DD, YYYY") +
-                      " - " +
-                      moment(fest.closing_date).format("MMM DD, YYYY")
-                    }
-                    image={fest.fest_image_url}
-                  />
-                ))}
-              </div>
+            {paginatedFests.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
+                  {paginatedFests.map((fest) => (
+                    <FestCard
+                      key={fest.fest_id}
+                      title={fest.fest_title}
+                      dept={fest.organizing_dept}
+                      description={fest.description}
+                      dateRange={
+                        moment(fest.opening_date).format("MMM DD, YYYY") +
+                        " - " +
+                        moment(fest.closing_date).format("MMM DD, YYYY")
+                      }
+                      image={fest.fest_image_url}
+                    />
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {filteredFests.length > ITEMS_PER_PAGE && (
+                  <div className="flex justify-center items-center gap-4 mt-12">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-6 py-3 bg-[#154CB3] text-white rounded-full disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors font-medium"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-gray-700 font-medium">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-6 py-3 bg-[#154CB3] text-white rounded-full disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors font-medium"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-8 sm:py-12">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-700 mb-2">
