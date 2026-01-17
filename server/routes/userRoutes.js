@@ -134,15 +134,26 @@ router.post("/", async (req, res) => {
       }
       
       // Check if organization_type needs updating (for users created before this feature)
+      // IMPORTANT: Only set organization_type if it doesn't exist - NEVER overwrite existing values
       if (!existingUser.organization_type) {
         updateData.organization_type = organizationType;
+        
+        // Only generate visitor_id for NEW outsiders (those without organization_type)
+        // This prevents overwriting existing Christ members
+        if (organizationType === 'outsider') {
+          const visitorId = await generateVisitorId();
+          updateData.visitor_id = visitorId;
+          updateData.register_number = visitorId; // Use visitor_id as register_number for outsiders
+        }
       }
       
-      // Check if visitor_id needs to be generated (for outsiders without one)
-      if (organizationType === 'outsider' && !existingUser.visitor_id) {
+      // If user is already marked as outsider but missing visitor_id, generate it
+      if (existingUser.organization_type === 'outsider' && !existingUser.visitor_id) {
         const visitorId = await generateVisitorId();
         updateData.visitor_id = visitorId;
-        updateData.register_number = visitorId; // Use visitor_id as register_number for outsiders
+        if (!existingUser.register_number || existingUser.register_number === '0') {
+          updateData.register_number = visitorId;
+        }
       }
       
       // Update user if needed
