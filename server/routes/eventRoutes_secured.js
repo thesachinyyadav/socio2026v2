@@ -394,7 +394,11 @@ router.put(
         organizing_dept: organizing_dept || null,
         fest: fest || null,
         registration_deadline: req.body.registration_deadline || null,
-        total_participants: 0, // Should typically not reset total_participants on edit, but preserving logic
+        // Preserve existing total_participants unless there is a specific admin action to modify it.
+        // Include outsider-related settings so toggles persist from the client.
+        allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
+        outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
         updated_at: new Date().toISOString(),
         updated_by: req.userInfo.email
       };

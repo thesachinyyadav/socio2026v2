@@ -119,47 +119,10 @@ router.post("/register", async (req, res) => {
         : team_leader_register_number;
     }
     
-    // Check if register number is a visitor ID (starts with VIS)
-    if (registerNumber && String(registerNumber).startsWith('VIS')) {
+    // Check if register number is a visitor ID (starts with VIS) - case-insensitive
+    if (registerNumber && String(registerNumber).toUpperCase().startsWith('VIS')) {
       participantOrganization = 'outsider';
-      
-      // Check if event allows outsiders
-      if (!event.allow_outsiders) {
-        return res.status(403).json({
-          error: "This event does not allow outsider registrations",
-          details: "Only Christ University members can register for this event"
-        });
-      }
-      
-      // Check outsider quota if limit is set
-      if (event.outsider_max_participants) {
-        const outsiderRegistrations = await queryAll("registrations", {
-          where: {
-            event_id: normalizedEventId,
-            participant_organization: 'outsider'
-          }
-        });
-        
-        // Count total outsider participants
-        let outsiderCount = 0;
-        outsiderRegistrations.forEach(reg => {
-          if (reg.registration_type === 'team' && reg.teammates) {
-            const teammates = Array.isArray(reg.teammates) ? reg.teammates : JSON.parse(reg.teammates || '[]');
-            outsiderCount += teammates.length;
-          } else {
-            outsiderCount += 1;
-          }
-        });
-        
-        if (outsiderCount >= event.outsider_max_participants) {
-          return res.status(400).json({
-            error: "Outsider registration quota reached",
-            details: `This event has reached its limit of ${event.outsider_max_participants} outsider participants`
-          });
-        }
-      }
-      
-      console.log('🌍 Outsider registration detected:', registerNumber);
+      console.log('🌍 Outsider registration detected (by register number):', registerNumber);
     }
 
     const registration_id = uuidv4().replace(/-/g, "");
@@ -209,6 +172,67 @@ router.post("/register", async (req, res) => {
       normalizedEventId,
       participantEmail
     );
+
+    // Robust outsider detection & quota enforcement (fallbacks)
+    try {
+      // If not already detected as outsider, try to infer from processed data or user record
+      if (participantOrganization !== 'outsider') {
+        // Candidate register numbers from processed data
+        const regCandidate = processedData.individual_register_number || processedData.team_leader_register_number || (processedTeammates && processedTeammates[0]?.registerNumber) || null;
+        if (regCandidate && String(regCandidate).toUpperCase().startsWith('VIS')) {
+          participantOrganization = 'outsider';
+          console.log('🌍 Outsider detected from processed data register number:', regCandidate);
+        } else if (!regCandidate && participantEmail) {
+          // Lookup user by email to see if they're an outsider
+          const user = await queryOne('users', { where: { email: participantEmail } });
+          if (user && user.visitor_id && String(user.visitor_id).toUpperCase().startsWith('VIS')) {
+            participantOrganization = 'outsider';
+            console.log('🌍 Outsider detected from user.visitor_id lookup:', user.visitor_id, 'for', participantEmail);
+          }
+        }
+      }
+
+      // If outsider, enforce event.allow_outsiders and quotas
+      if (participantOrganization === 'outsider') {
+        const allowsOutsiders = !!(event.allow_outsiders === true || event.allow_outsiders === 'true' || event.allow_outsiders === 1 || event.allow_outsiders === '1' || event.allow_outsiders === 't' || event.allow_outsiders === 'T');
+        if (!allowsOutsiders) {
+          return res.status(403).json({
+            error: "This event does not allow outsider registrations",
+            details: "Only Christ University members can register for this event"
+          });
+        }
+
+        if (event.outsider_max_participants) {
+          const outsiderRegistrations = await queryAll("registrations", {
+            where: {
+              event_id: normalizedEventId,
+              participant_organization: 'outsider'
+            }
+          });
+
+          // Count total outsider participants
+          let outsiderCount = 0;
+          outsiderRegistrations.forEach(reg => {
+            if (reg.registration_type === 'team' && reg.teammates) {
+              const teammates = Array.isArray(reg.teammates) ? reg.teammates : JSON.parse(reg.teammates || '[]');
+              outsiderCount += teammates.length;
+            } else {
+              outsiderCount += 1;
+            }
+          });
+
+          if (outsiderCount >= event.outsider_max_participants) {
+            return res.status(400).json({
+              error: "Outsider registration quota reached",
+              details: `This event has reached its limit of ${event.outsider_max_participants} outsider participants`
+            });
+          }
+        }
+      }
+    } catch (detectionError) {
+      console.error('Error during outsider detection/validation:', detectionError);
+      // proceed without blocking registration, but log
+    }
 
     let participantCount = 1;
 
