@@ -12,7 +12,7 @@ export interface Notification {
   type: "info" | "success" | "warning" | "error";
   eventId?: string;
   eventTitle?: string;
-  isRead: boolean;
+  read: boolean; // Changed from isRead to read to match backend
   createdAt: string;
   actionUrl?: string;
 }
@@ -29,18 +29,19 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const { userData, session } = useAuth();
 
   // OPTIMIZATION: Memoize fetchNotifications with useCallback
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (page = 1, append = false) => {
     if (!session?.access_token || !userData?.email) return;
 
     setLoading(true);
-    // API_URL already defined
     try {
       const email = userData.email;
       const response = await fetch(
-        `${API_URL}/api/notifications?email=${encodeURIComponent(email)}`,
+        `${API_URL}/api/notifications?email=${encodeURIComponent(email)}&page=${page}&limit=20`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -50,8 +51,17 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.notifications?.filter((n: Notification) => !n.isRead).length || 0);
+        const newNotifications = data.notifications || [];
+        
+        if (append) {
+          setNotifications(prev => [...prev, ...newNotifications]);
+        } else {
+          setNotifications(newNotifications);
+        }
+        
+        setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
+        setHasMore(data.pagination?.hasMore || false);
+        setCurrentPage(page);
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
@@ -59,6 +69,12 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       setLoading(false);
     }
   }, [session?.access_token, userData?.email]);
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchNotifications(currentPage + 1, true);
+    }
+  }, [loading, hasMore, currentPage, fetchNotifications]);
 
   useEffect(() => {
     if (userData?.email) {
@@ -88,7 +104,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       if (response.ok) {
         setNotifications(prev =>
           prev.map(n =>
-            n.id === notificationId ? { ...n, isRead: true } : n
+            n.id === notificationId ? { ...n, read: true } : n
           )
         );
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -117,7 +133,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       );
 
       if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
       }
     } catch (error) {
@@ -270,7 +286,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
                     <div
                       key={notification.id}
                       className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                        !notification.isRead ? "bg-blue-50" : ""
+                        !notification.read ? "bg-blue-50" : ""
                       }`}
                       onClick={() => handleNotificationClick(notification)}
                     >
@@ -279,7 +295,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className={`text-sm font-medium ${
-                              !notification.isRead ? "text-gray-900" : "text-gray-600"
+                              !notification.read ? "text-gray-900" : "text-gray-600"
                             }`}>
                               {notification.title}
                             </p>
@@ -313,6 +329,19 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Load More Button */}
+                  {hasMore && (
+                    <div className="p-3 text-center border-t border-gray-100">
+                      <button
+                        onClick={loadMore}
+                        disabled={loading}
+                        className="text-sm text-[#154CB3] hover:underline disabled:opacity-50"
+                      >
+                        {loading ? 'Loading...' : 'Load more'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
