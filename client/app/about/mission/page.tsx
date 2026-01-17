@@ -74,7 +74,7 @@ export default function MissionPage() {
     {
       title: "Universal Access",
       description: "Every student, regardless of their background or connections, should have equal access to campus opportunities.",
-      color: "bg-blue-50 border-blue-500 text-blue-800"
+      color: "bg-blue-50 border-[#154CB3] text-blue-800"
     },
     {
       title: "Inclusive Growth",

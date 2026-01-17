@@ -510,7 +510,7 @@ export default function MasterAdminPage() {
           disabled={!hasNext}
           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
             hasNext
-              ? "bg-blue-600 text-white hover:bg-blue-700"
+              ? "bg-[#154CB3] text-white hover:bg-[#154cb3df]"
               : "bg-gray-100 text-gray-400 cursor-not-allowed"
           }`}
         >
@@ -528,7 +528,7 @@ export default function MasterAdminPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <div className="text-xl font-semibold text-gray-700">Loading Admin Panel...</div>
         </div>
       </div>
@@ -564,7 +564,7 @@ export default function MasterAdminPage() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-6 py-4 font-medium transition-all whitespace-nowrap ${
                   activeTab === tab.id
-                    ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50"
+                    ? "border-b-2 border-[#154CB3] text-[#154CB3] bg-blue-50"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
@@ -602,7 +602,7 @@ export default function MasterAdminPage() {
                 <p className="text-4xl font-bold text-gray-900 mb-4">{events.length}</p>
                 <button
                   onClick={() => setActiveTab("events")}
-                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                  className="text-sm bg-[#154CB3] hover:bg-[#154cb3df] text-white px-4 py-2 rounded-lg transition-colors font-medium"
                 >
                   View all events
                 </button>
@@ -633,7 +633,7 @@ export default function MasterAdminPage() {
                     <button
                       key={idx}
                       onClick={() => setActiveTab(action.tab as any)}
-                      className="p-5 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
+                      className="p-5 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left"
                     >
                       <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
                       <div className="text-sm text-gray-600">{action.desc}</div>
@@ -642,7 +642,7 @@ export default function MasterAdminPage() {
                     <a
                       key={idx}
                       href={action.href}
-                      className="p-5 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left block"
+                      className="p-5 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left block"
                     >
                       <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
                       <div className="text-sm text-gray-600">{action.desc}</div>
@@ -669,7 +669,7 @@ export default function MasterAdminPage() {
                     placeholder="Search by email or name..."
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
                   />
                 </div>
 
@@ -680,7 +680,7 @@ export default function MasterAdminPage() {
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
                   >
                     <option value="all">All Users ({users.length})</option>
                     <option value="organiser">Organisers ({users.filter((u) => u.is_organiser).length})</option>
@@ -695,7 +695,7 @@ export default function MasterAdminPage() {
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                   <div className="text-gray-600">Loading users...</div>
                 </div>
               ) : paginatedUsers.items.length === 0 ? (
@@ -748,7 +748,7 @@ export default function MasterAdminPage() {
                                       checked={displayRoles.is_organiser || false}
                                       onChange={() => isEditing && handleRoleToggle("is_organiser")}
                                       disabled={!isEditing}
-                                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                                      className="w-5 h-5 text-[#154CB3] rounded focus:ring-[#154CB3] cursor-pointer disabled:opacity-50"
                                     />
                                     <span className={`text-sm font-medium ${displayRoles.is_organiser ? 'text-green-600' : 'text-gray-500'}`}>
                                       {displayRoles.is_organiser ? 'Enabled' : 'Disabled'}
@@ -765,11 +765,11 @@ export default function MasterAdminPage() {
                                             e.target.value ? new Date(e.target.value).toISOString() : null
                                           )
                                         }
-                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-blue-500"
+                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-[#154CB3]"
                                       />
                                       <button
                                         onClick={() => handleExpirationChange("organiser_expires_at", null)}
-                                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
+                                        className="text-xs text-[#154CB3] hover:text-blue-700 font-semibold"
                                       >
                                         Always
                                       </button>
@@ -878,7 +878,7 @@ export default function MasterAdminPage() {
                                     <>
                                       <button
                                         onClick={() => startEditUser(user)}
-                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                        className="px-4 py-2 bg-[#154CB3] text-white text-sm font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
                                       >
                                         Edit
                                       </button>
@@ -923,14 +923,14 @@ export default function MasterAdminPage() {
                 placeholder="Search events by title or department..."
                 value={eventSearchQuery}
                 onChange={(e) => setEventSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
               />
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                   <div className="text-gray-600">Loading events...</div>
                 </div>
               ) : paginatedEvents.items.length === 0 ? (
@@ -977,7 +977,7 @@ export default function MasterAdminPage() {
                               <div className="flex items-center justify-end gap-2">
                                 <a
                                   href={`/edit/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                  className="px-4 py-2 bg-[#154CB3] text-white text-sm font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
                                 >
                                   Edit
                                 </a>
@@ -1023,14 +1023,14 @@ export default function MasterAdminPage() {
                 placeholder="Search fests by title or department..."
                 value={festSearchQuery}
                 onChange={(e) => setFestSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
               />
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                   <div className="text-gray-600">Loading fests...</div>
                 </div>
               ) : paginatedFests.items.length === 0 ? (
@@ -1077,7 +1077,7 @@ export default function MasterAdminPage() {
                               <div className="flex items-center justify-end gap-2">
                                 <a
                                   href={`/edit/fest/${fest.fest_id}`}
-                                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                  className="px-4 py-2 bg-[#154CB3] text-white text-sm font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
                                 >
                                   Edit
                                 </a>

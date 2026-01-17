@@ -1521,7 +1521,7 @@ function CreateFestForm(props?: CreateFestProps) {
                           href={existingImageFileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline text-sm font-medium mb-3 inline-block"
+                          className="text-[#154CB3] hover:text-blue-800 underline text-sm font-medium mb-3 inline-block"
                         >
                           View current file
                         </a>

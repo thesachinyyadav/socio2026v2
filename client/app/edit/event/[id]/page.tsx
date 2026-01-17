@@ -430,7 +430,7 @@ export default function EditEventPage() {
         <p className="text-red-600">{errorMessage}</p>
         <button
           onClick={() => router.push("/manage")}
-          className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mt-6 px-4 py-2 bg-[#154CB3] text-white rounded hover:bg-[#154cb3df]"
         >
           Back to Manage Events
         </button>
@@ -444,7 +444,7 @@ export default function EditEventPage() {
         <p className="text-lg">Event not found or could not be loaded.</p>
         <button
           onClick={() => router.push("/manage")}
-          className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mt-6 px-4 py-2 bg-[#154CB3] text-white rounded hover:bg-[#154cb3df]"
         >
           Back to Manage Events
         </button>
@@ -458,7 +458,7 @@ export default function EditEventPage() {
         <p>Event ID is missing from the URL.</p>
         <button
           onClick={() => router.push("/manage")}
-          className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mt-6 px-4 py-2 bg-[#154CB3] text-white rounded hover:bg-[#154cb3df]"
         >
           Back to Manage Events
         </button>
@@ -503,7 +503,7 @@ export default function EditEventPage() {
       </p>
       <button
         onClick={() => router.push(!session ? "/login" : "/manage")}
-        className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        className="mt-6 px-4 py-2 bg-[#154CB3] text-white rounded hover:bg-[#154cb3df]"
       >
         {!session ? "Go to Login" : "Back to Manage Events"}
       </button>

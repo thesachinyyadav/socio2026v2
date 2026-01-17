@@ -301,7 +301,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
                             </p>
                             <div className="flex items-center space-x-2 ml-2">
                               {!notification.read && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <div className="w-2 h-2 bg-[#154CB3] rounded-full"></div>
                               )}
                               <span className="text-xs text-gray-500 whitespace-nowrap">
                                 {formatRelativeTime(notification.createdAt)}

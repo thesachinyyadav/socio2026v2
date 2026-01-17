@@ -507,7 +507,7 @@ export function FileInput<T extends FieldValues>({
             href={currentFileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:underline text-xs mb-2 block"
+            className="text-[#154CB3] hover:underline text-xs mb-2 block"
           >
             View current file
           </a>
