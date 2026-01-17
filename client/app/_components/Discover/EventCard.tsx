@@ -37,7 +37,7 @@ export const EventCard = ({
   const participantsPageUrl = `/event/${eventSlug}/participants`;
 
   const displayDate = date
-    ? moment.utc(date.split("T")[0]).format("MMM D, YYYY")
+    ? moment.utc(date, moment.ISO_8601, true).format("MMM D, YYYY")
     : "Date TBD";
   const displayTime = time
     ? moment(time, ["HH:mm:ss", "HH:mm"]).format("h:mm A")
