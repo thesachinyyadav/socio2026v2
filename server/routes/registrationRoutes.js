@@ -65,6 +65,9 @@ router.get("/registrations", async (req, res) => {
 // Register for an event
 router.post("/register", async (req, res) => {
   try {
+    console.log('\n🎫 === NEW REGISTRATION REQUEST ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    
     const {
       eventId,
       teamName,
@@ -165,6 +168,11 @@ router.post("/register", async (req, res) => {
           : 1;
     }
 
+    console.log('📋 Processed Data:', processedData);
+    console.log('🎟️  Registration ID:', registration_id);
+    console.log('🎪 Event ID:', normalizedEventId);
+    console.log('👥 Registration Type:', normalizedRegistrationType);
+
     const [registration] = await insert("registrations", {
       registration_id,
       event_id: normalizedEventId,
@@ -181,6 +189,8 @@ router.post("/register", async (req, res) => {
       qr_code_data: qrCodeData,
       qr_code_generated_at: new Date().toISOString(),
     });
+
+    console.log('✅ Registration saved:', registration);
 
     const newTotalParticipants = Math.max(
       0,
@@ -422,6 +432,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
 
     return res.status(200).json({
       events,
+      registeredEventIds: events.map(e => e.event_id),
       count: events.length,
     });
   } catch (error) {
@@ -429,6 +440,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     // Return empty array instead of error to prevent UI breaking
     return res.status(200).json({ 
       events: [], 
+      registeredEventIds: [],
       count: 0,
       warning: "Could not fetch registrations"
     });
