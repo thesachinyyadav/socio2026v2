@@ -192,12 +192,12 @@ export default function Page() {
         (tag): tag is string => tag != null && String(tag).trim() !== ""
       ),
       date: foundEvent.event_date
-        ? moment(foundEvent.event_date).format("MMM D, YYYY")
+        ? moment.utc(foundEvent.event_date, moment.ISO_8601, true).format("MMM D, YYYY")
         : "Date TBD",
       endDate: foundEvent.end_date
-        ? moment(foundEvent.end_date).format("MMM D, YYYY")
+        ? moment.utc(foundEvent.end_date, moment.ISO_8601, true).format("MMM D, YYYY")
         : foundEvent.event_date
-        ? moment(foundEvent.event_date).format("MMM D, YYYY")
+        ? moment.utc(foundEvent.event_date, moment.ISO_8601, true).format("MMM D, YYYY")
         : "Date TBD",
       location: foundEvent.venue || "Location TBD",
       price:
@@ -207,7 +207,7 @@ export default function Page() {
       numTeammates: foundEvent.participants_per_team ?? 1,
       daysLeft: (() => {
         if (!foundEvent.registration_deadline) return 0;
-        const target = moment(foundEvent.registration_deadline);
+        const target = moment.utc(foundEvent.registration_deadline, moment.ISO_8601, true);
         const today = moment().startOf("day");
         if (target.isBefore(today)) return 0;
         return target.diff(today, "days");
