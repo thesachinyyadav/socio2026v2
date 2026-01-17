@@ -114,6 +114,25 @@ export const eventFormSchema = z
     whatsappLink: z.string().url("Invalid URL").optional().or(z.literal("")),
     provideClaims: z.boolean().default(false),
     sendNotifications: z.boolean().default(false),
+    
+    // Outsider registration fields
+    allowOutsiders: z.boolean().default(false),
+    outsiderRegistrationFee: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || /^\d+(\.\d{1,2})?$/.test(val) || val === "0",
+        "Invalid fee format. Enter a number (e.g., 0, 50, 100.50)"
+      )
+      .transform((val) => (val === "" ? undefined : val)),
+    outsiderMaxParticipants: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || (Number(val) > 0 && Number.isInteger(Number(val))),
+        "Must be a positive integer"
+      )
+      .transform((val) => (val === "" ? undefined : val)),
 
     imageFile: fileSchema(
       MAX_FILE_SIZE_IMAGE,
