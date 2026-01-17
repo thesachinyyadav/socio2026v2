@@ -316,7 +316,7 @@ export default function Page() {
         )
         .then((data) => {
           // Extract event_ids from events array
-          const eventIds = (data.events || []).map(e => e.event_id || e.id).filter(Boolean);
+          const eventIds = (data.events || []).map((e: any) => e.event_id || e.id).filter(Boolean);
           console.log('User registered event IDs:', eventIds);
           setUserRegisteredEventIds(eventIds);
         })
