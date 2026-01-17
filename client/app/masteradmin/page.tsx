@@ -486,36 +486,35 @@ export default function MasterAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl">
-            <h1 className="text-4xl font-bold mb-2">Master Admin Control Center</h1>
-            <p className="text-blue-100 text-lg">Complete system management and oversight</p>
+          <div className="bg-white border-b border-gray-200 rounded-lg p-6 shadow-sm">
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">Master Admin Panel</h1>
+            <p className="text-gray-600">System management and oversight</p>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm mb-6 overflow-hidden border border-gray-200">
           <div className="flex border-b border-gray-200 overflow-x-auto">
             {[
-              { id: "dashboard", label: "Dashboard", icon: "📊" },
-              { id: "users", label: "User Management", icon: "👥" },
-              { id: "events", label: "Event Management", icon: "📅" },
-              { id: "fests", label: "Fest Management", icon: "🎪" }
+              { id: "dashboard", label: "Dashboard" },
+              { id: "users", label: "User Management" },
+              { id: "events", label: "Event Management" },
+              { id: "fests", label: "Fest Management" }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-6 py-4 font-medium transition-all whitespace-nowrap ${
+                className={`px-6 py-4 font-medium transition-all whitespace-nowrap ${
                   activeTab === tab.id
-                    ? "border-b-4 border-blue-600 text-blue-600 bg-blue-50"
+                    ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
-                <span className="text-xl">{tab.icon}</span>
-                <span>{tab.label}</span>
+                {tab.label}
               </button>
             ))}
           </div>
@@ -525,82 +524,73 @@ export default function MasterAdminPage() {
         {activeTab === "dashboard" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium opacity-90">Total Users</h3>
-                  <div className="text-4xl">👥</div>
-                </div>
-                <p className="text-4xl font-bold mb-4">{users.length}</p>
-                <div className="space-y-1 text-sm opacity-90">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Users</h3>
+                <p className="text-4xl font-bold text-gray-900 mb-4">{users.length}</p>
+                <div className="space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-3">
                   <div className="flex justify-between">
                     <span>Organisers:</span>
-                    <span className="font-semibold">{users.filter(u => u.is_organiser).length}</span>
+                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_organiser).length}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Support:</span>
-                    <span className="font-semibold">{users.filter(u => u.is_support).length}</span>
+                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_support).length}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Admins:</span>
-                    <span className="font-semibold">{users.filter(u => u.is_masteradmin).length}</span>
+                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_masteradmin).length}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium opacity-90">Total Events</h3>
-                  <div className="text-4xl">📅</div>
-                </div>
-                <p className="text-4xl font-bold mb-4">{events.length}</p>
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Events</h3>
+                <p className="text-4xl font-bold text-gray-900 mb-4">{events.length}</p>
                 <button
                   onClick={() => setActiveTab("events")}
-                  className="text-sm bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors backdrop-blur-sm"
+                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
                 >
-                  View all events →
+                  View all events
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium opacity-90">Total Fests</h3>
-                  <div className="text-4xl">🎪</div>
-                </div>
-                <p className="text-4xl font-bold mb-4">{fests.length}</p>
-                <div className="text-sm opacity-90">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Fests</h3>
+                <p className="text-4xl font-bold text-gray-900 mb-4">{fests.length}</p>
+                <div className="text-sm text-gray-600 border-t border-gray-100 pt-3">
                   <div className="flex justify-between">
-                    <span>Total Registrations:</span>
-                    <span className="font-semibold">{fests.reduce((sum, f) => sum + (f.registration_count || 0), 0)}</span>
+                    <span>Registrations:</span>
+                    <span className="font-semibold text-gray-900">{fests.reduce((sum, f) => sum + (f.registration_count || 0), 0)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold mb-6 text-gray-800">Quick Actions</h3>
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-bold mb-4 text-gray-900">Quick Actions</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { tab: "users", title: "Manage Users", desc: "Edit roles, permissions, and delete users", color: "blue" },
-                  { tab: "events", title: "Manage Events", desc: "View, edit, or delete any event", color: "purple" },
-                  { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete any fest", color: "pink" },
-                  { href: "/manage", title: "View Manage Page", desc: "See all events and fests in one place", color: "indigo" }
+                  { tab: "users", title: "Manage Users", desc: "Edit roles, permissions, and delete users" },
+                  { tab: "events", title: "Manage Events", desc: "View, edit, or delete any event" },
+                  { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete any fest" },
+                  { href: "/manage", title: "View Manage Page", desc: "See all events and fests in one place" }
                 ].map((action, idx) => (
                   action.tab ? (
                     <button
                       key={idx}
                       onClick={() => setActiveTab(action.tab as any)}
-                      className={`p-6 border-2 border-${action.color}-200 rounded-xl hover:border-${action.color}-400 hover:bg-${action.color}-50 transition-all text-left group`}
+                      className="p-5 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
                     >
-                      <div className="font-semibold text-gray-800 text-lg mb-2 group-hover:text-${action.color}-600">{action.title}</div>
+                      <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
                       <div className="text-sm text-gray-600">{action.desc}</div>
                     </button>
                   ) : (
                     <a
                       key={idx}
                       href={action.href}
-                      className={`p-6 border-2 border-${action.color}-200 rounded-xl hover:border-${action.color}-400 hover:bg-${action.color}-50 transition-all text-left block group`}
+                      className="p-5 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left block"
                     >
-                      <div className="font-semibold text-gray-800 text-lg mb-2 group-hover:text-${action.color}-600">{action.title}</div>
+                      <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
                       <div className="text-sm text-gray-600">{action.desc}</div>
                     </a>
                   )
@@ -614,10 +604,10 @@ export default function MasterAdminPage() {
         {activeTab === "users" && (
           <div className="space-y-6">
             {/* Search and Filter */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Search Users
                   </label>
                   <input
@@ -625,18 +615,18 @@ export default function MasterAdminPage() {
                     placeholder="Search by email or name..."
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Filter by Role
                   </label>
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   >
                     <option value="all">All Users ({users.length})</option>
                     <option value="organiser">Organisers ({users.filter((u) => u.is_organiser).length})</option>
@@ -648,15 +638,14 @@ export default function MasterAdminPage() {
             </div>
 
             {/* Users Table */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center">
-                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <div className="text-gray-500">Loading users...</div>
+                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-600">Loading users...</div>
                 </div>
               ) : paginatedUsers.items.length === 0 ? (
                 <div className="p-12 text-center">
-                  <div className="text-6xl mb-4">👥</div>
                   <div className="text-xl font-semibold text-gray-700 mb-2">No users found</div>
                   <div className="text-gray-500">Try adjusting your search or filter</div>
                 </div>
@@ -664,21 +653,21 @@ export default function MasterAdminPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             User
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Organiser
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Support
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Master Admin
                           </th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -689,7 +678,7 @@ export default function MasterAdminPage() {
                           const displayRoles = isEditing ? editingUserRoles : user;
 
                           return (
-                            <tr key={user.email} className="hover:bg-blue-50 transition-colors">
+                            <tr key={user.email} className="hover:bg-gray-50 transition-colors">
                               <td className="px-6 py-4">
                                 <div className="flex flex-col">
                                   <div className="font-semibold text-gray-900">{user.name}</div>
@@ -811,7 +800,7 @@ export default function MasterAdminPage() {
                                     <>
                                       <button
                                         onClick={() => saveRoleChanges(user)}
-                                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-green-600 hover:to-green-700 shadow-md transform hover:scale-105 transition-all"
+                                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
                                       >
                                         Save
                                       </button>
@@ -820,7 +809,7 @@ export default function MasterAdminPage() {
                                           setEditingUserId(null);
                                           setEditingUserRoles({});
                                         }}
-                                        className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300 transition-all"
+                                        className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
                                       >
                                         Cancel
                                       </button>
@@ -829,14 +818,14 @@ export default function MasterAdminPage() {
                                     <>
                                       <button
                                         onClick={() => startEditUser(user)}
-                                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md transform hover:scale-105 transition-all"
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                                       >
                                         Edit
                                       </button>
                                       {user.email !== userData?.email && (
                                         <button
                                           onClick={() => setShowDeleteUserConfirm(user.email)}
-                                          className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg hover:from-red-600 hover:to-red-700 shadow-md transform hover:scale-105 transition-all"
+                                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
                                         >
                                           Delete
                                         </button>
@@ -868,25 +857,24 @@ export default function MasterAdminPage() {
         {/* Event Management Tab */}
         {activeTab === "events" && (
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
               <input
                 type="text"
                 placeholder="Search events by title or department..."
                 value={eventSearchQuery}
                 onChange={(e) => setEventSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center">
-                  <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <div className="text-gray-500">Loading events...</div>
+                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-600">Loading events...</div>
                 </div>
               ) : paginatedEvents.items.length === 0 ? (
                 <div className="p-12 text-center">
-                  <div className="text-6xl mb-4">📅</div>
                   <div className="text-xl font-semibold text-gray-700 mb-2">No events found</div>
                   <div className="text-gray-500">Try adjusting your search</div>
                 </div>
@@ -894,18 +882,18 @@ export default function MasterAdminPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gradient-to-r from-purple-50 to-purple-100">
+                      <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Event</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Department</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Created By</th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase">Actions</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Event</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
+                          <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {paginatedEvents.items.map((event) => (
-                          <tr key={event.event_id} className="hover:bg-purple-50 transition-colors">
+                          <tr key={event.event_id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="font-semibold text-gray-900">{event.title}</div>
                               <div className="text-sm text-gray-500">ID: {event.event_id}</div>
@@ -923,19 +911,19 @@ export default function MasterAdminPage() {
                               <div className="flex items-center justify-end gap-2">
                                 <a
                                   href={`/edit/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md transform hover:scale-105 transition-all"
+                                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                                 >
                                   Edit
                                 </a>
                                 <a
                                   href={`/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white text-sm font-semibold rounded-lg hover:from-gray-600 hover:to-gray-700 shadow-md transform hover:scale-105 transition-all"
+                                  className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
                                 >
                                   View
                                 </a>
                                 <button
                                   onClick={() => setShowDeleteEventConfirm(event.event_id)}
-                                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg hover:from-red-600 hover:to-red-700 shadow-md transform hover:scale-105 transition-all"
+                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
                                 >
                                   Delete
                                 </button>
@@ -963,25 +951,24 @@ export default function MasterAdminPage() {
         {/* Fest Management Tab */}
         {activeTab === "fests" && (
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
               <input
                 type="text"
                 placeholder="Search fests by title or department..."
                 value={festSearchQuery}
                 onChange={(e) => setFestSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center">
-                  <div className="w-16 h-16 border-4 border-pink-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <div className="text-gray-500">Loading fests...</div>
+                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-600">Loading fests...</div>
                 </div>
               ) : paginatedFests.items.length === 0 ? (
                 <div className="p-12 text-center">
-                  <div className="text-6xl mb-4">🎪</div>
                   <div className="text-xl font-semibold text-gray-700 mb-2">No fests found</div>
                   <div className="text-gray-500">Try adjusting your search</div>
                 </div>
@@ -989,19 +976,19 @@ export default function MasterAdminPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gradient-to-r from-pink-50 to-pink-100">
+                      <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Fest</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Department</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Opening Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Registrations</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase">Created By</th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase">Actions</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Fest</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Opening Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Registrations</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
+                          <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {paginatedFests.items.map((fest) => (
-                          <tr key={fest.fest_id} className="hover:bg-pink-50 transition-colors">
+                          <tr key={fest.fest_id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="font-semibold text-gray-900">{fest.fest_title}</div>
                               <div className="text-sm text-gray-500">ID: {fest.fest_id}</div>
@@ -1015,28 +1002,28 @@ export default function MasterAdminPage() {
                               })}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-green-100 to-green-200 text-green-800">
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800">
                                 {fest.registration_count || 0} Registered
-                              </div>
+                              </span>
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">{fest.created_by}</td>
                             <td className="px-6 py-4 text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <a
                                   href={`/edit/fest/${fest.fest_id}`}
-                                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md transform hover:scale-105 transition-all"
+                                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                                 >
                                   Edit
                                 </a>
                                 <a
                                   href={`/fest/${fest.fest_id}`}
-                                  className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white text-sm font-semibold rounded-lg hover:from-gray-600 hover:to-gray-700 shadow-md transform hover:scale-105 transition-all"
+                                  className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
                                 >
                                   View
                                 </a>
                                 <button
                                   onClick={() => setShowDeleteFestConfirm(fest.fest_id)}
-                                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg hover:from-red-600 hover:to-red-700 shadow-md transform hover:scale-105 transition-all"
+                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
                                 >
                                   Delete
                                 </button>
@@ -1080,13 +1067,13 @@ export default function MasterAdminPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteUserConfirm(null)}
-                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => deleteUser(showDeleteUserConfirm)}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-red-700 shadow-lg transition-all"
+                  className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete User
                 </button>
@@ -1112,13 +1099,13 @@ export default function MasterAdminPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteEventConfirm(null)}
-                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => deleteEvent(showDeleteEventConfirm)}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-red-700 shadow-lg transition-all"
+                  className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete Event
                 </button>
@@ -1144,13 +1131,13 @@ export default function MasterAdminPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteFestConfirm(null)}
-                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => deleteFest(showDeleteFestConfirm)}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-red-700 shadow-lg transition-all"
+                  className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete Fest
                 </button>
