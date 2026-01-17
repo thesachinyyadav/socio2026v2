@@ -171,7 +171,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    if (!notification.isRead) {
+    if (!notification.read) {
       markAsRead(notification.id);
     }
     
@@ -300,7 +300,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
                               {notification.title}
                             </p>
                             <div className="flex items-center space-x-2 ml-2">
-                              {!notification.isRead && (
+                              {!notification.read && (
                                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                               )}
                               <span className="text-xs text-gray-500 whitespace-nowrap">
