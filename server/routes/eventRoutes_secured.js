@@ -293,6 +293,14 @@ router.put(
       const event = req.resource; // Existing event from middleware
       const files = req.files;
       
+      // DEBUG: Log what we received
+      console.log("=== PUT EVENT RECEIVED ===");
+      console.log("req.body:", JSON.stringify(req.body, null, 2));
+      console.log("req.body.title:", req.body.title);
+      console.log("typeof req.body.title:", typeof req.body.title);
+      console.log("files:", files ? Object.keys(files) : "no files");
+      console.log("=== END ===");
+      
       const uploadedFilePaths = {
         image: event.event_image_url,
         banner: event.banner_url,

@@ -335,6 +335,18 @@ export default function EditEventPage() {
       payload.append("removePdfFile", "true");
     }
 
+    // DEBUG: Log what we're sending
+    console.log("=== EDIT EVENT FORM DATA ===");
+    console.log("formData.eventTitle:", formData.eventTitle);
+    for (let [key, value] of payload.entries()) {
+      if (value instanceof File) {
+        console.log(`${key}: [FILE] ${value.name}`);
+      } else {
+        console.log(`${key}: ${value}`);
+      }
+    }
+    console.log("=== END FORM DATA ===");
+
     let response: Response | undefined = undefined;
     try {
       const token = session?.access_token;
