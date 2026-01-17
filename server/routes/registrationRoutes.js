@@ -341,25 +341,51 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
       return res.status(400).json({ error: "Registration ID is required" });
     }
 
-    const registerIdStr = String(registerId);
+    const registerIdStr = String(registerId).trim();
 
-    const { data: registrations, error } = await supabase
-      .from("registrations")
-      .select("event_id")
-      .or(
-        `individual_register_number.eq.${registerIdStr},team_leader_register_number.eq.${registerIdStr},teammates::text.ilike.%"registerNumber":"${registerIdStr}"%`
-      )
-      .order("created_at", { ascending: false });
+    // Use multiple queries instead of complex OR to avoid query failures
+    const queries = [
+      supabase.from("registrations").select("event_id").eq("individual_register_number", registerIdStr),
+      supabase.from("registrations").select("event_id").eq("team_leader_register_number", registerIdStr),
+    ];
 
-    if (error) {
-      throw error;
+    const results = await Promise.allSettled(queries);
+    
+    let allRegistrations = [];
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.data) {
+        allRegistrations.push(...result.value.data);
+      }
     }
 
-    if (!registrations || registrations.length === 0) {
-      return res.status(200).json({ events: [] });
+    // Also check teammates JSONB (if not empty)
+    try {
+      const { data: teammateRegs } = await supabase
+        .from("registrations")
+        .select("event_id, teammates")
+        .not("teammates", "is", null);
+
+      if (teammateRegs) {
+        const matchingRegs = teammateRegs.filter(reg => {
+          if (!reg.teammates) return false;
+          const teammates = Array.isArray(reg.teammates) ? reg.teammates : JSON.parse(reg.teammates || '[]');
+          return teammates.some(tm => String(tm.registerNumber) === registerIdStr);
+        });
+        allRegistrations.push(...matchingRegs.map(r => ({ event_id: r.event_id })));
+      }
+    } catch (teammateError) {
+      console.warn("Could not check teammates:", teammateError.message);
     }
 
-    const eventIds = [...new Set(registrations.map((reg) => reg.event_id))];
+    if (allRegistrations.length === 0) {
+      return res.status(200).json({ events: [], count: 0 });
+    }
+
+    const eventIds = [...new Set(allRegistrations.map((reg) => reg.event_id))].filter(Boolean);
+
+    if (eventIds.length === 0) {
+      return res.status(200).json({ events: [], count: 0 });
+    }
 
     const { data: eventsData, error: eventsError } = await supabase
       .from("events")
@@ -367,7 +393,8 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
       .in("event_id", eventIds);
 
     if (eventsError) {
-      throw eventsError;
+      console.error("Error fetching events:", eventsError);
+      return res.status(200).json({ events: [], count: 0 }); // Return empty instead of error
     }
 
     const events = (eventsData || []).map((evt) => ({
@@ -384,9 +411,11 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user registrations:", error);
-    return res.status(500).json({
-      error: "Database error while fetching user registrations.",
-      details: error.message,
+    // Return empty array instead of error to prevent UI breaking
+    return res.status(200).json({ 
+      events: [], 
+      count: 0,
+      warning: "Could not fetch registrations"
     });
   }
 });
