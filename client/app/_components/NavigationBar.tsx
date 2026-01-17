@@ -208,7 +208,7 @@ function NavigationBar() {
                       </button>
                     </Link>
                   )}
-                  {userData.is_organiser && !(userData as any).is_masteradmin && (
+                  {userData.is_organiser && (
                     <Link href="/manage">
                       <button className="cursor-pointer font-semibold px-4 py-2 border-2 rounded-full text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out">
                         Manage events
