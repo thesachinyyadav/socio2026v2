@@ -26,7 +26,7 @@ type User = {
 type Event = {
   event_id: string;
   title: string;
-  department: string;
+  organizing_dept: string;
   event_date: string;
   created_by: string;
   created_at: string;
@@ -149,7 +149,7 @@ export default function MasterAdminPage() {
       filtered = filtered.filter(
         (event) =>
           event.title.toLowerCase().includes(query) ||
-          event.department?.toLowerCase().includes(query)
+          event.organizing_dept?.toLowerCase().includes(query)
       );
     }
 
@@ -696,7 +696,9 @@ export default function MasterAdminPage() {
                                       disabled={!isEditing}
                                       className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50"
                                     />
-                                    <span className="text-sm font-medium">Enabled</span>
+                                    <span className={`text-sm font-medium ${displayRoles.is_organiser ? 'text-green-600' : 'text-gray-500'}`}>
+                                      {displayRoles.is_organiser ? 'Enabled' : 'Disabled'}
+                                    </span>
                                   </label>
                                   {displayRoles.is_organiser && isEditing && (
                                     <div className="flex items-center gap-2">
@@ -732,7 +734,9 @@ export default function MasterAdminPage() {
                                       disabled={!isEditing}
                                       className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer disabled:opacity-50"
                                     />
-                                    <span className="text-sm font-medium">Enabled</span>
+                                    <span className={`text-sm font-medium ${displayRoles.is_support ? 'text-green-600' : 'text-gray-500'}`}>
+                                      {displayRoles.is_support ? 'Enabled' : 'Disabled'}
+                                    </span>
                                   </label>
                                   {displayRoles.is_support && isEditing && (
                                     <div className="flex items-center gap-2">
@@ -768,7 +772,9 @@ export default function MasterAdminPage() {
                                       disabled={!isEditing}
                                       className="w-5 h-5 text-red-600 rounded focus:ring-red-500 cursor-pointer disabled:opacity-50"
                                     />
-                                    <span className="text-sm font-medium">Enabled</span>
+                                    <span className={`text-sm font-medium ${displayRoles.is_masteradmin ? 'text-green-600' : 'text-gray-500'}`}>
+                                      {displayRoles.is_masteradmin ? 'Enabled' : 'Disabled'}
+                                    </span>
                                   </label>
                                   {displayRoles.is_masteradmin && isEditing && (
                                     <div className="flex items-center gap-2">
@@ -898,7 +904,7 @@ export default function MasterAdminPage() {
                               <div className="font-semibold text-gray-900">{event.title}</div>
                               <div className="text-sm text-gray-500">ID: {event.event_id}</div>
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.department}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.organizing_dept}</td>
                             <td className="px-6 py-4 text-sm text-gray-600">
                               {new Date(event.event_date).toLocaleDateString('en-US', { 
                                 month: 'short', 
