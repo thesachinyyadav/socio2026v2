@@ -16,6 +16,8 @@ import {
 
 // Force dynamic rendering for this layout
 export const dynamic = 'force-dynamic';
+// OPTIMIZATION: Add revalidation for better caching
+export const revalidate = 300; // Revalidate every 5 minutes
 
 export const metadata: Metadata = {
   title: "SOCIO",

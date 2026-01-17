@@ -43,6 +43,7 @@ interface UserData {
   created_at?: string;
   avatar_url?: string;
   is_organiser?: boolean;
+  is_support?: boolean;
 }
 
 const StudentProfile = () => {
@@ -272,14 +273,23 @@ const StudentProfile = () => {
                       {student.joined}
                     </p>
                   </div>
-                  {userData.is_organiser && (
+                  {(userData.is_organiser || userData.is_support) && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-500">
                         Role
                       </h3>
-                      <p className="text-gray-800 font-medium bg-blue-100 px-2 py-1 rounded-full text-xs inline-block mt-1">
-                        Organiser
-                      </p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {userData.is_organiser && (
+                          <p className="text-gray-800 font-medium bg-blue-100 px-2 py-1 rounded-full text-xs inline-block">
+                            Organiser
+                          </p>
+                        )}
+                        {userData.is_support && (
+                          <p className="text-gray-800 font-medium bg-green-100 px-2 py-1 rounded-full text-xs inline-block">
+                            Support
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -17,7 +17,16 @@ const nextConfig: NextConfig = {
         hostname: "placehold.co",
       },
     ],
+    // OPTIMIZATION: Enable image optimization caching
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 31536000, // 1 year
   },
+  // OPTIMIZATION: Enable compiler optimizations
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  // OPTIMIZATION: Enable SWC minification
+  swcMinify: true,
 };
 
 export default nextConfig;
