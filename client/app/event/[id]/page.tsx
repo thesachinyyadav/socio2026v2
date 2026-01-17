@@ -226,6 +226,7 @@ export default function Page() {
         transformedOrganizers.length > 0 ? transformedOrganizers : undefined,
       whatsappLink: foundEvent.whatsapp_invite_link || undefined,
       registrationDeadlineISO: foundEvent.registration_deadline,
+      allow_outsiders: !!foundEvent.allow_outsiders,
     };
     setEventData(finalEventData);
     setPageError(null);
@@ -355,6 +356,7 @@ export default function Page() {
 
       // If the user is an outsider and the event disallows outsiders,
       // show a clear message indicating the event is restricted.
+      // If the user is an outsider and the event disallows outsiders, block early
       if (userData.organization_type === "outsider" && eventData && !eventData.allow_outsiders) {
         setRegistrationApiError(
           "This event is restricted to Christ University members only."
@@ -362,24 +364,46 @@ export default function Page() {
         return;
       }
 
-      const regNumStr = String(userData.register_number);
-      if (!/^\d{7}$/.test(regNumStr)) {
-        setRegistrationApiError(
-          "Invalid registration number in your profile. It must be 7 digits."
-        );
-        return;
-      }
-
       setIsRegistering(true);
       try {
+        // Build payload differently for outsiders (use visitor_id) vs Christ members
+        let teammatesPayload: any[] = [];
+        if (userData.organization_type === "outsider") {
+          const vis = userData.visitor_id || userData.register_number;
+          if (!vis || !String(vis).toUpperCase().startsWith("VIS")) {
+            setIsRegistering(false);
+            setRegistrationApiError("Missing Visitor ID (VIS...) in your profile.");
+            return;
+          }
+          teammatesPayload = [
+            {
+              name: userData.name || "Unknown",
+              registerNumber: String(vis),
+              email: userData.email || "unknown@example.com",
+            },
+          ];
+        } else {
+          const regNumStr = String(userData.register_number);
+          if (!/^\d{7}$/.test(regNumStr)) {
+            setIsRegistering(false);
+            setRegistrationApiError(
+              "Invalid registration number in your profile. It must be 7 digits."
+            );
+            return;
+          }
+          teammatesPayload = [
+            {
+              name: userData.name || "Unknown",
+              registerNumber: regNumStr,
+              email: userData.email || "unknown@example.com",
+            },
+          ];
+        }
+
         const payload = {
           eventId: eventData.id,
           teamName: null,
-          teammates: [{ 
-            name: userData.name || "Unknown",
-            registerNumber: regNumStr,
-            email: userData.email || "unknown@example.com"
-          }],
+          teammates: teammatesPayload,
         };
         const response = await fetch(`${API_URL}/api/register`, {
           method: "POST",
