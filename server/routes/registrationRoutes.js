@@ -11,30 +11,29 @@ import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js
 
 const router = express.Router();
 
-// Get registrations for an event
+// Get registrations for an event (or all registrations if no event_id)
 router.get("/registrations", async (req, res) => {
   try {
     const { event_id } = req.query;
     
-    // If no event_id provided, return empty array instead of error
+    // If no event_id provided, return ALL registrations (for master admin)
+    let registrations;
     if (!event_id) {
-      return res.status(200).json({
-        registrations: [],
-        count: 0,
-        message: "No event_id provided"
+      registrations = await queryAll("registrations", {
+        order: { column: "created_at", ascending: false },
+      });
+    } else {
+      if (typeof event_id !== "string" || event_id.trim() === "") {
+        return res
+          .status(400)
+          .json({ error: "Invalid event_id parameter" });
+      }
+
+      registrations = await queryAll("registrations", {
+        where: { event_id },
+        order: { column: "created_at", ascending: false },
       });
     }
-    
-    if (typeof event_id !== "string" || event_id.trim() === "") {
-      return res
-        .status(400)
-        .json({ error: "Invalid event_id parameter" });
-    }
-
-    const registrations = await queryAll("registrations", {
-      where: { event_id },
-      order: { column: "created_at", ascending: false },
-    });
 
     const formattedRegistrations = registrations.map((reg) => ({
       ...reg,
