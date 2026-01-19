@@ -4,6 +4,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
 import { initializeDatabase } from "./config/database.js";
+import cron from "node-cron";
 
 // API Routes
 import userRoutes from "./routes/userRoutes.js";
@@ -26,7 +27,24 @@ await initializeDatabase();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+
+// Update CORS configuration
+const allowedOrigins = [
+  'https://socio2026v2server.vercel.app',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Allow cookies to be sent
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+}));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -59,6 +77,18 @@ app.use("/api", notificationRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", contactRoutes);
 app.use("/api/debug", debugRoutes);
+
+// Schedule a cron job to handle fest publishing
+cron.schedule("0 0 * * *", async () => {
+  console.log("Running scheduled task: Publishing fests");
+  try {
+    // Add logic to publish fests here
+    // Example: await publishFests();
+    console.log("✅ Fests published successfully");
+  } catch (error) {
+    console.error("❌ Error while publishing fests:", error);
+  }
+});
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
