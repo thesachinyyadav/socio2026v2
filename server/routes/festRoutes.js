@@ -123,6 +123,15 @@ router.post(
       fest_id = uuidv4().replace(/-/g, "");
     }
 
+    // Validate fest_id uniqueness
+    const existingFest = await queryOne("fest", { where: { fest_id } });
+    if (existingFest) {
+      return res.status(400).json({
+        error: `A fest with the ID '${fest_id}' already exists. Please use a different title.`
+      });
+    }
+
+    // Proceed with insertion
     const festPayload = {
       fest_id,
       fest_title: festData.festTitle || festData.title || "",
