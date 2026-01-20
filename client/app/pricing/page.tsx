@@ -280,34 +280,85 @@ const PricingPage = () => {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
             Compare All Features
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+            <table className="w-full border-collapse bg-white">
               <thead>
-                <tr className="border-b-2 border-gray-200">
-                  <th className="text-left py-4 px-4 font-semibold text-gray-900">Feature</th>
-                  <th className="text-center py-4 px-4 font-semibold text-gray-900">Free</th>
-                  <th className="text-center py-4 px-4 font-semibold text-gray-900">Basic</th>
-                  <th className="text-center py-4 px-4 font-semibold text-[#154CB3]">Pro</th>
-                  <th className="text-center py-4 px-4 font-semibold text-gray-900">Enterprise</th>
+                <tr className="bg-gray-50">
+                  <th className="text-left py-5 px-6 font-bold text-gray-900 border-b-2 border-gray-200">Feature</th>
+                  <th className="text-center py-5 px-4 font-bold text-gray-700 border-b-2 border-gray-200 min-w-[100px]">Free</th>
+                  <th className="text-center py-5 px-4 font-bold text-gray-700 border-b-2 border-gray-200 min-w-[100px]">Basic</th>
+                  <th className="text-center py-5 px-4 font-bold text-[#154CB3] border-b-2 border-[#154CB3] bg-blue-50 min-w-[100px]">Pro</th>
+                  <th className="text-center py-5 px-4 font-bold text-gray-700 border-b-2 border-gray-200 min-w-[100px]">Enterprise</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { feature: "Events per fest", free: "1", basic: "5", pro: "Unlimited", enterprise: "Unlimited" },
-                  { feature: "Registrations", free: "50", basic: "500", pro: "2,000", enterprise: "Unlimited" },
-                  { feature: "Custom branding", free: "❌", basic: "❌", pro: "✅", enterprise: "✅" },
-                  { feature: "Analytics", free: "Basic", basic: "Basic", pro: "Advanced", enterprise: "Custom" },
-                  { feature: "Payment gateway", free: "❌", basic: "❌", pro: "✅", enterprise: "✅" },
-                  { feature: "API access", free: "❌", basic: "❌", pro: "❌", enterprise: "✅" },
-                  { feature: "Support", free: "Community", basic: "Email", pro: "Priority", enterprise: "24/7" },
-                  { feature: "On-site support", free: "❌", basic: "❌", pro: "1 day", enterprise: "Unlimited" },
+                  { feature: "Events per fest", free: "1", basic: "5", pro: "Unlimited", enterprise: "Unlimited", isText: true },
+                  { feature: "Registrations", free: "50", basic: "500", pro: "2,000", enterprise: "Unlimited", isText: true },
+                  { feature: "Custom branding", free: false, basic: false, pro: true, enterprise: true, isText: false },
+                  { feature: "Analytics", free: "Basic", basic: "Basic", pro: "Advanced", enterprise: "Custom", isText: true },
+                  { feature: "Payment gateway", free: false, basic: false, pro: true, enterprise: true, isText: false },
+                  { feature: "API access", free: false, basic: false, pro: false, enterprise: true, isText: false },
+                  { feature: "WhatsApp notifications", free: false, basic: false, pro: true, enterprise: true, isText: false },
+                  { feature: "Role-based access", free: false, basic: false, pro: true, enterprise: true, isText: false },
+                  { feature: "Export data (CSV)", free: false, basic: true, pro: true, enterprise: true, isText: false },
+                  { feature: "Support", free: "Community", basic: "Email", pro: "Priority", enterprise: "24/7", isText: true },
+                  { feature: "On-site support", free: "-", basic: "-", pro: "1 day", enterprise: "Unlimited", isText: true },
                 ].map((row, index) => (
-                  <tr key={index} className="border-b border-gray-100">
-                    <td className="py-4 px-4 text-gray-700">{row.feature}</td>
-                    <td className="text-center py-4 px-4 text-gray-600">{row.free}</td>
-                    <td className="text-center py-4 px-4 text-gray-600">{row.basic}</td>
-                    <td className="text-center py-4 px-4 text-[#154CB3] font-medium">{row.pro}</td>
-                    <td className="text-center py-4 px-4 text-gray-600">{row.enterprise}</td>
+                  <tr key={index} className={`border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-gray-50 transition-colors`}>
+                    <td className="py-4 px-6 text-gray-800 font-medium">{row.feature}</td>
+                    <td className="text-center py-4 px-4">
+                      {row.isText ? (
+                        <span className="text-gray-600 text-sm">{row.free as string}</span>
+                      ) : row.free ? (
+                        <svg className="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </td>
+                    <td className="text-center py-4 px-4">
+                      {row.isText ? (
+                        <span className="text-gray-600 text-sm">{row.basic as string}</span>
+                      ) : row.basic ? (
+                        <svg className="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </td>
+                    <td className="text-center py-4 px-4 bg-blue-50/50">
+                      {row.isText ? (
+                        <span className="text-[#154CB3] font-semibold text-sm">{row.pro as string}</span>
+                      ) : row.pro ? (
+                        <svg className="w-5 h-5 text-[#154CB3] mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </td>
+                    <td className="text-center py-4 px-4">
+                      {row.isText ? (
+                        <span className="text-gray-600 text-sm">{row.enterprise as string}</span>
+                      ) : row.enterprise ? (
+                        <svg className="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
