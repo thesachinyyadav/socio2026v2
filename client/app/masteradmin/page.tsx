@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import DateTimePickerAdmin from "../_components/DateTimePickerAdmin";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const ITEMS_PER_PAGE = 20;
@@ -755,24 +756,18 @@ export default function MasterAdminPage() {
                                     </span>
                                   </label>
                                   {displayRoles.is_organiser && isEditing && (
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="date"
-                                        value={displayRoles.organiser_expires_at?.split('T')[0] || ""}
-                                        onChange={(e) =>
-                                          handleExpirationChange(
-                                            "organiser_expires_at",
-                                            e.target.value ? new Date(e.target.value).toISOString() : null
-                                          )
+                                    <div className="mt-2">
+                                      <DateTimePickerAdmin
+                                        value={displayRoles.organiser_expires_at || null}
+                                        onChange={(value) =>
+                                          handleExpirationChange("organiser_expires_at", value)
                                         }
-                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-[#154CB3]"
+                                        onClear={() =>
+                                          handleExpirationChange("organiser_expires_at", null)
+                                        }
+                                        colorScheme="blue"
+                                        label="Organiser expiration"
                                       />
-                                      <button
-                                        onClick={() => handleExpirationChange("organiser_expires_at", null)}
-                                        className="text-xs text-[#154CB3] hover:text-blue-700 font-semibold"
-                                      >
-                                        Always
-                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -793,24 +788,18 @@ export default function MasterAdminPage() {
                                     </span>
                                   </label>
                                   {displayRoles.is_support && isEditing && (
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="date"
-                                        value={displayRoles.support_expires_at?.split('T')[0] || ""}
-                                        onChange={(e) =>
-                                          handleExpirationChange(
-                                            "support_expires_at",
-                                            e.target.value ? new Date(e.target.value).toISOString() : null
-                                          )
+                                    <div className="mt-2">
+                                      <DateTimePickerAdmin
+                                        value={displayRoles.support_expires_at || null}
+                                        onChange={(value) =>
+                                          handleExpirationChange("support_expires_at", value)
                                         }
-                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-green-500"
+                                        onClear={() =>
+                                          handleExpirationChange("support_expires_at", null)
+                                        }
+                                        colorScheme="green"
+                                        label="Support expiration"
                                       />
-                                      <button
-                                        onClick={() => handleExpirationChange("support_expires_at", null)}
-                                        className="text-xs text-green-600 hover:text-green-700 font-semibold"
-                                      >
-                                        Always
-                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -831,24 +820,18 @@ export default function MasterAdminPage() {
                                     </span>
                                   </label>
                                   {displayRoles.is_masteradmin && isEditing && (
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="date"
-                                        value={displayRoles.masteradmin_expires_at?.split('T')[0] || ""}
-                                        onChange={(e) =>
-                                          handleExpirationChange(
-                                            "masteradmin_expires_at",
-                                            e.target.value ? new Date(e.target.value).toISOString() : null
-                                          )
+                                    <div className="mt-2">
+                                      <DateTimePickerAdmin
+                                        value={displayRoles.masteradmin_expires_at || null}
+                                        onChange={(value) =>
+                                          handleExpirationChange("masteradmin_expires_at", value)
                                         }
-                                        className="text-xs px-3 py-1.5 border-2 border-gray-200 rounded-lg focus:border-red-500"
+                                        onClear={() =>
+                                          handleExpirationChange("masteradmin_expires_at", null)
+                                        }
+                                        colorScheme="red"
+                                        label="Master Admin expiration"
                                       />
-                                      <button
-                                        onClick={() => handleExpirationChange("masteradmin_expires_at", null)}
-                                        className="text-xs text-red-600 hover:text-red-700 font-semibold"
-                                      >
-                                        Always
-                                      </button>
                                     </div>
                                   )}
                                 </div>
