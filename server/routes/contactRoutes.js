@@ -1,6 +1,7 @@
 import express from "express";
 import { insert, queryAll, queryOne } from "../config/database.js";
 import { authenticateUser } from "../middleware/authMiddleware.js";
+import supabase from "../config/supabaseClient.js";
 
 const router = express.Router();
 
@@ -85,14 +86,7 @@ router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
       });
     }
 
-    // Get the existing message
-    const existingMessage = await queryOne("contact_messages", { where: { id } });
-    if (!existingMessage) {
-      return res.status(404).json({ success: false, message: "Message not found." });
-    }
-
-    // Update the status
-    const { supabase } = await import("../config/supabaseClient.js");
+    // Update the status using Supabase
     const { data, error } = await supabase
       .from("contact_messages")
       .update({ status })
@@ -101,10 +95,14 @@ router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
 
     if (error) {
       console.error("Error updating message status:", error);
-      return res.status(500).json({ success: false, message: "Failed to update status." });
+      return res.status(500).json({ success: false, message: "Failed to update status.", error: error.message });
     }
 
-    return res.status(200).json({ success: true, message: data?.[0] });
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+
+    return res.status(200).json({ success: true, message: data[0] });
   } catch (error) {
     console.error("Error updating message status:", error);
     return res.status(500).json({
