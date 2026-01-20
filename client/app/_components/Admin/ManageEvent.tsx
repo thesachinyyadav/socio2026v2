@@ -1124,14 +1124,26 @@ export default function EventForm({
                 className="space-y-6 sm:space-y-8"
                 noValidate
               >
-                <InputField
-                  label="Event title:"
-                  name="eventTitle"
-                  register={register}
-                  error={errors.eventTitle}
-                  required
-                  placeholder="Enter event title"
-                />
+                <div>
+                  <InputField
+                    label="Event title:"
+                    name="eventTitle"
+                    register={register}
+                    error={errors.eventTitle}
+                    required
+                    placeholder="Enter event title"
+                  />
+                  {isEditMode && (
+                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        <span className="font-semibold">⚠️ Note:</span> Changing the title will also update your event&apos;s URL/link.
+                      </p>
+                      <p className="text-xs text-amber-700 mt-1">
+                        Example: &quot;My Event&quot; → <code className="bg-amber-100 px-1 rounded">sociov2.vercel.app/event/my-event</code>
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Controller
                     name="eventDate"

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
 import { departments as baseDepartments } from "../lib/eventFormSchema";
 import { createBrowserClient } from "@supabase/ssr";
+import toast from "react-hot-toast";
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -1141,11 +1142,22 @@ function CreateFestForm(props?: CreateFestProps) {
       // Handle response - check if fest_id changed
       const responseData = await response.json();
       
-      // If the fest_id changed (title was updated), redirect to new URL
+      // If the fest_id changed (title was updated), show success message and redirect to new URL
       if (isEditMode && responseData.id_changed && responseData.fest_id) {
-        console.log(`Fest ID changed from '${festIdFromPath}' to '${responseData.fest_id}', redirecting...`);
-        window.location.href = `/edit/fest/${responseData.fest_id}`;
+        const oldId = festIdFromPath;
+        const newId = responseData.fest_id;
+        console.log(`Fest ID changed from '${oldId}' to '${newId}', redirecting...`);
+        
+        toast.success(
+          `Fest updated successfully! The fest link has changed from /fest/${oldId} to /fest/${newId}`,
+          { duration: 5000 }
+        );
+        
+        window.location.href = `/edit/fest/${newId}`;
         return;
+      } else if (isEditMode) {
+        // Show regular success message for edit
+        toast.success("Fest updated successfully!", { duration: 3000 });
       }
 
       setIsModalOpen(true);
@@ -1398,6 +1410,16 @@ function CreateFestForm(props?: CreateFestProps) {
                       <p id="title-error" className="text-red-500 text-xs mt-1">
                         {errors.title}
                       </p>
+                    )}
+                    {finalIsEditMode && (
+                      <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-sm text-amber-800">
+                          <span className="font-semibold">⚠️ Note:</span> Changing the title will also update your fest&apos;s URL/link.
+                        </p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          Example: &quot;My Fest&quot; → <code className="bg-amber-100 px-1 rounded">sociov2.vercel.app/fest/my-fest</code>
+                        </p>
+                      </div>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">

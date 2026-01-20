@@ -10,6 +10,7 @@ import {
 } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
 import { useAuth } from "@/context/AuthContext";
+import toast from "react-hot-toast";
 
 export default function EditEventPage() {
   const params = useParams();
@@ -404,16 +405,29 @@ export default function EditEventPage() {
           setExistingPdfFileUrl(resultJson.event.pdf_url || null);
         }
         
-        // If the event_id changed (title was updated), redirect to new URL
+        // If the event_id changed (title was updated), show success message and redirect to new URL
         if (resultJson.id_changed && resultJson.event_id) {
-          console.log(`Event ID changed from '${eventIdSlug}' to '${resultJson.event_id}', redirecting...`);
-          router.replace(`/edit/event/${resultJson.event_id}`);
+          const oldId = eventIdSlug;
+          const newId = resultJson.event_id;
+          console.log(`Event ID changed from '${oldId}' to '${newId}', redirecting...`);
+          
+          toast.success(
+            `Event updated successfully! The event link has changed from /event/${oldId} to /event/${newId}`,
+            { duration: 5000 }
+          );
+          
+          router.replace(`/edit/event/${newId}`);
           return;
+        } else {
+          // Show regular success message
+          toast.success("Event updated successfully!", { duration: 3000 });
         }
       } catch (e) {
         console.warn(
           "Could not parse update response as JSON, or event data missing in response."
         );
+        // Still show success if response was ok
+        toast.success("Event updated successfully!", { duration: 3000 });
       }
     } catch (error: any) {
       console.error("Error in handleUpdateEvent:", error);
