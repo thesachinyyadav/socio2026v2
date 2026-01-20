@@ -21,12 +21,14 @@ const WithSocioPage = () => {
           name: "Premium Package",
           details: "30 Videos - Complete Production",
           price: "48,000",
+          pricePrefix: "",
           popular: true
         },
         {
           name: "Standard Package",
           details: "25 Videos - Shooting + Editing",
           price: "30,000",
+          pricePrefix: "",
           popular: false
         }
       ]
@@ -45,12 +47,14 @@ const WithSocioPage = () => {
           name: "Premium Package",
           details: "30 Videos - Complete Production",
           price: "43,000",
+          pricePrefix: "",
           popular: true
         },
         {
           name: "Standard Package",
           details: "25 Videos - Shooting + Editing",
           price: "30,000",
+          pricePrefix: "",
           popular: false
         }
       ]
