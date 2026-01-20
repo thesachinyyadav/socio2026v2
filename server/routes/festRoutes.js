@@ -192,6 +192,39 @@ router.put(
     const updateData = req.body;
     const existingFest = req.resource; // From ownership middleware
 
+    // Get the new title
+    const newTitle = updateData.fest_title ?? updateData.festTitle ?? updateData.title;
+    
+    // Check if title changed and generate new fest_id
+    let newFestId = festId; // Default to current ID
+    const titleChanged = newTitle && newTitle.trim() !== existingFest.fest_title;
+    
+    if (titleChanged) {
+      // Generate new slug-based ID from new title
+      newFestId = newTitle
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/[\s_-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      
+      if (!newFestId) {
+        newFestId = uuidv4().replace(/-/g, "");
+      }
+      
+      // Check if new fest_id already exists (and it's not the same fest)
+      if (newFestId !== festId) {
+        const existingFestWithId = await queryOne("fest", { where: { fest_id: newFestId } });
+        if (existingFestWithId) {
+          return res.status(400).json({ 
+            error: `A fest with the ID '${newFestId}' already exists. Please use a different title.` 
+          });
+        }
+      }
+      
+      console.log(`Title changed: Updating fest_id from '${festId}' to '${newFestId}'`);
+    }
+
     const updatePayload = {};
 
     const mapFields = [
@@ -218,14 +251,30 @@ router.put(
       return res.status(400).json({ error: "No valid fields to update" });
     }
 
+    // Add new fest_id to payload if it changed
+    if (newFestId !== festId) {
+      updatePayload.fest_id = newFestId;
+    }
+    
     updatePayload.updated_at = new Date().toISOString();
 
-  const updated = await update("fest", updatePayload, { fest_id: festId });
+    // If fest_id changed, update related records first
+    if (newFestId !== festId) {
+      // Update events that belong to this fest
+      await update("events", { fest: newFestId }, { fest: festId });
+      // Update notifications that reference this fest
+      await update("notifications", { event_id: newFestId, action_url: `/fest/${newFestId}` }, { event_id: festId });
+      console.log(`Updated related records from fest_id '${festId}' to '${newFestId}'`);
+    }
+
+    const updated = await update("fest", updatePayload, { fest_id: festId });
     const updatedFest = updated?.[0];
 
     return res.status(200).json({
       message: "Fest updated successfully",
-      fest: mapFestResponse(updatedFest)
+      fest: mapFestResponse(updatedFest),
+      fest_id: newFestId,
+      id_changed: newFestId !== festId
     });
 
   } catch (error) {

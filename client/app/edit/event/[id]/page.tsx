@@ -403,6 +403,13 @@ export default function EditEventPage() {
           setExistingBannerFileUrl(resultJson.event.banner_url || null);
           setExistingPdfFileUrl(resultJson.event.pdf_url || null);
         }
+        
+        // If the event_id changed (title was updated), redirect to new URL
+        if (resultJson.id_changed && resultJson.event_id) {
+          console.log(`Event ID changed from '${eventIdSlug}' to '${resultJson.event_id}', redirecting...`);
+          router.replace(`/edit/event/${resultJson.event_id}`);
+          return;
+        }
       } catch (e) {
         console.warn(
           "Could not parse update response as JSON, or event data missing in response."

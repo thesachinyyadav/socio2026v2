@@ -364,6 +364,36 @@ router.put(
         return res.status(400).json({ error: "Title is required and must be a non-empty string." });
       }
 
+      // Check if title changed and generate new event_id
+      let newEventId = eventId; // Default to current ID
+      const titleChanged = title.trim() !== event.title;
+      
+      if (titleChanged) {
+        // Generate new slug-based ID from new title
+        newEventId = title
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, "")
+          .replace(/[\s_-]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        
+        if (!newEventId) {
+          newEventId = uuidv4().replace(/-/g, "");
+        }
+        
+        // Check if new event_id already exists (and it's not the same event)
+        if (newEventId !== eventId) {
+          const existingEvent = await queryOne("events", { where: { event_id: newEventId } });
+          if (existingEvent) {
+            return res.status(400).json({ 
+              error: `An event with the ID '${newEventId}' already exists. Please use a different title.` 
+            });
+          }
+        }
+        
+        console.log(`Title changed: Updating event_id from '${eventId}' to '${newEventId}'`);
+      }
+
       // Parse JSON fields
       const parsedDepartmentAccess = parseJsonField(department_access, []);
       const parsedRules = parseJsonField(rules, []);
@@ -372,6 +402,7 @@ router.put(
 
       // Prepare update payload
       const updateData = {
+        event_id: newEventId, // Include new event_id (will be same as old if title didn't change)
         title: title.trim(),
         description: description || null,
         event_date: event_date || null,
@@ -404,6 +435,17 @@ router.put(
         updated_by: req.userInfo.email
       };
 
+      // If event_id changed, update related records first
+      if (newEventId !== eventId) {
+        // Update registrations to point to new event_id
+        await update("registrations", { event_id: newEventId }, { event_id: eventId });
+        // Update attendance_status to point to new event_id
+        await update("attendance_status", { event_id: newEventId }, { event_id: eventId });
+        // Update notifications that reference this event
+        await update("notifications", { event_id: newEventId, action_url: `/event/${newEventId}` }, { event_id: eventId });
+        console.log(`Updated related records from event_id '${eventId}' to '${newEventId}'`);
+      }
+
       const updated = await update("events", updateData, { event_id: eventId });
 
       if (!updated || updated.length === 0) {
@@ -412,7 +454,9 @@ router.put(
 
       return res.status(200).json({ 
         message: "Event updated successfully", 
-        event: updated[0] 
+        event: updated[0],
+        event_id: newEventId,
+        id_changed: newEventId !== eventId
       });
 
     } catch (error) {

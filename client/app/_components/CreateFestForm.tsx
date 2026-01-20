@@ -1138,6 +1138,16 @@ function CreateFestForm(props?: CreateFestProps) {
         );
       }
 
+      // Handle response - check if fest_id changed
+      const responseData = await response.json();
+      
+      // If the fest_id changed (title was updated), redirect to new URL
+      if (isEditMode && responseData.id_changed && responseData.fest_id) {
+        console.log(`Fest ID changed from '${festIdFromPath}' to '${responseData.fest_id}', redirecting...`);
+        window.location.href = `/edit/fest/${responseData.fest_id}`;
+        return;
+      }
+
       setIsModalOpen(true);
     } catch (error: any) {
       setErrors((prev) => ({ ...prev, submit: error.message }));
