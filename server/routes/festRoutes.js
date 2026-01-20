@@ -153,6 +153,29 @@ router.post(
   const inserted = await insert("fest", [festPayload]);
     const createdFest = inserted?.[0];
 
+    // Grant organiser access to event heads with expiration dates
+    const eventHeads = festData.eventHeads || festData.event_heads || [];
+    for (const head of eventHeads) {
+      if (head && head.email) {
+        try {
+          // Find the user by email
+          const user = await queryOne("user", { where: { email: head.email } });
+          if (user) {
+            // Update user's organiser status with expiration
+            await update("user", { 
+              is_organiser: true,
+              organiser_expires_at: head.expiresAt || null
+            }, { email: head.email });
+            console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+          } else {
+            console.log(`⚠ User ${head.email} not found, will be granted access when they sign up`);
+          }
+        } catch (userError) {
+          console.error(`Error updating organiser status for ${head.email}:`, userError);
+        }
+      }
+    }
+
     // Send notifications to all users about the new fest (non-blocking)
     sendBroadcastNotification({
       title: '🎊 New Fest Announced!',
@@ -279,6 +302,29 @@ router.put(
 
     const updated = await update("fest", updatePayload, { fest_id: festId });
     const updatedFest = updated?.[0];
+
+    // Grant organiser access to event heads with expiration dates
+    const eventHeads = updateData.eventHeads || updateData.event_heads || [];
+    for (const head of eventHeads) {
+      if (head && head.email) {
+        try {
+          // Find the user by email
+          const user = await queryOne("user", { where: { email: head.email } });
+          if (user) {
+            // Update user's organiser status with expiration
+            await update("user", { 
+              is_organiser: true,
+              organiser_expires_at: head.expiresAt || null
+            }, { email: head.email });
+            console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+          } else {
+            console.log(`⚠ User ${head.email} not found, will be granted access when they sign up`);
+          }
+        } catch (userError) {
+          console.error(`Error updating organiser status for ${head.email}:`, userError);
+        }
+      }
+    }
 
     return res.status(200).json({
       message: "Fest updated successfully",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Clock, X } from "lucide-react";
 
 interface DateTimePickerAdminProps {
@@ -19,6 +19,26 @@ export default function DateTimePickerAdmin({
   label = "Set expiration date & time",
 }: DateTimePickerAdminProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<"bottom" | "top">("bottom");
+
+  // Calculate position when opening
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = 420; // Approximate height of dropdown
+      
+      // If not enough space below but enough above, open upward
+      if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+        setPosition("top");
+      } else {
+        setPosition("bottom");
+      }
+    }
+  }, [isOpen]);
 
   // Parse ISO string to get date and time separately
   const parseDateTime = (isoString: string | null) => {
@@ -81,6 +101,7 @@ export default function DateTimePickerAdmin({
   return (
     <div className="relative">
       <div
+        ref={triggerRef}
         className={`flex items-center gap-2 px-3 py-2 border-2 rounded-lg cursor-pointer transition-all ${colors.btn} ${colors.focus}`}
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -108,7 +129,8 @@ export default function DateTimePickerAdmin({
 
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-lg z-50 p-4 w-72"
+          ref={dropdownRef}
+          className={`absolute ${position === "top" ? "bottom-full mb-2" : "top-full mt-2"} left-0 bg-white border-2 border-gray-200 rounded-lg shadow-xl z-[100] p-4 w-72 max-h-[400px] overflow-y-auto`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

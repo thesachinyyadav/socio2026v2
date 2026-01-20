@@ -313,7 +313,7 @@ interface CreateFestState {
   category: string;
   contactEmail: string;
   contactPhone: string;
-  eventHeads: string[];
+  eventHeads: { email: string; expiresAt: string | null }[];
   organizingDept: string;
 }
 
@@ -601,7 +601,7 @@ interface CreateFestProps {
   category?: string;
   contactEmail?: string;
   contactPhone?: string;
-  eventHeads?: string[];
+  eventHeads?: { email: string; expiresAt: string | null }[];
   scheduleItems?: { time: string; activity: string }[];
   rules?: string[];
   prizes?: string[];
@@ -651,7 +651,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const contactEmail = props?.contactEmail || "";
   const contactPhone = props?.contactPhone || "";
   const organizingDept = props?.organizingDept || "";
-  const initialEventHeads: string[] = props?.eventHeads || [];
+  const initialEventHeads: { email: string; expiresAt: string | null }[] = props?.eventHeads || [];
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
   const existingImageFileUrl = props?.existingImageFileUrl || null;
@@ -713,6 +713,15 @@ function CreateFestForm(props?: CreateFestProps) {
           }
           const data = await response.json();
           if (data.fest) {
+            // Transform event_heads to new format
+            const eventHeadsData = data.fest.event_heads || [];
+            const transformedEventHeads = eventHeadsData.map((head: any) => {
+              if (typeof head === 'string') {
+                return { email: head, expiresAt: null };
+              }
+              return { email: head.email || '', expiresAt: head.expiresAt || null };
+            });
+            
             setFormData({
               title: data.fest.fest_title || "",
               openingDate: data.fest.opening_date
@@ -726,7 +735,7 @@ function CreateFestForm(props?: CreateFestProps) {
               category: data.fest.category || "",
               contactEmail: data.fest.contact_email || "",
               contactPhone: data.fest.contact_phone || "",
-              eventHeads: data.fest.event_heads || [],
+              eventHeads: transformedEventHeads,
               organizingDept: data.fest.organizing_dept || "",
             });
           } else {
@@ -1006,9 +1015,9 @@ function CreateFestForm(props?: CreateFestProps) {
 
     fieldsToValidate.forEach((field) => validateSync(field, formData[field]));
     formData.eventHeads.forEach((head, index) => {
-      if (head.trim() !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(head)) {
+      if (head.email.trim() !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(head.email)) {
         currentValidationErrors[`eventHead_${index}`] = "Invalid email format.";
-      } else if (head.length > 100) {
+      } else if (head.email.length > 100) {
         currentValidationErrors[`eventHead_${index}`] = "Max 100 chars.";
       }
     });
@@ -1098,7 +1107,7 @@ function CreateFestForm(props?: CreateFestProps) {
         category: formData.category,
         contactEmail: formData.contactEmail,
         contactPhone: formData.contactPhone,
-        eventHeads: formData.eventHeads.filter((head) => head.trim() !== ""),
+        eventHeads: formData.eventHeads.filter((head) => head.email.trim() !== ""),
         organizingDept: formData.organizingDept,
         createdBy: session.user.email,
       };
@@ -1219,19 +1228,24 @@ function CreateFestForm(props?: CreateFestProps) {
     validateField(name, formData[name]);
   const handleEventHeadChange = (index: number, value: string) => {
     const newEventHeads = [...formData.eventHeads];
-    newEventHeads[index] = value;
+    newEventHeads[index] = { ...newEventHeads[index], email: value };
+    setFormData((prev) => ({ ...prev, eventHeads: newEventHeads }));
+  };
+  const handleEventHeadExpirationChange = (index: number, value: string | null) => {
+    const newEventHeads = [...formData.eventHeads];
+    newEventHeads[index] = { ...newEventHeads[index], expiresAt: value };
     setFormData((prev) => ({ ...prev, eventHeads: newEventHeads }));
   };
   const handleEventHeadBlur = (index: number) =>
     validateField(`eventHead_${index}`, {
       index,
-      eventHead: formData.eventHeads[index],
+      eventHead: formData.eventHeads[index].email,
     });
   const addEventHead = () => {
     if (formData.eventHeads.length < 5)
       setFormData((prev) => ({
         ...prev,
-        eventHeads: [...prev.eventHeads, ""],
+        eventHeads: [...prev.eventHeads, { email: "", expiresAt: null }],
       }));
   };
   const removeEventHead = (index: number) => {
@@ -1720,50 +1734,111 @@ function CreateFestForm(props?: CreateFestProps) {
                     </button>
                   </div>
                   {formData.eventHeads.map((eventHead, index) => (
-                    <div key={index} className="mb-4 relative">
-                      <input
-                        type="email"
-                        placeholder="Enter event head email"
-                        value={eventHead}
-                        onChange={(e) =>
-                          handleEventHeadChange(index, e.target.value)
-                        }
-                        onBlur={() => handleEventHeadBlur(index)}
-                        aria-invalid={!!errors[`eventHead_${index}`]}
-                        aria-describedby={
-                          errors[`eventHead_${index}`]
-                            ? `eventHead-error-${index}`
-                            : undefined
-                        }
-                        className={`w-full px-4 py-3 sm:py-3.5 rounded-lg border pr-10 ${
-                          errors[`eventHead_${index}`]
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm sm:text-base`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeEventHead(index)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 rounded-full cursor-pointer"
-                        aria-label={`Remove event head ${index + 1}`}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 16 16"
-                          fill="currentColor"
-                          className="size-5"
+                    <div key={index} className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1">
+                          <input
+                            type="email"
+                            placeholder="Enter event head email"
+                            value={eventHead.email}
+                            onChange={(e) =>
+                              handleEventHeadChange(index, e.target.value)
+                            }
+                            onBlur={() => handleEventHeadBlur(index)}
+                            aria-invalid={!!errors[`eventHead_${index}`]}
+                            aria-describedby={
+                              errors[`eventHead_${index}`]
+                                ? `eventHead-error-${index}`
+                                : undefined
+                            }
+                            className={`w-full px-4 py-3 sm:py-3.5 rounded-lg border ${
+                              errors[`eventHead_${index}`]
+                                ? "border-red-500"
+                                : "border-gray-300"
+                            } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm sm:text-base bg-white`}
+                          />
+                          {errors[`eventHead_${index}`] && (
+                            <p
+                              id={`eventHead-error-${index}`}
+                              className="text-red-500 text-xs mt-1"
+                            >
+                              {errors[`eventHead_${index}`]}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeEventHead(index)}
+                          className="p-2 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 rounded-full cursor-pointer"
+                          aria-label={`Remove event head ${index + 1}`}
                         >
-                          <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
-                        </svg>
-                      </button>
-                      {errors[`eventHead_${index}`] && (
-                        <p
-                          id={`eventHead-error-${index}`}
-                          className="text-red-500 text-xs mt-1"
-                        >
-                          {errors[`eventHead_${index}`]}
-                        </p>
-                      )}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                            className="size-5"
+                          >
+                            <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Organiser Access Expiration */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">
+                          Organiser Access Expiration (optional)
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="datetime-local"
+                            value={eventHead.expiresAt ? new Date(eventHead.expiresAt).toISOString().slice(0, 16) : ""}
+                            onChange={(e) =>
+                              handleEventHeadExpirationChange(
+                                index,
+                                e.target.value ? new Date(e.target.value).toISOString() : null
+                              )
+                            }
+                            className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                          />
+                          <div className="flex gap-1">
+                            {["1 week", "1 month", "3 months"].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => {
+                                  const date = new Date();
+                                  if (preset === "1 week") date.setDate(date.getDate() + 7);
+                                  else if (preset === "1 month") date.setMonth(date.getMonth() + 1);
+                                  else if (preset === "3 months") date.setMonth(date.getMonth() + 3);
+                                  handleEventHeadExpirationChange(index, date.toISOString());
+                                }}
+                                className="px-2 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-100 transition-colors text-gray-600"
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                            {eventHead.expiresAt && (
+                              <button
+                                type="button"
+                                onClick={() => handleEventHeadExpirationChange(index, null)}
+                                className="px-2 py-1 text-xs font-medium rounded border border-red-300 hover:bg-red-50 transition-colors text-red-600"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {eventHead.expiresAt && (
+                          <p className="text-xs text-green-600 mt-1">
+                            ✓ Access expires: {new Date(eventHead.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                        {!eventHead.expiresAt && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            ⚠ No expiration set - access will be permanent
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
