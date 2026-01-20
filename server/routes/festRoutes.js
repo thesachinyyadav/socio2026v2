@@ -260,11 +260,21 @@ router.put(
 
     // If fest_id changed, update related records first
     if (newFestId !== festId) {
-      // Update events that belong to this fest
-      await update("events", { fest: newFestId }, { fest: festId });
-      // Update notifications that reference this fest
-      await update("notifications", { event_id: newFestId, action_url: `/fest/${newFestId}` }, { event_id: festId });
-      console.log(`Updated related records from fest_id '${festId}' to '${newFestId}'`);
+      try {
+        // Update events that belong to this fest
+        await update("events", { fest: newFestId }, { fest: festId });
+        console.log(`Updated events from fest '${festId}' to '${newFestId}'`);
+      } catch (eventsError) {
+        console.log(`No events to update or error: ${eventsError.message}`);
+      }
+      
+      try {
+        // Update notifications that reference this fest (only update event_id)
+        await update("notifications", { event_id: newFestId }, { event_id: festId });
+        console.log(`Updated notifications from fest_id '${festId}' to '${newFestId}'`);
+      } catch (notifError) {
+        console.log(`No notifications to update or error: ${notifError.message}`);
+      }
     }
 
     const updated = await update("fest", updatePayload, { fest_id: festId });

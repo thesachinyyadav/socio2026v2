@@ -437,13 +437,29 @@ router.put(
 
       // If event_id changed, update related records first
       if (newEventId !== eventId) {
-        // Update registrations to point to new event_id
-        await update("registrations", { event_id: newEventId }, { event_id: eventId });
-        // Update attendance_status to point to new event_id
-        await update("attendance_status", { event_id: newEventId }, { event_id: eventId });
-        // Update notifications that reference this event
-        await update("notifications", { event_id: newEventId, action_url: `/event/${newEventId}` }, { event_id: eventId });
-        console.log(`Updated related records from event_id '${eventId}' to '${newEventId}'`);
+        try {
+          // Update registrations to point to new event_id
+          await update("registrations", { event_id: newEventId }, { event_id: eventId });
+          console.log(`Updated registrations from event_id '${eventId}' to '${newEventId}'`);
+        } catch (regError) {
+          console.log(`No registrations to update or error: ${regError.message}`);
+        }
+        
+        try {
+          // Update attendance_status to point to new event_id
+          await update("attendance_status", { event_id: newEventId }, { event_id: eventId });
+          console.log(`Updated attendance_status from event_id '${eventId}' to '${newEventId}'`);
+        } catch (attError) {
+          console.log(`No attendance records to update or error: ${attError.message}`);
+        }
+        
+        try {
+          // Update notifications that reference this event (only update event_id, not action_url)
+          await update("notifications", { event_id: newEventId }, { event_id: eventId });
+          console.log(`Updated notifications from event_id '${eventId}' to '${newEventId}'`);
+        } catch (notifError) {
+          console.log(`No notifications to update or error: ${notifError.message}`);
+        }
       }
 
       const updated = await update("events", updateData, { event_id: eventId });
