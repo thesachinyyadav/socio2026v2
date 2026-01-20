@@ -10,6 +10,7 @@ const PricingPage = () => {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -18,6 +19,125 @@ const PricingPage = () => {
     phone: "",
     message: ""
   });
+
+  const plans = [
+    {
+      name: "Free",
+      description: "Perfect for trying out Socio",
+      price: "₹0",
+      period: "forever",
+      features: [
+        "1 event per month",
+        "Up to 50 registrations",
+        "Basic event page",
+        "Email notifications",
+        "QR code attendance",
+        "Community support"
+      ],
+      limitations: [
+        "No custom branding",
+        "Limited analytics"
+      ],
+      cta: "Get Started Free",
+      ctaLink: "/auth",
+      popular: false,
+      color: "gray"
+    },
+    {
+      name: "Basic",
+      description: "For small departments & clubs",
+      price: billingCycle === "per-fest" ? "₹1,499" : "₹14,999",
+      period: billingCycle === "per-fest" ? "per fest" : "per year",
+      features: [
+        "Up to 5 events per fest",
+        "Up to 500 registrations",
+        "Custom event pages",
+        "Email & SMS notifications",
+        "QR code attendance",
+        "Basic analytics dashboard",
+        "Priority email support",
+        "Export registrations (CSV)"
+      ],
+      limitations: [],
+      cta: "Start Basic Plan",
+      ctaLink: "/contact?plan=basic",
+      popular: false,
+      color: "blue"
+    },
+    {
+      name: "Pro",
+      description: "For college-wide fests",
+      price: billingCycle === "per-fest" ? "₹3,999" : "₹39,999",
+      period: billingCycle === "per-fest" ? "per fest" : "per year",
+      features: [
+        "Unlimited events per fest",
+        "Up to 2,000 registrations",
+        "Custom branding & themes",
+        "Advanced analytics & reports",
+        "Role-based access control",
+        "Timed organiser access",
+        "Payment gateway integration",
+        "WhatsApp notifications",
+        "Dedicated support manager",
+        "On-site support (1 day)"
+      ],
+      limitations: [],
+      cta: "Start Pro Plan",
+      ctaLink: "/contact?plan=pro",
+      popular: true,
+      color: "blue"
+    },
+    {
+      name: "Enterprise",
+      description: "For universities & large institutions",
+      price: "Custom",
+      period: "contact us",
+      features: [
+        "Unlimited everything",
+        "White-label solution",
+        "Custom domain",
+        "API access",
+        "SSO integration",
+        "Dedicated infrastructure",
+        "24/7 priority support",
+        "On-site support (unlimited)",
+        "Custom feature development",
+        "SLA guarantee"
+      ],
+      limitations: [],
+      cta: "Contact Sales",
+      ctaLink: "/contact?plan=enterprise",
+      popular: false,
+      color: "gray"
+    }
+  ];
+
+  const faqs = [
+    {
+      question: "How does per-fest pricing work?",
+      answer: "You only pay for the fests you organize. A fest can include multiple events over a period of time (typically 2-7 days). Once the fest ends, there are no ongoing charges."
+    },
+    {
+      question: "Can I upgrade my plan mid-fest?",
+      answer: "Yes! You can upgrade anytime and only pay the difference. Your existing data and registrations will be preserved."
+    },
+    {
+      question: "What payment methods do you accept?",
+      answer: "We accept all major payment methods including UPI, credit/debit cards, net banking, and bank transfers for enterprise customers."
+    },
+    {
+      question: "Is there a free trial for paid plans?",
+      answer: "Yes, we offer a 7-day free trial for the Basic and Pro plans. No credit card required to start."
+    },
+    {
+      question: "What happens if I exceed my registration limit?",
+      answer: "We'll notify you when you're at 80% capacity. You can either upgrade your plan or purchase additional registration packs."
+    },
+    {
+      question: "Do you offer discounts for educational institutions?",
+      answer: "Yes! We offer special pricing for verified educational institutions. Contact us with your institution details for a custom quote."
+    }
+  ];
 
   useEffect(() => {
     // Check if we're on the client side and if user has already submitted the form
@@ -254,128 +374,6 @@ const PricingPage = () => {
   }
 
   // Show pricing page if user has access
-
-  const plans = [
-    {
-      name: "Free",
-      description: "Perfect for trying out Socio",
-      price: "₹0",
-      period: "forever",
-      features: [
-        "1 event per month",
-        "Up to 50 registrations",
-        "Basic event page",
-        "Email notifications",
-        "QR code attendance",
-        "Community support"
-      ],
-      limitations: [
-        "No custom branding",
-        "Limited analytics"
-      ],
-      cta: "Get Started Free",
-      ctaLink: "/auth",
-      popular: false,
-      color: "gray"
-    },
-    {
-      name: "Basic",
-      description: "For small departments & clubs",
-      price: billingCycle === "per-fest" ? "₹1,499" : "₹14,999",
-      period: billingCycle === "per-fest" ? "per fest" : "per year",
-      features: [
-        "Up to 5 events per fest",
-        "Up to 500 registrations",
-        "Custom event pages",
-        "Email & SMS notifications",
-        "QR code attendance",
-        "Basic analytics dashboard",
-        "Priority email support",
-        "Export registrations (CSV)"
-      ],
-      limitations: [],
-      cta: "Start Basic Plan",
-      ctaLink: "/contact?plan=basic",
-      popular: false,
-      color: "blue"
-    },
-    {
-      name: "Pro",
-      description: "For college-wide fests",
-      price: billingCycle === "per-fest" ? "₹3,999" : "₹39,999",
-      period: billingCycle === "per-fest" ? "per fest" : "per year",
-      features: [
-        "Unlimited events per fest",
-        "Up to 2,000 registrations",
-        "Custom branding & themes",
-        "Advanced analytics & reports",
-        "Role-based access control",
-        "Timed organiser access",
-        "Payment gateway integration",
-        "WhatsApp notifications",
-        "Dedicated support manager",
-        "On-site support (1 day)"
-      ],
-      limitations: [],
-      cta: "Start Pro Plan",
-      ctaLink: "/contact?plan=pro",
-      popular: true,
-      color: "blue"
-    },
-    {
-      name: "Enterprise",
-      description: "For universities & large institutions",
-      price: "Custom",
-      period: "contact us",
-      features: [
-        "Unlimited everything",
-        "White-label solution",
-        "Custom domain",
-        "API access",
-        "SSO integration",
-        "Dedicated infrastructure",
-        "24/7 priority support",
-        "On-site support (unlimited)",
-        "Custom feature development",
-        "SLA guarantee"
-      ],
-      limitations: [],
-      cta: "Contact Sales",
-      ctaLink: "/contact?plan=enterprise",
-      popular: false,
-      color: "gray"
-    }
-  ];
-
-  const faqs = [
-    {
-      question: "How does per-fest pricing work?",
-      answer: "You only pay for the fests you organize. A fest can include multiple events over a period of time (typically 2-7 days). Once the fest ends, there are no ongoing charges."
-    },
-    {
-      question: "Can I upgrade my plan mid-fest?",
-      answer: "Yes! You can upgrade anytime and only pay the difference. Your existing data and registrations will be preserved."
-    },
-    {
-      question: "What payment methods do you accept?",
-      answer: "We accept all major payment methods including UPI, credit/debit cards, net banking, and bank transfers for enterprise customers."
-    },
-    {
-      question: "Is there a free trial for paid plans?",
-      answer: "Yes, we offer a 7-day free trial for the Basic and Pro plans. No credit card required to start."
-    },
-    {
-      question: "What happens if I exceed my registration limit?",
-      answer: "We'll notify you when you're at 80% capacity. You can either upgrade your plan or purchase additional registration packs."
-    },
-    {
-      question: "Do you offer discounts for educational institutions?",
-      answer: "Yes! We offer special pricing for verified educational institutions. Contact us with your institution details for a custom quote."
-    }
-  ];
-
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-
   return (
     <div className="min-h-screen bg-white">
       <main className="container mx-auto px-4 py-6 max-w-7xl">
