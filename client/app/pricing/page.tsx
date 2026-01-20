@@ -1,11 +1,241 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Footer from "../_components/Home/Footer";
 
 const PricingPage = () => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const [billingCycle, setBillingCycle] = useState<"per-fest" | "annual">("per-fest");
+  const [hasAccess, setHasAccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    organization: "",
+    organizationType: "",
+    phone: "",
+    message: ""
+  });
+
+  useEffect(() => {
+    // Check if user has already submitted the form (stored in sessionStorage)
+    const accessGranted = sessionStorage.getItem("pricing_access");
+    if (accessGranted === "true") {
+      setHasAccess(true);
+    }
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Submit to contact form endpoint
+      const response = await fetch(`${API_URL}/api/contact`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          subject: `Pricing Inquiry - ${formData.organizationType}`,
+          message: `Organization: ${formData.organization}\nType: ${formData.organizationType}\nPhone: ${formData.phone}\n\n${formData.message}`,
+          source: "pricing_page"
+        })
+      });
+
+      if (response.ok) {
+        // Grant access and store in sessionStorage
+        sessionStorage.setItem("pricing_access", "true");
+        setHasAccess(true);
+      } else {
+        alert("Failed to submit. Please try again.");
+      }
+    } catch (error) {
+      alert("An error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Show access form if user hasn't filled it yet
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
+        <main className="container mx-auto px-4 py-12 max-w-2xl">
+          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-[#154CB3] rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Access Pricing Information
+              </h1>
+              <p className="text-gray-600">
+                Please share a few details so we can better assist you with pricing options
+              </p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleFormSubmit} className="space-y-6">
+              <div>
+                <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  placeholder="john@university.edu"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  required
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  placeholder="+91 98765 43210"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="organization" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Organization Name *
+                </label>
+                <input
+                  type="text"
+                  id="organization"
+                  name="organization"
+                  required
+                  value={formData.organization}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  placeholder="Christ University"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="organizationType" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Organization Type *
+                </label>
+                <select
+                  id="organizationType"
+                  name="organizationType"
+                  required
+                  value={formData.organizationType}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                >
+                  <option value="">Select type...</option>
+                  <option value="University/College">University/College</option>
+                  <option value="Department/Faculty">Department/Faculty</option>
+                  <option value="Student Club/Society">Student Club/Society</option>
+                  <option value="Event Management Company">Event Management Company</option>
+                  <option value="Corporate">Corporate</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="message" className="block text-sm font-semibold text-gray-700 mb-2">
+                  What are you planning? (Optional)
+                </label>
+                <textarea
+                  id="message"
+                  name="message"
+                  rows={4}
+                  value={formData.message}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  placeholder="Tell us about your event or fest..."
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-[#154CB3] text-white py-4 px-6 rounded-lg font-semibold hover:bg-[#0d3a8a] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    View Pricing
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </>
+                )}
+              </button>
+
+              <p className="text-xs text-gray-500 text-center">
+                By submitting, you agree to be contacted about our services. We respect your privacy.
+              </p>
+            </form>
+
+            {/* Back Link */}
+            <div className="mt-8 text-center">
+              <Link href="/" className="text-[#154CB3] hover:underline text-sm flex items-center justify-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Home
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Show pricing page if user has access
 
   const plans = [
     {
