@@ -57,7 +57,7 @@ const WithSocioPage = () => {
           highlight: false
         }
       ],
-      stats: { clients: "50+", videos: "500+", satisfaction: "98%" }
+      stats: { clients: "3+", videos: "15+", satisfaction: "100%" }
     },
     {
       id: "personal-branding",
@@ -103,7 +103,7 @@ const WithSocioPage = () => {
           highlight: false
         }
       ],
-      stats: { brands: "100+", reach: "5M+", growth: "300%" }
+      stats: { brands: "4+", reach: "10K+", growth: "150%" }
     },
     {
       id: "website-development",
@@ -149,7 +149,7 @@ const WithSocioPage = () => {
           highlight: false
         }
       ],
-      stats: { websites: "75+", uptime: "99.9%", speed: "<2s" }
+      stats: { websites: "3+", uptime: "99.9%", speed: "<2s" }
     }
   ];
 
@@ -238,61 +238,138 @@ const WithSocioPage = () => {
           </div>
 
           <div className="container mx-auto px-4 max-w-7xl relative z-10">
-            <div className={`max-w-4xl transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full mb-8">
-                <span className="w-2 h-2 bg-[#FFCC00] rounded-full animate-pulse" />
-                <span className="text-white/90 text-sm font-medium">Creative Agency by SOCIO</span>
-              </div>
-              
-              <h1 className="text-5xl md:text-7xl font-black text-white mb-6 leading-tight">
-                We Create
-                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#FFCC00] to-amber-300">
-                  Digital Excellence
-                </span>
-              </h1>
-              
-              <p className="text-xl md:text-2xl text-blue-100/90 mb-10 max-w-2xl leading-relaxed">
-                Premium video production, personal branding, and web development services that transform your vision into impactful digital experiences.
-              </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              {/* Left Content */}
+              <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full mb-6">
+                  <span className="w-2 h-2 bg-[#FFCC00] rounded-full animate-pulse" />
+                  <span className="text-white/90 text-sm font-medium">Creative Agency by SOCIO</span>
+                </div>
+                
+                <h1 className="text-4xl md:text-6xl font-black text-white mb-5 leading-tight">
+                  We Create
+                  <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#FFCC00] to-amber-300">
+                    Digital Excellence
+                  </span>
+                </h1>
+                
+                <p className="text-lg md:text-xl text-blue-100/90 mb-8 leading-relaxed">
+                  Premium video production, personal branding, and web development services that transform your vision into impactful digital experiences.
+                </p>
 
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="#services"
-                  className="group inline-flex items-center justify-center gap-3 bg-white text-[#154CB3] px-8 py-4 rounded-full font-bold text-lg hover:shadow-2xl hover:shadow-white/20 transition-all"
-                >
-                  Explore Services
-                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </Link>
-                <Link
-                  href="/contact?source=withsocio"
-                  className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-white/30 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-white/10 transition-all"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  Let&apos;s Talk
-                </Link>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Link
+                    href="#services"
+                    className="group inline-flex items-center justify-center gap-3 bg-white text-[#154CB3] px-6 py-3.5 rounded-full font-bold hover:shadow-2xl hover:shadow-white/20 transition-all"
+                  >
+                    Explore Services
+                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </Link>
+                  <Link
+                    href="/contact?source=withsocio"
+                    className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-white/30 text-white px-6 py-3.5 rounded-full font-bold hover:bg-white/10 transition-all"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    Let&apos;s Talk
+                  </Link>
+                </div>
+
+                {/* Trust Indicators */}
+                <div className="mt-10 pt-8 border-t border-white/10 grid grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl md:text-3xl font-black text-white">5+</div>
+                    <div className="text-blue-200 text-xs">Projects</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl md:text-3xl font-black text-white">4</div>
+                    <div className="text-blue-200 text-xs">Clients</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl md:text-3xl font-black text-white">100%</div>
+                    <div className="text-blue-200 text-xs">Satisfaction</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl md:text-3xl font-black text-white">1+</div>
+                    <div className="text-blue-200 text-xs">Year Exp</div>
+                  </div>
+                </div>
               </div>
 
-              {/* Trust Indicators */}
-              <div className="mt-16 pt-10 border-t border-white/10 flex flex-wrap items-center gap-8 md:gap-16">
-                <div>
-                  <div className="text-4xl font-black text-white">150+</div>
-                  <div className="text-blue-200 text-sm">Projects Delivered</div>
-                </div>
-                <div>
-                  <div className="text-4xl font-black text-white">50+</div>
-                  <div className="text-blue-200 text-sm">Happy Clients</div>
-                </div>
-                <div>
-                  <div className="text-4xl font-black text-white">98%</div>
-                  <div className="text-blue-200 text-sm">Satisfaction Rate</div>
-                </div>
-                <div>
-                  <div className="text-4xl font-black text-white">3+</div>
-                  <div className="text-blue-200 text-sm">Years Experience</div>
+              {/* Right Visual */}
+              <div className={`hidden lg:block transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
+                <div className="relative">
+                  {/* Main Card */}
+                  <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
+                    <div className="space-y-6">
+                      {/* Service Icons Grid */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-white/10 rounded-2xl p-4 text-center hover:bg-white/20 transition-all cursor-pointer">
+                          <svg className="w-8 h-8 mx-auto text-[#FFCC00] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-white/80 text-xs">Video</span>
+                        </div>
+                        <div className="bg-white/10 rounded-2xl p-4 text-center hover:bg-white/20 transition-all cursor-pointer">
+                          <svg className="w-8 h-8 mx-auto text-[#FFCC00] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <span className="text-white/80 text-xs">Branding</span>
+                        </div>
+                        <div className="bg-white/10 rounded-2xl p-4 text-center hover:bg-white/20 transition-all cursor-pointer">
+                          <svg className="w-8 h-8 mx-auto text-[#FFCC00] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-white/80 text-xs">Web Dev</span>
+                        </div>
+                      </div>
+
+                      {/* Testimonial Preview */}
+                      <div className="bg-white/5 rounded-2xl p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FFCC00] to-amber-500 flex items-center justify-center text-gray-900 font-bold text-sm flex-shrink-0">
+                            RS
+                          </div>
+                          <div>
+                            <p className="text-white/80 text-sm italic">&quot;Exceptional quality and professionalism!&quot;</p>
+                            <p className="text-white/50 text-xs mt-1">— Recent Client</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Stats */}
+                      <div className="flex items-center justify-between text-center">
+                        <div>
+                          <div className="text-[#FFCC00] font-bold">4K</div>
+                          <div className="text-white/50 text-xs">Quality</div>
+                        </div>
+                        <div className="w-px h-8 bg-white/20"></div>
+                        <div>
+                          <div className="text-[#FFCC00] font-bold">Fast</div>
+                          <div className="text-white/50 text-xs">Delivery</div>
+                        </div>
+                        <div className="w-px h-8 bg-white/20"></div>
+                        <div>
+                          <div className="text-[#FFCC00] font-bold">24/7</div>
+                          <div className="text-white/50 text-xs">Support</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Floating Elements */}
+                  <div className="absolute -top-4 -right-4 bg-[#FFCC00] text-gray-900 px-4 py-2 rounded-full text-sm font-bold shadow-lg animate-bounce" style={{ animationDuration: '2s' }}>
+                    New ✨
+                  </div>
+                  <div className="absolute -bottom-3 -left-3 bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-white text-xs">Available for projects</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
