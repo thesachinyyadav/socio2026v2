@@ -95,7 +95,7 @@ router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
     const { supabase } = await import("../config/supabaseClient.js");
     const { data, error } = await supabase
       .from("contact_messages")
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status })
       .eq("id", id)
       .select();
 
