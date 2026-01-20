@@ -1139,7 +1139,7 @@ export default function EventForm({
                         <span className="font-semibold">⚠️ Note:</span> Changing the title will also update your event&apos;s URL/link.
                       </p>
                       <p className="text-xs text-amber-700 mt-1">
-                        Example: &quot;My Event&quot; → <code className="bg-amber-100 px-1 rounded">sociov2.vercel.app/event/my-event</code>
+                        Example: &quot;My Event&quot; → <code className="bg-amber-100 px-1 rounded">/event/my-event</code>
                       </p>
                     </div>
                   )}
