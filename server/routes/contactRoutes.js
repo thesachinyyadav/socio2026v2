@@ -86,7 +86,7 @@ router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
     }
 
     // Get the existing message
-    const existingMessage = await queryOne("contact_messages", { where: { id: parseInt(id) } });
+    const existingMessage = await queryOne("contact_messages", { where: { id } });
     if (!existingMessage) {
       return res.status(404).json({ success: false, message: "Message not found." });
     }
@@ -96,7 +96,7 @@ router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
     const { data, error } = await supabase
       .from("contact_messages")
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", parseInt(id))
+      .eq("id", id)
       .select();
 
     if (error) {

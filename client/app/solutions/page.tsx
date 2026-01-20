@@ -93,12 +93,12 @@ const SolutionsPage = () => {
       author: "Student Council President"
     },
     {
-      college: "BMS College of Engineering",
-      event: "Utsav 2025",
+      college: "DAKSH and OPEN DAY",
+      event: "Handling 20,000+ Visitors",
       stats: {
-        events: "35+",
-        registrations: "5,000+",
-        departments: "8"
+        events: "50+",
+        registrations: "20,000+",
+        departments: "15"
       },
       testimonial: "The QR attendance feature alone saved us countless hours of manual work.",
       author: "Event Coordinator"

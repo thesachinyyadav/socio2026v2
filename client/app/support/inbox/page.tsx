@@ -267,18 +267,47 @@ const SupportInboxPage = () => {
                             type="button"
                             onClick={() => updateMessageStatus(entry.id, status)}
                             disabled={updatingStatus === entry.id || entry.status === status}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
                               entry.status === status
-                                ? "bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-[#154CB3] border-[#154CB3] text-white"
                                 : "bg-white border-gray-200 text-gray-700 hover:border-[#154CB3] hover:text-[#154CB3] hover:bg-blue-50"
                             } ${
                               updatingStatus === entry.id ? "opacity-50 cursor-wait" : ""
                             }`}
                           >
-                            {status === "new" && "🆕 New"}
-                            {status === "read" && "👁️ Read"}
-                            {status === "resolving" && "🔄 Resolving"}
-                            {status === "solved" && "✅ Solved"}
+                            {status === "new" && (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <span>New</span>
+                              </>
+                            )}
+                            {status === "read" && (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <span>Read</span>
+                              </>
+                            )}
+                            {status === "resolving" && (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Resolving</span>
+                              </>
+                            )}
+                            {status === "solved" && (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Solved</span>
+                              </>
+                            )}
                           </button>
                         ))}
                       </div>
