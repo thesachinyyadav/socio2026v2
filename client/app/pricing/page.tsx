@@ -56,7 +56,11 @@ const PricingPage = () => {
           message: `Organization: ${formData.organization}\nType: ${formData.organizationType}\nPhone: ${formData.phone}\n\n${formData.message}`,
           source: "pricing_page"
         })
-      })if (typeof window !== "undefined") {
+      });
+
+      if (response.ok) {
+        // Grant access and store in sessionStorage
+        if (typeof window !== "undefined") {
           sessionStorage.setItem("pricing_access", "true");
         }
         setHasAccess(true);
