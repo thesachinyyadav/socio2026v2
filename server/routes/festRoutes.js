@@ -128,7 +128,7 @@ router.post(
     const existingFest = await queryOne("fest", { where: { fest_id } });
     if (existingFest) {
       return res.status(400).json({
-        error: `A fest with the ID '${fest_id}' already exists. Please use a different title.`
+        error: `A fest with the title "${title}" already exists (ID: '${fest_id}'). Please use a different title.`
       });
     }
 

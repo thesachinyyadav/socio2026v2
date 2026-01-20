@@ -161,6 +161,14 @@ router.post(
       }
       console.log("Generated event_id:", event_id);
 
+      // Validate event_id uniqueness
+      const existingEvent = await queryOne("events", { where: { event_id } });
+      if (existingEvent) {
+        return res.status(400).json({
+          error: `An event with the title "${title}" already exists (ID: '${event_id}'). Please use a different title.`
+        });
+      }
+
       // Handle file uploads
       const files = req.files;
       
