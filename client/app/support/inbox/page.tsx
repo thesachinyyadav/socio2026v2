@@ -21,8 +21,12 @@ type ContactMessage = {
 };
 
 const statusBadgeStyles: Record<string, string> = {
-  handled: "bg-green-100 text-green-700",
   new: "bg-red-100 text-red-700",
+  read: "bg-blue-100 text-blue-700",
+  resolving: "bg-yellow-100 text-yellow-700",
+  solved: "bg-green-100 text-green-700",
+  // Legacy statuses
+  handled: "bg-green-100 text-green-700",
   pending: "bg-yellow-100 text-yellow-700"
 };
 
@@ -33,6 +37,7 @@ const SupportInboxPage = () => {
   const [isFetching, setIsFetching] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!session?.access_token) {
@@ -63,6 +68,48 @@ const SupportInboxPage = () => {
       setError(message);
     } finally {
       setIsFetching(false);
+    }
+  }, [session?.access_token]);
+
+  const updateMessageStatus = useCallback(async (messageId: string, newStatus: string) => {
+    if (!session?.access_token) {
+      setError("Missing session token. Please sign in again.");
+      return;
+    }
+
+    setUpdatingStatus(messageId);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/support/messages/${messageId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.message || "Unable to update status.");
+      }
+
+      const data = await response.json();
+      
+      // Update local state
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, status: data.message?.status || newStatus } 
+            : msg
+        )
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update status.";
+      setError(message);
+    } finally {
+      setUpdatingStatus(null);
     }
   }, [session?.access_token]);
 
@@ -163,7 +210,7 @@ const SupportInboxPage = () => {
                 {hasMessages ? `${filteredMessages.length} message${filteredMessages.length === 1 ? "" : "s"}` : "No messages"}
               </div>
               <div className="flex items-center gap-2">
-                {(["all", "new", "pending", "handled"] as const).map((option) => (
+                {(["all", "new", "read", "resolving", "solved"] as const).map((option) => (
                   <button
                     key={option}
                     type="button"
@@ -210,6 +257,32 @@ const SupportInboxPage = () => {
                     <p className="mt-4 text-gray-700 whitespace-pre-line leading-relaxed">
                       {entry.message}
                     </p>
+
+                    <div className="mt-4 pt-4 border-t border-gray-200 flex items-center gap-2">
+                      <span className="text-sm text-gray-600 font-medium">Update status:</span>
+                      <div className="flex gap-2 flex-wrap">
+                        {["new", "read", "resolving", "solved"].map((status) => (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => updateMessageStatus(entry.id, status)}
+                            disabled={updatingStatus === entry.id || entry.status === status}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                              entry.status === status
+                                ? "bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-white border-gray-200 text-gray-700 hover:border-[#154CB3] hover:text-[#154CB3] hover:bg-blue-50"
+                            } ${
+                              updatingStatus === entry.id ? "opacity-50 cursor-wait" : ""
+                            }`}
+                          >
+                            {status === "new" && "🆕 New"}
+                            {status === "read" && "👁️ Read"}
+                            {status === "resolving" && "🔄 Resolving"}
+                            {status === "solved" && "✅ Solved"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>

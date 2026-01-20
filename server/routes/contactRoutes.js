@@ -62,4 +62,56 @@ router.get("/support/messages", authenticateUser, async (req, res) => {
   }
 });
 
+router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
+  try {
+    const authId = req.user?.id;
+    if (!authId) {
+      return res.status(401).json({ success: false, message: "Authentication required." });
+    }
+
+    const supportUser = await queryOne("users", { where: { auth_uuid: authId } });
+    if (!supportUser?.is_support) {
+      return res.status(403).json({ success: false, message: "Support privileges required." });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ["new", "read", "resolving", "solved"];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`
+      });
+    }
+
+    // Get the existing message
+    const existingMessage = await queryOne("contact_messages", { where: { id: parseInt(id) } });
+    if (!existingMessage) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+
+    // Update the status
+    const { supabase } = await import("../config/supabaseClient.js");
+    const { data, error } = await supabase
+      .from("contact_messages")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", parseInt(id))
+      .select();
+
+    if (error) {
+      console.error("Error updating message status:", error);
+      return res.status(500).json({ success: false, message: "Failed to update status." });
+    }
+
+    return res.status(200).json({ success: true, message: data?.[0] });
+  } catch (error) {
+    console.error("Error updating message status:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update status right now."
+    });
+  }
+});
+
 export default router;
