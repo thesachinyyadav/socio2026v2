@@ -13,7 +13,7 @@ interface FestDataForEdit {
   category: string;
   contactEmail: string;
   contactPhone: string;
-  eventHeads: string[];
+  eventHeads: { email: string; expiresAt: string | null }[];
   organizingDept: string;
 }
 
@@ -56,6 +56,15 @@ const EditPage = () => {
           }
           const data = await response.json();
           if (data.fest) {
+            // Transform event_heads to new format
+            const eventHeadsData = data.fest.event_heads || [];
+            const transformedEventHeads = eventHeadsData.map((head: any) => {
+              if (typeof head === 'string') {
+                return { email: head, expiresAt: null };
+              }
+              return { email: head.email || '', expiresAt: head.expiresAt || null };
+            });
+
             const fetched: FestDataForEdit = {
               title: data.fest.fest_title || "",
               openingDate: data.fest.opening_date
@@ -69,7 +78,7 @@ const EditPage = () => {
               category: data.fest.category || "",
               contactEmail: data.fest.contact_email || "",
               contactPhone: data.fest.contact_phone || "",
-              eventHeads: data.fest.event_heads || [],
+              eventHeads: transformedEventHeads,
               organizingDept: data.fest.organizing_dept || "",
             };
             setFestData(fetched);
