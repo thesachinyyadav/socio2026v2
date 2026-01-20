@@ -31,6 +31,14 @@ const navigationLinks = [
     ]
   },
   {
+    name: "Solutions",
+    href: "/solutions",
+    dropdown: [
+      { name: "Our Solutions", href: "/solutions" },
+      { name: "Pricing", href: "/pricing" }
+    ]
+  },
+  {
     name: "About",
     href: "/about",
     dropdown: [
