@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "../_components/Home/Footer";
+import Footer from "../../_components/Home/Footer";
 
 const WithSocioPage = () => {
   const services = [
