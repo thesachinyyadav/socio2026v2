@@ -241,25 +241,7 @@ const PricingPage = () => {
             {/* Back Link */}
             <div className="mt-6 pt-4 border-t border-gray-100 text-center">
               <Link href="/" className="text-[#154CB3] hover:text-[#0d3a8a] text-sm inline-flex items-center transition-colors">
-                <svg className="w-3.5 h-3.5 mr-1.5
-                  <>
-                    View Pricing
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </>
-                )}
-              </button>
-
-              <p className="text-xs text-gray-500 text-center">
-                By submitting, you agree to be contacted about our services. We respect your privacy.
-              </p>
-            </form>
-
-            {/* Back Link */}
-            <div className="mt-8 text-center">
-              <Link href="/" className="text-[#154CB3] hover:underline text-sm flex items-center justify-center">
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
                 Back to Home
