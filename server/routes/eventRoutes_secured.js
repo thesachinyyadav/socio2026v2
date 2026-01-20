@@ -18,6 +18,7 @@ import {
   requireOwnership, 
   optionalAuth 
 } from "../middleware/authMiddleware.js";
+import { sendBroadcastNotification } from "./notificationRoutes.js";
 
 const router = express.Router();
 
