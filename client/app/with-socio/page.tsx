@@ -203,8 +203,10 @@ const WithSocioPage = () => {
     <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Navigation Bar - Full width to cover main navbar */}
       <nav className="fixed top-0 left-0 right-0 w-full z-[100] bg-white border-b border-gray-100 shadow-sm">
+        {/* Extra cover layer to hide main navbar */}
+        <div className="absolute top-0 left-0 right-0 h-20 bg-white -z-10"></div>
         <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between h-20 max-w-7xl mx-auto">
             <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-[#154CB3] transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -225,7 +227,7 @@ const WithSocioPage = () => {
         </div>
       </nav>
 
-      <main className="pt-16">
+      <main className="pt-20">
         {/* Hero Section */}
         <section className="relative min-h-[90vh] flex items-center bg-gradient-to-br from-slate-900 via-[#0d3a8a] to-[#154CB3] overflow-hidden">
           {/* Animated Background Elements */}
