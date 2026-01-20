@@ -180,22 +180,22 @@ const WithSocioPage = () => {
 
   const testimonials = [
     {
-      quote: "With Socio transformed our brand presence. The video quality exceeded our expectations.",
-      author: "Rahul Sharma",
-      role: "Founder, TechStart",
-      avatar: "RS"
+      quote: "With Socio delivered exceptional video quality for my fitness content. Their attention to detail and professionalism made the entire process seamless.",
+      author: "Dion Samuel",
+      role: "Fitness Creator",
+      avatar: "DS"
     },
     {
-      quote: "Professional, creative, and incredibly easy to work with. Our engagement grew 400% in 3 months.",
-      author: "Priya Menon",
-      role: "CEO, DesignHub",
-      avatar: "PM"
+      quote: "Our Instagram page saw incredible organic growth thanks to With Socio's strategic content approach. They truly understand social media dynamics.",
+      author: "Oxytocin",
+      role: "Instagram Page",
+      avatar: "OX"
     },
     {
-      quote: "The website they built for us is not just beautiful—it converts. Best investment we made.",
-      author: "Arjun Patel",
-      role: "Director, GrowthCo",
-      avatar: "AP"
+      quote: "SOCIO is a domain of WITH SOCIO which takes care of the marketing and creative part of SOCIO. We bridge technology with creativity.",
+      author: "Sachin Yadav",
+      role: "Founder, SOCIO",
+      avatar: "SY"
     }
   ];
 
