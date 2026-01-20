@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "../../_components/Home/Footer";
+import Footer from "../_components/Home/Footer";
 
 const WithSocioPage = () => {
   const services = [
@@ -91,7 +91,7 @@ const WithSocioPage = () => {
               With Socio
             </h1>
             <Link
-              href="/solutions"
+              href="/"
               className="flex items-center text-[#063168] hover:underline cursor-pointer text-xs sm:text-base"
             >
               <svg
@@ -108,7 +108,7 @@ const WithSocioPage = () => {
                   d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
                 />
               </svg>
-              Back to Solutions
+              Back to Home
             </Link>
           </div>
           <p className="text-gray-600 text-lg max-w-2xl">

@@ -62,7 +62,7 @@ export default function Footer() {
           </div>
           
           {/* Navigation links */}
-          <div className="w-full md:w-2/3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="w-full md:w-2/3 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <div>
               <h3 className="font-semibold text-lg mb-4 text-[#154CB3] border-b border-[#FFCC00] pb-2">Navigate</h3>
               <ul className="space-y-2">
@@ -76,11 +76,18 @@ export default function Footer() {
             <div>
               <h3 className="font-semibold text-lg mb-4 text-[#154CB3] border-b border-[#FFCC00] pb-2">Support</h3>
               <ul className="space-y-2">
-                <li><a href="/about" className="text-gray-600 hover:text-[#154CB3]">Contact Us</a></li>
-                <li><a href="/about#faqs" className="text-gray-600 hover:text-[#154CB3]">FAQs</a></li>
-                <li><a href="/about#feedback" className="text-gray-600 hover:text-[#154CB3]">Feedback</a></li>
-                <li><a href="/about" className="text-gray-600 hover:text-[#154CB3]">Help Center</a></li>
+                <li><a href="/contact" className="text-gray-600 hover:text-[#154CB3]">Contact Us</a></li>
+                <li><a href="/faq" className="text-gray-600 hover:text-[#154CB3]">FAQs</a></li>
+                <li><a href="/support" className="text-gray-600 hover:text-[#154CB3]">Help Center</a></li>
                 <li><Link href="/support/careers" className="text-gray-600 hover:text-[#154CB3]">Careers</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg mb-4 text-[#154CB3] border-b border-[#FFCC00] pb-2">For Organizers</h3>
+              <ul className="space-y-2">
+                <li><Link href="/solutions" className="text-gray-600 hover:text-[#154CB3]">Our Solutions</Link></li>
+                <li><Link href="/with-socio" className="text-gray-600 hover:text-[#154CB3]">With Socio</Link></li>
+                <li><Link href="/pricing" className="text-gray-600 hover:text-[#154CB3]">Pricing</Link></li>
               </ul>
             </div>
             <div>
