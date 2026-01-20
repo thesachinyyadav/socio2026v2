@@ -199,7 +199,21 @@ const PricingPage = () => {
                 <label htmlFor="message" className="block text-xs font-semibold text-gray-700 mb-1">
                   Brief description (Optional)
                 </label>
-                <textareagradient-to-r from-[#154CB3] to-[#0d3a8a] text-white py-3 px-6 rounded-lg font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center text-sm mt-2"
+                <textarea
+                  id="message"
+                  name="message"
+                  rows={2}
+                  value={formData.message}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent outline-none transition-all resize-none"
+                  placeholder="Tell us about your event..."
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-gradient-to-r from-[#154CB3] to-[#0d3a8a] text-white py-3 px-6 rounded-lg font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center text-sm mt-2"
               >
                 {isSubmitting ? (
                   <>
