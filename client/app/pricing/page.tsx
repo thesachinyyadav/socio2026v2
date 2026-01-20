@@ -8,6 +8,7 @@ const PricingPage = () => {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const [billingCycle, setBillingCycle] = useState<"per-fest" | "annual">("per-fest");
   const [hasAccess, setHasAccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -19,10 +20,13 @@ const PricingPage = () => {
   });
 
   useEffect(() => {
-    // Check if user has already submitted the form (stored in sessionStorage)
-    const accessGranted = sessionStorage.getItem("pricing_access");
-    if (accessGranted === "true") {
-      setHasAccess(true);
+    // Check if we're on the client side and if user has already submitted the form
+    if (typeof window !== "undefined") {
+      const accessGranted = sessionStorage.getItem("pricing_access");
+      if (accessGranted === "true") {
+        setHasAccess(true);
+      }
+      setIsLoading(false);
     }
   }, []);
 
@@ -52,63 +56,89 @@ const PricingPage = () => {
           message: `Organization: ${formData.organization}\nType: ${formData.organizationType}\nPhone: ${formData.phone}\n\n${formData.message}`,
           source: "pricing_page"
         })
-      });
-
-      if (response.ok) {
-        // Grant access and store in sessionStorage
-        sessionStorage.setItem("pricing_access", "true");
+      })if (typeof window !== "undefined") {
+          sessionStorage.setItem("pricing_access", "true");
+        }
         setHasAccess(true);
       } else {
         alert("Failed to submit. Please try again.");
       }
     } catch (error) {
+      console.error("Form submission error:", error);
       alert("An error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Show loading state while checking access
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#154CB3]"></div>
+      </div>
+    );
+  }
+
   // Show access form if user hasn't filled it yet
   if (!hasAccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-        <main className="container mx-auto px-4 py-12 max-w-2xl">
-          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center py-8">
+        <main className="container mx-auto px-4 max-w-lg">
+          <div className="bg-white rounded-xl shadow-2xl p-6 md:p-8 border border-gray-100">
             {/* Header */}
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-[#154CB3] rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-gradient-to-br from-[#154CB3] to-[#0d3a8a] rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Access Pricing Information
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">
+                Access Pricing
               </h1>
-              <p className="text-gray-600">
-                Please share a few details so we can better assist you with pricing options
+              <p className="text-sm text-gray-600">
+                Quick details to get you personalized pricing
               </p>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleFormSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
-                  placeholder="John Doe"
-                />
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="name" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent outline-none transition-all"
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Phone *
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    required
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent outline-none transition-all"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="email" className="block text-xs font-semibold text-gray-700 mb-1">
                   Email Address *
                 </label>
                 <input
@@ -118,30 +148,14 @@ const PricingPage = () => {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent outline-none transition-all"
                   placeholder="john@university.edu"
                 />
               </div>
 
               <div>
-                <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  required
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
-                  placeholder="+91 98765 43210"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="organization" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Organization Name *
+                <label htmlFor="organization" className="block text-xs font-semibold text-gray-700 mb-1">
+                  Organization *
                 </label>
                 <input
                   type="text"
@@ -150,14 +164,14 @@ const PricingPage = () => {
                   required
                   value={formData.organization}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent outline-none transition-all"
                   placeholder="Christ University"
                 />
               </div>
 
               <div>
-                <label htmlFor="organizationType" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Organization Type *
+                <label htmlFor="organizationType" className="block text-xs font-semibold text-gray-700 mb-1">
+                  Type *
                 </label>
                 <select
                   id="organizationType"
@@ -165,7 +179,7 @@ const PricingPage = () => {
                   required
                   value={formData.organizationType}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white outline-none transition-all"
                 >
                   <option value="">Select type...</option>
                   <option value="University/College">University/College</option>
@@ -178,34 +192,38 @@ const PricingPage = () => {
               </div>
 
               <div>
-                <label htmlFor="message" className="block text-sm font-semibold text-gray-700 mb-2">
-                  What are you planning? (Optional)
+                <label htmlFor="message" className="block text-xs font-semibold text-gray-700 mb-1">
+                  Brief description (Optional)
                 </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  rows={4}
-                  value={formData.message}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
-                  placeholder="Tell us about your event or fest..."
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-[#154CB3] text-white py-4 px-6 rounded-lg font-semibold hover:bg-[#0d3a8a] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+                <textareagradient-to-r from-[#154CB3] to-[#0d3a8a] text-white py-3 px-6 rounded-lg font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center text-sm mt-2"
               >
                 {isSubmitting ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Submitting...
                   </>
                 ) : (
+                  <>
+                    View Pricing
+                    <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </>
+                )}
+              </button>
+
+              <p className="text-xs text-gray-500 text-center mt-3">
+                We&apos;ll contact you with personalized pricing options
+              </p>
+            </form>
+
+            {/* Back Link */}
+            <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+              <Link href="/" className="text-[#154CB3] hover:text-[#0d3a8a] text-sm inline-flex items-center transition-colors">
+                <svg className="w-3.5 h-3.5 mr-1.5
                   <>
                     View Pricing
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
