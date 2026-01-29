@@ -38,18 +38,9 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
       </div>
     ` : '';
 
-    // SOCIO SVG Logo (inline, email-safe)
-    const socioLogo = `
-      <svg width="180" height="50" viewBox="0 0 180 50" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" style="stop-color:#FFCC00"/>
-            <stop offset="100%" style="stop-color:#FFD700"/>
-          </linearGradient>
-        </defs>
-        <text x="0" y="38" font-family="Arial Black, Arial, sans-serif" font-size="42" font-weight="900" fill="url(#logoGrad)">SOCIO</text>
-      </svg>
-    `;
+    // Use hosted logo image (PNG works in all email clients)
+    // Note: You should upload a proper SOCIO logo to your hosting
+    const logoUrl = 'https://sociov2.vercel.app/images/withsocio.png';
 
     const htmlContent = `
     <!DOCTYPE html>
@@ -63,8 +54,8 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 40px 32px; text-align: center;">
-          ${socioLogo}
-          <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 16px 0 0 0; font-weight: 400;">
+          <img src="${logoUrl}" alt="SOCIO" width="160" height="auto" style="display: block; margin: 0 auto 16px auto; max-width: 160px;">
+          <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0; font-weight: 400;">
             Campus Events Platform
           </p>
         </div>
