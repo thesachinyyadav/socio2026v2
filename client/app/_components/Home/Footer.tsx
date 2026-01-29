@@ -86,7 +86,7 @@ export default function Footer() {
               <h3 className="font-semibold text-lg mb-4 text-[#154CB3] border-b border-[#FFCC00] pb-2">For Organizers</h3>
               <ul className="space-y-2">
                 <li><Link href="/solutions" className="text-gray-600 hover:text-[#154CB3]">Our Solutions</Link></li>
-                <li><Link href="/with-socio" className="text-gray-600 hover:text-[#154CB3]">With Socio</Link></li>
+                <li><a href="https://withsocio.com" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-[#154CB3]">With Socio</a></li>
               </ul>
             </div>
             <div>
