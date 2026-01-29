@@ -75,7 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession) {
           setSession(currentSession);
-          await fetchUserData(currentSession.user.email!);
+          // Fetch user data without blocking
+          fetchUserData(currentSession.user.email!);
         }
       } catch (error) {
         console.error("Error checking user session:", error);
@@ -89,15 +90,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      setIsLoading(true);
       if (event === "SIGNED_IN" && newSession) {
+        // Set session immediately - don't block on user data
         setSession(newSession);
+        setIsLoading(true);
         
         // Check if user is an outsider
         const orgType = getOrganizationType(newSession.user?.email);
         
-        await createOrUpdateUser(newSession.user);
-        const userData = await fetchUserData(newSession.user.email!);
+        // User creation is now handled in the callback route (server-side)
+        // Just fetch the user data - with retry for new users
+        let userData = await fetchUserData(newSession.user.email!);
+        
+        // If user data not found, wait briefly and retry (new user being created)
+        if (!userData) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          userData = await fetchUserData(newSession.user.email!);
+        }
         
         // Show warning for first-time outsiders
         if (orgType === 'outsider' && userData?.visitor_id) {
@@ -108,14 +117,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
           }
         }
+        setIsLoading(false);
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUserData(null);
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
-        await fetchUserData(newSession.user.email!);
+        fetchUserData(newSession.user.email!);
       }
-      setIsLoading(false);
     });
 
     return () => {
@@ -260,30 +269,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
       
-      {/* Outsider Warning Modal */}
+      {/* Visitor Welcome Modal */}
       {showOutsiderWarning && outsiderVisitorId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mx-auto mb-4">
-              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="bg-gradient-to-r from-[#063168] to-[#154CB3] p-6 text-center">
+              <div className="flex items-center justify-center w-16 h-16 bg-white rounded-full mx-auto mb-3">
+                <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-1">Welcome, Visitor! 👋</h3>
+              <p className="text-blue-100 text-sm">We&apos;re glad to have you here</p>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Welcome, Outsider!</h3>
-            <p className="text-gray-600 text-center mb-4">
-              You are signing in as an outsider. <span className="font-semibold text-red-600">You will NOT be part of Christ University organization.</span>
-            </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-gray-700 text-center mb-2">Your Visitor ID:</p>
-              <p className="text-2xl font-bold text-[#154CB3] text-center">{outsiderVisitorId}</p>
-              <p className="text-xs text-gray-500 text-center mt-2">Use this ID for event registrations</p>
+            
+            <div className="p-6">
+              <p className="text-gray-600 text-center mb-4">
+                You&apos;re joining us as an <span className="font-semibold text-[#154CB3]">External Visitor</span>. 
+                You can explore and register for events that are open to visitors.
+              </p>
+              
+              <div className="bg-[#063168] rounded-xl p-4 mb-4">
+                <p className="text-sm text-blue-100 text-center mb-1">Your Visitor ID</p>
+                <p className="text-2xl font-bold text-[#FFCC00] text-center tracking-wider">{outsiderVisitorId}</p>
+                <p className="text-xs text-blue-200 text-center mt-2">Keep this ID handy for event registrations</p>
+              </div>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
+                <p className="text-sm text-amber-800 flex items-start gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 flex-shrink-0 mt-0.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                  </svg>
+                  <span><strong>Important:</strong> Please set your display name on the next page. You only get <strong>one chance</strong> to edit it!</span>
+                </p>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowOutsiderWarning(false);
+                  router.push('/profile');
+                }}
+                className="w-full bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                Continue to My Profile
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </button>
             </div>
-            <button
-              onClick={() => setShowOutsiderWarning(false)}
-              className="w-full bg-[#154CB3] hover:bg-[#154cb3df] text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-            >
-              I Understand
-            </button>
           </div>
         </div>
       )}
