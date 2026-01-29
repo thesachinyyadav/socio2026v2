@@ -136,11 +136,34 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
     </html>
     `;
 
+    // Plain text version for better deliverability
+    const textContent = `
+Hey ${firstName}!
+
+Welcome to SOCIO - we're so glad you're here!
+
+You just joined a community where ideas come to life, where events aren't just events — they're experiences, memories, and connections waiting to happen.
+
+${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nSave this — you'll need it for event registrations.\n\nTip: Head to your profile to personalize your display name.` : `As a member of the Christ University family, you have full access to create events and build your community.`}
+
+Ready to dive in? Browse upcoming events at: https://sociov2.vercel.app/Discover
+
+Questions? Reach us at support@withsocio.com
+
+Best,
+The SOCIO Team
+https://sociov2.vercel.app
+    `.trim();
+
     const { data, error } = await resend.emails.send({
       from: 'SOCIO <hello@withsocio.com>',
       to: [email],
-      subject: `${firstName}, welcome to SOCIO! 🎉`,
+      subject: `Welcome to SOCIO, ${firstName}`,
       html: htmlContent,
+      text: textContent, // Plain text fallback improves deliverability
+      headers: {
+        'X-Entity-Ref-ID': `welcome-${Date.now()}`, // Unique ID prevents threading issues
+      },
     });
 
     if (error) {
