@@ -8,6 +8,7 @@ import {
   requireMasterAdmin,
   optionalAuth
 } from "../middleware/authMiddleware.js";
+import { sendWelcomeEmail } from "../utils/emailService.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -339,6 +340,14 @@ router.post("/", async (req, res) => {
       .single();
 
     if (insertError) throw insertError;
+
+    // Send welcome email (fire and forget - don't block response)
+    sendWelcomeEmail(
+      newUser.email,
+      newUser.name,
+      organizationType === 'outsider',
+      visitorId
+    ).catch(err => console.error('Welcome email failed:', err));
 
     return res.status(201).json({
       user: newUser,
