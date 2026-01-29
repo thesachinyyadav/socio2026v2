@@ -341,6 +341,39 @@ router.post("/", async (req, res) => {
 
     if (insertError) throw insertError;
 
+    // Check if this user was pre-added as an event head in any fest
+    // If so, grant them organiser access with the specified expiration
+    try {
+      const allFests = await queryAll('fest');
+      for (const fest of allFests || []) {
+        const eventHeads = fest.event_heads || [];
+        const matchingHead = eventHeads.find((head) => 
+          head && head.email && head.email.toLowerCase() === newUser.email.toLowerCase()
+        );
+        
+        if (matchingHead) {
+          console.log(`Found pending organiser access for ${newUser.email} in fest ${fest.fest_id}`);
+          await supabase
+            .from('users')
+            .update({ 
+              is_organiser: true,
+              organiser_expires_at: matchingHead.expiresAt || null
+            })
+            .eq('email', newUser.email);
+          
+          // Update the newUser object to reflect the change
+          newUser.is_organiser = true;
+          newUser.organiser_expires_at = matchingHead.expiresAt || null;
+          
+          console.log(`Granted pending organiser access to ${newUser.email} (expires: ${matchingHead.expiresAt || 'never'})`);
+          break; // Only need to grant once
+        }
+      }
+    } catch (festCheckError) {
+      console.error('Error checking for pending organiser access:', festCheckError);
+      // Non-critical, continue
+    }
+
     // Send welcome email (fire and forget - don't block response)
     sendWelcomeEmail(
       newUser.email,

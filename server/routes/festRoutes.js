@@ -159,16 +159,16 @@ router.post(
       if (head && head.email) {
         try {
           // Find the user by email
-          const user = await queryOne("user", { where: { email: head.email } });
+          const user = await queryOne("users", { where: { email: head.email } });
           if (user) {
             // Update user's organiser status with expiration
-            await update("user", { 
+            await update("users", { 
               is_organiser: true,
               organiser_expires_at: head.expiresAt || null
             }, { email: head.email });
-            console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+            console.log(`Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
           } else {
-            console.log(`⚠ User ${head.email} not found, will be granted access when they sign up`);
+            console.log(`User ${head.email} not found, will be granted access when they sign up`);
           }
         } catch (userError) {
           console.error(`Error updating organiser status for ${head.email}:`, userError);
@@ -309,16 +309,16 @@ router.put(
       if (head && head.email) {
         try {
           // Find the user by email
-          const user = await queryOne("user", { where: { email: head.email } });
+          const user = await queryOne("users", { where: { email: head.email } });
           if (user) {
             // Update user's organiser status with expiration
-            await update("user", { 
+            await update("users", { 
               is_organiser: true,
               organiser_expires_at: head.expiresAt || null
             }, { email: head.email });
-            console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+            console.log(`Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
           } else {
-            console.log(`⚠ User ${head.email} not found, will be granted access when they sign up`);
+            console.log(`User ${head.email} not found, will be granted access when they sign up`);
           }
         } catch (userError) {
           console.error(`Error updating organiser status for ${head.email}:`, userError);
