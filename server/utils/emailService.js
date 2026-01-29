@@ -179,9 +179,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId) 
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0;">
           <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
             <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
-              <svg width="140" height="40" viewBox="0 0 180 50" xmlns="http://www.w3.org/2000/svg">
-                <text x="20" y="38" font-family="Arial Black, Arial, sans-serif" font-size="42" font-weight="900" fill="#FFCC00">SOCIO</text>
-              </svg>
+              <img src="https://sociov2.vercel.app/images/withsocio.png" alt="SOCIO" width="140" height="auto" style="display: block; margin: 0 auto; max-width: 140px;">
             </div>
             <div style="background: white; padding: 40px 36px; border-radius: 0 0 16px 16px;">
               <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 8px 0;">Registration Confirmed</h2>

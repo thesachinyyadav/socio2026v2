@@ -41,6 +41,13 @@ const StoryPage = () => {
       title: "Official Approval",
       description: "Presented SOCIO to the Chair of Fathers, where the idea was approved and cleared for full-scale testing and implementation.",
       icon: "✅"
+    },
+    {
+      year: "2026", 
+      quarter: "January",
+      title: "Innowave Presentation",
+      description: "Selected to present SOCIO at Innowave 2026, showcasing the platform's capabilities to a wider audience and preparing for campus-wide rollout.",
+      icon: "🚀"
     }
   ];
 

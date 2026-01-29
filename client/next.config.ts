@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "placehold.co",
       },
+      {
+        protocol: "https",
+        hostname: "vkappuaapscvteexogtp.supabase.co",
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+      },
     ],
     // OPTIMIZATION: Enable image optimization caching
     formats: ['image/webp', 'image/avif'],
