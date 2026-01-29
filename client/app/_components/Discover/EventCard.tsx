@@ -1,7 +1,7 @@
 // components/Discover/EventCard.tsx
 import React from "react";
 import Link from "next/link";
-import moment from "moment";
+import { formatDate, formatTime } from "@/lib/dateUtils";
 import { useAuth } from "../../../context/AuthContext";
 
 interface EventCardProps {
@@ -36,12 +36,8 @@ export const EventCard = ({
   const eventPageUrl = `/${baseUrl}/${eventSlug}`;
   const participantsPageUrl = `/event/${eventSlug}/participants`;
 
-  const displayDate = date
-    ? moment(date).format("MMM D, YYYY")
-    : "Date TBD";
-  const displayTime = time
-    ? moment(time, ["HH:mm:ss", "HH:mm"]).format("h:mm A")
-    : "Time TBD";
+  const displayDate = formatDate(date, "Date TBD");
+  const displayTime = formatTime(time, "Time TBD");
 
   return (
     <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transform transition duration-100 ease-in-out hover:scale-101 flex flex-col">

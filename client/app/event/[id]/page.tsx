@@ -7,7 +7,7 @@ import {
   FetchedEvent as ContextFetchedEvent,
 } from "../../../context/EventContext";
 import { useAuth } from "../../../context/AuthContext";
-import moment from "moment";
+import { formatDateUTC, getDaysUntil, dayjs } from "@/lib/dateUtils";
 
 interface EventData {
   id: string;
@@ -193,12 +193,12 @@ export default function Page() {
         (tag): tag is string => tag != null && String(tag).trim() !== ""
       ),
       date: foundEvent.event_date
-        ? moment.utc(foundEvent.event_date, moment.ISO_8601, true).format("MMM D, YYYY")
+        ? formatDateUTC(foundEvent.event_date)
         : "Date TBD",
       endDate: foundEvent.end_date
-        ? moment.utc(foundEvent.end_date, moment.ISO_8601, true).format("MMM D, YYYY")
+        ? formatDateUTC(foundEvent.end_date)
         : foundEvent.event_date
-        ? moment.utc(foundEvent.event_date, moment.ISO_8601, true).format("MMM D, YYYY")
+        ? formatDateUTC(foundEvent.event_date)
         : "Date TBD",
       location: foundEvent.venue || "Location TBD",
       price:
@@ -206,13 +206,7 @@ export default function Page() {
           ? `₹${foundEvent.registration_fee}`
           : "Free",
       numTeammates: foundEvent.participants_per_team ?? 1,
-      daysLeft: (() => {
-        if (!foundEvent.registration_deadline) return 0;
-        const target = moment(foundEvent.registration_deadline);
-        const today = moment().startOf("day");
-        if (target.isBefore(today)) return 0;
-        return target.diff(today, "days");
-      })(),
+      daysLeft: getDaysUntil(foundEvent.registration_deadline),
       description: foundEvent.description || "No description available.",
       rules: processedRules,
       schedule: processedSchedule,

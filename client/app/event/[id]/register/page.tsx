@@ -9,7 +9,7 @@ import {
 } from "../../../../context/EventContext";
 import { useAuth } from "../../../../context/AuthContext";
 import { QRCodeDisplay } from "../../../_components/QRCodeDisplay";
-import moment from "moment";
+import { dayjs } from "@/lib/dateUtils";
 
 interface Teammate {
   name: string;
@@ -831,7 +831,7 @@ const Page = () => {
                 {selectedEvent.registration_deadline && (
                   <li>
                     • Registration closes on{" "}
-                    {moment(selectedEvent.registration_deadline).format(
+                    {dayjs(selectedEvent.registration_deadline).format(
                       "MMM Do, YYYY"
                     )}
                     .

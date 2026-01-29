@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 const ALLOWED_DOMAIN = "christuniversity.in";
 
@@ -340,7 +340,7 @@ function PingPongMini() {
   );
 }
 
-export default function BeepPage() {
+function ErrorContent() {
   const { signInWithGoogle, isLoading } = useAuth();
   const searchParams = useSearchParams();
   const errorReason = searchParams.get("error");
@@ -446,5 +446,32 @@ export default function BeepPage() {
         </p>
       </div>
     </div>
+  );
+}
+// Loading fallback for Suspense
+function ErrorLoadingFallback() {
+  return (
+    <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-gradient-to-b from-[#F7FAFF] to-white">
+      <div className="w-full max-w-xl rounded-2xl bg-white p-8 border border-gray-200 shadow-lg">
+        <div className="animate-pulse">
+          <div className="mx-auto mb-5 h-14 w-14 rounded-xl bg-gray-200"></div>
+          <div className="h-8 w-48 bg-gray-200 rounded mb-4"></div>
+          <div className="h-4 w-full bg-gray-200 rounded mb-2"></div>
+          <div className="h-4 w-3/4 bg-gray-200 rounded mb-6"></div>
+          <div className="flex gap-3">
+            <div className="flex-1 h-12 bg-gray-200 rounded-full"></div>
+            <div className="flex-1 h-12 bg-gray-200 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function BeepPage() {
+  return (
+    <Suspense fallback={<ErrorLoadingFallback />}>
+      <ErrorContent />
+    </Suspense>
   );
 }

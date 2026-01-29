@@ -56,6 +56,8 @@ router.get("/", async (req, res) => {
     console.log(`Found ${fests?.length || 0} fests`);
     
     const processedFests = (fests || []).map(mapFestResponse);
+    // OPTIMIZATION: Cache for 5 minutes, allow stale content for 1 hour
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.status(200).json({ fests: processedFests });
   } catch (error) {
     console.error("Error fetching fests:", error);
@@ -83,6 +85,8 @@ router.get("/:festId", async (req, res) => {
       return res.status(404).json({ error: `Fest with ID (slug) '${festSlug}' not found.` });
     }
 
+    // OPTIMIZATION: Cache individual fests for 5 minutes
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.status(200).json({ fest: mapFestResponse(fest) });
   } catch (error) {
     console.error("Error fetching fest:", error);

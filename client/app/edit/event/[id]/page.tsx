@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import moment from "moment";
+import { dayjs } from "@/lib/dateUtils";
 import EventForm from "@/app/_components/Admin/ManageEvent";
 import {
   EventFormData,
@@ -199,10 +199,10 @@ export default function EditEventPage() {
           const transformedData: Partial<EventFormData> = {
             eventTitle: data.title || "",
             eventDate: data.event_date
-              ? moment(data.event_date).format("YYYY-MM-DD")
+              ? dayjs(data.event_date).format("YYYY-MM-DD")
               : "",
             endDate: data.end_date
-              ? moment(data.end_date).format("YYYY-MM-DD")
+              ? dayjs(data.end_date).format("YYYY-MM-DD")
               : "",
             eventTime: formEventTimeString,
             detailedDescription: data.description || "",
@@ -211,7 +211,7 @@ export default function EditEventPage() {
             organizingDept: data.organizing_dept || "",
             festEvent: data.fest || "none",
             registrationDeadline: data.registration_deadline
-              ? moment(data.registration_deadline).format("YYYY-MM-DD")
+              ? dayjs(data.registration_deadline).format("YYYY-MM-DD")
               : "",
             location: data.venue || "",
             registrationFee: data.registration_fee?.toString() ?? "0",

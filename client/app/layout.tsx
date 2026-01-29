@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "react-hot-toast";
+import { unstable_cache } from "next/cache";
 
 import {
   EventsProvider,
@@ -15,9 +16,8 @@ import {
   FetchedEvent,
 } from "../context/EventContext";
 
-// Force dynamic rendering for this layout
-export const dynamic = 'force-dynamic';
-// OPTIMIZATION: Add revalidation for better caching
+// OPTIMIZATION: Use Incremental Static Regeneration instead of force-dynamic
+// This caches the initial data and revalidates every 5 minutes
 export const revalidate = 300; // Revalidate every 5 minutes
 
 export const metadata: Metadata = {
@@ -81,6 +81,38 @@ const transformToCarouselImage = (
   };
 };
 
+async function fetchEventsFromSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase configuration missing");
+  }
+  
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  
+  const { data, error: supabaseError } = await supabase
+    .from("events")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (supabaseError) {
+    throw new Error(supabaseError.message);
+  }
+
+  return data as FetchedEvent[];
+}
+
+// OPTIMIZATION: Cache the Supabase query with unstable_cache
+const getCachedEvents = unstable_cache(
+  fetchEventsFromSupabase,
+  ['events-list'],
+  { 
+    revalidate: 300, // 5 minutes
+    tags: ['events']
+  }
+);
+
 async function getInitialEventsData() {
   let allEvents: FetchedEvent[] = [];
   let carouselEvents: CarouselDisplayImage[] = [];
@@ -90,27 +122,11 @@ async function getInitialEventsData() {
   let error: string | null = null;
 
   try {
-    // Use Supabase directly instead of localhost API
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Supabase configuration missing");
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    
-    const { data, error: supabaseError } = await supabase
-      .from("events")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (supabaseError) {
-      throw new Error(supabaseError.message);
-    }
+    // Use cached Supabase query
+    const data = await getCachedEvents();
 
     if (data && Array.isArray(data)) {
-      allEvents = data as FetchedEvent[];
+      allEvents = data;
 
       if (allEvents.length > 0) {
         const randomEventsForCarousel = getRandomEvents(allEvents, 3);

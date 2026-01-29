@@ -8,7 +8,7 @@ import {
   useEvents,
   FetchedEvent as ContextEvent,
 } from "../../context/EventContext";
-import moment from "moment";
+import { formatDateFull, formatTime } from "@/lib/dateUtils";
 import Link from "next/link";
 import { getFests } from "@/lib/api";
 
@@ -131,13 +131,11 @@ const Page = () => {
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Date TBD";
-    return moment(dateString).format("MMM DD, YYYY");
+    return formatDateFull(dateString, "Date TBD");
   };
 
-  const formatTime = (timeString: string | null) => {
-    if (!timeString) return "Time TBD";
-    return moment(timeString, "HH:mm:ss").format("hh:mm A");
+  const formatTimeStr = (timeString: string | null) => {
+    return formatTime(timeString, "Time TBD");
   };
 
   return (
@@ -354,7 +352,7 @@ const Page = () => {
                       festName={event.fest || ""}
                       dept={event.organizing_dept || "N/A"}
                       date={formatDate(event.event_date)}
-                      time={formatTime(event.event_time)}
+                      time={formatTimeStr(event.event_time)}
                       location={event.venue || "TBD"}
                       tags={getDisplayTagsForEvent(event)}
                       image={

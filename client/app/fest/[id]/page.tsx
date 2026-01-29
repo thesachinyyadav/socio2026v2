@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import moment from "moment";
+import { formatDateFull, formatTime } from "@/lib/dateUtils";
 import { EventCard } from "@/app/_components/Discover/EventCard";
 import { useParams } from "next/navigation";
 import {
@@ -79,8 +79,8 @@ const FestPage = () => {
             id: apiFest.fest_id,
             title: apiFest.fest_title,
             description: apiFest.description,
-            openingDate: moment(apiFest.opening_date).format("MMM DD, YYYY"),
-            closingDate: moment(apiFest.closing_date).format("MMM DD, YYYY"),
+            openingDate: formatDateFull(apiFest.opening_date),
+            closingDate: formatDateFull(apiFest.closing_date),
             contactEmail: apiFest.contact_email || "N/A",
             contactPhone: apiFest.contact_phone || "N/A",
             department: apiFest.organizing_dept,
@@ -315,12 +315,8 @@ const FestPage = () => {
             ) : festSpecificEvents.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
                 {festSpecificEvents.map((event) => {
-                  const displayEventDate = event.event_date
-                    ? moment(event.event_date).format("MMM DD, YYYY")
-                    : "Date TBD";
-                  const displayEventTime = event.event_time
-                    ? moment(event.event_time, "HH:mm:ss").format("hh:mm A")
-                    : "Time TBD";
+                  const displayEventDate = formatDateFull(event.event_date, "Date TBD");
+                  const displayEventTime = formatTime(event.event_time, "Time TBD");
                   const tags = [];
                   if (event.category) tags.push(event.category);
                   if (event.claims_applicable) tags.push("Claims");
