@@ -1,11 +1,12 @@
 import express from "express";
 import { insert, queryAll, queryOne } from "../config/database.js";
 import { authenticateUser } from "../middleware/authMiddleware.js";
+import { validateContactForm } from "../middleware/validation.js";
 import supabase from "../config/supabaseClient.js";
 
 const router = express.Router();
 
-router.post("/contact", async (req, res) => {
+router.post("/contact", validateContactForm, async (req, res) => {
   const { name, email, subject, message, source } = req.body || {};
 
   if (!name || !email || !subject || !message) {

@@ -1,6 +1,16 @@
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 
+// Get QR secret with proper fallback - SECURITY: Warn if using default
+const getQRSecret = () => {
+  const secret = process.env.QR_SECRET;
+  if (!secret) {
+    console.warn('⚠️  SECURITY WARNING: QR_SECRET not set, using fallback. Set QR_SECRET in production!');
+    return 'socio-qr-fallback-secret-2026';
+  }
+  return secret;
+};
+
 /**
  * Generate QR code data for a registration
  * @param {string} registrationId - The registration ID
@@ -13,8 +23,10 @@ export function generateQRCodeData(registrationId, eventId, participantEmail) {
   const expiryTime = timestamp + (24 * 60 * 60 * 1000); // 24 hours from now
   
   // Create a hash for security verification
+  // SECURITY FIX: Proper operator precedence with parentheses
   const dataToHash = `${registrationId}:${eventId}:${participantEmail}:${timestamp}`;
-ch  const hash = crypto.createHash('sha256').update(dataToHash + process.env.QR_SECRET || 'default-secret').digest('hex');
+  const secret = getQRSecret();
+  const hash = crypto.createHash('sha256').update(dataToHash + secret).digest('hex');
   
   return {
     registrationId,
@@ -72,9 +84,10 @@ export function verifyQRCodeData(qrData) {
       return { valid: false, message: 'QR code has expired' };
     }
     
-    // Verify hash
+    // Verify hash - SECURITY FIX: Use proper secret handling
     const dataToHash = `${registrationId}:${eventId}:${participantEmail}:${timestamp}`;
-    const expectedHash = crypto.createHash('sha256').update(dataToHash + process.env.QR_SECRET || 'default-secret').digest('hex');
+    const secret = getQRSecret();
+    const expectedHash = crypto.createHash('sha256').update(dataToHash + secret).digest('hex');
     
     if (hash !== expectedHash) {
       return { valid: false, message: 'Invalid QR code: security verification failed' };
