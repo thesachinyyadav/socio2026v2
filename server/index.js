@@ -34,16 +34,7 @@ const app = express();
 
 // Helmet: Set secure HTTP headers
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'", "https://*.supabase.co", process.env.NEXT_PUBLIC_API_URL || "https://socioapi2.vercel.app"],
-    },
-  },
+  contentSecurityPolicy: false, // Let the client handle CSP
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginEmbedderPolicy: false, // Allow cross-origin resources
 }));
@@ -87,29 +78,10 @@ const contactLimiter = rateLimit({
 // Apply general rate limiter to all routes
 app.use(generalLimiter);
 
-// CORS: Configure allowed origins
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'https://sociov2.vercel.app',
-  'https://socio-innowave.vercel.app',
-  'https://withsocio.com',
-  'https://www.withsocio.com',
-  process.env.CLIENT_URL,
-].filter(Boolean);
-
+// CORS: Allow all origins (flexible for any deployment)
+// Add CLIENT_URL to env if you want to restrict in production
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked request from: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

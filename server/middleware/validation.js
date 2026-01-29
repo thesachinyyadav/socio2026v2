@@ -111,8 +111,8 @@ export const validateRegistration = [
   body('teammates.*.registerNumber')
     .optional()
     .trim()
-    .matches(/^[a-zA-Z0-9]+$/)
-    .withMessage('Register number must be alphanumeric'),
+    .matches(/^[a-zA-Z0-9-_]+$/)
+    .withMessage('Register number contains invalid characters'),
   validate
 ];
 
@@ -180,12 +180,16 @@ export const validateFest = [
 ];
 
 /**
- * Sanitize query parameters
+ * Sanitize query parameters middleware
  */
-export const sanitizeQuery = (fields) => 
-  fields.map(field => 
-    query(field)
-      .optional()
-      .trim()
-      .escape()
-  );
+export const sanitizeQuery = (req, res, next) => {
+  // Trim and sanitize all query parameters
+  if (req.query) {
+    for (const key of Object.keys(req.query)) {
+      if (typeof req.query[key] === 'string') {
+        req.query[key] = req.query[key].trim();
+      }
+    }
+  }
+  next();
+};
