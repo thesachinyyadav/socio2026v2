@@ -37,7 +37,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://socio-innowave-backend.vercel.app https://api.withsocio.com http://localhost:*",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://socio2026v2server.vercel.app https://socio-innowave-backend.vercel.app https://api.withsocio.com http://localhost:*",
       "frame-src 'self' https://accounts.google.com",
       "frame-ancestors 'self'",
       "form-action 'self'",
