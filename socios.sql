@@ -1,4 +1,4 @@
--- COMBINED SQL DUMP
+-- COMBINED SQL DUMP this is total update and clean working apart from new logins
 -- Generated: 2026-01-18
 -- This file concatenates all .sql files in the repository into a single file.
 
