@@ -8,12 +8,11 @@ import {
   supabase,
 } from "../config/database.js";
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
-import { validateRegistration, sanitizeQuery } from "../middleware/validation.js";
 
 const router = express.Router();
 
 // Get registrations for an event (or all registrations if no event_id)
-router.get("/registrations", sanitizeQuery, async (req, res) => {
+router.get("/registrations", async (req, res) => {
   try {
     const { event_id } = req.query;
     
@@ -63,7 +62,7 @@ router.get("/registrations", sanitizeQuery, async (req, res) => {
 });
 
 // Register for an event
-router.post("/register", validateRegistration, async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     console.log('\n🎫 === NEW REGISTRATION REQUEST ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
