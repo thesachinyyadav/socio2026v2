@@ -75,7 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession) {
           setSession(currentSession);
-          await fetchUserData(currentSession.user.email!);
+          // Fetch user data without blocking
+          fetchUserData(currentSession.user.email!);
         }
       } catch (error) {
         console.error("Error checking user session:", error);
@@ -89,15 +90,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      setIsLoading(true);
       if (event === "SIGNED_IN" && newSession) {
+        // Set session immediately - don't block on user data
         setSession(newSession);
+        setIsLoading(true);
         
         // Check if user is an outsider
         const orgType = getOrganizationType(newSession.user?.email);
         
-        await createOrUpdateUser(newSession.user);
-        const userData = await fetchUserData(newSession.user.email!);
+        // User creation is now handled in the callback route (server-side)
+        // Just fetch the user data - with retry for new users
+        let userData = await fetchUserData(newSession.user.email!);
+        
+        // If user data not found, wait briefly and retry (new user being created)
+        if (!userData) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          userData = await fetchUserData(newSession.user.email!);
+        }
         
         // Show warning for first-time outsiders
         if (orgType === 'outsider' && userData?.visitor_id) {
@@ -108,14 +117,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
           }
         }
+        setIsLoading(false);
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUserData(null);
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
-        await fetchUserData(newSession.user.email!);
+        fetchUserData(newSession.user.email!);
       }
-      setIsLoading(false);
     });
 
     return () => {
