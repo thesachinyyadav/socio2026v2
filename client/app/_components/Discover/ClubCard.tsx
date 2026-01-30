@@ -1,5 +1,5 @@
 import Link from "next/link";
-import React from "react";
+import React, { useState } from "react";
 
 interface CardProps {
   title: string;
@@ -18,6 +18,7 @@ export const CentreClubCard = ({
   image,
   type,
 }: CardProps) => {
+  const [imageError, setImageError] = useState(false);
   // Create URL-friendly version of title for linking
   const slugTitle = (title || "")
     .toLowerCase()
@@ -47,13 +48,15 @@ export const CentreClubCard = ({
     <LinkWrapper>
       <div className="bg-white rounded-xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg shadow-md h-full border border-blue-100 group">
         <div className="relative h-48 overflow-hidden">
-          {image ? (
+          {image && !imageError ? (
             <>
               <div className="absolute inset-0 bg-gradient-to-t from-[#063168]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
               <img
                 src={image}
                 alt={title}
                 className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                onError={() => setImageError(true)}
+                loading="lazy"
               />
               <div className="absolute top-3 right-3 z-20">
                 <div className="bg-[#063168]/90 text-white text-xs uppercase font-bold py-1 px-2 rounded-full">

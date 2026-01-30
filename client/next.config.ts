@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "*.supabase.co",
       },
+      {
+        protocol: "https",
+        hostname: "christuniversity.in",
+      },
+      {
+        protocol: "https",
+        hostname: "*.christuniversity.in",
+      },
     ],
     // OPTIMIZATION: Enable image optimization caching
     formats: ['image/webp', 'image/avif'],
