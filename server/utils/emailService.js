@@ -76,7 +76,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           
           <!-- CTA Button -->
           <div style="text-align: center; margin: 32px 0;">
-            <a href="https://sociov2.vercel.app/Discover" 
+            <a href="https://socio.christuniversity.in/Discover" 
                style="display: inline-block; background: #154CB3; 
                       color: white; text-decoration: none; padding: 14px 36px; border-radius: 8px; 
                       font-weight: 600; font-size: 15px;">
@@ -87,8 +87,8 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
           
           <p style="color: #94a3b8; font-size: 13px; margin: 0; text-align: center; line-height: 1.6;">
-            Need help? Contact us at 
-            <a href="mailto:support@withsocio.com" style="color: #154CB3; text-decoration: none;">support@withsocio.com</a>
+            Need help? Visit our 
+            <a href="https://socio.christuniversity.in/support" style="color: #154CB3; text-decoration: none;">Support Center</a>
           </p>
         </div>
         
@@ -98,9 +98,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
             SOCIO Team
           </p>
           <p style="margin: 0;">
-            <a href="https://sociov2.vercel.app" style="color: #64748b; text-decoration: none;">sociov2.vercel.app</a>
-            <span style="margin: 0 8px; color: #cbd5e1;">|</span>
-            <a href="https://withsocio.com" style="color: #64748b; text-decoration: none;">withsocio.com</a>
+            <a href="https://socio.christuniversity.in" style="color: #64748b; text-decoration: none;">socio.christuniversity.in</a>
           </p>
         </div>
       </div>
@@ -118,12 +116,12 @@ SOCIO is your gateway to campus events, club activities, and community experienc
 
 ${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — you'll need it for event registrations.\n\nTip: Visit your profile to set your display name. This can only be done once.` : `As a verified Christ University member, you have full access to create events, manage clubs, and engage with the campus community.`}
 
-Browse events: https://sociov2.vercel.app/Discover
+Browse events: https://socio.christuniversity.in/Discover
 
-Need help? Contact us at support@withsocio.com
+Need help? Visit https://socio.christuniversity.in/support
 
 SOCIO Team
-https://sociov2.vercel.app
+https://socio.christuniversity.in
     `.trim();
 
     const { data, error } = await resend.emails.send({
