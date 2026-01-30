@@ -118,7 +118,7 @@ const getCachedEvents = unstable_cache(
   fetchEventsFromSupabase,
   ['events-list'],
   { 
-    revalidate: 300, // 5 minutes
+    revalidate: 60, // 1 minute - reduced for faster updates when events are modified
     tags: ['events']
   }
 );

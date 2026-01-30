@@ -357,7 +357,7 @@ export default function Page() {
       // If the user is an outsider and the event disallows outsiders, block early
       if (userData.organization_type === "outsider" && eventData && !eventData.allow_outsiders) {
         setRegistrationApiError(
-          "This event is restricted to Christ University members only."
+          "OUTSIDER_NOT_ALLOWED"
         );
         return;
       }
@@ -709,13 +709,37 @@ export default function Page() {
             isIndividualEventForButton &&
             !isUserRegisteredForThisEvent &&
             !isDeadlineOverForThisEvent && (
-              <p
-                role="status"
-                aria-live="polite"
-                className="mt-2 w-full text-sm text-yellow-700 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 text-left"
-              >
-                {registrationApiError}
-              </p>
+              registrationApiError === "OUTSIDER_NOT_ALLOWED" ? (
+                <div className="mt-3 w-full max-w-sm bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 shadow-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-red-800 text-sm">Registration Restricted</h4>
+                      <p className="text-red-700 text-xs mt-1">
+                        This event is exclusively for <span className="font-semibold">Christ University members</span>.
+                      </p>
+                      <p className="text-red-600 text-xs mt-2 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        External registrations are not permitted
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="mt-2 w-full text-sm text-yellow-700 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 text-left"
+                >
+                  {registrationApiError}
+                </p>
+              )
             )}
         </div>
       </div>
@@ -959,13 +983,39 @@ export default function Page() {
               isIndividualEventForButton &&
               !isUserRegisteredForThisEvent &&
               !isDeadlineOverForThisEvent && (
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className="text-yellow-700 text-sm mb-2 text-center px-4 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 w-full max-w-lg"
-                >
-                  {registrationApiError}
-                </p>
+                registrationApiError === "OUTSIDER_NOT_ALLOWED" ? (
+                  <div className="mb-4 w-full max-w-lg bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-red-800 text-base">Registration Restricted</h4>
+                        <p className="text-red-700 text-sm mt-1">
+                          This event is exclusively for <span className="font-semibold">Christ University members</span> only.
+                        </p>
+                        <div className="mt-3 p-2 bg-red-100 rounded-lg">
+                          <p className="text-red-600 text-xs flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            External participants cannot register for this event
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-yellow-700 text-sm mb-2 text-center px-4 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 w-full max-w-lg"
+                  >
+                    {registrationApiError}
+                  </p>
+                )
               )}
             <button
               onClick={handleRegistration}
