@@ -6,6 +6,13 @@ import { useParams } from "next/navigation";
 import ExcelJS from "exceljs";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
+interface CustomField {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
+}
+
 interface Student {
   id: number;
   name: string;
@@ -14,12 +21,14 @@ interface Student {
   department?: string;
   email: string;
   created_at?: string;
+  custom_field_responses?: Record<string, string | number>;
 }
 
 const ITEMS_PER_PAGE = 20;
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -34,7 +43,7 @@ export default function StudentsPage() {
   useEffect(() => {
     window.scrollTo(0, 0);
 
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       if (!event_id) {
         setIsDataLoading(false);
         return;
@@ -46,24 +55,48 @@ export default function StudentsPage() {
         if (!apiBaseUrl) {
           throw new Error("API endpoint is not configured.");
         }
-        const apiUrl = `${apiBaseUrl}/api/registrations?event_id=${event_id}`;
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-          let errorMessage = `Error: ${response.status} ${response.statusText}`;
+        
+        // Fetch both event details (for custom fields) and registrations in parallel
+        const [eventResponse, registrationsResponse] = await Promise.all([
+          fetch(`${apiBaseUrl}/api/events/${event_id}`),
+          fetch(`${apiBaseUrl}/api/registrations?event_id=${event_id}`)
+        ]);
+        
+        // Parse event custom fields
+        if (eventResponse.ok) {
+          const eventData = await eventResponse.json();
+          const event = eventData.event || eventData;
+          let fields: CustomField[] = [];
+          if (event.custom_fields) {
+            if (typeof event.custom_fields === 'string') {
+              try {
+                fields = JSON.parse(event.custom_fields);
+              } catch (e) {
+                console.warn('Failed to parse custom_fields:', e);
+              }
+            } else if (Array.isArray(event.custom_fields)) {
+              fields = event.custom_fields;
+            }
+          }
+          setCustomFields(fields);
+        }
+        
+        if (!registrationsResponse.ok) {
+          let errorMessage = `Error: ${registrationsResponse.status} ${registrationsResponse.statusText}`;
           try {
-            const errorData = await response.json();
+            const errorData = await registrationsResponse.json();
             errorMessage = `Server Error: ${
               errorData.details || errorData.error || "Unknown error"
             }`;
           } catch {
-            const errorText = await response.text();
+            const errorText = await registrationsResponse.text();
             errorMessage = `Error ${
-              response.status
+              registrationsResponse.status
             }: Failed to retrieve data. ${errorText.substring(0, 150)}`;
           }
           throw new Error(errorMessage);
         }
-        const data = await response.json();
+        const data = await registrationsResponse.json();
         const mappedStudents = (data.registrations || []).map((reg: any) => ({
           id: reg.registration_id || reg.id || 0,
           name: reg.registration_type === 'individual' ? reg.individual_name : reg.team_leader_name || "",
@@ -72,6 +105,7 @@ export default function StudentsPage() {
           department: "",
           email: reg.registration_type === 'individual' ? reg.individual_email : reg.team_leader_email || "",
           created_at: reg.created_at || "",
+          custom_field_responses: reg.custom_field_responses || {},
         }));
         setStudents(mappedStudents);
       } catch (err) {
@@ -83,7 +117,7 @@ export default function StudentsPage() {
         setIsDataLoading(false);
       }
     };
-    if (event_id) fetchStudents();
+    if (event_id) fetchData();
   }, [event_id]);
 
   const handleGenerateExcel = async () => {
@@ -95,14 +129,19 @@ export default function StudentsPage() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Participants");
 
-    const headers = [
+    // Build headers dynamically including custom fields
+    const baseHeaders = [
       "Name",
       "Register No.",
       "Course",
       "Department",
       "E-mail",
-      "Attendance",
     ];
+    
+    // Add custom field labels as additional headers
+    const customFieldHeaders = customFields.map(field => field.label);
+    const headers = [...baseHeaders, ...customFieldHeaders, "Attendance"];
+    
     const headerRow = worksheet.addRow(headers);
 
     headerRow.eachCell((cell) => {
@@ -123,14 +162,22 @@ export default function StudentsPage() {
     headerRow.height = 30;
 
     students.forEach((student, index) => {
-      const rowData = [
+      // Build row data with custom field responses
+      const baseData = [
         student.name || "",
         student.register_number || "",
         student.course || "",
         student.department || "",
         student.email || "",
-        "",
       ];
+      
+      // Add custom field values in the same order as headers
+      const customFieldValues = customFields.map(field => {
+        const value = student.custom_field_responses?.[field.id];
+        return value !== undefined && value !== null ? String(value) : "";
+      });
+      
+      const rowData = [...baseData, ...customFieldValues, ""];
       const row = worksheet.addRow(rowData);
 
       row.eachCell((cell, colNumber) => {
@@ -158,8 +205,18 @@ export default function StudentsPage() {
         if (headers[colNumber - 1] === "Register No.") {
           cell.alignment = { ...cell.alignment, horizontal: "center" };
         }
-        if (headers[colNumber - 1] === "E-mail") {
+        // Make URLs clickable for email and URL-type custom fields
+        const headerName = headers[colNumber - 1];
+        if (headerName === "E-mail") {
           cell.font = { ...cell.font, color: { argb: "FF1E90FF" } };
+        }
+        // Check if this is a URL-type custom field
+        const customFieldIndex = colNumber - baseHeaders.length - 1;
+        if (customFieldIndex >= 0 && customFieldIndex < customFields.length) {
+          const field = customFields[customFieldIndex];
+          if (field.type === 'url' && cell.value) {
+            cell.font = { ...cell.font, color: { argb: "FF1E90FF" }, underline: true };
+          }
         }
       });
 
@@ -175,13 +232,13 @@ export default function StudentsPage() {
       row.height = estimatedHeight;
     });
 
+    // Set column widths dynamically
+    const baseWidths = [25, 15, 20, 20, 35];
+    const customFieldWidths = customFields.map(() => 30); // 30 width for each custom field
     worksheet.columns = [
-      { width: 25 },
-      { width: 15 },
-      { width: 20 },
-      { width: 20 },
-      { width: 35 },
-      { width: 12 },
+      ...baseWidths.map(width => ({ width })),
+      ...customFieldWidths.map(width => ({ width })),
+      { width: 12 }, // Attendance column
     ];
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -271,6 +328,31 @@ export default function StudentsPage() {
           </button>
         </div>
 
+        {/* Custom Fields Info Banner */}
+        {customFields.length > 0 && !isDataLoading && (
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#154CB3] flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#063168]">Custom Fields Collected</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  This event has {customFields.length} additional field{customFields.length > 1 ? 's' : ''} that participants filled during registration:
+                  <span className="font-medium text-[#154CB3] ml-1">
+                    {customFields.map(f => f.label).join(', ')}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 These fields are included in the Excel export and displayed in the table below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="relative mb-6 md:mb-8">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
             <svg
@@ -297,12 +379,21 @@ export default function StudentsPage() {
           />
         </div>
 
-        <div className="hidden md:grid md:grid-cols-5 gap-6 px-4 py-4 text-gray-500 font-medium border-b border-gray-200">
-          <div>Name</div>
-          <div>Register No.</div>
-          <div>Course</div>
-          <div>Department</div>
-          <div>E-mail</div>
+        {/* Desktop Table Header - Now scrollable for many custom fields */}
+        <div className="hidden md:block overflow-x-auto">
+          <div className={`grid gap-4 px-4 py-4 text-gray-500 font-medium border-b border-gray-200 min-w-max`}
+               style={{ gridTemplateColumns: `repeat(${5 + customFields.length}, minmax(120px, 1fr))` }}>
+            <div>Name</div>
+            <div>Register No.</div>
+            <div>Course</div>
+            <div>Department</div>
+            <div>E-mail</div>
+            {customFields.map(field => (
+              <div key={field.id} className="text-[#154CB3] font-semibold">
+                {field.label}
+              </div>
+            ))}
+          </div>
         </div>
 
         {isDataLoading ? (
@@ -368,17 +459,68 @@ export default function StudentsPage() {
                           {student.email || "N/A"}
                         </span>
                       </div>
+                      {/* Custom Fields in Mobile View */}
+                      {customFields.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-sm font-medium text-[#154CB3] mb-2">Additional Information</div>
+                          {customFields.map(field => {
+                            const value = student.custom_field_responses?.[field.id];
+                            return (
+                              <div key={field.id} className="flex flex-col mb-2">
+                                <span className="text-gray-500 text-xs">{field.label}</span>
+                                {field.type === 'url' && value ? (
+                                  <a 
+                                    href={String(value)} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-[#154CB3] text-sm break-all hover:underline"
+                                  >
+                                    {String(value)}
+                                  </a>
+                                ) : (
+                                  <span className="text-sm break-all">{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="hidden md:grid md:grid-cols-5 gap-6 px-4 py-4 items-center">
-                    <div className="font-medium truncate">
-                      {student.name || "N/A"}
-                    </div>
-                    <div>{student.register_number || "N/A"}</div>
-                    <div>{student.course || "N/A"}</div>
-                    <div>{student.department || "N/A"}</div>
-                    <div className="text-[#154CB3] truncate">
-                      {student.email || "N/A"}
+                  {/* Desktop Row View */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <div 
+                      className="grid gap-4 px-4 py-4 items-center min-w-max"
+                      style={{ gridTemplateColumns: `repeat(${5 + customFields.length}, minmax(120px, 1fr))` }}
+                    >
+                      <div className="font-medium truncate">
+                        {student.name || "N/A"}
+                      </div>
+                      <div>{student.register_number || "N/A"}</div>
+                      <div>{student.course || "N/A"}</div>
+                      <div>{student.department || "N/A"}</div>
+                      <div className="text-[#154CB3] truncate">
+                        {student.email || "N/A"}
+                      </div>
+                      {customFields.map(field => {
+                        const value = student.custom_field_responses?.[field.id];
+                        return (
+                          <div key={field.id} className="truncate">
+                            {field.type === 'url' && value ? (
+                              <a 
+                                href={String(value)} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[#154CB3] hover:underline"
+                              >
+                                {String(value)}
+                              </a>
+                            ) : (
+                              <span>{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
