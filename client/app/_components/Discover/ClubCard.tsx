@@ -6,6 +6,7 @@ interface CardProps {
   subtitle?: string;
   description: string;
   link?: string;
+  slug?: string;
   image?: string;
   type: "center" | "club";
 }
@@ -15,33 +16,25 @@ export const CentreClubCard = ({
   subtitle,
   description,
   link,
+  slug,
   image,
   type,
 }: CardProps) => {
   const [imageError, setImageError] = useState(false);
-  // Create URL-friendly version of title for linking
-  const slugTitle = (title || "")
+  // Use provided slug or create URL-friendly version of title for linking
+  const slugTitle = slug || (title || "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
   
-  // Determine if the link is a URL
-  const isExternalLink = link && (link.startsWith('http://') || link.startsWith('https://'));
+  // Always use internal links for centres/clubs
   const LinkWrapper = ({ children }: { children: React.ReactNode }) => {
-    if (isExternalLink) {
-      return (
-        <a href={link} target="_blank" rel="noopener noreferrer" className="w-full block">
-          {children}
-        </a>
-      );
-    } else {
-      return (
-        <Link href={`/club/${slugTitle}`} className="w-full block">
-          {children}
-        </Link>
-      );
-    }
+    return (
+      <Link href={`/club/${slugTitle}`} className="w-full block">
+        {children}
+      </Link>
+    );
   };
 
   return (
@@ -127,27 +120,23 @@ export const CentreClubCard = ({
             {description}
           </p>
 
-          {link && (
-            <div className="flex items-center gap-2 text-sm text-[#3D75BD] font-medium pt-2 border-t border-gray-100 mt-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-              <span className="group-hover:underline">
-                {isExternalLink ? "Visit Website" : "Learn More"}
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-sm text-[#3D75BD] font-medium pt-2 border-t border-gray-100 mt-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
+              />
+            </svg>
+            <span className="group-hover:underline">Learn More</span>
+          </div>
         </div>
       </div>
     </LinkWrapper>
