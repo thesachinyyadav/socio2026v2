@@ -87,12 +87,12 @@ const Page = () => {
       if (foundEvent) {
         // Parse custom_fields - handle all possible formats
         let parsedCustomFields: any[] = [];
-        const rawCustomFields = foundEvent.custom_fields;
+        const rawCustomFields: unknown = foundEvent.custom_fields;
         
-        // Handle JSON string
-        if (typeof rawCustomFields === 'string' && rawCustomFields.trim() !== '') {
+        // Handle JSON string (cast to unknown first to allow string check)
+        if (typeof rawCustomFields === 'string' && (rawCustomFields as string).trim() !== '') {
           try {
-            const parsed = JSON.parse(rawCustomFields);
+            const parsed = JSON.parse(rawCustomFields as string);
             if (Array.isArray(parsed)) {
               parsedCustomFields = parsed;
             }
