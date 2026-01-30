@@ -38,10 +38,6 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
       </div>
     ` : '';
 
-    // Use hosted logo image (PNG works in all email clients)
-    // Note: You should upload a proper SOCIO logo to your hosting
-    const logoUrl = 'https://sociov2.vercel.app/images/withsocio.png';
-
     const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -54,7 +50,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 40px 32px; text-align: center;">
-          <img src="${logoUrl}" alt="SOCIO" width="160" height="auto" style="display: block; margin: 0 auto 16px auto; max-width: 160px;">
+          <h1 style="color: white; font-size: 42px; font-weight: 700; margin: 0 0 8px 0; letter-spacing: -1px;">SOCIO</h1>
           <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0; font-weight: 400;">
             Campus Events Platform
           </p>
