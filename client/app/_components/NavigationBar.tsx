@@ -215,37 +215,27 @@ function NavigationBar() {
                       </button>
                     </Link>
                   )}
-                  {userData.course && (
-                    <Link href="/profile">
-                      <div className="flex items-center gap-4">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                          {userData?.avatar_url ? (
-                            <Image
-                              src={userData.avatar_url}
-                              alt="Profile"
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
-                              {userData?.name
-                                ? userData.name.charAt(0).toUpperCase()
-                                : "U"}
-                            </div>
-                          )}
-                        </div>
+                  <Link href="/profile">
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
+                        {userData?.avatar_url ? (
+                          <Image
+                            src={userData.avatar_url}
+                            alt="Profile"
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
+                            {userData?.name
+                              ? userData.name.charAt(0).toUpperCase()
+                              : "U"}
+                          </div>
+                        )}
                       </div>
-                    </Link>
-                  )}
-                  {!userData.course && (
-                    <button
-                      onClick={handleSignOut}
-                      className="cursor-pointer font-semibold px-4 py-2 border-2 border-[#d6392b] hover:border-[#d6392b] hover:bg-[#d6392bdd] transition-all duration-200 ease-in-out text-sm rounded-full text-white bg-[#d6392b]"
-                    >
-                      Log out
-                    </button>
-                  )}
+                    </div>
+                  </Link>
                 </div>
               ) : (
                 <div className="flex gap-4 items-center">
