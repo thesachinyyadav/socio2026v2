@@ -799,6 +799,8 @@ export default function EventForm({
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] =
     React.useState(false);
+  const [showDeletedSuccessModal, setShowDeletedSuccessModal] =
+    React.useState(false);
   const [showRegistrationsClosedModal, setShowRegistrationsClosedModal] =
     React.useState(false);
 
@@ -936,7 +938,7 @@ export default function EventForm({
       }
 
       console.log(successPayload.message);
-      window.location.href = "/manage";
+      setShowDeletedSuccessModal(true);
     } catch (error: any) {
       console.error("Error deleting event:", error.message);
     } finally {
@@ -1047,6 +1049,47 @@ export default function EventForm({
                 {isDeleting ? "Deleting..." : "Delete"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Event Deleted Success Modal */}
+      {showDeletedSuccessModal && (
+        <div className="fixed inset-0 bg-white z-[200] flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3">
+              Event Deleted
+            </h2>
+            <p className="text-gray-600 mb-4 text-sm sm:text-base">
+              Your event has been successfully deleted. All registrations associated with this event have also been removed.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="text-left">
+                  <p className="text-sm text-amber-800 font-medium">Please note</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    The event may still appear on the website for a short while due to caching. However, no one will be able to register for this event.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowDeletedSuccessModal(false);
+                window.location.href = "/manage";
+              }}
+              className={`${primaryButtonClasses} w-full py-3`}
+            >
+              Back to My Events
+            </button>
           </div>
         </div>
       )}
