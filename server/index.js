@@ -69,6 +69,15 @@ app.use("/api", uploadRoutes);
 app.use("/api", contactRoutes);
 app.use("/api/debug", debugRoutes);
 
+// Global error handler - ensures CORS headers are always sent
+app.use((err, req, res, next) => {
+  console.error('Global error:', err);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.status(500).json({ error: 'Internal server error', message: err.message });
+});
+
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
