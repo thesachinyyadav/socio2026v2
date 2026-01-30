@@ -219,9 +219,9 @@ const Page = () => {
     // Validate custom fields
     const eventCustomFields = selectedEvent?.custom_fields as CustomField[] | undefined;
     if (eventCustomFields && eventCustomFields.length > 0) {
-      const customFieldErrors = validateCustomFields(eventCustomFields, customFieldResponses);
-      if (Object.keys(customFieldErrors).length > 0) {
-        newErrors.customFields = customFieldErrors;
+      const customFieldValidation = validateCustomFields(eventCustomFields, customFieldResponses);
+      if (!customFieldValidation.isValid) {
+        newErrors.customFields = customFieldValidation.errors;
         hasErrors = true;
       }
     }
