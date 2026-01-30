@@ -51,6 +51,7 @@ export default function Page() {
   const rulesRef = useRef<HTMLDivElement>(null);
   const scheduleRef = useRef<HTMLDivElement>(null);
   const prizesRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -61,6 +62,14 @@ export default function Page() {
   const [registrationApiError, setRegistrationApiError] = useState<
     string | null
   >(null);
+
+  // Auto-scroll to error message when it appears
+  useEffect(() => {
+    if (registrationApiError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      errorRef.current.focus();
+    }
+  }, [registrationApiError]);
 
   const [userRegisteredEventIds, setUserRegisteredEventIds] = useState<
     string[]
@@ -226,8 +235,30 @@ export default function Page() {
       whatsappLink: foundEvent.whatsapp_invite_link || undefined,
       registrationDeadlineISO: foundEvent.registration_deadline,
       allow_outsiders: !!foundEvent.allow_outsiders,
-      custom_fields: Array.isArray(foundEvent.custom_fields) ? foundEvent.custom_fields : [],
+      custom_fields: (() => {
+        // Handle custom_fields - could be array, JSON string, or null
+        let fields = foundEvent.custom_fields;
+        if (typeof fields === 'string') {
+          try {
+            fields = JSON.parse(fields);
+          } catch (e) {
+            console.warn('Failed to parse custom_fields:', e);
+            fields = [];
+          }
+        }
+        return Array.isArray(fields) ? fields : [];
+      })(),
     };
+    
+    // DEBUG: Log custom fields to see if they're coming through
+    console.log('🔍 EVENT PAGE - Custom Fields Debug:', {
+      eventId: foundEvent.event_id,
+      rawCustomFields: foundEvent.custom_fields,
+      processedCustomFields: finalEventData.custom_fields,
+      hasCustomFields: finalEventData.custom_fields && finalEventData.custom_fields.length > 0,
+      type: typeof foundEvent.custom_fields,
+    });
+    
     setEventData(finalEventData);
     setPageError(null);
     setPageLoading(false);
@@ -959,7 +990,10 @@ export default function Page() {
               !isUserRegisteredForThisEvent &&
               !isDeadlineOverForThisEvent && (
                 registrationApiError === "OUTSIDER_NOT_ALLOWED" ? (
-                  <div className="mb-4 w-full max-w-lg bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 shadow-lg">
+                  <div 
+                    ref={errorRef}
+                    tabIndex={-1}
+                    className="mb-4 w-full max-w-lg bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 shadow-lg outline-none focus:ring-4 focus:ring-red-300">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-red-600" viewBox="0 0 20 20" fill="currentColor">
@@ -983,13 +1017,23 @@ export default function Page() {
                     </div>
                   </div>
                 ) : (
-                  <p
-                    role="status"
-                    aria-live="polite"
-                    className="text-yellow-700 text-sm mb-2 text-center px-4 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 w-full max-w-lg"
+                  <div
+                    ref={errorRef}
+                    tabIndex={-1}
+                    className="mb-4 w-full max-w-lg bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-xl p-4 shadow-lg outline-none focus:ring-4 focus:ring-amber-300"
                   >
-                    {registrationApiError}
-                  </p>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-amber-800 text-sm">Registration Issue</h4>
+                        <p className="text-amber-700 text-sm mt-1">{registrationApiError}</p>
+                      </div>
+                    </div>
+                  </div>
                 )
               )}
             <button
