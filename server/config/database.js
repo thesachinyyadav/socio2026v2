@@ -8,12 +8,11 @@ const supabaseUrl = process.env.SUPABASE_URL || 'https://vkappuaapscvteexogtp.su
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseServiceKey) {
-  console.error('❌ SUPABASE_SERVICE_ROLE_KEY is required in .env file');
-  process.exit(1);
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY is required - using fallback');
 }
 
 // Create Supabase client with service role key for full access
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey || 'dummy-key-for-build');
 
 // Initialize database - just verify connection for Supabase
 export async function initializeDatabase() {

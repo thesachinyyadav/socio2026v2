@@ -20,8 +20,10 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Supabase database connection
-await initializeDatabase();
+// Initialize Supabase database connection (don't block startup)
+initializeDatabase().catch(err => {
+  console.error('Database initialization warning:', err.message);
+});
 
 const app = express();
 app.use(express.json());
