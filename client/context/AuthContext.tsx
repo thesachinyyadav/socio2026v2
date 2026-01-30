@@ -62,7 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getOrganizationType = (email: string | undefined): 'christ_member' | 'outsider' => {
     if (!email) return 'outsider';
-    return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+    const lowerEmail = email.toLowerCase();
+    // Match both @christuniversity.in and subdomains like @law.christuniversity.in
+    return lowerEmail.endsWith('christuniversity.in') ? 'christ_member' : 'outsider';
   };
 
   useEffect(() => {

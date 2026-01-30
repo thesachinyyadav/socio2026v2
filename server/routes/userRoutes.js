@@ -149,7 +149,9 @@ function generateVisitorId() {
 // Helper function to determine organization type from email
 function getOrganizationType(email) {
   if (!email) return 'outsider';
-  return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+  const lowerEmail = email.toLowerCase();
+  // Match both @christuniversity.in and subdomains like @law.christuniversity.in
+  return lowerEmail.endsWith('christuniversity.in') ? 'christ_member' : 'outsider';
 }
 
 router.post("/", async (req, res) => {
