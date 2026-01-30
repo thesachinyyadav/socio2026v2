@@ -48,15 +48,35 @@ export const formatDateUTC = (dateString: string | Date | null | undefined, fall
 
 /**
  * Calculate days remaining until a deadline
+ * Returns:
+ * - null if no deadline is set (open registration)
+ * - 0 or negative if deadline has passed
+ * - positive number for days remaining
  */
-export const getDaysUntil = (deadlineString: string | Date | null | undefined): number => {
-  if (!deadlineString) return 0;
+export const getDaysUntil = (deadlineString: string | Date | null | undefined): number | null => {
+  if (!deadlineString) return null; // No deadline means open registration
   
   const target = dayjs(deadlineString);
   const today = dayjs().startOf('day');
   
-  if (!target.isValid() || target.isBefore(today)) return 0;
+  if (!target.isValid()) return null;
+  
+  // Return the actual difference (can be negative if past)
   return target.diff(today, 'day');
+};
+
+/**
+ * Check if registration deadline has passed
+ * Returns false if no deadline is set (open registration)
+ */
+export const isDeadlinePassed = (deadlineString: string | Date | null | undefined): boolean => {
+  if (!deadlineString) return false; // No deadline = still open
+  
+  const target = dayjs(deadlineString);
+  const today = dayjs().startOf('day');
+  
+  if (!target.isValid()) return false;
+  return target.isBefore(today);
 };
 
 /**

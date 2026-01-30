@@ -7,7 +7,7 @@ import {
   FetchedEvent as ContextFetchedEvent,
 } from "../../../context/EventContext";
 import { useAuth } from "../../../context/AuthContext";
-import { formatDateUTC, getDaysUntil, dayjs } from "@/lib/dateUtils";
+import { formatDateUTC, getDaysUntil, isDeadlinePassed, dayjs } from "@/lib/dateUtils";
 
 interface EventData {
   id: string;
@@ -19,7 +19,7 @@ interface EventData {
   location: string;
   price: string;
   numTeammates: number;
-  daysLeft: number;
+  daysLeft: number | null; // null means no deadline (open registration)
   description: string;
   rules?: string[];
   schedule?: Array<{ time: string; activity: string }>;
@@ -70,8 +70,12 @@ export default function Page() {
   const isUserRegisteredForThisEvent = eventData
     ? userRegisteredEventIds.includes(eventData.id)
     : false;
+  
+  // Check if registration deadline has passed
+  // null daysLeft means no deadline (open registration)
+  // Negative or 0 daysLeft means deadline has passed
   const isDeadlineOverForThisEvent = eventData
-    ? eventData.daysLeft <= 0
+    ? eventData.daysLeft !== null && eventData.daysLeft < 0
     : false;
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
@@ -637,7 +641,8 @@ export default function Page() {
               {eventData.department}
             </p>
           </div>
-          {!isDeadlineOverForThisEvent ? (
+          {/* Show days left countdown only if deadline exists and hasn't passed */}
+          {eventData.daysLeft !== null && eventData.daysLeft >= 0 && (
             <div className="flex flex-col items-center bg-gradient-to-b from-[#FFCC00] to-[#FFE88D] rounded-xl border-2 border-[#FFCC0080] py-3 px-3 sm:px-4 sm:py-5 mb-4 sm:mb-0">
               <p className="text-3xl sm:text-5xl font-bold m-0 text-black">
                 {eventData.daysLeft}
@@ -646,7 +651,18 @@ export default function Page() {
                 {eventData.daysLeft === 1 ? "day left" : "days left"}
               </p>
             </div>
-          ) : null}
+          )}
+          {/* Show "Open Registration" for events without deadline */}
+          {eventData.daysLeft === null && !isDeadlineOverForThisEvent && (
+            <div className="flex flex-col items-center bg-gradient-to-b from-[#22C55E] to-[#86EFAC] rounded-xl border-2 border-[#22C55E80] py-3 px-3 sm:px-4 sm:py-5 mb-4 sm:mb-0">
+              <p className="text-lg sm:text-xl font-bold m-0 text-black">
+                Open
+              </p>
+              <p className="text-sm sm:text-base font-medium text-black">
+                Registration
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

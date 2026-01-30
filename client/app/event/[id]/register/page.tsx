@@ -85,7 +85,24 @@ const Page = () => {
     if (allEvents.length > 0) {
       const foundEvent = allEvents.find((e) => e.event_id === eventId);
       if (foundEvent) {
-        setSelectedEvent(foundEvent);
+        // Parse custom_fields if it's a JSON string (Supabase may return it as string)
+        let parsedCustomFields = foundEvent.custom_fields;
+        if (typeof parsedCustomFields === 'string') {
+          try {
+            parsedCustomFields = JSON.parse(parsedCustomFields);
+          } catch {
+            parsedCustomFields = null;
+          }
+        }
+        // Ensure it's an array
+        if (!Array.isArray(parsedCustomFields)) {
+          parsedCustomFields = null;
+        }
+        
+        setSelectedEvent({
+          ...foundEvent,
+          custom_fields: parsedCustomFields,
+        });
         setEventPageError(null);
         const teamSize = foundEvent.participants_per_team ?? 1;
         setMaxTeammates(teamSize);
@@ -759,11 +776,19 @@ const Page = () => {
               </div>
             ))}
 
-            {/* Custom Fields Section */}
+            {/* Custom Fields Section - Additional fields created by event organiser */}
             {selectedEvent?.custom_fields && (selectedEvent.custom_fields as CustomField[]).length > 0 && (
-              <div className="mt-6 sm:mt-8">
-                <h3 className="text-lg font-bold text-[#063168] mb-4">Additional Information</h3>
-                <div className="space-y-4">
+              <div className="mt-6 sm:mt-8 border-t border-gray-200 pt-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-bold text-[#063168]">Additional Information</h3>
+                  <span className="text-xs bg-[#154CB3]/10 text-[#154CB3] px-2 py-1 rounded-full font-medium">
+                    From Organiser
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  The event organiser has requested the following additional details from participants.
+                </p>
+                <div className="space-y-4 bg-[#F8FAFC] rounded-lg p-4 border border-gray-200">
                   <CustomFieldRenderer
                     fields={selectedEvent.custom_fields as CustomField[]}
                     values={customFieldResponses}

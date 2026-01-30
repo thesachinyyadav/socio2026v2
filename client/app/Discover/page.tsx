@@ -120,8 +120,8 @@ const DiscoverPage = () => {
     });
   }, [allEvents, isLoadingEventsFromContext]);
 
-  // Use centres from centralized data, show first 6 on Discover page
-  const displayCentres = allCentres.slice(0, 6).map(centre => ({
+  // Use centres from centralized data, show first 3 on Discover page
+  const displayCentres = allCentres.slice(0, 3).map(centre => ({
     id: centre.id,
     title: centre.title,
     subtitle: centre.subtitle,

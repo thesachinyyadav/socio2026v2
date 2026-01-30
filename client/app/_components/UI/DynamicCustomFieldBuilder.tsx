@@ -133,9 +133,17 @@ export const DynamicCustomFieldBuilder: React.FC<DynamicCustomFieldBuilderProps>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-[#063168]">Custom Fields</h3>
-          <p className="text-sm text-gray-500">
-            Add custom fields that participants must fill during registration (e.g., portfolio links, GitHub repos)
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-[#063168]">Custom Fields for Participants</h3>
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
+              Optional
+            </span>
+          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            Create additional fields that participants will see on the registration form. These will appear as &quot;Additional Information&quot; from the organiser.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Examples: Portfolio URL, GitHub profile, dietary requirements, T-shirt size, etc.
           </p>
         </div>
         {fields.length < maxFields && !showAddForm && (

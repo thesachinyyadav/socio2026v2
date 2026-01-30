@@ -1889,8 +1889,16 @@ function CreateFestForm(props?: CreateFestProps) {
                 </div>
 
                 {/* Additional Fest Details Section */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Additional Details</h3>
+                <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
+                  <div className="flex items-center gap-3 mb-6">
+                    <h3 className="text-lg font-semibold text-gray-800">Additional Fields</h3>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-medium border border-gray-200">
+                      Optional
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-6 -mt-4">
+                    These fields are optional and can be used to add extra details about your fest.
+                  </p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     {/* Venue */}
