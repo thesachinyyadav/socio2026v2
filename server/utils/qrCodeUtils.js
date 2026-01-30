@@ -14,7 +14,7 @@ export function generateQRCodeData(registrationId, eventId, participantEmail) {
   
   // Create a hash for security verification
   const dataToHash = `${registrationId}:${eventId}:${participantEmail}:${timestamp}`;
-ch  const hash = crypto.createHash('sha256').update(dataToHash + process.env.QR_SECRET || 'default-secret').digest('hex');
+  const hash = crypto.createHash('sha256').update(dataToHash + process.env.QR_SECRET || 'default-secret').digest('hex');
   
   return {
     registrationId,
