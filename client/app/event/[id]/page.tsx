@@ -30,6 +30,7 @@ interface EventData {
   whatsappLink?: string;
   registrationDeadlineISO?: string | null;
   allow_outsiders?: boolean;
+  custom_fields?: any[]; // Custom fields created by organizer
 }
 
 export default function Page() {
@@ -225,6 +226,7 @@ export default function Page() {
       whatsappLink: foundEvent.whatsapp_invite_link || undefined,
       registrationDeadlineISO: foundEvent.registration_deadline,
       allow_outsiders: !!foundEvent.allow_outsiders,
+      custom_fields: Array.isArray(foundEvent.custom_fields) ? foundEvent.custom_fields : [],
     };
     setEventData(finalEventData);
     setPageError(null);
@@ -339,6 +341,14 @@ export default function Page() {
     )
       return;
     setRegistrationApiError(null);
+
+    // ALWAYS redirect to registration page if event has custom fields
+    // Custom fields need to be collected before registration
+    const hasCustomFields = eventData.custom_fields && eventData.custom_fields.length > 0;
+    if (hasCustomFields) {
+      router.push(`/event/${eventData.id}/register`);
+      return;
+    }
 
     if (eventData.numTeammates <= 1) {
       if (authIsLoading) {
@@ -666,7 +676,7 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="hidden sm:flex flex-col sm:flex-row flex-wrap px-4 sm:px-8 gap-4 sm:gap-8 text-gray-500 font-medium items-center bg-[#F5F5F5] h-auto sm:h-[10vh] m-4 sm:m-10 rounded-xl border-2 border-[#E0E0E0] py-4 sm:py-0">
+      <div className="hidden sm:flex flex-col sm:flex-row flex-wrap px-4 sm:px-8 gap-4 sm:gap-8 text-gray-500 font-medium items-center bg-[#F5F5F5] h-auto sm:min-h-[10vh] m-4 sm:m-10 rounded-xl border-2 border-[#E0E0E0] py-4 sm:py-4 overflow-visible relative">
         <p
           className="text-[#063168] cursor-pointer transition-colors text-sm sm:text-base"
           onClick={() => scrollToSection(detailsRef)}
@@ -705,42 +715,7 @@ export default function Page() {
           >
             {buttonState.text}
           </button>
-          {registrationApiError &&
-            isIndividualEventForButton &&
-            !isUserRegisteredForThisEvent &&
-            !isDeadlineOverForThisEvent && (
-              registrationApiError === "OUTSIDER_NOT_ALLOWED" ? (
-                <div className="mt-3 w-full max-w-sm bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 shadow-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-red-800 text-sm">Registration Restricted</h4>
-                      <p className="text-red-700 text-xs mt-1">
-                        This event is exclusively for <span className="font-semibold">Christ University members</span>.
-                      </p>
-                      <p className="text-red-600 text-xs mt-2 flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        External registrations are not permitted
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className="mt-2 w-full text-sm text-yellow-700 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 text-left"
-                >
-                  {registrationApiError}
-                </p>
-              )
-            )}
+          {/* Error display removed from here - shown only at bottom of page for better visibility */}
         </div>
       </div>
 
