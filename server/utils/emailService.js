@@ -187,8 +187,20 @@ export async function sendRegistrationEmail(email, name, event, registrationId) 
               </div>
               
               <p style="color: #64748b; font-size: 14px; margin: 24px 0 0 0; text-align: center;">
-                See you there.
+                See you there! 🎉
               </p>
+              
+              <!-- Beta Notice -->
+              <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 10px; padding: 20px; margin: 28px 0 0 0;">
+                <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6; text-align: center;">
+                  <strong style="display: block; margin-bottom: 8px;">🚧 Beta Preview</strong>
+                  This is a preview version of SOCIO. We sincerely apologize for any inconvenience caused due to technical glitches. We're working hard to improve your experience every day.
+                </p>
+                <p style="color: #b45309; font-size: 12px; margin: 12px 0 0 0; text-align: center; font-style: italic;">
+                  Thank you for your patience and support! ❤️<br>
+                  — With love, Team SOCIO
+                </p>
+              </div>
             </div>
             <div style="text-align: center; padding: 24px; color: #94a3b8; font-size: 12px;">
               <p style="margin: 0;">SOCIO Team | <a href="https://sociov2.vercel.app" style="color: #64748b; text-decoration: none;">sociov2.vercel.app</a></p>
@@ -197,7 +209,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId) 
         </body>
         </html>
       `,
-      text: `Registration Confirmed\n\nHi ${firstName}, you're all set for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nSee you there.\n\nSOCIO Team\nhttps://sociov2.vercel.app`,
+      text: `Registration Confirmed\n\nHi ${firstName}, you're all set for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nSee you there! 🎉\n\n---\n🚧 BETA PREVIEW\nThis is a preview version of SOCIO. We sincerely apologize for any inconvenience caused due to technical glitches. We're working hard to improve your experience every day.\n\nThank you for your patience and support! ❤️\n— With love, Team SOCIO\n---\n\nSOCIO Team\nhttps://sociov2.vercel.app`,
     });
 
     if (error) {
