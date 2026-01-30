@@ -1,13 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 
 // API Base URL
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Create Supabase client for data operations
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ============ EVENTS ============
 

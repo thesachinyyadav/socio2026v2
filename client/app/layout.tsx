@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { TermsConsentProvider } from "@/context/TermsConsentContext";
 import NavigationBar from "./_components/NavigationBar";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "react-hot-toast";
@@ -81,7 +81,12 @@ const transformToCarouselImage = (
   };
 };
 
-async function fetchEventsFromSupabase() {
+// Create a singleton Supabase client for server-side operations
+let serverSupabase: SupabaseClient | null = null;
+
+function getServerSupabase(): SupabaseClient {
+  if (serverSupabase) return serverSupabase;
+  
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
@@ -89,7 +94,12 @@ async function fetchEventsFromSupabase() {
     throw new Error("Supabase configuration missing");
   }
   
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  serverSupabase = createClient(supabaseUrl, supabaseAnonKey);
+  return serverSupabase;
+}
+
+async function fetchEventsFromSupabase() {
+  const supabase = getServerSupabase();
   
   const { data, error: supabaseError } = await supabase
     .from("events")
