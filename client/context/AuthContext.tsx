@@ -98,13 +98,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check if user is an outsider
         const orgType = getOrganizationType(newSession.user?.email);
         
-        // User creation is now handled in the callback route (server-side)
-        // Just fetch the user data - with retry for new users
+        // Create user first (fast), then fetch - for new users
+        await createOrUpdateUser(newSession.user);
+        
+        // Fetch user data with exponential backoff for new users
         let userData = await fetchUserData(newSession.user.email!);
         
-        // If user data not found, wait briefly and retry (new user being created)
+        // Quick retry with minimal delay if not found (user just being created)
         if (!userData) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 150));
           userData = await fetchUserData(newSession.user.email!);
         }
         

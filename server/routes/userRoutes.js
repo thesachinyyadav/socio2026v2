@@ -139,26 +139,11 @@ router.put("/:email/name", optionalAuth, async (req, res) => {
 });
 
 // Helper function to generate unique visitor ID for outsiders
-async function generateVisitorId() {
-  let attempts = 0;
-  const maxAttempts = 10;
-  
-  while (attempts < maxAttempts) {
-    // Generate random 7-digit number
-    const randomNumber = Math.floor(1000000 + Math.random() * 9000000);
-    const visitorId = `VIS${randomNumber}`;
-    
-    // Check if this visitor ID already exists
-    const existing = await queryOne("users", { where: { visitor_id: visitorId } });
-    
-    if (!existing) {
-      return visitorId;
-    }
-    
-    attempts++;
-  }
-  
-  throw new Error("Failed to generate unique visitor ID after 10 attempts");
+// Uses timestamp + random for guaranteed uniqueness without DB lookup
+function generateVisitorId() {
+  const timestamp = Date.now().toString(36).toUpperCase(); // Base36 timestamp
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase(); // 3 random chars
+  return `VIS${timestamp.slice(-4)}${random}`; // e.g., VIS1A2BXYZ
 }
 
 // Helper function to determine organization type from email
@@ -224,7 +209,7 @@ router.post("/", async (req, res) => {
         // Only generate visitor_id for NEW outsiders (those without organization_type)
         // This prevents overwriting existing Christ members
         if (organizationType === 'outsider') {
-          const visitorId = await generateVisitorId();
+          const visitorId = generateVisitorId();
           updateData.visitor_id = visitorId;
           updateData.register_number = visitorId; // Use visitor_id as register_number for outsiders
         }
@@ -232,7 +217,7 @@ router.post("/", async (req, res) => {
       
       // If user is already marked as outsider but missing visitor_id, generate it
       if (existingUser.organization_type === 'outsider' && !existingUser.visitor_id) {
-        const visitorId = await generateVisitorId();
+        const visitorId = generateVisitorId();
         updateData.visitor_id = visitorId;
         if (!existingUser.register_number || existingUser.register_number === '0') {
           updateData.register_number = visitorId;
@@ -273,7 +258,7 @@ router.post("/", async (req, res) => {
     // Handle outsiders differently
     if (organizationType === 'outsider') {
       // Generate visitor ID for outsiders
-      visitorId = await generateVisitorId();
+      visitorId = generateVisitorId();
       registerNumber = visitorId; // Use visitor_id as register_number for outsiders
       course = null; // Outsiders don't have a course
       
@@ -341,40 +326,15 @@ router.post("/", async (req, res) => {
 
     if (insertError) throw insertError;
 
-    // Check if this user was pre-added as an event head in any fest
-    // If so, grant them organiser access with the specified expiration
-    try {
-      const allFests = await queryAll('fest');
-      for (const fest of allFests || []) {
-        const eventHeads = fest.event_heads || [];
-        const matchingHead = eventHeads.find((head) => 
-          head && head.email && head.email.toLowerCase() === newUser.email.toLowerCase()
-        );
-        
-        if (matchingHead) {
-          console.log(`Found pending organiser access for ${newUser.email} in fest ${fest.fest_id}`);
-          await supabase
-            .from('users')
-            .update({ 
-              is_organiser: true,
-              organiser_expires_at: matchingHead.expiresAt || null
-            })
-            .eq('email', newUser.email);
-          
-          // Update the newUser object to reflect the change
-          newUser.is_organiser = true;
-          newUser.organiser_expires_at = matchingHead.expiresAt || null;
-          
-          console.log(`Granted pending organiser access to ${newUser.email} (expires: ${matchingHead.expiresAt || 'never'})`);
-          break; // Only need to grant once
-        }
-      }
-    } catch (festCheckError) {
-      console.error('Error checking for pending organiser access:', festCheckError);
-      // Non-critical, continue
-    }
+    // Return response immediately - don't block on background tasks
+    res.status(201).json({
+      user: newUser,
+      isNew: true,
+      message: "User created successfully.",
+    });
 
-    // Send welcome email (fire and forget - don't block response)
+    // Background tasks (fire and forget after response sent)
+    // 1. Send welcome email
     sendWelcomeEmail(
       newUser.email,
       newUser.name,
@@ -382,11 +342,35 @@ router.post("/", async (req, res) => {
       visitorId
     ).catch(err => console.error('Welcome email failed:', err));
 
-    return res.status(201).json({
-      user: newUser,
-      isNew: true,
-      message: "User created successfully.",
-    });
+    // 2. Check if user was pre-added as event head (non-blocking)
+    (async () => {
+      try {
+        const allFests = await queryAll('fest');
+        for (const fest of allFests || []) {
+          const eventHeads = fest.event_heads || [];
+          const matchingHead = eventHeads.find((head) => 
+            head && head.email && head.email.toLowerCase() === newUser.email.toLowerCase()
+          );
+          
+          if (matchingHead) {
+            console.log(`Found pending organiser access for ${newUser.email} in fest ${fest.fest_id}`);
+            await supabase
+              .from('users')
+              .update({ 
+                is_organiser: true,
+                organiser_expires_at: matchingHead.expiresAt || null
+              })
+              .eq('email', newUser.email);
+            console.log(`Granted pending organiser access to ${newUser.email}`);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('Error checking for pending organiser access:', err);
+      }
+    })();
+
+    return; // Already sent response
   } catch (error) {
     console.error("Error creating user:", error);
     return res.status(500).json({ error: "Internal server error" });
