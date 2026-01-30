@@ -31,9 +31,9 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
 
     const memberSection = !isOutsider ? `
       <div style="background: #f0f9ff; border-left: 4px solid #154CB3; padding: 20px; margin: 24px 0;">
-        <p style="color: #1e40af; font-weight: 600; font-size: 15px; margin: 0 0 8px 0;">Christ University Member</p>
+        <p style="color: #1e40af; font-weight: 600; font-size: 15px; margin: 0 0 8px 0;">You're all set! 🎉</p>
         <p style="color: #475569; font-size: 14px; margin: 0; line-height: 1.6;">
-          Register for events hassle-free, participate in campus activities, and stay connected — no second-hand communications.
+          Discover events, register instantly, and get updates directly — no middlemen, no hassle.
         </p>
       </div>
     ` : '';
@@ -114,7 +114,7 @@ Thank you for joining SOCIO.
 
 SOCIO is your gateway to campus events, club activities, and community experiences. Whether you're looking to discover events or organize your own, we're here to help you connect.
 
-${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — you'll need it for event registrations.\n\nTip: Visit your profile to set your display name. This can only be done once.` : `As a Christ University member, you can register for events hassle-free, participate in campus activities, and stay connected — no second-hand communications.`}
+${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — you'll need it for event registrations.\n\nTip: Visit your profile to set your display name. This can only be done once.` : `You're all set! Discover events, register instantly, and get updates directly — no middlemen, no hassle.`}
 
 Browse events: https://socio.christuniversity.in/Discover
 
