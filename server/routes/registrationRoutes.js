@@ -35,27 +35,67 @@ router.get("/registrations", async (req, res) => {
       });
     }
 
-    const formattedRegistrations = registrations.map((reg) => ({
-      ...reg,
-      teammates: Array.isArray(reg.teammates)
-        ? reg.teammates
-        : (() => {
-            try {
-              return reg.teammates ? JSON.parse(reg.teammates) : [];
-            } catch (e) {
-              return [];
-            }
-          })(),
-      custom_field_responses: (() => {
-        if (!reg.custom_field_responses) return null;
-        if (typeof reg.custom_field_responses === 'object') return reg.custom_field_responses;
-        try {
-          return JSON.parse(reg.custom_field_responses);
-        } catch (e) {
-          return null;
-        }
-      })(),
-    }));
+    // Collect all unique register numbers to look up user data
+    const registerNumbers = new Set();
+    registrations.forEach(reg => {
+      if (reg.individual_register_number) {
+        registerNumbers.add(String(reg.individual_register_number));
+      }
+      if (reg.team_leader_register_number) {
+        registerNumbers.add(String(reg.team_leader_register_number));
+      }
+    });
+
+    // Fetch user data for all register numbers in one query
+    let userDataMap = {};
+    if (registerNumbers.size > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('register_number, course, department')
+        .in('register_number', Array.from(registerNumbers));
+      
+      if (usersData) {
+        usersData.forEach(user => {
+          userDataMap[String(user.register_number)] = {
+            course: user.course || '',
+            department: user.department || ''
+          };
+        });
+      }
+    }
+
+    const formattedRegistrations = registrations.map((reg) => {
+      // Get user data based on register number
+      const regNum = reg.registration_type === 'individual' 
+        ? reg.individual_register_number 
+        : reg.team_leader_register_number;
+      const userData = userDataMap[String(regNum)] || { course: '', department: '' };
+      
+      return {
+        ...reg,
+        // Add course and department from user lookup
+        course: userData.course,
+        department: userData.department,
+        teammates: Array.isArray(reg.teammates)
+          ? reg.teammates
+          : (() => {
+              try {
+                return reg.teammates ? JSON.parse(reg.teammates) : [];
+              } catch (e) {
+                return [];
+              }
+            })(),
+        custom_field_responses: (() => {
+          if (!reg.custom_field_responses) return null;
+          if (typeof reg.custom_field_responses === 'object') return reg.custom_field_responses;
+          try {
+            return JSON.parse(reg.custom_field_responses);
+          } catch (e) {
+            return null;
+          }
+        })(),
+      };
+    });
 
     return res.status(200).json({
       registrations: formattedRegistrations,
