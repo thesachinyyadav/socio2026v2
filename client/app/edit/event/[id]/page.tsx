@@ -226,6 +226,7 @@ export default function EditEventPage() {
             scheduleItems: transformScheduleForForm(data.schedule),
             rules: transformSimpleListForForm(data.rules),
             prizes: transformSimpleListForForm(data.prizes),
+            customFields: Array.isArray(data.custom_fields) ? data.custom_fields : [],
             imageFile: null, // Always null initially for form, URL is separate
             bannerFile: null,
             pdfFile: null,
@@ -318,6 +319,9 @@ export default function EditEventPage() {
     payload.append("allow_outsiders", String(formData.allowOutsiders || false));
     payload.append("outsider_registration_fee", formData.outsiderRegistrationFee || "");
     payload.append("outsider_max_participants", formData.outsiderMaxParticipants || "");
+
+    // Custom fields
+    payload.append("custom_fields", JSON.stringify(formData.customFields || []));
 
     if (formData.imageFile instanceof File)
       payload.append("eventImage", formData.imageFile);

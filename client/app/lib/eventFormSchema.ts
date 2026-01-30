@@ -59,6 +59,16 @@ export const scheduleItemSchema = z.object({
   activity: z.string().min(1, "Activity is required").max(200, "Max 200 chars"),
 });
 
+// Custom field schema for event organizers
+export const customFieldSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1, "Label is required"),
+  type: z.enum(["text", "url", "email", "number", "select", "textarea"]),
+  required: z.boolean(),
+  placeholder: z.string().optional(),
+  options: z.array(z.string()).optional(),
+});
+
 export const eventFormSchema = z
   .object({
     eventTitle: z
@@ -167,6 +177,7 @@ export const eventFormSchema = z
 
     scheduleItems: z.array(scheduleItemSchema).optional(),
     eventHeads: z.array(z.string().email("Invalid email format")).optional(),
+    customFields: z.array(customFieldSchema).optional(),
   })
   .refine(
     (data) => {

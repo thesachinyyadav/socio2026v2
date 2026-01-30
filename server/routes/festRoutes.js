@@ -37,7 +37,11 @@ const mapFestResponse = (fest) => {
     return {
       ...fest,
       department_access: normalizeJsonField(fest.department_access),
-      event_heads: normalizeJsonField(fest.event_heads)
+      event_heads: normalizeJsonField(fest.event_heads),
+      timeline: normalizeJsonField(fest.timeline),
+      sponsors: normalizeJsonField(fest.sponsors),
+      social_links: normalizeJsonField(fest.social_links),
+      faqs: normalizeJsonField(fest.faqs)
     };
   } catch (error) {
     console.error("Error mapping fest response:", error.message, fest);
@@ -151,7 +155,15 @@ router.post(
       contact_phone: festData.contactPhone || festData.contact_phone || "",
       event_heads: festData.eventHeads || festData.event_heads || [],
       created_by: festData.createdBy || festData.created_by || req.userInfo?.email || req.userId,
-      auth_uuid: req.userId
+      auth_uuid: req.userId,
+      // New enhanced fest fields
+      venue: festData.venue || null,
+      status: festData.status || "upcoming",
+      registration_deadline: festData.registration_deadline || null,
+      timeline: festData.timeline || [],
+      sponsors: festData.sponsors || [],
+      social_links: festData.social_links || [],
+      faqs: festData.faqs || []
     };
 
   const inserted = await insert("fest", [festPayload]);
@@ -265,7 +277,15 @@ router.put(
       ["contact_email", updateData.contact_email ?? updateData.contactEmail],
       ["contact_phone", updateData.contact_phone ?? updateData.contactPhone],
       ["department_access", updateData.department_access ?? updateData.departmentAccess],
-      ["event_heads", updateData.event_heads ?? updateData.eventHeads]
+      ["event_heads", updateData.event_heads ?? updateData.eventHeads],
+      // New enhanced fest fields
+      ["venue", updateData.venue],
+      ["status", updateData.status],
+      ["registration_deadline", updateData.registration_deadline],
+      ["timeline", updateData.timeline],
+      ["sponsors", updateData.sponsors],
+      ["social_links", updateData.social_links],
+      ["faqs", updateData.faqs]
     ];
 
     for (const [key, value] of mapFields) {

@@ -10,6 +10,7 @@ import {
 import { useAuth } from "../../../../context/AuthContext";
 import { QRCodeDisplay } from "../../../_components/QRCodeDisplay";
 import { dayjs } from "@/lib/dateUtils";
+import { CustomFieldRenderer, validateCustomFields, CustomField } from "../../../_components/UI/CustomFieldRenderer";
 
 interface Teammate {
   name: string;
@@ -24,6 +25,7 @@ interface FormErrors {
     registerNumber?: string;
     email?: string;
   }>;
+  customFields?: Record<string, string>;
 }
 
 const Page = () => {
@@ -54,7 +56,9 @@ const Page = () => {
   const [errors, setErrors] = useState<FormErrors>({
     teamName: "",
     teammates: [{}],
+    customFields: {},
   });
+  const [customFieldResponses, setCustomFieldResponses] = useState<Record<string, string | number>>({});
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -201,12 +205,23 @@ const Page = () => {
     const newErrors: FormErrors = {
       teamName: "",
       teammates: formData.teammates.map(() => ({})),
+      customFields: {},
     };
 
     if (!isIndividualEvent) {
       const teamNameError = validateField("teamName", formData.teamName);
       if (teamNameError) {
         newErrors.teamName = teamNameError;
+        hasErrors = true;
+      }
+    }
+
+    // Validate custom fields
+    const eventCustomFields = selectedEvent?.custom_fields as CustomField[] | undefined;
+    if (eventCustomFields && eventCustomFields.length > 0) {
+      const customFieldErrors = validateCustomFields(eventCustomFields, customFieldResponses);
+      if (Object.keys(customFieldErrors).length > 0) {
+        newErrors.customFields = customFieldErrors;
         hasErrors = true;
       }
     }
@@ -267,6 +282,7 @@ const Page = () => {
           registerNumber: tm.registerNumber.trim(),
           email: tm.email.trim(),
         })),
+        custom_field_responses: Object.keys(customFieldResponses).length > 0 ? customFieldResponses : null,
       };
 
       try {
@@ -742,6 +758,30 @@ const Page = () => {
                 </div>
               </div>
             ))}
+
+            {/* Custom Fields Section */}
+            {selectedEvent?.custom_fields && (selectedEvent.custom_fields as CustomField[]).length > 0 && (
+              <div className="mt-6 sm:mt-8">
+                <h3 className="text-lg font-bold text-[#063168] mb-4">Additional Information</h3>
+                <div className="space-y-4">
+                  <CustomFieldRenderer
+                    fields={selectedEvent.custom_fields as CustomField[]}
+                    values={customFieldResponses}
+                    onChange={(fieldId, value) => {
+                      setCustomFieldResponses(prev => ({ ...prev, [fieldId]: value }));
+                      // Clear error when user starts typing
+                      if (errors.customFields?.[fieldId]) {
+                        setErrors(prev => ({
+                          ...prev,
+                          customFields: { ...prev.customFields, [fieldId]: "" }
+                        }));
+                      }
+                    }}
+                    errors={errors.customFields}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center w-full sm:w-auto">

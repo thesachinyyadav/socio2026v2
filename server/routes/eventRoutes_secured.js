@@ -50,7 +50,8 @@ router.get("/", async (req, res) => {
       department_access: normalizeJsonField(event.department_access),
       rules: normalizeJsonField(event.rules),
       schedule: normalizeJsonField(event.schedule),
-      prizes: normalizeJsonField(event.prizes)
+      prizes: normalizeJsonField(event.prizes),
+      custom_fields: normalizeJsonField(event.custom_fields)
     }));
 
     return res.status(200).json({ events: processedEvents });
@@ -83,7 +84,8 @@ router.get("/:eventId", async (req, res) => {
       department_access: normalizeJsonField(event.department_access),
       rules: normalizeJsonField(event.rules),
       schedule: normalizeJsonField(event.schedule),
-      prizes: normalizeJsonField(event.prizes)
+      prizes: normalizeJsonField(event.prizes),
+      custom_fields: normalizeJsonField(event.custom_fields)
     };
 
     return res.status(200).json({ event: processedEvent });
@@ -204,6 +206,7 @@ router.post(
       const parsedRules = parseJsonField(rules, []);
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
+      const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
 
       console.log("About to insert into database with params:", {
         event_id,
@@ -234,6 +237,7 @@ router.post(
         rules: parsedRules,
         schedule: parsedSchedule,
         prizes: parsedPrizes,
+        custom_fields: parsedCustomFields,
         organizer_email: req.body.organizer_email || req.userInfo?.email || null,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
@@ -407,6 +411,7 @@ router.put(
       const parsedRules = parseJsonField(rules, []);
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
+      const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
 
       // Prepare update payload
       const updateData = {
@@ -428,6 +433,7 @@ router.put(
         rules: parsedRules,
         schedule: parsedSchedule,
         prizes: parsedPrizes,
+        custom_fields: parsedCustomFields,
         organizer_email: req.body.organizer_email || null,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,

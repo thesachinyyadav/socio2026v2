@@ -8,6 +8,7 @@ import { CategorySection } from "../_components/Discover/CategorySection";
 import { ClubSection } from "../_components/Discover/ClubSection";
 import Footer from "../_components/Home/Footer";
 import { getFests } from "@/lib/api";
+import { allCentres } from "../lib/centresData";
 
 import {
   useEvents,
@@ -119,38 +120,16 @@ const DiscoverPage = () => {
     });
   }, [allEvents, isLoadingEventsFromContext]);
 
-  const centres = [
-    {
-      id: 1,
-      title: "SDG Cell",
-      subtitle: "Sustainable Development Goal Cell",
-      description:
-        "Committed to integrating UN Sustainable Development Goals into the university's framework through research, education, and community engagement initiatives.",
-      link: "Sustainable Development Goal Cell",
-      image:
-        "https://img.recraft.ai/j8wS9gYWtLzTM61OIZ-hh8kHVDv3_hGRBQIvl8YVe1A/rs:fit:2048:1024:0/q:95/g:no/plain/abs://prod/images/f8478bc3-8c33-4344-b64a-27a521778253@jpg",
-    },
-    {
-      id: 2,
-      title: "CAPS",
-      subtitle: "Centre for Academic and Professional Support",
-      description:
-        "Provides academic and professional training, resources, and talks designed to support students' academic excellence and career development with workshops on various skills.",
-      link: "Centre for Academic and Professional Support",
-      image:
-        "https://img.recraft.ai/DXVis5aciXPl_SpXpocvUcec6eLxmTogWC4mTJ-vDOY/rs:fit:2048:1024:0/q:95/g:no/plain/abs://prod/images/18ca971b-fabe-4b20-8fbf-9cdd1528e714@jpg",
-    },
-    {
-      id: 3,
-      title: "CAI",
-      subtitle: "Centre for Artificial Intelligence",
-      description:
-        "Dedicated to advancing education, research, and innovation in artificial intelligence, focusing on practical applications of AI technologies in industries and academia.",
-      link: "Centre for Artificial Intelligence",
-      image:
-        "https://img.recraft.ai/fZsh_b0fzcNaVdNLipdxoIPA-pj0NIm_SRLcnRapWRI/rs:fit:2048:1024:0/q:95/g:no/plain/abs://prod/images/76d78cf4-c7a2-479c-bd3d-d46d88cd63b3@jpg",
-    },
-  ];
+  // Use centres from centralized data, show first 6 on Discover page
+  const displayCentres = allCentres.slice(0, 6).map(centre => ({
+    id: centre.id,
+    title: centre.title,
+    subtitle: centre.subtitle,
+    description: centre.description,
+    link: centre.externalLink,
+    image: centre.image,
+    slug: centre.slug,
+  }));
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -354,7 +333,7 @@ const DiscoverPage = () => {
         <section className="mb-12">
           <ClubSection
             title="Centers and clubs"
-            items={centres}
+            items={displayCentres}
             type="centre"
             linkUrl="/clubs"
             showAll={true}

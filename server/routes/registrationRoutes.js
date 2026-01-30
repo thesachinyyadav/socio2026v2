@@ -46,6 +46,15 @@ router.get("/registrations", async (req, res) => {
               return [];
             }
           })(),
+      custom_field_responses: (() => {
+        if (!reg.custom_field_responses) return null;
+        if (typeof reg.custom_field_responses === 'object') return reg.custom_field_responses;
+        try {
+          return JSON.parse(reg.custom_field_responses);
+        } catch (e) {
+          return null;
+        }
+      })(),
     }));
 
     return res.status(200).json({
@@ -268,6 +277,7 @@ router.post("/register", async (req, res) => {
       participant_organization: participantOrganization,
       qr_code_data: qrCodeData,
       qr_code_generated_at: new Date().toISOString(),
+      custom_field_responses: req.body.custom_field_responses || null,
     });
 
     console.log('✅ Registration saved:', registration);

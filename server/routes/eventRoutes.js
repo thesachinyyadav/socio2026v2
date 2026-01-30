@@ -41,6 +41,9 @@ router.get("/", async (req, res) => {
       prizes: Array.isArray(event.prizes)
         ? event.prizes
         : parseJsonField(event.prizes, []),
+      custom_fields: Array.isArray(event.custom_fields)
+        ? event.custom_fields
+        : parseJsonField(event.custom_fields, []),
     }));
 
     // OPTIMIZATION: Cache for 5 minutes, allow stale content for 1 hour
@@ -84,6 +87,9 @@ router.get("/:eventId", async (req, res) => {
       prizes: Array.isArray(event.prizes)
         ? event.prizes
         : parseJsonField(event.prizes, []),
+      custom_fields: Array.isArray(event.custom_fields)
+        ? event.custom_fields
+        : parseJsonField(event.custom_fields, []),
     };
 
     // OPTIMIZATION: Cache individual events for 5 minutes
@@ -248,6 +254,9 @@ router.post("/", multerUpload.fields([
         prizes: Array.isArray(eventData.prizes)
           ? eventData.prizes
           : parseJsonField(eventData.prizes, []),
+        custom_fields: Array.isArray(eventData.custom_fields)
+          ? eventData.custom_fields
+          : parseJsonField(eventData.custom_fields, []),
         event_image_url: event_image_url,
         banner_url: banner_url,
         pdf_url: pdf_url,
@@ -271,6 +280,9 @@ router.post("/", multerUpload.fields([
         prizes: Array.isArray(createdEvent.prizes)
           ? createdEvent.prizes
           : parseJsonField(createdEvent.prizes, []),
+        custom_fields: Array.isArray(createdEvent.custom_fields)
+          ? createdEvent.custom_fields
+          : parseJsonField(createdEvent.custom_fields, []),
       };
 
       return res.status(201).json({

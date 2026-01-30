@@ -143,6 +143,7 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("rules", dataFromHookForm.rules);
     appendJsonArrayOrObject("prizes", dataFromHookForm.prizes);
     appendJsonArrayOrObject("event_heads", dataFromHookForm.eventHeads);
+    appendJsonArrayOrObject("custom_fields", dataFromHookForm.customFields);
     appendIfExists("created_by", userEmail);
 
     const appendFile = (key: string, file: any) => {

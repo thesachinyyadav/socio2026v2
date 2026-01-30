@@ -14,6 +14,16 @@ export interface Centre {
 export const allCentres: Centre[] = [
   {
     id: 1,
+    slug: "sdg-cell",
+    title: "SDG Cell",
+    subtitle: "Sustainable Development Goal Cell",
+    description: "Committed to integrating UN Sustainable Development Goals into the university's framework through research, education, and community engagement initiatives.",
+    externalLink: "https://christuniversity.in/center/C/sdg",
+    image: "https://img.recraft.ai/j8wS9gYWtLzTM61OIZ-hh8kHVDv3_hGRBQIvl8YVe1A/rs:fit:2048:1024:0/q:95/g:no/plain/abs://prod/images/f8478bc3-8c33-4344-b64a-27a521778253@jpg",
+    category: "Social",
+  },
+  {
+    id: 2,
     slug: "cnri",
     title: "CNRI",
     subtitle: "Centre for Neurodiversity Research and Innovation",
@@ -23,7 +33,7 @@ export const allCentres: Centre[] = [
     category: "Research",
   },
   {
-    id: 2,
+    id: 3,
     slug: "caps",
     title: "CAPS",
     subtitle: "Centre for Academic and Professional Support",
@@ -33,7 +43,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 3,
+    id: 4,
     slug: "card",
     title: "CARD",
     subtitle: "Centre for Advanced Research and Development",
@@ -43,7 +53,7 @@ export const allCentres: Centre[] = [
     category: "Research",
   },
   {
-    id: 4,
+    id: 5,
     slug: "cai",
     title: "CAI",
     subtitle: "Centre for Artificial Intelligence",
@@ -53,7 +63,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 5,
+    id: 6,
     slug: "ccrd",
     title: "CCRD",
     subtitle: "Centre for Case Research and Development",
@@ -63,7 +73,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 6,
+    id: 7,
     slug: "ccd",
     title: "CCD",
     subtitle: "Centre for Concept Design",
@@ -73,7 +83,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 7,
+    id: 8,
     slug: "cchs",
     title: "CCHS",
     subtitle: "Centre for Counselling and Health Services",
@@ -83,7 +93,7 @@ export const allCentres: Centre[] = [
     category: "Student support",
   },
   {
-    id: 8,
+    id: 9,
     slug: "cdi",
     title: "CDI",
     subtitle: "Centre for Digital Innovation",
@@ -93,7 +103,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 9,
+    id: 10,
     slug: "ceas",
     title: "CEAS",
     subtitle: "Centre for East Asian Studies",
@@ -103,7 +113,7 @@ export const allCentres: Centre[] = [
     category: "Cultural",
   },
   {
-    id: 10,
+    id: 11,
     slug: "cedbec",
     title: "CEDBEC",
     subtitle: "Centre for Education Beyond Curriculum",
@@ -113,7 +123,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 11,
+    id: 12,
     slug: "cedric",
     title: "CEDRIC",
     subtitle: "Centre for Establishing, Developing, and Research in Incubation Centres",
@@ -123,7 +133,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 12,
+    id: 13,
     slug: "cfpr",
     title: "CFPR",
     subtitle: "Centre for Fiscal Policy Research",
@@ -133,7 +143,7 @@ export const allCentres: Centre[] = [
     category: "Research",
   },
   {
-    id: 13,
+    id: 14,
     slug: "cis",
     title: "CIS",
     subtitle: "Centre for International Studies",
@@ -143,7 +153,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 14,
+    id: 15,
     slug: "clgt",
     title: "CLGT",
     subtitle: "Centre for Leadership and Governance Transformation",
@@ -153,7 +163,7 @@ export const allCentres: Centre[] = [
     category: "Leadership",
   },
   {
-    id: 15,
+    id: 16,
     slug: "cmtp",
     title: "CMTP",
     subtitle: "Centre for Modern Technologies and Practices",
@@ -163,7 +173,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 16,
+    id: 17,
     slug: "cmrp",
     title: "CMRP",
     subtitle: "Centre for Management Research and Projects",
@@ -173,7 +183,7 @@ export const allCentres: Centre[] = [
     category: "Research",
   },
   {
-    id: 17,
+    id: 18,
     slug: "cpe",
     title: "CPE",
     subtitle: "Centre for Professional Excellence",
@@ -183,7 +193,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 18,
+    id: 19,
     slug: "cpfa",
     title: "CPFA",
     subtitle: "Centre for Professional Fine Arts",
@@ -193,7 +203,7 @@ export const allCentres: Centre[] = [
     category: "Cultural",
   },
   {
-    id: 19,
+    id: 20,
     slug: "cpsa",
     title: "CPSA",
     subtitle: "Centre for Professional Skills and Activities",
@@ -203,7 +213,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 20,
+    id: 21,
     slug: "crcdc",
     title: "CRCDC",
     subtitle: "Centre for Resource & Curriculum Development for Communication",
@@ -213,7 +223,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 21,
+    id: 22,
     slug: "crsl",
     title: "CRSL",
     subtitle: "Centre for Research in Social Innovation and Leadership",
@@ -223,7 +233,7 @@ export const allCentres: Centre[] = [
     category: "Social",
   },
   {
-    id: 22,
+    id: 23,
     slug: "csa",
     title: "CSA",
     subtitle: "Centre for Social Action",
@@ -233,7 +243,7 @@ export const allCentres: Centre[] = [
     category: "Social",
   },
   {
-    id: 23,
+    id: 24,
     slug: "csed",
     title: "CSED",
     subtitle: "Centre for Software Engineering and Development",
@@ -243,7 +253,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 24,
+    id: 25,
     slug: "ctit",
     title: "CTIT",
     subtitle: "Centre for Technology in Teaching and Testing",
@@ -253,7 +263,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 25,
+    id: 26,
     slug: "ctil",
     title: "CTIL",
     subtitle: "Centre for Technology Innovation Lab",
@@ -263,7 +273,7 @@ export const allCentres: Centre[] = [
     category: "Innovation",
   },
   {
-    id: 26,
+    id: 27,
     slug: "ctms",
     title: "CTMS",
     subtitle: "Centre for Test Management and Standardization",
@@ -273,7 +283,7 @@ export const allCentres: Centre[] = [
     category: "Academic",
   },
   {
-    id: 27,
+    id: 28,
     slug: "cwe",
     title: "CWE",
     subtitle: "Centre for Wellness Education",
@@ -283,7 +293,7 @@ export const allCentres: Centre[] = [
     category: "Student support",
   },
   {
-    id: 28,
+    id: 29,
     slug: "cwsr",
     title: "CWSR",
     subtitle: "Centre for Women's Studies and Research",
@@ -293,7 +303,7 @@ export const allCentres: Centre[] = [
     category: "Research",
   },
   {
-    id: 29,
+    id: 30,
     slug: "ichr",
     title: "ICHR",
     subtitle: "ICHR Chair on Gandhi Studies",
@@ -303,7 +313,7 @@ export const allCentres: Centre[] = [
     category: "Research",
   },
   {
-    id: 30,
+    id: 31,
     slug: "sports",
     title: "Sports and Games",
     subtitle: "Centre for Sports Excellence",

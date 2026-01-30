@@ -30,6 +30,8 @@ import {
   DynamicTextList,
 } from "@/app/_components/UI/FormElements";
 
+import { DynamicCustomFieldBuilder, CustomField } from "@/app/_components/UI/DynamicCustomFieldBuilder";
+
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "@/app/_components/UI/LoadingIndicator";
 
@@ -1469,6 +1471,22 @@ export default function EventForm({
                   register={register}
                   errors={errors}
                 />
+
+                {/* Custom Fields Section */}
+                <div className="mt-6 p-4 sm:p-6 bg-[#f5f8fe] rounded-xl border border-[#e0e7f1]">
+                  <Controller
+                    name="customFields"
+                    control={control}
+                    render={({ field }) => (
+                      <DynamicCustomFieldBuilder
+                        fields={(field.value as CustomField[]) || []}
+                        onChange={(newFields) => field.onChange(newFields)}
+                        maxFields={10}
+                      />
+                    )}
+                  />
+                </div>
+
                 <div className="flex flex-col-reverse sm:flex-row items-center justify-end space-y-3 space-y-reverse sm:space-y-0 sm:space-x-4 mt-8 sm:mt-10">
                   <button
                     type="button"
