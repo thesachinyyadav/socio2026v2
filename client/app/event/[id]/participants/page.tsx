@@ -379,10 +379,11 @@ export default function StudentsPage() {
           />
         </div>
 
-        {/* Desktop Table Header - Now scrollable for many custom fields */}
+        {/* Desktop Table - Single scrollable container for header and rows */}
         <div className="hidden md:block overflow-x-auto">
-          <div className={`grid gap-4 px-4 py-4 text-gray-500 font-medium border-b border-gray-200 min-w-max`}
-               style={{ gridTemplateColumns: `repeat(${5 + customFields.length}, minmax(120px, 1fr))` }}>
+          {/* Table Header */}
+          <div className={`grid gap-4 px-4 py-4 text-gray-500 font-medium border-b border-gray-200`}
+               style={{ gridTemplateColumns: `200px 120px 150px 150px 250px ${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}>
             <div>Name</div>
             <div>Register No.</div>
             <div>Course</div>
@@ -394,6 +395,44 @@ export default function StudentsPage() {
               </div>
             ))}
           </div>
+          
+          {/* Table Body */}
+          {!isDataLoading && !error && paginatedStudents.length > 0 && paginatedStudents.map((student: Student) => (
+            <div 
+              key={student.id}
+              className="grid gap-4 px-4 py-4 items-center border-b border-gray-200 hover:bg-gray-50 transition-colors"
+              style={{ gridTemplateColumns: `200px 120px 150px 150px 250px ${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}
+            >
+              <div className="font-medium truncate">
+                {student.name || "N/A"}
+              </div>
+              <div>{student.register_number || "N/A"}</div>
+              <div>{student.course || "N/A"}</div>
+              <div>{student.department || "N/A"}</div>
+              <div className="text-[#154CB3] truncate">
+                {student.email || "N/A"}
+              </div>
+              {customFields.map(field => {
+                const value = student.custom_field_responses?.[field.id];
+                return (
+                  <div key={field.id} className="truncate">
+                    {field.type === 'url' && value ? (
+                      <a 
+                        href={String(value)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[#154CB3] hover:underline"
+                      >
+                        {String(value)}
+                      </a>
+                    ) : (
+                      <span>{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         {isDataLoading ? (
@@ -421,112 +460,87 @@ export default function StudentsPage() {
           </div>
         ) : (
           <>
-            {paginatedStudents.length > 0 ? (
-              paginatedStudents.map((student: Student) => (
-                <div
-                  key={student.id}
-                  className="mb-4 md:mb-0 border rounded-lg md:rounded-none shadow-sm md:shadow-none md:border-0 md:border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  {/* Mobile Card View */}
-                  <div className="block md:hidden p-4">
-                    <div className="font-medium text-lg mb-2">
-                      {student.name || "N/A"}
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          Register No.
-                        </span>
-                        <span>{student.register_number || "N/A"}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          Course
-                        </span>
-                        <span>{student.course || "N/A"}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          Department
-                        </span>
-                        <span>{student.department || "N/A"}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          E-mail
-                        </span>
-                        <span className="text-[#154CB3] break-all">
-                          {student.email || "N/A"}
-                        </span>
-                      </div>
-                      {/* Custom Fields in Mobile View */}
-                      {customFields.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="text-sm font-medium text-[#154CB3] mb-2">Additional Information</div>
-                          {customFields.map(field => {
-                            const value = student.custom_field_responses?.[field.id];
-                            return (
-                              <div key={field.id} className="flex flex-col mb-2">
-                                <span className="text-gray-500 text-xs">{field.label}</span>
-                                {field.type === 'url' && value ? (
-                                  <a 
-                                    href={String(value)} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-[#154CB3] text-sm break-all hover:underline"
-                                  >
-                                    {String(value)}
-                                  </a>
-                                ) : (
-                                  <span className="text-sm break-all">{value !== undefined && value !== null ? String(value) : "N/A"}</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {/* Desktop Row View */}
-                  <div className="hidden md:block overflow-x-auto">
-                    <div 
-                      className="grid gap-4 px-4 py-4 items-center min-w-max"
-                      style={{ gridTemplateColumns: `repeat(${5 + customFields.length}, minmax(120px, 1fr))` }}
-                    >
-                      <div className="font-medium truncate">
+            {/* Mobile Card Views */}
+            <div className="md:hidden">
+              {paginatedStudents.length > 0 ? (
+                paginatedStudents.map((student: Student) => (
+                  <div
+                    key={student.id}
+                    className="mb-4 border rounded-lg shadow-sm border-gray-200"
+                  >
+                    <div className="p-4">
+                      <div className="font-medium text-lg mb-2">
                         {student.name || "N/A"}
                       </div>
-                      <div>{student.register_number || "N/A"}</div>
-                      <div>{student.course || "N/A"}</div>
-                      <div>{student.department || "N/A"}</div>
-                      <div className="text-[#154CB3] truncate">
-                        {student.email || "N/A"}
-                      </div>
-                      {customFields.map(field => {
-                        const value = student.custom_field_responses?.[field.id];
-                        return (
-                          <div key={field.id} className="truncate">
-                            {field.type === 'url' && value ? (
-                              <a 
-                                href={String(value)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-[#154CB3] hover:underline"
-                              >
-                                {String(value)}
-                              </a>
-                            ) : (
-                              <span>{value !== undefined && value !== null ? String(value) : "N/A"}</span>
-                            )}
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            Register No.
+                          </span>
+                          <span>{student.register_number || "N/A"}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            Course
+                          </span>
+                          <span>{student.course || "N/A"}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            Department
+                          </span>
+                          <span>{student.department || "N/A"}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            E-mail
+                          </span>
+                          <span className="text-[#154CB3] break-all">
+                            {student.email || "N/A"}
+                          </span>
+                        </div>
+                        {/* Custom Fields in Mobile View */}
+                        {customFields.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="text-sm font-medium text-[#154CB3] mb-2">Additional Information</div>
+                            {customFields.map(field => {
+                              const value = student.custom_field_responses?.[field.id];
+                              return (
+                                <div key={field.id} className="flex flex-col mb-2">
+                                  <span className="text-gray-500 text-xs">{field.label}</span>
+                                  {field.type === 'url' && value ? (
+                                    <a 
+                                      href={String(value)} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-[#154CB3] text-sm break-all hover:underline"
+                                    >
+                                      {String(value)}
+                                    </a>
+                                  ) : (
+                                    <span className="text-sm break-all">{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        )}
+                      </div>
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="flex justify-center items-center h-32 text-gray-500">
+                  {searchQuery
+                    ? "No participants found matching your search criteria."
+                    : "No participants registered for this event yet."}
                 </div>
-              ))
-            ) : (
-              <div className="flex justify-center items-center h-32 text-gray-500">
+              )}
+            </div>
+
+            {/* Desktop - Empty state only */}
+            {paginatedStudents.length === 0 && (
+              <div className="hidden md:flex justify-center items-center h-32 text-gray-500">
                 {searchQuery
                   ? "No participants found matching your search criteria."
                   : "No participants registered for this event yet."}
