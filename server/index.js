@@ -45,7 +45,8 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'SOCIO API Server',
     status: 'running',
-    version: '2.0',
+    version: '2.0.1',
+    timestamp: new Date().toISOString(),
     endpoints: {
       users: '/api/users',
       events: '/api/events',
