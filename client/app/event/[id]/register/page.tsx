@@ -85,19 +85,36 @@ const Page = () => {
     if (allEvents.length > 0) {
       const foundEvent = allEvents.find((e) => e.event_id === eventId);
       if (foundEvent) {
-        // Parse custom_fields if it's a JSON string (Supabase may return it as string)
-        let parsedCustomFields = foundEvent.custom_fields;
-        if (typeof parsedCustomFields === 'string') {
+        // Parse custom_fields - handle all possible formats
+        let parsedCustomFields: any[] = [];
+        const rawCustomFields = foundEvent.custom_fields;
+        
+        // Handle JSON string
+        if (typeof rawCustomFields === 'string' && rawCustomFields.trim() !== '') {
           try {
-            parsedCustomFields = JSON.parse(parsedCustomFields);
-          } catch {
-            parsedCustomFields = null;
+            const parsed = JSON.parse(rawCustomFields);
+            if (Array.isArray(parsed)) {
+              parsedCustomFields = parsed;
+            }
+          } catch (e) {
+            console.warn('Failed to parse custom_fields JSON:', e);
+            parsedCustomFields = [];
           }
+        } 
+        // Handle array directly
+        else if (Array.isArray(rawCustomFields)) {
+          parsedCustomFields = rawCustomFields;
         }
-        // Ensure it's an array
-        if (!Array.isArray(parsedCustomFields)) {
-          parsedCustomFields = null;
-        }
+        
+        // Debug log to help troubleshoot
+        console.log('🔍 Custom Fields Debug:', {
+          eventId: foundEvent.event_id,
+          rawCustomFields,
+          parsedCustomFields,
+          rawType: typeof rawCustomFields,
+          isArray: Array.isArray(rawCustomFields),
+          fieldCount: parsedCustomFields.length
+        });
         
         setSelectedEvent({
           ...foundEvent,
@@ -777,18 +794,51 @@ const Page = () => {
             ))}
 
             {/* Custom Fields Section - Additional fields created by event organiser */}
-            {selectedEvent?.custom_fields && (selectedEvent.custom_fields as CustomField[]).length > 0 && (
-              <div className="mt-6 sm:mt-8 border-t border-gray-200 pt-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-lg font-bold text-[#063168]">Additional Information</h3>
-                  <span className="text-xs bg-[#154CB3]/10 text-[#154CB3] px-2 py-1 rounded-full font-medium">
-                    From Organiser
+            {Array.isArray(selectedEvent?.custom_fields) && selectedEvent.custom_fields.length > 0 && (
+              <div className="mt-8 sm:mt-10">
+                {/* Section Divider */}
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t-2 border-dashed border-[#154CB3]/20"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-4 text-sm font-medium text-[#154CB3]">
+                      Additional Information Required
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#154CB3] to-[#063168] flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-[#063168]">Additional Details</h3>
+                      <p className="text-xs text-gray-500">Requested by the event organiser</p>
+                    </div>
+                  </div>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full font-medium border border-amber-200 w-fit">
+                    {selectedEvent.custom_fields.length} {selectedEvent.custom_fields.length === 1 ? 'Field' : 'Fields'}
                   </span>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">
-                  The event organiser has requested the following additional details from participants.
-                </p>
-                <div className="space-y-4 bg-[#F8FAFC] rounded-lg p-4 border border-gray-200">
+                
+                {/* Info Banner */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 flex items-start gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-blue-800">
+                    The event organiser requires the following additional information from all participants. 
+                    Fields marked with <span className="text-red-500 font-bold">*</span> are mandatory.
+                  </p>
+                </div>
+                
+                {/* Custom Fields Container */}
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-[#EEF2FF] rounded-xl p-5 sm:p-6 border-2 border-[#154CB3]/10 shadow-sm">
                   <CustomFieldRenderer
                     fields={selectedEvent.custom_fields as CustomField[]}
                     values={customFieldResponses}
