@@ -316,7 +316,7 @@ router.post("/", async (req, res) => {
         email: authClientUser.email,
         name: name || "New User",
         avatar_url: avatarUrl,
-        is_organiser: organizationType === 'christ_member', // Only Christ members can be organisers
+        is_organiser: false, // Organisers are promoted by admin, not by default
         is_support: false,
         register_number: registerNumber,
         course: course,

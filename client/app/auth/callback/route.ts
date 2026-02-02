@@ -58,12 +58,25 @@ async function createUserInDatabase(user: any) {
       course: course
     };
 
-    // Fire and forget - don't wait for response to speed up redirect
-    fetch(`${API_URL}/api/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user: payload }),
-    }).catch(err => console.error("Background user creation error:", err));
+    // WAIT for user creation to ensure record is created before redirect
+    try {
+      const response = await fetch(`${API_URL}/api/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: payload }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("User creation failed:", response.status, errorData);
+      } else {
+        console.log(`✅ User record created/updated for: ${user.email}`);
+      }
+    } catch (err) {
+      console.error("User creation request error:", err);
+      // Don't throw - allow login to continue even if user record creation fails
+      // User will be created on next login attempt
+    }
     
   } catch (error) {
     console.error("Error preparing user data:", error);
