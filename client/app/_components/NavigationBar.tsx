@@ -6,9 +6,6 @@ import Logo from "@/app/logo.svg";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationSystem } from "./NotificationSystem";
 import { useState, useMemo, useCallback, memo } from "react";
-import TermsConsentModal from "./TermsConsentModal";
-import { useTermsConsent } from "@/context/TermsConsentContext";
-import { createBrowserClient } from "@supabase/ssr";
 
 // OPTIMIZATION: Move static data outside component to prevent recreation on every render
 const navigationLinks = [
@@ -54,21 +51,12 @@ function NavigationBar() {
   const { session, userData, isLoading, signInWithGoogle, signOut } = useAuth();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const { hasConsented, setHasConsented, checkConsentStatus } = useTermsConsent();
+  
 
   // OPTIMIZATION: Memoize callbacks to prevent recreation on every render
-  const handleSignIn = useCallback(async (isSignUpButton = false) => {
-    setIsSignUp(isSignUpButton);
-    
-    if (isSignUpButton && !checkConsentStatus()) {
-      setShowTermsModal(true);
-      return;
-    }
-    
+  const handleSignIn = useCallback(async () => {
     await signInWithGoogle();
-  }, [checkConsentStatus, signInWithGoogle]);
+  }, [signInWithGoogle]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -100,28 +88,8 @@ function NavigationBar() {
     return loadingView;
   }
 
-  const handleTermsAccept = async () => {
-    setHasConsented(true);
-    setShowTermsModal(false);
-    
-    // After accepting terms, trigger the sign in
-    await signInWithGoogle();
-  };
-  
-  const handleTermsDecline = () => {
-    setShowTermsModal(false);
-    // Reset isSignUp state
-    setIsSignUp(false);
-  };
-
   return (
     <>
-      {showTermsModal && (
-        <TermsConsentModal 
-          onAccept={handleTermsAccept}
-          onDecline={handleTermsDecline}
-        />
-      )}
       <nav className="w-full flex items-center pt-8 pb-7 px-6 md:px-12 text-[#154CB3] select-none relative">
         {/* Logo */}
         <div className="flex-shrink-0">
@@ -197,7 +165,12 @@ function NavigationBar() {
 
           {/* Auth Buttons */}
           <div className="flex gap-3 items-center">
-            {session && userData ? (
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-20 rounded-full bg-gray-200 animate-pulse" />
+                <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
+              </div>
+            ) : session && userData ? (
               userData.is_organiser || (userData as any).is_masteradmin ? (
                 <div className="flex gap-4 items-center">
                   <NotificationSystem />
@@ -267,20 +240,12 @@ function NavigationBar() {
                 </div>
               )
             ) : (
-              <>
-                <button
-                  onClick={() => handleSignIn(false)}
-                  className="cursor-pointer font-semibold px-4 py-2 border-2 rounded-full text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out"
-                >
-                  Log in
-                </button>
-                <button
-                  onClick={() => handleSignIn(true)}
-                  className="cursor-pointer font-semibold px-4 py-2 border-2 border-[#154CB3] hover:border-[#154cb3df] hover:bg-[#154cb3df] transition-all duration-200 ease-in-out text-sm rounded-full text-white bg-[#154CB3]"
-                >
-                  Sign up
-                </button>
-              </>
+              <button
+                onClick={handleSignIn}
+                className="cursor-pointer font-semibold px-4 py-2 border-2 border-[#154CB3] hover:border-[#154cb3df] hover:bg-[#154cb3df] transition-all duration-200 ease-in-out text-sm rounded-full text-white bg-[#154CB3]"
+              >
+                Log in / Sign up
+              </button>
             )}
           </div>
         </div>

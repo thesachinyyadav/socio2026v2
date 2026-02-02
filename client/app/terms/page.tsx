@@ -45,8 +45,8 @@ export default function TermsOfService() {
               </div>
               <p>
                 These Terms of Service ("Terms") govern your access to and use of Socio, a platform designed 
-                for university students to discover and engage with campus events and activities. By accessing 
-                or using Socio, you agree to be bound by these Terms. If you do not agree to these Terms, 
+                for university students to discover and engage with campus events and activities. By logging in, 
+                accessing, or using Socio, you agree to be bound by these Terms. If you do not agree to these Terms, 
                 please do not access or use Socio.
               </p>
             </div>

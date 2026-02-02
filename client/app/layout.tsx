@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { TermsConsentProvider } from "@/context/TermsConsentContext";
 import NavigationBar from "./_components/NavigationBar";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -212,15 +211,14 @@ export default async function RootLayout({
         className="font-sans antialiased bg-[#FFFFFF] text-[#101010] font-[DM_Sans] overflow-x-hidden"
       >
         <AuthProvider>
-          <TermsConsentProvider>
-            <EventsProvider
-              initialAllEvents={allEvents}
-              initialCarouselEvents={carouselEvents}
-              initialTrendingEvents={trendingEvents}
-              initialUpcomingEvents={upcomingEvents}
-              initialIsLoading={isLoading}
-              initialError={error}
-            >
+          <EventsProvider
+            initialAllEvents={allEvents}
+            initialCarouselEvents={carouselEvents}
+            initialTrendingEvents={trendingEvents}
+            initialUpcomingEvents={upcomingEvents}
+            initialIsLoading={isLoading}
+            initialError={error}
+          >
               <Toaster 
                 position="top-right"
                 toastOptions={{
@@ -249,8 +247,7 @@ export default async function RootLayout({
                 <NavigationBar />
                 {children}
               </div>
-            </EventsProvider>
-          </TermsConsentProvider>
+          </EventsProvider>
         </AuthProvider>
         <SpeedInsights />
         <Analytics />
