@@ -96,7 +96,6 @@ const CTA = () => {
         </a>
       </div>
     </div>
-      </div>
   );
 };
 
