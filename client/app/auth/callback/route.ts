@@ -58,25 +58,23 @@ async function createUserInDatabase(user: any) {
       course: course
     };
 
-    // WAIT for user creation to ensure record is created before redirect
-    try {
-      const response = await fetch(`${API_URL}/api/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: payload }),
+    // Send user creation request asynchronously - don't block redirect
+    fetch(`${API_URL}/api/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: payload }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error("User creation failed:", response.status, errorData);
+        } else {
+          console.log(`✅ User record created/updated for: ${user.email}`);
+        }
+      })
+      .catch(err => {
+        console.error("User creation request failed:", err);
       });
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error("User creation failed:", response.status, errorData);
-      } else {
-        console.log(`✅ User record created/updated for: ${user.email}`);
-      }
-    } catch (err) {
-      console.error("User creation request error:", err);
-      // Don't throw - allow login to continue even if user record creation fails
-      // User will be created on next login attempt
-    }
     
   } catch (error) {
     console.error("Error preparing user data:", error);
@@ -142,8 +140,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${APP_URL}/?error=auth_incomplete`);
     }
 
-    // Create/update user in database (fire and forget for speed)
-    createUserInDatabase(session.user);
+    // Create/update user in database asynchronously (don't wait to avoid slow redirects)
+    // If it fails, user will be created on next page load via AuthContext
+    createUserInDatabase(session.user).catch(err => 
+      console.error("Background user creation failed:", err)
+    );
 
     // Allow all Gmail users (both Christ members and outsiders)
     console.log(`Auth callback successful for: ${session.user.email}`);
