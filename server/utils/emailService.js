@@ -99,8 +99,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           </div>
           
           <p style="color: #94a3b8; font-size: 13px; margin: 0; text-align: center; line-height: 1.6;">
-            Need help? Visit our 
-            <a href="https://socio.christuniversity.in/support" style="color: #154CB3; text-decoration: none;">Support Center</a>
+            Need help? <a href="https://socio.christuniversity.in/support" style="color: #154CB3; text-decoration: none;">Contact our support</a>
           </p>
         </div>
         
@@ -138,7 +137,7 @@ Thank you for your patience and support! ❤️
 — With love, Team SOCIO
 ---
 
-Need help? Visit https://socio.christuniversity.in/support
+Need help? Contact our support: https://socio.christuniversity.in/support
 
 SOCIO Team
 https://socio.christuniversity.in
