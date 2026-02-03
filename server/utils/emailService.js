@@ -63,7 +63,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
             Welcome, ${firstName}
           </h2>
           <p style="color: #64748b; font-size: 15px; margin: 0 0 24px 0;">
-            Thank you for joining SOCIO.
+            Thank you for joining SOCIO <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">BETA</span>
           </p>
           
           <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 16px 0;">
@@ -109,7 +109,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
     const textContent = `
 Welcome, ${firstName}
 
-Thank you for joining SOCIO.
+Thank you for joining SOCIO (Beta).
 
 SOCIO is your gateway to campus events, club activities, and community experiences. Whether you're looking to discover events or organize your own, we're here to help you connect.
 
