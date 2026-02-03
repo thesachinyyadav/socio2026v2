@@ -87,14 +87,9 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
           
           <!-- Beta Disclaimer -->
-          <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 10px; padding: 20px; margin: 0 0 24px 0;">
-            <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6; text-align: center;">
-              <strong style="display: block; margin-bottom: 8px;">🚧 We're Still Building</strong>
-              SOCIO is currently in its development phase. We sincerely apologize if you encounter any technical hiccups along the way — we're working hard to make this better every day.
-            </p>
-            <p style="color: #b45309; font-size: 12px; margin: 12px 0 0 0; text-align: center; font-style: italic;">
-              Thank you for your patience and support! ❤️<br>
-              — With love, Team SOCIO
+          <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 10px; padding: 16px; margin: 0 0 24px 0;">
+            <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.5; text-align: center;">
+              <strong>We're still building!</strong> Pardon any hiccups — your patience means everything to us.
             </p>
           </div>
           
@@ -130,11 +125,7 @@ ${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — y
 Browse events: https://socio.christuniversity.in/Discover
 
 ---
-🚧 WE'RE STILL BUILDING
-SOCIO is currently in its development phase. We sincerely apologize if you encounter any technical hiccups along the way — we're working hard to make this better every day.
-
-Thank you for your patience and support! ❤️
-— With love, Team SOCIO
+We're still building! Pardon any hiccups — your patience means everything to us.
 ---
 
 Need help? Contact our support: https://socio.christuniversity.in/support
