@@ -89,7 +89,8 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           <!-- Beta Disclaimer -->
           <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 10px; padding: 16px; margin: 0 0 24px 0;">
             <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.5; text-align: center;">
-              <strong>We're still building!</strong> Sorry if something breaks — your patience means a lot.
+              Sorry if there is any technical glitch as we are in the development phase.<br>
+              <strong style="margin-top: 8px; display: inline-block;">— Team SOCIO</strong>
             </p>
           </div>
           
@@ -125,7 +126,8 @@ ${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — y
 Browse events: https://socio.christuniversity.in/Discover
 
 ---
-We're still building! Sorry if something breaks — your patience means a lot.
+Sorry if there is any technical glitch as we are in the development phase.
+— Team SOCIO
 ---
 
 Need help? Contact our support: https://socio.christuniversity.in/support
