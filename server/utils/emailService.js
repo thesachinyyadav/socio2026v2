@@ -86,14 +86,6 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
           
-          <!-- Beta Disclaimer -->
-          <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 10px; padding: 16px; margin: 0 0 24px 0;">
-            <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.5; text-align: center;">
-              Sorry if there is any technical glitch as we are in the development phase.<br>
-              <strong style="margin-top: 8px; display: inline-block;">— Team SOCIO</strong>
-            </p>
-          </div>
-          
           <p style="color: #94a3b8; font-size: 13px; margin: 0; text-align: center; line-height: 1.6;">
             Need help? <a href="https://socio.christuniversity.in/support" style="color: #154CB3; text-decoration: none;">Contact our support</a>
           </p>
@@ -124,11 +116,6 @@ SOCIO is your gateway to campus events, club activities, and community experienc
 ${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — you'll need it for event registrations.\n\nTip: Visit your profile to set your display name. This can only be done once.` : `You're all set! Discover events, register instantly, and get updates directly — no middlemen, no hassle.`}
 
 Browse events: https://socio.christuniversity.in/Discover
-
----
-Sorry if there is any technical glitch as we are in the development phase.
-— Team SOCIO
----
 
 Need help? Contact our support: https://socio.christuniversity.in/support
 
