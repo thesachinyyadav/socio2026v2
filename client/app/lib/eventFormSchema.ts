@@ -193,14 +193,14 @@ export const eventFormSchema = z
   )
   .refine(
     (data) => {
-      if (data.eventDate && data.registrationDeadline) {
-        // Registration deadline must be on or before the event date
-        return new Date(data.eventDate) >= new Date(data.registrationDeadline);
+      if (data.endDate && data.registrationDeadline) {
+        // Registration deadline must be on or before the event end date
+        return new Date(data.endDate) >= new Date(data.registrationDeadline);
       }
       return true;
     },
     {
-      message: "Registration deadline cannot be after the event start date",
+      message: "Registration deadline cannot be after the event end date",
       path: ["registrationDeadline"],
     }
   );

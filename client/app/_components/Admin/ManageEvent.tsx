@@ -825,6 +825,7 @@ export default function EventForm({
   }, [defaultValues, reset, isEditMode]);
 
   const watchedEventDate = useWatch({ control, name: "eventDate" });
+  const watchedEndDate = useWatch({ control, name: "endDate" });
 
   useEffect(() => {
     if (watchedEventDate && !isEditMode && watch("eventDate")) {
@@ -1309,8 +1310,8 @@ export default function EventForm({
                         required
                         placeholder="YYYY-MM-DD"
                         maxDate={
-                          watchedEventDate && parseYYYYMMDD(watchedEventDate)
-                            ? parseYYYYMMDD(watchedEventDate) || undefined
+                          watchedEndDate && parseYYYYMMDD(watchedEndDate)
+                            ? parseYYYYMMDD(watchedEndDate) || undefined
                             : undefined
                         }
                       />
