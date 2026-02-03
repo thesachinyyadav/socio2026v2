@@ -1308,7 +1308,6 @@ export default function EventForm({
                         error={fieldState.error}
                         required
                         placeholder="YYYY-MM-DD"
-                        minDate={new Date()}
                         maxDate={
                           watchedEventDate && parseYYYYMMDD(watchedEventDate)
                             ? parseYYYYMMDD(watchedEventDate) || undefined
