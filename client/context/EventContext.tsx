@@ -13,6 +13,7 @@ export interface EventForCard {
   tags: string[];
   image: string;
   organizing_dept: string;
+  allow_outsiders?: boolean | null;
 }
 
 export interface CarouselDisplayImage {

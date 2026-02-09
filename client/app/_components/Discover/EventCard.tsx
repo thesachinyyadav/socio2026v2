@@ -13,6 +13,7 @@ interface EventCardProps {
   location: string;
   tags: string[];
   image: string;
+  allowOutsiders?: boolean | null;
   baseUrl?: string;
   idForLink?: string;
 }
@@ -26,10 +27,14 @@ export const EventCard = ({
   location,
   tags,
   image,
+  allowOutsiders,
   baseUrl = "event",
   idForLink,
 }: EventCardProps) => {
   const { userData, isLoading: authLoading } = useAuth();
+
+  const isOutsiderUser = userData?.organization_type === "outsider";
+  const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
 
   const eventSlug = idForLink;
   // No longer generating slugs from title; always use the actual event_id
@@ -43,6 +48,13 @@ export const EventCard = ({
     <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transform transition duration-100 ease-in-out hover:scale-101 flex flex-col">
       <Link href={eventPageUrl} className="w-full block">
         <div className="relative h-40 bg-white">
+          {showOutsiderBadge && (
+            <div className="absolute top-2 left-2 z-10">
+              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#F59E0B] text-black shadow-sm">
+                Outsiders Allowed
+              </span>
+            </div>
+          )}
           {tags.length > 0 && (
             <div className="absolute top-2 right-2 flex gap-2 z-10 items-center flex-wrap justify-end">
               {(tags || []).map((tag, index) => {

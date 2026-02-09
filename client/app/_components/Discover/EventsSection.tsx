@@ -13,6 +13,7 @@ interface Event {
   location?: string;
   tags?: string[];
   image: string;
+  allow_outsiders?: boolean | null;
 }
 
 interface EventsSectionProps {
@@ -43,6 +44,7 @@ export const EventsSection = ({
             location={event.location || ""}
             tags={event.tags || []}
             image={event.image}
+            allowOutsiders={event.allow_outsiders}
             baseUrl={baseUrl}
             idForLink={event.event_id} // Add the event_id for link generation
           />
