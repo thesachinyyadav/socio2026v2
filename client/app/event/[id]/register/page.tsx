@@ -186,8 +186,12 @@ const Page = () => {
       } else {
         error = "This field is required";
       }
-    } else if (field === "registerNumber" && !/^\d{7}$/.test(trimmedValue)) {
-      error = "Register number must be exactly 7 digits";
+    } else if (field === "registerNumber") {
+      const isRegisterNumber = /^\d{7}$/.test(trimmedValue);
+      const isVisitorId = /^VIS[A-Z0-9]+$/i.test(trimmedValue);
+      if (!isRegisterNumber && !isVisitorId) {
+        error = "Register number must be 7 digits or a valid Visitor ID (VIS...)";
+      }
     } else if (
       field === "email" &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)

@@ -386,14 +386,6 @@ const StudentProfile = () => {
                           </p>
                         )}
                       </div>
-                      {(userData as any).is_masteradmin && (
-                        <a
-                          href="/masteradmin"
-                          className="mt-3 block text-sm text-red-600 hover:text-red-700 font-medium hover:underline"
-                        >
-                          Master Admin Panel →
-                        </a>
-                      )}
                     </div>
                   )}
                 </div>

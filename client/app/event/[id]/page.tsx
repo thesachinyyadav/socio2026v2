@@ -514,6 +514,10 @@ export default function Page() {
     return { text: "Register", disabled: false };
   };
   const buttonState = getButtonTextAndProps();
+  const showOutsiderBadge =
+    !authIsLoading &&
+    userData?.organization_type === "outsider" &&
+    Boolean(eventData?.allow_outsiders);
 
   if (pageLoading || (authIsLoading && !eventData)) {
     return (
@@ -648,8 +652,13 @@ export default function Page() {
         ></div>
         <div className="absolute inset-0 flex flex-col-reverse sm:flex-row justify-between p-4 sm:p-10 sm:px-12 items-end z-[2]">
           <div className="flex flex-col w-full sm:w-auto mt-4 sm:mt-0 sm:text-left">
-            {eventData.tags && eventData.tags.length > 0 && (
+            {(eventData.tags && eventData.tags.length > 0) || showOutsiderBadge ? (
               <div className="flex flex-wrap gap-2 mb-2 items-center sm:justify-start">
+                {showOutsiderBadge && (
+                  <p className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-[#F59E0B] text-black">
+                    External
+                  </p>
+                )}
                 {(eventData.tags || []).map((tag, index) => {
                   const titleTag = tag
                     .split(" ")
@@ -674,7 +683,7 @@ export default function Page() {
                   );
                 })}
               </div>
-            )}
+            ) : null}
             <h1 className="text-[1.3rem] sm:text-[2.1rem] font-bold text-white m-0">
               {eventData.title}
             </h1>
