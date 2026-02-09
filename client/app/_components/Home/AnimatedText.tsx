@@ -164,10 +164,10 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
             backgroundImage: 'linear-gradient(45deg, #063168, #2E63A8, #C58A00, #2E63A8, #063168)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
             color: '#063168',
             backgroundSize: '300% 100%',
-            animation: 'gradient-flow 8s ease infinite',
-            textShadow: '0 2px 8px rgba(6, 49, 104, 0.25)'
+            animation: 'gradient-flow 8s ease infinite'
           }}
         >
           {splitText("CONNECT • DISCOVER • EXPERIENCE")}
