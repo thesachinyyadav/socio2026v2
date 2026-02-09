@@ -5,6 +5,7 @@ import Image from "next/image";
 import Logo from "@/app/logo.svg";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationSystem } from "./NotificationSystem";
+import TermsConsentModal from "./TermsConsentModal";
 import { useState, useMemo, useCallback, memo } from "react";
 
 // OPTIMIZATION: Move static data outside component to prevent recreation on every render
@@ -52,6 +53,7 @@ function NavigationBar() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   
 
   // OPTIMIZATION: Memoize callbacks to prevent recreation on every render
@@ -68,6 +70,12 @@ function NavigationBar() {
   const handleSignOut = useCallback(async () => {
     await signOut();
   }, [signOut]);
+
+  const handleSignUpClick = useCallback(() => {
+    if (!isSigningIn) {
+      setShowTermsModal(true);
+    }
+  }, [isSigningIn]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -251,14 +259,14 @@ function NavigationBar() {
                 <button
                   onClick={handleSignIn}
                   disabled={isSigningIn}
-                  className="cursor-pointer font-medium px-4 py-2 border-2 border-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-200 ease-in-out text-sm rounded-lg text-[#154CB3] bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="cursor-pointer font-medium px-4 py-2 border-2 border-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-200 ease-in-out text-sm rounded-full text-[#154CB3] bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Log in
                 </button>
                 <button
-                  onClick={handleSignIn}
+                  onClick={handleSignUpClick}
                   disabled={isSigningIn}
-                  className="cursor-pointer font-semibold px-5 py-2 border-2 border-[#154CB3] bg-[#154CB3] hover:bg-[#0d3a8a] hover:border-[#0d3a8a] transition-all duration-200 ease-in-out text-sm rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="cursor-pointer font-semibold px-5 py-2 border-2 border-[#154CB3] bg-[#154CB3] hover:bg-[#0d3a8a] hover:border-[#0d3a8a] transition-all duration-200 ease-in-out text-sm rounded-full text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSigningIn ? (
                     <>
@@ -278,6 +286,15 @@ function NavigationBar() {
         </div>
       </nav>
       <hr className="border-[#3030304b]" />
+      {showTermsModal && (
+        <TermsConsentModal
+          onAccept={() => {
+            setShowTermsModal(false);
+            handleSignIn();
+          }}
+          onDecline={() => setShowTermsModal(false)}
+        />
+      )}
     </>
   );
 }

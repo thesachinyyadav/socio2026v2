@@ -7,6 +7,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "react-hot-toast";
 import { unstable_cache } from "next/cache";
+import ClientInit from "./_components/ClientInit";
 
 import {
   EventsProvider,
@@ -71,8 +72,9 @@ const transformToCarouselImage = (
   return {
     id: event.id,
     src:
-      event.banner_url ||
+      <html lang="en">
       event.event_image_url ||
+          <ClientInit />
       "https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner",
     link: `/event/${event.event_id}`,
     title: event.title,
