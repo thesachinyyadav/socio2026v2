@@ -95,16 +95,16 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
   return (
     <div 
       ref={textRef} 
-      className={`animated-text-container py-8 sm:py-10 md:py-12 ${className} relative`}
+      className={`animated-text-container py-8 sm:py-10 md:py-12 ${className} relative z-20`}
       style={{
         perspective: '1000px',
         marginTop: '-1rem',
         width: '100%',
-        overflow: 'hidden'
+        overflow: 'visible'
       }}
     >
       {/* Background elements */}
-      <div className="absolute inset-0 opacity-10">
+      <div className="absolute inset-0 opacity-10 pointer-events-none z-0">
         <div className="absolute top-0 left-0 w-full h-full">
           <img 
             src="/images/animated-dots.svg" 
@@ -116,7 +116,7 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
       </div>
       
       {/* Floating graphics */}
-      <div className="absolute top-1/4 left-1/6 w-24 h-24 md:w-32 md:h-32">
+      <div className="absolute top-1/4 left-1/6 w-24 h-24 md:w-32 md:h-32 pointer-events-none z-0">
         <img 
           src="/images/blob.svg" 
           alt="" 
@@ -127,7 +127,7 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
           }}
         />
       </div>
-      <div className="absolute bottom-1/4 right-1/6 w-24 h-24 md:w-32 md:h-32">
+      <div className="absolute bottom-1/4 right-1/6 w-24 h-24 md:w-32 md:h-32 pointer-events-none z-0">
         <img 
           src="/images/blob.svg" 
           alt="" 
@@ -141,7 +141,7 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
       </div>
       
       {/* Icon elements */}
-      <div className="absolute top-1/2 left-[15%] transform -translate-y-1/2 hidden md:block">
+      <div className="absolute top-1/2 left-[15%] transform -translate-y-1/2 hidden md:block pointer-events-none z-0">
         <div className="opacity-30 animate-bounce" style={{ animationDuration: '3s' }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#154CB3" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
             <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
@@ -149,7 +149,7 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
           </svg>
         </div>
       </div>
-      <div className="absolute top-1/2 right-[15%] transform -translate-y-1/2 hidden md:block">
+      <div className="absolute top-1/2 right-[15%] transform -translate-y-1/2 hidden md:block pointer-events-none z-0">
         <div className="opacity-30 animate-bounce" style={{ animationDuration: '4s', animationDelay: '1s' }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#FFCC00" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 19v-7M12 19v-7M16 19v-7M3 7h18M5 7l1-5h12l1 5"></path>
@@ -161,11 +161,9 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
         <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 inline-block animated-heading shine" 
           id="animated-text"
           style={{ 
-            backgroundImage: 'linear-gradient(45deg, #063168, #2E63A8, #C58A00, #2E63A8, #063168)',
+            backgroundImage: 'linear-gradient(45deg, #063168, #3D75BD, #FFCC00, #3D75BD, #063168)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            color: '#063168',
             backgroundSize: '300% 100%',
             animation: 'gradient-flow 8s ease infinite'
           }}

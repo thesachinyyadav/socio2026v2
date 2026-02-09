@@ -35,10 +35,12 @@ export default function Home() {
     <main className="w-full">
       <div className="section relative z-10">
         <Hero />
-        <div className="absolute bottom-0 left-0 w-full">
+        <div className="absolute bottom-0 left-0 w-full z-0 pointer-events-none">
           <img src="/images/hero-wave.svg" className="w-full" alt="" />
         </div>
-        <AnimatedText />
+        <div className="relative z-20">
+          <AnimatedText />
+        </div>
       </div>
       <div className="section relative z-10">
         <Features />
