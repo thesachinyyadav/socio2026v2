@@ -189,8 +189,9 @@ const Page = () => {
     } else if (field === "registerNumber") {
       const isRegisterNumber = /^\d{7}$/.test(trimmedValue);
       const isVisitorId = /^VIS[A-Z0-9]+$/i.test(trimmedValue);
-      if (!isRegisterNumber && !isVisitorId) {
-        error = "Register number must be 7 digits or a valid Visitor ID (VIS...)";
+      const isStaffId = /^STF[A-Z0-9]+$/i.test(trimmedValue);
+      if (!isRegisterNumber && !isVisitorId && !isStaffId) {
+        error = "Register number must be 7 digits or a valid Visitor/Staff ID (VIS.../STF...)";
       }
     } else if (
       field === "email" &&
@@ -744,7 +745,7 @@ const Page = () => {
                       } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent ${
                         index === 0 ? "bg-gray-100 cursor-not-allowed" : ""
                       }`}
-                      placeholder="Enter 7-digit register number..."
+                      placeholder="Enter register number or VIS/STF ID..."
                       disabled={index === 0}
                     />
                     {errors.teammates[index]?.registerNumber && (

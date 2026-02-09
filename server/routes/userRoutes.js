@@ -146,12 +146,27 @@ function generateVisitorId() {
   return `VIS${timestamp.slice(-4)}${random}`; // e.g., VIS1A2BXYZ
 }
 
+// Helper function to generate unique staff ID
+function generateStaffId() {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+  return `STF${timestamp.slice(-4)}${random}`;
+}
+
 // Helper function to determine organization type from email
 function getOrganizationType(email) {
   if (!email) return 'outsider';
   const lowerEmail = email.toLowerCase();
-  // Match both @christuniversity.in and subdomains like @law.christuniversity.in
-  return lowerEmail.endsWith('christuniversity.in') ? 'christ_member' : 'outsider';
+  const domain = lowerEmail.split('@')[1] || '';
+  if (domain.endsWith('christuniversity.in')) return 'christ_member';
+  return 'outsider';
+}
+
+function isStaffDomain(email) {
+  if (!email) return false;
+  const lowerEmail = email.toLowerCase();
+  const domain = lowerEmail.split('@')[1] || '';
+  return domain === 'christuniversity.in';
 }
 
 router.post("/", async (req, res) => {
@@ -165,6 +180,7 @@ router.post("/", async (req, res) => {
 
     // Determine organization type from email
     const organizationType = getOrganizationType(authClientUser.email);
+    const isStaffEmail = isStaffDomain(authClientUser.email);
     
     console.log(`📧 User login: ${authClientUser.email} | Organization: ${organizationType}`);
     
@@ -208,8 +224,7 @@ router.post("/", async (req, res) => {
       if (!existingUser.organization_type) {
         updateData.organization_type = organizationType;
         
-        // Only generate visitor_id for NEW outsiders (those without organization_type)
-        // This prevents overwriting existing Christ members
+        // Only generate IDs for new outsiders (those without organization_type)
         if (organizationType === 'outsider') {
           const visitorId = generateVisitorId();
           updateData.visitor_id = visitorId;
@@ -224,6 +239,17 @@ router.post("/", async (req, res) => {
         if (!existingUser.register_number || existingUser.register_number === '0') {
           updateData.register_number = visitorId;
         }
+      }
+
+      // If staff-domain user is missing a register_number, generate STF under christ_member
+      if (isStaffEmail && existingUser.organization_type !== 'outsider' && (!existingUser.register_number || existingUser.register_number === '0')) {
+        const staffId = generateStaffId();
+        updateData.register_number = staffId;
+      }
+
+      // Auto-grant organiser access for all users
+      if (!existingUser.is_organiser) {
+        updateData.is_organiser = true;
       }
       
       // Update user if needed
@@ -265,6 +291,11 @@ router.post("/", async (req, res) => {
       course = null; // Outsiders don't have a course
       
       console.log(`Generated visitor ID for outsider: ${visitorId}`);
+    } else if (isStaffEmail) {
+      const staffId = generateStaffId();
+      registerNumber = staffId;
+      course = null;
+      console.log(`Generated staff ID: ${staffId}`);
     } else {
       // Christ member - extract registration number from name if not provided
       if (!registerNumber && name) {
@@ -316,7 +347,7 @@ router.post("/", async (req, res) => {
         email: authClientUser.email,
         name: name || "New User",
         avatar_url: avatarUrl,
-        is_organiser: false, // Organisers are promoted by admin, not by default
+        is_organiser: true, // All users get organiser access by default
         is_support: false,
         register_number: registerNumber,
         course: course,

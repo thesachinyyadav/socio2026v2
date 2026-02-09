@@ -51,7 +51,7 @@ export const EventCard = ({
           {showOutsiderBadge && (
             <div className="absolute top-2 left-2 z-10">
               <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#F59E0B] text-black shadow-sm">
-                External
+                PUBLIC
               </span>
             </div>
           )}

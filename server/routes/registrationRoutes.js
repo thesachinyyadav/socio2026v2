@@ -168,7 +168,7 @@ router.post("/register", async (req, res) => {
         : team_leader_register_number;
     }
     
-    // Check if register number is a visitor ID (starts with VIS) - case-insensitive
+    // Check if register number is a visitor ID - case-insensitive
     if (registerNumber && String(registerNumber).toUpperCase().startsWith('VIS')) {
       participantOrganization = 'outsider';
       console.log('🌍 Outsider registration detected (by register number):', registerNumber);

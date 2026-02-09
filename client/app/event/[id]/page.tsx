@@ -423,10 +423,10 @@ export default function Page() {
           ];
         } else {
           const regNumStr = String(userData.register_number);
-          if (!/^\d{7}$/.test(regNumStr)) {
+          if (!/^(?:\d{7}|STF[A-Z0-9]+)$/i.test(regNumStr)) {
             setIsRegistering(false);
             setRegistrationApiError(
-              "Invalid registration number in your profile. It must be 7 digits."
+              "Invalid registration number in your profile. It must be 7 digits or a valid STF ID."
             );
             return;
           }
@@ -656,7 +656,7 @@ export default function Page() {
               <div className="flex flex-wrap gap-2 mb-2 items-center sm:justify-start">
                 {showOutsiderBadge && (
                   <p className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-[#F59E0B] text-black">
-                    External
+                    PUBLIC
                   </p>
                 )}
                 {(eventData.tags || []).map((tag, index) => {

@@ -8,7 +8,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Helper to determine organization type
 const getOrganizationType = (email: string): 'christ_member' | 'outsider' => {
-  return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+  const lowerEmail = email.toLowerCase();
+  const domain = lowerEmail.split('@')[1] || "";
+  if (domain.endsWith('christuniversity.in')) return 'christ_member';
+  return 'outsider';
 };
 
 // Create or update user in database (server-side for speed)
