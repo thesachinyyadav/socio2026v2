@@ -161,11 +161,13 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
         <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 inline-block animated-heading shine" 
           id="animated-text"
           style={{ 
-            backgroundImage: 'linear-gradient(45deg, #063168, #3D75BD, #FFCC00, #3D75BD, #063168)',
+            backgroundImage: 'linear-gradient(45deg, #063168, #2E63A8, #C58A00, #2E63A8, #063168)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
+            color: '#063168',
             backgroundSize: '300% 100%',
-            animation: 'gradient-flow 8s ease infinite'
+            animation: 'gradient-flow 8s ease infinite',
+            textShadow: '0 2px 8px rgba(6, 49, 104, 0.25)'
           }}
         >
           {splitText("CONNECT • DISCOVER • EXPERIENCE")}

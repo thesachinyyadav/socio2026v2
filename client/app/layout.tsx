@@ -3,8 +3,6 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import NavigationBar from "./_components/NavigationBar";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "react-hot-toast";
 import { unstable_cache } from "next/cache";
 import ClientInit from "./_components/ClientInit";
@@ -251,8 +249,6 @@ export default async function RootLayout({
               </div>
           </EventsProvider>
         </AuthProvider>
-        <SpeedInsights />
-        <Analytics />
       </body>
     </html>
   );
