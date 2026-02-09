@@ -38,7 +38,7 @@ function AttendanceContent() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-[#063168] text-white p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-4 mb-4">
             <a
               href="/manage"
               className="flex items-center text-[#FFCC00] hover:underline"
@@ -58,6 +58,12 @@ function AttendanceContent() {
                 />
               </svg>
               Back to Dashboard
+            </a>
+            <a
+              href={`/event/${eventId}/participants`}
+              className="flex items-center text-white/90 hover:underline"
+            >
+              View Participants
             </a>
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">

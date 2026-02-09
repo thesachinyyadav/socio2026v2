@@ -15,6 +15,7 @@ interface CustomField {
 
 interface Student {
   id: number;
+  registration_id?: string;
   name: string;
   register_number: string;
   course?: string;
@@ -22,6 +23,7 @@ interface Student {
   email: string;
   created_at?: string;
   custom_field_responses?: Record<string, string | number>;
+  attendance_status?: string;
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -33,6 +35,8 @@ export default function StudentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eventTitle, setEventTitle] = useState<string>("");
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({});
 
   const params = useParams();
   const event_id = params?.id as string;
@@ -56,16 +60,18 @@ export default function StudentsPage() {
           throw new Error("API endpoint is not configured.");
         }
         
-        // Fetch both event details (for custom fields) and registrations in parallel
-        const [eventResponse, registrationsResponse] = await Promise.all([
+        // Fetch event details, registrations, and attendance status in parallel
+        const [eventResponse, registrationsResponse, attendanceResponse] = await Promise.all([
           fetch(`${apiBaseUrl}/api/events/${event_id}`),
-          fetch(`${apiBaseUrl}/api/registrations?event_id=${event_id}`)
+          fetch(`${apiBaseUrl}/api/registrations?event_id=${event_id}`),
+          fetch(`${apiBaseUrl}/api/events/${event_id}/participants`)
         ]);
         
         // Parse event custom fields
         if (eventResponse.ok) {
           const eventData = await eventResponse.json();
           const event = eventData.event || eventData;
+          setEventTitle(event.title || "");
           let fields: CustomField[] = [];
           if (event.custom_fields) {
             if (typeof event.custom_fields === 'string') {
@@ -81,6 +87,19 @@ export default function StudentsPage() {
           setCustomFields(fields);
         }
         
+        // Build attendance map by registration_id
+        if (attendanceResponse.ok) {
+          const attendanceData = await attendanceResponse.json();
+          const map: Record<string, string> = {};
+          (attendanceData.participants || []).forEach((p: any) => {
+            const key = String(p.registration_id || p.id || "");
+            if (key) {
+              map[key] = p.attendance_status || "absent";
+            }
+          });
+          setAttendanceMap(map);
+        }
+
         if (!registrationsResponse.ok) {
           let errorMessage = `Error: ${registrationsResponse.status} ${registrationsResponse.statusText}`;
           try {
@@ -99,6 +118,7 @@ export default function StudentsPage() {
         const data = await registrationsResponse.json();
         const mappedStudents = (data.registrations || []).map((reg: any) => ({
           id: reg.registration_id || reg.id || 0,
+          registration_id: reg.registration_id || reg.id || "",
           name: reg.registration_type === 'individual' ? reg.individual_name : reg.team_leader_name || "",
           register_number: reg.registration_type === 'individual' ? reg.individual_register_number : reg.team_leader_register_number || "",
           course: reg.course || "",
@@ -106,6 +126,7 @@ export default function StudentsPage() {
           email: reg.registration_type === 'individual' ? reg.individual_email : reg.team_leader_email || "",
           created_at: reg.created_at || "",
           custom_field_responses: reg.custom_field_responses || {},
+          attendance_status: reg.attendance_status || "",
         }));
         setStudents(mappedStudents);
       } catch (err) {
@@ -177,7 +198,9 @@ export default function StudentsPage() {
         return value !== undefined && value !== null ? String(value) : "";
       });
       
-      const rowData = [...baseData, ...customFieldValues, ""];
+      const attendanceKey = String(student.registration_id || student.id || "");
+      const attendanceStatus = attendanceMap[attendanceKey] || student.attendance_status || "absent";
+      const rowData = [...baseData, ...customFieldValues, attendanceStatus];
       const row = worksheet.addRow(rowData);
 
       row.eachCell((cell, colNumber) => {
@@ -319,13 +342,21 @@ export default function StudentsPage() {
           <h1 className="text-xl md:text-2xl font-bold text-[#154CB3]">
             Participants ({students.length})
           </h1>
-          <button
-            onClick={handleGenerateExcel}
-            className="bg-[#154CB3] cursor-pointer text-white text-sm px-4 py-2 rounded-full font-medium hover:bg-[#063168] transition-colors focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isDataLoading || students.length === 0}
-          >
-            Generate excel sheet
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/attendance?eventId=${event_id}&eventTitle=${encodeURIComponent(eventTitle || "Event")}`}
+              className="bg-white text-[#154CB3] border border-[#154CB3] text-sm px-4 py-2 rounded-full font-medium hover:bg-[#154CB3] hover:text-white transition-colors"
+            >
+              Mark attendance
+            </Link>
+            <button
+              onClick={handleGenerateExcel}
+              className="bg-[#154CB3] cursor-pointer text-white text-sm px-4 py-2 rounded-full font-medium hover:bg-[#063168] transition-colors focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isDataLoading || students.length === 0}
+            >
+              Generate excel sheet
+            </button>
+          </div>
         </div>
 
         {/* Custom Fields Info Banner */}
