@@ -72,9 +72,8 @@ const transformToCarouselImage = (
   return {
     id: event.id,
     src:
-      <html lang="en">
+      event.banner_url ||
       event.event_image_url ||
-          <ClientInit />
       "https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner",
     link: `/event/${event.event_id}`,
     title: event.title,
@@ -212,6 +211,7 @@ export default async function RootLayout({
       <body
         className="font-sans antialiased bg-[#FFFFFF] text-[#101010] font-[DM_Sans] overflow-x-hidden"
       >
+        <ClientInit />
         <AuthProvider>
           <EventsProvider
             initialAllEvents={allEvents}
