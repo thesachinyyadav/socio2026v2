@@ -59,7 +59,12 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           setNotifications(newNotifications);
         }
         
-        setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
+        // Use server-provided unread count (accurate across all pages)
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount);
+        } else {
+          setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
+        }
         setHasMore(data.pagination?.hasMore || false);
         setCurrentPage(page);
       }
@@ -233,7 +238,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M15 17h5l-5 5v-5zM10.07 14C10.28 14 10.5 14.22 10.5 14.5s-.22.5-.5.5-.5-.22-.5-.5.22-.5.43-.5M12 3a7.5 7.5 0 0 1 7.5 7.5c0 .274-.014.543-.04.81L12 18.5 4.54 11.31c-.026-.267-.04-.536-.04-.81A7.5 7.5 0 0 1 12 3z"
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
           />
         </svg>
         {unreadCount > 0 && (
@@ -276,7 +281,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
               ) : notifications.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM10.07 14C10.28 14 10.5 14.22 10.5 14.5s-.22.5-.5.5-.5-.22-.5-.5.22-.5.43-.5M12 3a7.5 7.5 0 0 1 7.5 7.5c0 .274-.014.543-.04.81L12 18.5 4.54 11.31c-.026-.267-.04-.536-.04-.81A7.5 7.5 0 0 1 12 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                   <p>No notifications</p>
                 </div>

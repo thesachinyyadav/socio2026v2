@@ -40,8 +40,29 @@ router.get("/notifications", async (req, res) => {
 
     if (error) throw error;
 
+    // Get unread count (across all pages)
+    const { count: unreadCount, error: unreadError } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_email', email)
+      .eq('read', false);
+
+    // Map snake_case DB columns to camelCase for the client
+    const mapped = (notifications || []).map(n => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      eventId: n.event_id || null,
+      eventTitle: n.event_title || null,
+      read: n.read,
+      createdAt: n.created_at,
+      actionUrl: n.action_url || null,
+    }));
+
     return res.json({ 
-      notifications: notifications || [],
+      notifications: mapped,
+      unreadCount: unreadCount || 0,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -151,6 +172,31 @@ router.patch("/notifications/mark-read", async (req, res) => {
   } catch (error) {
     console.error("Error marking notifications as read:", error);
     return res.status(500).json({ error: "Failed to update notifications" });
+  }
+});
+
+// Delete a notification
+router.delete("/notifications/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    return res.json({ message: "Notification deleted" });
+
+  } catch (error) {
+    console.error("Error deleting notification:", error);
+    return res.status(500).json({ error: "Failed to delete notification" });
   }
 });
 
