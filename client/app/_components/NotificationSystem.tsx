@@ -94,7 +94,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
   // OPTIMIZATION: Memoize markAsRead with useCallback
   const markAsRead = useCallback(async (notificationId: string) => {
-    if (!session?.access_token) return;
+    if (!session?.access_token || !userData?.email) return;
 
     try {
       const response = await fetch(
@@ -104,7 +104,8 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json"
-          }
+          },
+          body: JSON.stringify({ email: userData.email })
         }
       );
 
@@ -119,7 +120,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, userData?.email]);
 
   // OPTIMIZATION: Memoize markAllAsRead with useCallback
   const markAllAsRead = useCallback(async () => {
@@ -186,8 +187,9 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     }
 
     try {
+      const emailParam = userData?.email ? `?email=${encodeURIComponent(userData.email)}` : '';
       await fetch(
-        `${API_URL}/api/notifications/${notificationId}`,
+        `${API_URL}/api/notifications/${notificationId}${emailParam}`,
         {
           method: "DELETE",
           headers: {
