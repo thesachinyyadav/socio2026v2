@@ -175,6 +175,34 @@ router.patch("/notifications/mark-read", async (req, res) => {
   }
 });
 
+// Delete ALL notifications for a user (clear all)
+router.delete("/notifications/clear-all", async (req, res) => {
+  try {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email parameter is required" });
+    }
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_email', email)
+      .select('id');
+
+    if (error) throw error;
+
+    return res.json({ 
+      message: `Cleared ${data?.length || 0} notifications`,
+      deleted: data?.length || 0
+    });
+
+  } catch (error) {
+    console.error("Error clearing notifications:", error);
+    return res.status(500).json({ error: "Failed to clear notifications" });
+  }
+});
+
 // Delete a notification
 router.delete("/notifications/:id", async (req, res) => {
   try {

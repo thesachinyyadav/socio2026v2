@@ -148,11 +148,45 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     }
   }, [session?.access_token, userData?.email]);
 
+  const clearAllNotifications = useCallback(async () => {
+    if (!session?.access_token || !userData?.email) return;
+
+    // Optimistically clear UI
+    setNotifications([]);
+    setUnreadCount(0);
+    setCurrentPage(1);
+    setTotalPages(1);
+    setHasMore(false);
+
+    try {
+      await fetch(
+        `${API_URL}/api/notifications/clear-all?email=${encodeURIComponent(userData.email)}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error clearing notifications:", error);
+      // Refetch on failure to restore
+      fetchNotifications();
+    }
+  }, [session?.access_token, userData?.email, fetchNotifications]);
+
   const deleteNotification = async (notificationId: string) => {
     if (!session?.access_token) return;
 
+    // Optimistically remove from UI immediately
+    const removedNotification = notifications.find(n => n.id === notificationId);
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    if (removedNotification && !removedNotification.read) {
+      setUnreadCount(count => Math.max(0, count - 1));
+    }
+
     try {
-      const response = await fetch(
+      await fetch(
         `${API_URL}/api/notifications/${notificationId}`,
         {
           method: "DELETE",
@@ -161,19 +195,10 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           },
         }
       );
-
-      if (response.ok) {
-        setNotifications(prev => {
-          const notification = prev.find(n => n.id === notificationId);
-          const newNotifications = prev.filter(n => n.id !== notificationId);
-          if (notification && !notification.read) {
-            setUnreadCount(count => Math.max(0, count - 1));
-          }
-          return newNotifications;
-        });
-      }
     } catch (error) {
       console.error("Error deleting notification:", error);
+      // Refetch on failure to restore
+      fetchNotifications();
     }
   };
 
@@ -274,22 +299,34 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-gray-100 z-20 max-h-[28rem] overflow-hidden flex flex-col">
             {/* Header */}
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/80">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
-                {unreadCount > 0 && (
-                  <span className="text-xs bg-[#154CB3] text-white px-2 py-0.5 rounded-full font-medium">
-                    {unreadCount}
-                  </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <span className="text-xs bg-[#154CB3] text-white px-2 py-0.5 rounded-full font-medium">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                {notifications.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-xs text-[#154CB3] hover:text-[#0e3a8a] font-medium transition-colors"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    <button
+                      onClick={clearAllNotifications}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
                 )}
               </div>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="text-xs text-[#154CB3] hover:text-[#0e3a8a] font-medium transition-colors"
-                >
-                  Mark all read
-                </button>
-              )}
             </div>
 
             {/* Notifications List */}
