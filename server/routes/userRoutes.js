@@ -247,8 +247,8 @@ router.post("/", async (req, res) => {
         updateData.register_number = staffId;
       }
 
-      // Auto-grant organiser access for all users
-      if (!existingUser.is_organiser) {
+      // Auto-grant organiser access ONLY for staff-domain users (e.g. sachin@christuniversity.in)
+      if (!existingUser.is_organiser && isStaffEmail) {
         updateData.is_organiser = true;
       }
       
@@ -347,7 +347,7 @@ router.post("/", async (req, res) => {
         email: authClientUser.email,
         name: name || "New User",
         avatar_url: avatarUrl,
-        is_organiser: true, // All users get organiser access by default
+        is_organiser: isStaffEmail, // Only staff-domain (@christuniversity.in) get organiser access
         is_support: false,
         register_number: registerNumber,
         course: course,

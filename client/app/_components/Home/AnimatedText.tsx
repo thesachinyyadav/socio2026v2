@@ -163,7 +163,9 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ className = "" }) => {
           style={{ 
             backgroundImage: 'linear-gradient(45deg, #063168, #3D75BD, #FFCC00, #3D75BD, #063168)',
             WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
+            color: 'transparent',
             backgroundSize: '300% 100%',
             animation: 'gradient-flow 8s ease infinite'
           }}

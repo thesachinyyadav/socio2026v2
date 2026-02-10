@@ -77,7 +77,7 @@
   background: linear-gradient(
     to right,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.3) 50%,
     rgba(255, 255, 255, 0) 100%
   );
   transform: rotate(25deg);
@@ -85,6 +85,7 @@
   z-index: 2;
   pointer-events: none;
   filter: blur(3px);
+  mix-blend-mode: overlay;
 }
 
 @keyframes shine {
