@@ -255,8 +255,8 @@ router.post(
 
       // Send notifications to all users about the new event (non-blocking)
       sendBroadcastNotification({
-        title: '🎉 New Event Published!',
-        message: `${title} - Check out this new event!`,
+        title: 'New Event Published',
+        message: `${title} — Check out this new event!`,
         type: 'info',
         event_id: event_id,
         event_title: title,
@@ -468,8 +468,12 @@ router.put(
         }
         
         try {
-          // Update notifications that reference this event (only update event_id, not action_url)
-          await update("notifications", { event_id: newEventId }, { event_id: eventId });
+          // Update notifications: event_id, event_title, and action_url so links stay valid
+          await update("notifications", { 
+            event_id: newEventId, 
+            event_title: title.trim(),
+            action_url: `/event/${newEventId}` 
+          }, { event_id: eventId });
           console.log(`Updated notifications from event_id '${eventId}' to '${newEventId}'`);
         } catch (notifError) {
           console.log(`No notifications to update or error: ${notifError.message}`);

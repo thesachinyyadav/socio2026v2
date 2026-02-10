@@ -194,8 +194,8 @@ router.post(
 
     // Send notifications to all users about the new fest (non-blocking)
     sendBroadcastNotification({
-      title: '🎊 New Fest Announced!',
-      message: `${festPayload.fest_title} - Don't miss this fest!`,
+      title: 'New Fest Announced',
+      message: `${festPayload.fest_title} — Don't miss this fest!`,
       type: 'info',
       event_id: fest_id,
       event_title: festPayload.fest_title,
@@ -316,8 +316,13 @@ router.put(
       }
       
       try {
-        // Update notifications that reference this fest (only update event_id)
-        await update("notifications", { event_id: newFestId }, { event_id: festId });
+        // Update notifications: event_id, event_title, and action_url so links stay valid
+        const updatedTitle = newTitle?.trim() || existingFest.fest_title;
+        await update("notifications", { 
+          event_id: newFestId, 
+          event_title: updatedTitle,
+          action_url: `/fest/${newFestId}` 
+        }, { event_id: festId });
         console.log(`Updated notifications from fest_id '${festId}' to '${newFestId}'`);
       } catch (notifError) {
         console.log(`No notifications to update or error: ${notifError.message}`);

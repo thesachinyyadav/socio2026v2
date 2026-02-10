@@ -31,6 +31,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const { userData, session } = useAuth();
 
   // OPTIMIZATION: Memoize fetchNotifications with useCallback
@@ -66,6 +67,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
         }
         setHasMore(data.pagination?.hasMore || false);
+        setTotalPages(data.pagination?.totalPages || 1);
         setCurrentPage(page);
       }
     } catch (error) {
@@ -180,8 +182,15 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       markAsRead(notification.id);
     }
     
+    setIsOpen(false);
+
     if (notification.actionUrl) {
       window.location.href = notification.actionUrl;
+    } else if (notification.eventId) {
+      // Fallback: navigate using eventId directly
+      // Check if it looks like a fest or event based on notification title
+      const isFest = notification.title?.toLowerCase().includes('fest');
+      window.location.href = isFest ? `/fest/${notification.eventId}` : `/event/${notification.eventId}`;
     }
   };
 
@@ -216,14 +225,18 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   };
 
   const formatRelativeTime = (dateString: string) => {
+    if (!dateString) return "";
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+    if (diffInSeconds < 0) return "Just now";
     if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hr ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   };
 
   return (
@@ -258,14 +271,21 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           />
           
           {/* Notification Panel */}
-          <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-20 max-h-96 overflow-hidden flex flex-col">
+          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-gray-100 z-20 max-h-[28rem] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/80">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
+                {unreadCount > 0 && (
+                  <span className="text-xs bg-[#154CB3] text-white px-2 py-0.5 rounded-full font-medium">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="text-sm text-[#154CB3] hover:underline"
+                  className="text-xs text-[#154CB3] hover:text-[#0e3a8a] font-medium transition-colors"
                 >
                   Mark all read
                 </button>
@@ -274,82 +294,89 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
             {/* Notifications List */}
             <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#154CB3]"></div>
+              {loading && notifications.length === 0 ? (
+                <div className="flex justify-center items-center py-10">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-200 border-t-[#154CB3]"></div>
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                <div className="text-center py-10 px-4">
+                  <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
-                  <p>No notifications</p>
+                  <p className="text-sm text-gray-400">No notifications yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100">
-                  {notifications.map((notification) => (
+                <div>
+                  {notifications.map((notification, index) => (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                        !notification.read ? "bg-blue-50" : ""
+                      className={`px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0 ${
+                        !notification.read ? "bg-blue-50/60 hover:bg-blue-50" : "hover:bg-gray-50"
                       }`}
                       onClick={() => handleNotificationClick(notification)}
                     >
-                      <div className="flex items-start space-x-3">
-                        {getNotificationIcon(notification.type)}
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5">
+                          {getNotificationIcon(notification.type)}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className={`text-sm font-medium ${
-                              !notification.read ? "text-gray-900" : "text-gray-600"
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-sm leading-snug ${
+                              !notification.read ? "font-semibold text-gray-900" : "font-medium text-gray-600"
                             }`}>
                               {notification.title}
                             </p>
-                            <div className="flex items-center space-x-2 ml-2">
-                              {!notification.read && (
-                                <div className="w-2 h-2 bg-[#154CB3] rounded-full"></div>
-                              )}
-                              <span className="text-xs text-gray-500 whitespace-nowrap">
-                                {formatRelativeTime(notification.createdAt)}
-                              </span>
-                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(notification.id);
+                              }}
+                              className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                          {notification.eventTitle && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Event: {notification.eventTitle}
-                            </p>
-                          )}
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notification.message}</p>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            {notification.eventTitle && (
+                              <span className="text-[10px] text-[#154CB3] bg-blue-50 px-1.5 py-0.5 rounded font-medium">
+                                {notification.eventTitle}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-gray-400">
+                              {formatRelativeTime(notification.createdAt)}
+                            </span>
+                            {!notification.read && (
+                              <div className="w-1.5 h-1.5 bg-[#154CB3] rounded-full"></div>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
                   ))}
-                  
-                  {/* Load More Button */}
-                  {hasMore && (
-                    <div className="p-3 text-center border-t border-gray-100">
-                      <button
-                        onClick={loadMore}
-                        disabled={loading}
-                        className="text-sm text-[#154CB3] hover:underline disabled:opacity-50"
-                      >
-                        {loading ? 'Loading...' : 'Load more'}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
+
+            {/* Footer with pagination */}
+            {notifications.length > 0 && (
+              <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                <span className="text-[10px] text-gray-400">
+                  Page {currentPage} of {totalPages}
+                </span>
+                {hasMore && (
+                  <button
+                    onClick={loadMore}
+                    disabled={loading}
+                    className="text-xs text-[#154CB3] hover:text-[#0e3a8a] font-medium disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? 'Loading...' : 'Load more'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
