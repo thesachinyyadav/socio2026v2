@@ -170,10 +170,10 @@ export default function CampusDetectionModal({
             <>
               <div className="text-center mb-4">
                 <p className="text-lg font-bold text-[#063168]">{detectedCampus}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{detectedDistance} km away</p>
+                <p className="text-xs text-gray-500 mt-0.5">{detectedDistance} km away</p>
               </div>
 
-              <p className="text-sm text-gray-500 text-center mb-4">
+              <p className="text-sm text-gray-600 text-center mb-4">
                 This is <strong>permanent</strong> and cannot be changed. Wrong campus? Dismiss and retry on your campus network.
               </p>
 
@@ -185,7 +185,7 @@ export default function CampusDetectionModal({
               </button>
               <button
                 onClick={handleDismiss}
-                className="w-full border border-gray-200 hover:bg-gray-50 text-gray-500 font-medium py-2.5 rounded-lg transition-colors text-sm"
+                className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-lg transition-colors text-sm"
               >
                 Wrong Campus — Dismiss
               </button>
