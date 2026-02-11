@@ -3,6 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { formatDate, formatTime } from "@/lib/dateUtils";
 import { useAuth } from "../../../context/AuthContext";
+import EventReminderButton from "../EventReminderButton";
 
 interface EventCardProps {
   title: string;
@@ -16,6 +17,7 @@ interface EventCardProps {
   allowOutsiders?: boolean | null;
   baseUrl?: string;
   idForLink?: string;
+  authToken?: string;
 }
 
 export const EventCard = ({
@@ -30,6 +32,7 @@ export const EventCard = ({
   allowOutsiders,
   baseUrl = "event",
   idForLink,
+  authToken,
 }: EventCardProps) => {
   const { userData, isLoading: authLoading } = useAuth();
 
@@ -240,6 +243,13 @@ export const EventCard = ({
               </svg>
               Mark Attendance
             </Link>
+            {authToken && baseUrl === "edit/event" && (
+              <EventReminderButton
+                eventId={eventSlug || ""}
+                eventTitle={title}
+                authToken={authToken}
+              />
+            )}
           </div>
         ) : (
           <Link

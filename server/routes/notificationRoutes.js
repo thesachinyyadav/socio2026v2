@@ -1,5 +1,6 @@
 import express from "express";
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser, getUserInfo, checkRoleExpiration, requireOrganiser } from "../middleware/authMiddleware.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -104,6 +105,102 @@ router.post("/notifications/broadcast", async (req, res) => {
     return res.status(500).json({ error: "Failed to send broadcast notification" });
   }
 });
+
+// ─── ORGANISER EVENT REMINDER ───────────────────────────────────────────────────
+// Allows an organiser to send a reminder notification for an event they own.
+// Auth chain: authenticateUser → getUserInfo → checkRoleExpiration → requireOrganiser
+router.post(
+  "/notifications/event-reminder",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireOrganiser,
+  async (req, res) => {
+    try {
+      const { event_id, template } = req.body;
+
+      if (!event_id || !template) {
+        return res.status(400).json({ error: "event_id and template are required" });
+      }
+
+      // Verify the organiser owns this event
+      const { data: event, error: eventError } = await supabase
+        .from("events")
+        .select("event_id, title, created_by, event_date, event_time, venue")
+        .eq("event_id", event_id)
+        .single();
+
+      if (eventError || !event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      if (event.created_by !== req.userInfo.email) {
+        return res.status(403).json({ error: "You can only send reminders for events you created" });
+      }
+
+      // Pre-set templates
+      const templates = {
+        reminder: {
+          title: `Reminder: ${event.title}`,
+          message: `Don't forget — "${event.title}" is coming up soon! Make sure you're registered.`,
+          type: "info",
+        },
+        lastChance: {
+          title: `Last Chance to Register!`,
+          message: `Registrations for "${event.title}" are closing soon. Don't miss out!`,
+          type: "warning",
+        },
+        tomorrow: {
+          title: `Happening Tomorrow: ${event.title}`,
+          message: `"${event.title}" is tomorrow${event.venue ? ` at ${event.venue}` : ""}. See you there!`,
+          type: "info",
+        },
+        update: {
+          title: `Update: ${event.title}`,
+          message: `There's been an update regarding "${event.title}". Check the event page for details.`,
+          type: "info",
+        },
+        thankYou: {
+          title: `Thanks for Attending: ${event.title}`,
+          message: `Thank you for being part of "${event.title}"! We hope you had a great experience.`,
+          type: "success",
+        },
+      };
+
+      const tpl = templates[template];
+      if (!tpl) {
+        return res.status(400).json({
+          error: `Invalid template. Available: ${Object.keys(templates).join(", ")}`,
+        });
+      }
+
+      // Send as broadcast
+      const { data, error } = await supabase
+        .from("notifications")
+        .insert({
+          title: tpl.title,
+          message: tpl.message,
+          type: tpl.type,
+          event_id: event.event_id,
+          event_title: event.title,
+          action_url: `/event/${event.event_id}`,
+          user_email: null,
+          is_broadcast: true,
+          read: false,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log(`[EVENT-REMINDER] Organiser ${req.userInfo.email} sent "${template}" for event "${event.title}" (id: ${data.id})`);
+      return res.status(201).json({ notification: data, template: template });
+    } catch (error) {
+      console.error("Error sending event reminder:", error);
+      return res.status(500).json({ error: "Failed to send event reminder" });
+    }
+  }
+);
 
 // ─── GET NOTIFICATIONS ──────────────────────────────────────────────────────────
 // Merges:

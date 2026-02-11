@@ -11,6 +11,7 @@ import {
 import { formatDateFull, formatTime } from "@/lib/dateUtils";
 import Link from "next/link";
 import { getFests } from "@/lib/api";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface Fest {
   fest_id: string;
@@ -29,6 +30,7 @@ const Page = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [eventsPage, setEventsPage] = useState(1);
   const [festsPage, setFestsPage] = useState(1);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const { userData, isMasterAdmin } = useAuth();
   const {
     allEvents: contextAllEvents,
@@ -78,6 +80,21 @@ const Page = () => {
         setIsLoadingFests(false);
       });
   }, [userData?.email, isMasterAdmin]);
+
+  // Get auth token for reminder notifications
+  useEffect(() => {
+    const getToken = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        setAuthToken(session.access_token);
+      }
+    };
+    getToken();
+  }, []);
 
   // Show all events for master admin, otherwise filter by created_by
   const userSpecificContextEvents = userData?.email
@@ -360,6 +377,7 @@ const Page = () => {
                         "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
                       }
                       baseUrl="edit/event"
+                      authToken={authToken || undefined}
                     />
                   ))}
                 </div>
