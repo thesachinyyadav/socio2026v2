@@ -745,30 +745,6 @@ export default function MasterAdminPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* KPI Row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {(() => {
-                    const now = new Date();
-                    const upcomingEvents = events.filter(e => new Date(e.event_date) > now);
-                    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    const weekRegs = registrations.filter(r => new Date(r.created_at) >= weekAgo);
-                    const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
-
-                    return [
-                      { label: "Total Users", value: users.length },
-                      { label: "Total Events", value: events.length },
-                      { label: "Registrations", value: registrations.length },
-                      { label: "Upcoming", value: upcomingEvents.length },
-                    ];
-                  })().map((stat, idx) => (
-                    <div key={idx} className="bg-white border border-gray-200 rounded-lg px-5 py-4">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{stat.label}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Charts */}
                 <AnalyticsDashboard
                   users={users}
                   events={events}
