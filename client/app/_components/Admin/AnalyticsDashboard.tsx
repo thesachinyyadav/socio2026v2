@@ -11,6 +11,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Label,
   AreaChart,
   Area,
   ResponsiveContainer,
@@ -158,26 +159,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// Custom donut center label
-const renderCenterLabel = (total: number) => {
-  return ({ viewBox }: any) => {
-    const { cx, cy } = viewBox;
-    return (
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central">
-        <tspan
-          x={cx}
-          dy="-6"
-          className="text-2xl font-bold"
-          fill="#1f2937"
-        >
-          {total.toLocaleString()}
-        </tspan>
-        <tspan x={cx} dy="18" className="text-[10px]" fill="#9ca3af">
-          Total
-        </tspan>
-      </text>
-    );
-  };
+// Custom donut center label renderer for recharts <Label>
+const renderCenterLabel = (total: number) => (props: any) => {
+  const { viewBox } = props || {};
+  if (!viewBox || viewBox.cx == null || viewBox.cy == null) return null;
+  const { cx, cy } = viewBox;
+  return (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central">
+      <tspan x={cx} dy="-6" fontSize={22} fontWeight={700} fill="#1f2937">
+        {total.toLocaleString()}
+      </tspan>
+      <tspan x={cx} dy="20" fontSize={10} fill="#9ca3af">
+        Total
+      </tspan>
+    </text>
+  );
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
@@ -542,16 +538,8 @@ export default function AnalyticsDashboard({
                   {regTypes.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS_1[i % PIE_COLORS_1.length]} />
                   ))}
+                  <Label content={renderCenterLabel(totalRegistrations)} position="center" />
                 </Pie>
-                <Pie
-                  data={[{ value: 1 }]}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={0}
-                  outerRadius={0}
-                  dataKey="value"
-                  label={renderCenterLabel(totalRegistrations)}
-                />
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
@@ -580,16 +568,8 @@ export default function AnalyticsDashboard({
                   {freeVsPaid.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS_2[i % PIE_COLORS_2.length]} />
                   ))}
+                  <Label content={renderCenterLabel(events.length)} position="center" />
                 </Pie>
-                <Pie
-                  data={[{ value: 1 }]}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={0}
-                  outerRadius={0}
-                  dataKey="value"
-                  label={renderCenterLabel(events.length)}
-                />
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
@@ -618,16 +598,8 @@ export default function AnalyticsDashboard({
                   {userRoles.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS_3[i % PIE_COLORS_3.length]} />
                   ))}
+                  <Label content={renderCenterLabel(users.length)} position="center" />
                 </Pie>
-                <Pie
-                  data={[{ value: 1 }]}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={0}
-                  outerRadius={0}
-                  dataKey="value"
-                  label={renderCenterLabel(users.length)}
-                />
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
