@@ -744,116 +744,44 @@ export default function MasterAdminPage() {
                 <div className="text-gray-600">Loading analytics...</div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                {/* ── Main Area (3/4 width) ── */}
-                <div className="lg:col-span-3 space-y-4">
-                  {/* KPI Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {(() => {
-                      const now = new Date();
-                      const todayEvents = events.filter(e => new Date(e.event_date).toDateString() === now.toDateString());
-                      const upcomingEvents = events.filter(e => new Date(e.event_date) > now);
-                      const organisers = users.filter(u => u.is_organiser);
-                      const paidEvents = events.filter(e => e.registration_fee > 0);
-                      const todayRegs = registrations.filter(r => new Date(r.created_at).toDateString() === now.toDateString());
-                      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                      const weekRegs = registrations.filter(r => new Date(r.created_at) >= weekAgo);
-                      const avgRegs = events.length > 0 ? Math.round(registrations.length / events.length) : 0;
-                      const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
+              <div className="space-y-6">
+                {/* KPI Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {(() => {
+                    const now = new Date();
+                    const upcomingEvents = events.filter(e => new Date(e.event_date) > now);
+                    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    const weekRegs = registrations.filter(r => new Date(r.created_at) >= weekAgo);
+                    const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
 
-                      return [
-                        { label: "Total Users", value: users.length },
-                        { label: "Total Events", value: events.length },
-                        { label: "Registrations", value: registrations.length },
-                        { label: "Upcoming", value: upcomingEvents.length },
-                        { label: "Today's Events", value: todayEvents.length },
-                        { label: "Organisers", value: organisers.length },
-                        { label: "Regs (7d)", value: weekRegs.length },
-                        { label: "Avg / Event", value: avgRegs },
-                      ];
-                    })().map((stat, idx) => (
-                      <div key={idx} className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-                        <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{stat.label}</p>
-                        <p className="text-xl font-bold text-gray-900 mt-0.5">{stat.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Charts (AnalyticsDashboard) */}
-                  <AnalyticsDashboard
-                    users={users}
-                    events={events}
-                    fests={fests}
-                    registrations={registrations}
-                  />
+                    return [
+                      { label: "Total Users", value: users.length },
+                      { label: "Total Events", value: events.length },
+                      { label: "Registrations", value: registrations.length },
+                      { label: "Upcoming", value: upcomingEvents.length },
+                    ];
+                  })().map((stat, idx) => (
+                    <div key={idx} className="bg-white border border-gray-200 rounded-lg px-5 py-4">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{stat.label}</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                    </div>
+                  ))}
                 </div>
 
-                {/* ── Sidebar (1/4 width) ── */}
-                <div className="space-y-4">
-                  {/* Platform Metrics */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Metrics</h3>
-                    <div className="space-y-3">
-                      {(() => {
-                        const now = new Date();
-                        const todayUsers = users.filter(u => new Date(u.created_at).toDateString() === now.toDateString()).length;
-                        const todayRegs = registrations.filter(r => new Date(r.created_at).toDateString() === now.toDateString()).length;
-                        const paidEvents = events.filter(e => e.registration_fee > 0).length;
-                        const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
-                        const freeEvents = events.filter(e => !e.registration_fee || e.registration_fee === 0).length;
+                {/* Charts */}
+                <AnalyticsDashboard
+                  users={users}
+                  events={events}
+                  fests={fests}
+                  registrations={registrations}
+                />
 
-                        return [
-                          { label: "New Users Today", value: String(todayUsers) },
-                          { label: "Regs Today", value: String(todayRegs) },
-                          { label: "Paid Events", value: String(paidEvents) },
-                          { label: "Free Events", value: String(freeEvents) },
-                          { label: "Est. Revenue", value: `₹${revenue.toLocaleString('en-IN')}` },
-                          { label: "Total Fests", value: String(fests.length) },
-                        ];
-                      })().map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">{item.label}</span>
-                          <span className="text-sm font-semibold text-gray-900">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Actions</h3>
-                    <div className="space-y-1">
-                      {[
-                        { tab: "users", title: "Manage Users" },
-                        { tab: "events", title: "Manage Events" },
-                        { tab: "fests", title: "Manage Fests" },
-                        { tab: "notifications", title: "Send Notification" }
-                      ].map((action, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setActiveTab(action.tab as any)}
-                          className="w-full flex items-center justify-between py-2 px-2 rounded hover:bg-gray-50 transition-colors text-left text-sm text-gray-700"
-                        >
-                          {action.title}
-                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                        </button>
-                      ))}
-                      <div className="pt-1.5 mt-1.5 border-t border-gray-100">
-                        <a
-                          href="/manage"
-                          className="w-full flex items-center justify-between py-2 px-2 rounded hover:bg-gray-50 transition-colors text-left text-sm text-gray-500"
-                        >
-                          Organiser View
-                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-
+                {/* Bottom row: Activity + Quick Actions */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Recent Activity */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent Activity</h3>
-                    <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                  <div className="bg-white border border-gray-200 rounded-lg p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
                       {(() => {
                         type ActivityItem = { text: string; time: Date };
                         const activities: ActivityItem[] = [];
@@ -874,7 +802,7 @@ export default function MasterAdminPage() {
                         activities.sort((a, b) => b.time.getTime() - a.time.getTime());
 
                         if (activities.length === 0) {
-                          return <div className="text-center py-4 text-gray-400 text-xs">No recent activity</div>;
+                          return <div className="text-center py-4 text-gray-400 text-sm">No recent activity</div>;
                         }
 
                         return activities.slice(0, 8).map((activity, idx) => {
@@ -886,13 +814,44 @@ export default function MasterAdminPage() {
                           const timeAgo = mins < 1 ? "now" : mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
 
                           return (
-                            <div key={idx} className="flex items-start justify-between gap-2 py-1.5 text-xs">
-                              <span className="text-gray-600 leading-tight">{activity.text}</span>
-                              <span className="text-gray-400 whitespace-nowrap flex-shrink-0">{timeAgo}</span>
+                            <div key={idx} className="flex items-center justify-between py-2 px-1 rounded hover:bg-gray-50">
+                              <span className="text-sm text-gray-700">{activity.text}</span>
+                              <span className="text-xs text-gray-400 ml-3 whitespace-nowrap">{timeAgo}</span>
                             </div>
                           );
                         });
                       })()}
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                    <div className="space-y-1">
+                      {[
+                        { tab: "users", title: "Manage Users" },
+                        { tab: "events", title: "Manage Events" },
+                        { tab: "fests", title: "Manage Fests" },
+                        { tab: "notifications", title: "Send Notification" }
+                      ].map((action, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveTab(action.tab as any)}
+                          className="w-full flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-gray-50 transition-colors text-left text-sm text-gray-700"
+                        >
+                          {action.title}
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                      ))}
+                      <div className="pt-2 mt-2 border-t border-gray-100">
+                        <a
+                          href="/manage"
+                          className="w-full flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-gray-50 transition-colors text-left text-sm text-gray-500"
+                        >
+                          Organiser View
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
