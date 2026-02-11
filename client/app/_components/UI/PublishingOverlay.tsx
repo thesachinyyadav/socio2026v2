@@ -79,58 +79,66 @@ export default function PublishingOverlay({ isVisible, mode = "publishing" }: Pu
         </div>
 
         <div className="p-6">
-          {/* Sisyphus-style animation */}
+          {/* Sisyphus-style animation: person pushes ball up a mountain */}
           <div className="flex justify-center mb-5">
-            <div className="relative w-48 h-28">
-              {/* Hill */}
-              <svg viewBox="0 0 200 120" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                {/* Hill slope */}
-                <path d="M 10 110 Q 100 20 190 110" fill="none" stroke="#e5e7eb" strokeWidth="3" strokeLinecap="round" />
-                {/* Track line */}
-                <path d="M 10 110 Q 100 20 190 110" fill="none" stroke="#dbeafe" strokeWidth="8" strokeLinecap="round" opacity="0.4" />
+            <div className="relative w-52 h-32">
+              <svg viewBox="0 0 210 130" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                {/* Ground */}
+                <rect x="0" y="108" width="210" height="22" fill="#f3f4f6" rx="2" />
 
-                {/* Moving person + ball group */}
-                <g className="animate-push-uphill">
-                  {/* Ball/circle (the "event") */}
-                  <circle r="12" fill="#154CB3" opacity="0.9">
-                    <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;0.85;0.85" keyTimes="0;0.8;1">
-                      <mpath href="#hillPath" />
-                    </animateMotion>
-                  </circle>
-                  {/* Inner icon on ball */}
-                  <g>
-                    <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;0.85;0.85" keyTimes="0;0.8;1">
-                      <mpath href="#hillPath" />
-                    </animateMotion>
-                    <text x="-4" y="4" fill="white" fontSize="10" fontWeight="bold">
-                      {mode === "deleting" ? "x" : mode === "uploading" ? "^" : "!"}
-                    </text>
-                  </g>
+                {/* Mountain body */}
+                <polygon points="8,108 135,18 200,108" fill="#e8eaed" stroke="#d1d5db" strokeWidth="1.5" strokeLinejoin="round" />
 
-                  {/* Stick figure pushing */}
-                  <g>
-                    <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;0.85;0.85" keyTimes="0;0.8;1">
-                      <mpath href="#personPath" />
-                    </animateMotion>
-                    {/* Body */}
-                    <circle cx="0" cy="-20" r="4" fill="#063168" />
-                    <line x1="0" y1="-16" x2="0" y2="-4" stroke="#063168" strokeWidth="2" />
-                    {/* Arms pushing forward */}
-                    <line x1="0" y1="-12" x2="10" y2="-10" stroke="#063168" strokeWidth="2" />
-                    <line x1="0" y1="-12" x2="8" y2="-14" stroke="#063168" strokeWidth="2" />
-                    {/* Legs walking */}
-                    <line x1="0" y1="-4" x2="-4" y2="4" stroke="#063168" strokeWidth="2">
-                      <animate attributeName="x2" values="-4;4;-4" dur="0.6s" repeatCount="indefinite" />
-                    </line>
-                    <line x1="0" y1="-4" x2="4" y2="4" stroke="#063168" strokeWidth="2">
-                      <animate attributeName="x2" values="4;-4;4" dur="0.6s" repeatCount="indefinite" />
-                    </line>
-                  </g>
+                {/* Snow cap */}
+                <polygon points="127,28 135,18 143,28" fill="white" opacity="0.7" />
+
+                {/* Flag at peak */}
+                <line x1="135" y1="18" x2="135" y2="4" stroke="#063168" strokeWidth="1.5" />
+                <polygon points="135,4 149,8 135,12" fill="#FFCC00" />
+
+                {/* Dotted trail on slope */}
+                <line x1="22" y1="104" x2="130" y2="22" stroke="#bfdbfe" strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
+
+                {/* Climb path (hidden) - follows the left slope surface */}
+                <path id="climbPath" d="M 22 103 L 126 23" fill="none" stroke="none" />
+
+                {/* Person + Ball group */}
+                <g>
+                  <animateMotion
+                    dur="4s"
+                    repeatCount="indefinite"
+                    keyPoints="0;0.82;0.82;0"
+                    keyTimes="0;0.65;0.8;1"
+                    calcMode="linear"
+                  >
+                    <mpath href="#climbPath" />
+                  </animateMotion>
+
+                  {/* Ball (the event/fest being pushed) */}
+                  <circle cx="6" cy="-10" r="9" fill="#154CB3" opacity="0.9" />
+                  <text x="2" y="-6" fill="white" fontSize="9" fontWeight="bold">
+                    {mode === "deleting" ? "x" : mode === "uploading" ? "^" : "!"}
+                  </text>
+
+                  {/* Stick figure */}
+                  <circle cx="-8" cy="-24" r="3.5" fill="#063168" />
+                  <line x1="-8" y1="-20" x2="-8" y2="-8" stroke="#063168" strokeWidth="2" />
+                  {/* Arms pushing toward ball */}
+                  <line x1="-8" y1="-15" x2="0" y2="-12" stroke="#063168" strokeWidth="1.8" />
+                  <line x1="-8" y1="-15" x2="-1" y2="-16" stroke="#063168" strokeWidth="1.8" />
+                  {/* Legs walking */}
+                  <line x1="-8" y1="-8" x2="-12" y2="0" stroke="#063168" strokeWidth="1.8">
+                    <animate attributeName="x2" values="-12;-4;-12" dur="0.5s" repeatCount="indefinite" />
+                  </line>
+                  <line x1="-8" y1="-8" x2="-4" y2="0" stroke="#063168" strokeWidth="1.8">
+                    <animate attributeName="x2" values="-4;-12;-4" dur="0.5s" repeatCount="indefinite" />
+                  </line>
                 </g>
 
-                {/* Hidden path definitions for animateMotion */}
-                <path id="hillPath" d="M 30 105 Q 100 25 175 50" fill="none" stroke="none" />
-                <path id="personPath" d="M 12 108 Q 82 28 157 53" fill="none" stroke="none" />
+                {/* Tiny grass tufts at base */}
+                <line x1="30" y1="108" x2="28" y2="103" stroke="#a7f3d0" strokeWidth="1.5" opacity="0.6" />
+                <line x1="55" y1="108" x2="53" y2="104" stroke="#a7f3d0" strokeWidth="1.5" opacity="0.6" />
+                <line x1="170" y1="108" x2="168" y2="103" stroke="#a7f3d0" strokeWidth="1.5" opacity="0.6" />
               </svg>
             </div>
           </div>
