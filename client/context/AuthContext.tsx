@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Session, User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import CampusDetectionModal from "../app/_components/CampusDetectionModal";
+import CampusDetectionModal, { isCampusDismissedRecently } from "../app/_components/CampusDetectionModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -82,8 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(currentSession);
           // Fetch user data without blocking
           const existingUser = await fetchUserData(currentSession.user.email!);
-          // Show campus modal for christ_member users without a campus set
-          if (existingUser && existingUser.organization_type === 'christ_member' && !existingUser.campus) {
+          // Show campus modal for christ_member users without a campus set (respect 12hr dismiss)
+          if (existingUser && existingUser.organization_type === 'christ_member' && !existingUser.campus && !isCampusDismissedRecently()) {
             setShowCampusModal(true);
           }
         }
@@ -128,8 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
           }
         }
-        // Show campus modal for christ_member users without a campus set
-        if (orgType === 'christ_member' && userData && !userData.campus) {
+        // Show campus modal for christ_member users without a campus set (respect 12hr dismiss)
+        if (orgType === 'christ_member' && userData && !userData.campus && !isCampusDismissedRecently()) {
           setShowCampusModal(true);
         }
         setIsLoading(false);

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "../_components/UI/LoadingIndicator";
+import CampusDetectionModal from "../_components/CampusDetectionModal";
 
 interface DisplayableEvent {
   id: string;
@@ -66,6 +67,7 @@ const StudentProfile = () => {
   >([]);
   const [isLoadingRegisteredEvents, setIsLoadingRegisteredEvents] =
     useState(true);
+  const [showCampusDetect, setShowCampusDetect] = useState(false);
 
   useEffect(() => {
     if (userData) {
@@ -344,9 +346,23 @@ const StudentProfile = () => {
                     <h3 className="text-xs sm:text-sm font-medium text-gray-500">
                       Campus
                     </h3>
-                    <p className="text-sm sm:text-base text-gray-800 font-medium">
-                      {student.campus}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm sm:text-base text-gray-800 font-medium">
+                        {student.campus}
+                      </p>
+                      {userData?.organization_type === 'christ_member' && !userData?.campus && (
+                        <button
+                          onClick={() => setShowCampusDetect(true)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-[#154CB3] hover:bg-[#0f3d8a] text-white rounded-md transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                          </svg>
+                          Detect Campus
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <h3 className="text-xs sm:text-sm font-medium text-gray-500">
@@ -594,6 +610,21 @@ const StudentProfile = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Campus Detection Modal */}
+      {showCampusDetect && session?.access_token && userData?.email && (
+        <CampusDetectionModal
+          userEmail={userData.email}
+          accessToken={session.access_token}
+          onComplete={(campus) => {
+            setShowCampusDetect(false);
+            setStudent((prev) => ({ ...prev, campus }));
+            // Force page reload to update userData in AuthContext
+            window.location.reload();
+          }}
+          onDismiss={() => setShowCampusDetect(false)}
+        />
       )}
     </div>
   );
