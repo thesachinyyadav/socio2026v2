@@ -13,6 +13,17 @@ interface GuideSection {
 
 const sections: GuideSection[] = [
   {
+    title: "Creating a Fest",
+    icon: "M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z",
+    steps: [
+      { label: "Navigate to Create Fest", detail: "From /manage, click 'Create Fest'." },
+      { label: "Fest details", detail: "Name, dates, description, department, registration deadline, venue, fees, and banner image." },
+      { label: "Add sponsors & FAQs", detail: "List sponsors (name + logo URL) and frequently asked questions." },
+      { label: "Social links & timeline", detail: "Add Instagram, website, or other links. Create a fest timeline with milestones." },
+      { label: "Link events to the fest", detail: "After publishing the fest, create events and select this fest in the 'Fest Association' dropdown." },
+    ],
+  },
+  {
     title: "Creating an Event",
     icon: "M12 4v16m8-8H4",
     steps: [
@@ -24,17 +35,6 @@ const sections: GuideSection[] = [
       { label: "Upload media", detail: "Add a poster image (max 3MB), banner, or a PDF brochure." },
       { label: "Campus settings", detail: "Choose which campus hosts the event and which campuses can register." },
       { label: "Publish", detail: "Hit 'Publish Event'. Watch the little guy push the ball up the mountain -- your event is live!" },
-    ],
-  },
-  {
-    title: "Creating a Fest",
-    icon: "M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z",
-    steps: [
-      { label: "Navigate to Create Fest", detail: "From /manage, click 'Create Fest'." },
-      { label: "Fest details", detail: "Name, dates, description, department, registration deadline, venue, fees, and banner image." },
-      { label: "Add sponsors & FAQs", detail: "List sponsors (name + logo URL) and frequently asked questions." },
-      { label: "Social links & timeline", detail: "Add Instagram, website, or other links. Create a fest timeline with milestones." },
-      { label: "Link events to the fest", detail: "After publishing the fest, create events and select this fest in the 'Fest Association' dropdown." },
     ],
   },
   {

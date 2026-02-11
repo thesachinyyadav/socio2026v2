@@ -411,7 +411,7 @@ const StudentProfile = () => {
 
               {(userData.is_organiser || (userData as any).is_masteradmin) && (
                 <div className="px-4 sm:px-6 pb-4 flex flex-col gap-2">
-                  {(userData.is_organiser || (userData as any).is_masteradmin) && (
+                  {userData.is_organiser && (
                     <Link
                       href="/guide/organiser"
                       className="flex items-center justify-between w-full border border-[#154CB3] text-[#154CB3] rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-[#154CB3] hover:text-white transition-colors duration-150"
