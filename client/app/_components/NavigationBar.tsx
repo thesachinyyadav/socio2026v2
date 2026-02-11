@@ -13,9 +13,6 @@ const navigationLinks = [
   {
     name: "Home",
     href: "/",
-    dropdown: [
-      { name: "Dashboard", href: "/" }
-    ]
   },
   {
     name: "Discover",
