@@ -132,7 +132,7 @@ function NavigationBar() {
                 </Link>
                 
                 {/* Dropdown Menu */}
-                {activeDropdown === link.name && (
+                {activeDropdown === link.name && link.dropdown && (
                   <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
                     {link.dropdown.map((item) => (
                       <Link
