@@ -737,108 +737,91 @@ export default function MasterAdminPage() {
 
         {/* Dashboard Tab */}
         {activeTab === "dashboard" && (
-          <div className="space-y-6">
+          <div>
             {isLoading ? (
               <div className="p-12 text-center">
                 <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                 <div className="text-gray-600">Loading analytics...</div>
               </div>
             ) : (
-              <>
-                {/* Overview Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {(() => {
-                    const now = new Date();
-                    const liveEvents = events.filter(e => {
-                      const d = new Date(e.event_date);
-                      return d.toDateString() === now.toDateString();
-                    });
-                    const upcomingEvents = events.filter(e => new Date(e.event_date) > now);
-                    const thisWeekRegs = registrations.filter(r => {
-                      const d = new Date(r.created_at);
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                {/* ── Main Area (3/4 width) ── */}
+                <div className="lg:col-span-3 space-y-4">
+                  {/* KPI Row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(() => {
+                      const now = new Date();
+                      const todayEvents = events.filter(e => new Date(e.event_date).toDateString() === now.toDateString());
+                      const upcomingEvents = events.filter(e => new Date(e.event_date) > now);
+                      const organisers = users.filter(u => u.is_organiser);
+                      const paidEvents = events.filter(e => e.registration_fee > 0);
+                      const todayRegs = registrations.filter(r => new Date(r.created_at).toDateString() === now.toDateString());
                       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                      return d >= weekAgo;
-                    });
-                    const organisers = users.filter(u => u.is_organiser);
-                    
-                    return [
-                      { label: "Today's Events", value: liveEvents.length, sub: liveEvents.length > 0 ? liveEvents[0].title : "None scheduled" },
-                      { label: "Upcoming", value: upcomingEvents.length, sub: `${events.length} total events` },
-                      { label: "Registrations (7d)", value: thisWeekRegs.length, sub: `${registrations.length} all time` },
-                      { label: "Organisers", value: organisers.length, sub: `${users.length} total users` }
-                    ];
-                  })().map((stat, idx) => (
-                    <div key={idx} className="bg-white rounded-lg border border-gray-200 p-4">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{stat.label}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                      <p className="text-xs text-gray-400 mt-1 truncate">{stat.sub}</p>
-                    </div>
-                  ))}
+                      const weekRegs = registrations.filter(r => new Date(r.created_at) >= weekAgo);
+                      const avgRegs = events.length > 0 ? Math.round(registrations.length / events.length) : 0;
+                      const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
+
+                      return [
+                        { label: "Total Users", value: users.length },
+                        { label: "Total Events", value: events.length },
+                        { label: "Registrations", value: registrations.length },
+                        { label: "Upcoming", value: upcomingEvents.length },
+                        { label: "Today's Events", value: todayEvents.length },
+                        { label: "Organisers", value: organisers.length },
+                        { label: "Regs (7d)", value: weekRegs.length },
+                        { label: "Avg / Event", value: avgRegs },
+                      ];
+                    })().map((stat, idx) => (
+                      <div key={idx} className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+                        <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{stat.label}</p>
+                        <p className="text-xl font-bold text-gray-900 mt-0.5">{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Charts (AnalyticsDashboard) */}
+                  <AnalyticsDashboard
+                    users={users}
+                    events={events}
+                    fests={fests}
+                    registrations={registrations}
+                  />
                 </div>
 
-                {/* Analytics Dashboard */}
-                <AnalyticsDashboard
-                  users={users}
-                  events={events}
-                  fests={fests}
-                  registrations={registrations}
-                />
-
-                {/* Recent Activity + Quick Actions */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Recent Activity */}
-                  <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-5">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Activity</h3>
-                    <div className="space-y-1 max-h-72 overflow-y-auto">
+                {/* ── Sidebar (1/4 width) ── */}
+                <div className="space-y-4">
+                  {/* Platform Metrics */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Metrics</h3>
+                    <div className="space-y-3">
                       {(() => {
-                        type ActivityItem = { type: string; text: string; time: Date };
-                        const activities: ActivityItem[] = [];
-                        
-                        events.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).forEach(e => {
-                          activities.push({ type: "event", text: `Event "${e.title}" created`, time: new Date(e.created_at) });
-                        });
-                        
-                        registrations.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).forEach(r => {
-                          const event = events.find(e => e.event_id === r.event_id);
-                          activities.push({ type: "registration", text: `New registration for "${event?.title || r.event_id}"`, time: new Date(r.created_at) });
-                        });
-                        
-                        users.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).forEach(u => {
-                          activities.push({ type: "user", text: `${u.name || u.email} joined`, time: new Date(u.created_at) });
-                        });
-                        
-                        fests.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 2).forEach(f => {
-                          activities.push({ type: "fest", text: `Fest "${f.fest_title}" created`, time: new Date(f.created_at) });
-                        });
-                        
-                        activities.sort((a, b) => b.time.getTime() - a.time.getTime());
-                        
-                        if (activities.length === 0) {
-                          return <div className="text-center py-6 text-gray-400 text-sm">No recent activity</div>;
-                        }
-                        
-                        return activities.slice(0, 10).map((activity, idx) => {
-                          const now = new Date();
-                          const diff = now.getTime() - activity.time.getTime();
-                          const mins = Math.floor(diff / 60000);
-                          const hours = Math.floor(diff / 3600000);
-                          const days = Math.floor(diff / 86400000);
-                          const timeAgo = mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : hours < 24 ? `${hours}h ago` : `${days}d ago`;
-                          
-                          return (
-                            <div key={idx} className="flex items-center justify-between py-2 px-2 rounded hover:bg-gray-50 transition-colors">
-                              <span className="text-sm text-gray-700 truncate mr-3">{activity.text}</span>
-                              <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo}</span>
-                            </div>
-                          );
-                        });
-                      })()}
+                        const now = new Date();
+                        const todayUsers = users.filter(u => new Date(u.created_at).toDateString() === now.toDateString()).length;
+                        const todayRegs = registrations.filter(r => new Date(r.created_at).toDateString() === now.toDateString()).length;
+                        const paidEvents = events.filter(e => e.registration_fee > 0).length;
+                        const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
+                        const freeEvents = events.filter(e => !e.registration_fee || e.registration_fee === 0).length;
+
+                        return [
+                          { label: "New Users Today", value: String(todayUsers) },
+                          { label: "Regs Today", value: String(todayRegs) },
+                          { label: "Paid Events", value: String(paidEvents) },
+                          { label: "Free Events", value: String(freeEvents) },
+                          { label: "Est. Revenue", value: `₹${revenue.toLocaleString('en-IN')}` },
+                          { label: "Total Fests", value: String(fests.length) },
+                        ];
+                      })().map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">{item.label}</span>
+                          <span className="text-sm font-semibold text-gray-900">{item.value}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
                   {/* Quick Actions */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-5">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Quick Actions</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Actions</h3>
                     <div className="space-y-1">
                       {[
                         { tab: "users", title: "Manage Users" },
@@ -849,53 +832,71 @@ export default function MasterAdminPage() {
                         <button
                           key={idx}
                           onClick={() => setActiveTab(action.tab as any)}
-                          className="w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left text-sm text-gray-700 font-medium"
+                          className="w-full flex items-center justify-between py-2 px-2 rounded hover:bg-gray-50 transition-colors text-left text-sm text-gray-700"
                         >
                           {action.title}
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
                       ))}
-                      <div className="pt-2 mt-2 border-t border-gray-100">
+                      <div className="pt-1.5 mt-1.5 border-t border-gray-100">
                         <a
                           href="/manage"
-                          className="w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left text-sm text-gray-500"
+                          className="w-full flex items-center justify-between py-2 px-2 rounded hover:bg-gray-50 transition-colors text-left text-sm text-gray-500"
                         >
                           Organiser View
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                         </a>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Platform Metrics */}
-                <div className="bg-white border border-gray-200 rounded-lg p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Platform Metrics</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {(() => {
-                      const now = new Date();
-                      const todayUsers = users.filter(u => new Date(u.created_at).toDateString() === now.toDateString()).length;
-                      const todayRegs = registrations.filter(r => new Date(r.created_at).toDateString() === now.toDateString()).length;
-                      const avgRegsPerEvent = events.length > 0 ? Math.round(registrations.length / events.length) : 0;
-                      const paidEvents = events.filter(e => e.registration_fee > 0).length;
-                      const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
-                      
-                      return [
-                        { label: "New Users Today", value: todayUsers },
-                        { label: "Registrations Today", value: todayRegs },
-                        { label: "Avg Regs / Event", value: avgRegsPerEvent },
-                        { label: "Paid Events", value: paidEvents },
-                        { label: "Est. Revenue", value: `₹${revenue.toLocaleString('en-IN')}` }
-                      ];
-                    })().map((item, idx) => (
-                      <div key={idx} className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-lg font-bold text-gray-900">{item.value}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">{item.label}</div>
-                      </div>
-                    ))}
+                  {/* Recent Activity */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent Activity</h3>
+                    <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                      {(() => {
+                        type ActivityItem = { text: string; time: Date };
+                        const activities: ActivityItem[] = [];
+
+                        events.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4).forEach(e => {
+                          activities.push({ text: `"${e.title}" created`, time: new Date(e.created_at) });
+                        });
+
+                        registrations.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4).forEach(r => {
+                          const event = events.find(e => e.event_id === r.event_id);
+                          activities.push({ text: `Registration for "${event?.title || '...'}"`, time: new Date(r.created_at) });
+                        });
+
+                        users.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).forEach(u => {
+                          activities.push({ text: `${u.name || u.email} joined`, time: new Date(u.created_at) });
+                        });
+
+                        activities.sort((a, b) => b.time.getTime() - a.time.getTime());
+
+                        if (activities.length === 0) {
+                          return <div className="text-center py-4 text-gray-400 text-xs">No recent activity</div>;
+                        }
+
+                        return activities.slice(0, 8).map((activity, idx) => {
+                          const now = new Date();
+                          const diff = now.getTime() - activity.time.getTime();
+                          const mins = Math.floor(diff / 60000);
+                          const hours = Math.floor(diff / 3600000);
+                          const days = Math.floor(diff / 86400000);
+                          const timeAgo = mins < 1 ? "now" : mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
+
+                          return (
+                            <div key={idx} className="flex items-start justify-between gap-2 py-1.5 text-xs">
+                              <span className="text-gray-600 leading-tight">{activity.text}</span>
+                              <span className="text-gray-400 whitespace-nowrap flex-shrink-0">{timeAgo}</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
         )}
