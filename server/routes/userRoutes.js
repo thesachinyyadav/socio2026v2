@@ -138,6 +138,44 @@ router.put("/:email/name", optionalAuth, async (req, res) => {
   }
 });
 
+// Allow christ_member to set their campus
+router.put("/:email/campus", authenticateUser, async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { campus } = req.body;
+
+    if (!campus || typeof campus !== 'string' || campus.trim() === '') {
+      return res.status(400).json({ error: 'Campus must be a non-empty string' });
+    }
+
+    // Verify the authenticated user matches
+    if (!req.user || req.user.email !== email) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const existingUser = await queryOne('users', { where: { email } });
+    if (!existingUser) return res.status(404).json({ error: 'User not found' });
+
+    if (existingUser.organization_type !== 'christ_member') {
+      return res.status(403).json({ error: 'Only Christ University members can set a campus' });
+    }
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({ campus: campus.trim() })
+      .eq('email', email)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ user: updatedUser, message: 'Campus updated successfully' });
+  } catch (error) {
+    console.error('Error updating campus:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Helper function to generate unique visitor ID for outsiders
 // Uses timestamp + random for guaranteed uniqueness without DB lookup
 function generateVisitorId() {

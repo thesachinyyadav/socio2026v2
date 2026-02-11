@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Session, User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import CampusDetectionModal from "../app/_components/CampusDetectionModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showOutsiderWarning, setShowOutsiderWarning] = useState(false);
   const [outsiderVisitorId, setOutsiderVisitorId] = useState<string | null>(null);
+  const [showCampusModal, setShowCampusModal] = useState(false);
   
   const supabase = useMemo(
     () =>
@@ -79,7 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentSession) {
           setSession(currentSession);
           // Fetch user data without blocking
-          fetchUserData(currentSession.user.email!);
+          const existingUser = await fetchUserData(currentSession.user.email!);
+          // Show campus modal for christ_member users without a campus set
+          if (existingUser && existingUser.organization_type === 'christ_member' && !existingUser.campus) {
+            setShowCampusModal(true);
+          }
         }
       } catch (error) {
         console.error("Error checking user session:", error);
@@ -121,6 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setShowOutsiderWarning(true);
             localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
           }
+        }
+        // Show campus modal for christ_member users without a campus set
+        if (orgType === 'christ_member' && userData && !userData.campus) {
+          setShowCampusModal(true);
         }
         setIsLoading(false);
       } else if (event === "SIGNED_OUT") {
@@ -273,6 +283,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{ session, userData, isLoading, isSupport, isMasterAdmin, signInWithGoogle, signOut }}
     >
       {children}
+
+      {/* Campus Detection Modal */}
+      {showCampusModal && session?.access_token && userData?.email && (
+        <CampusDetectionModal
+          userEmail={userData.email}
+          accessToken={session.access_token}
+          onComplete={(campus) => {
+            setShowCampusModal(false);
+            setUserData((prev) => prev ? { ...prev, campus } : prev);
+          }}
+          onDismiss={() => setShowCampusModal(false)}
+        />
+      )}
       
       {/* Visitor Welcome Modal */}
       {showOutsiderWarning && outsiderVisitorId && (

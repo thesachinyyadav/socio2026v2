@@ -311,11 +311,13 @@ export const festEvents = [
   // This will be populated dynamically in the component
 ];
 
-export const christCampuses = [
-  "Central Campus (Main)",
-  "Bannerghatta Road Campus",
-  "Yeshwanthpur Campus",
-  "Kengeri Campus",
-  "Delhi NCR Campus",
-  "Pune Lavasa Campus",
+export const campusData = [
+  { name: "Central Campus (Main)", lat: 12.93611753346996, lng: 77.60604219692418 },
+  { name: "Bannerghatta Road Campus", lat: 12.878129156102318, lng: 77.59588398930113 },
+  { name: "Yeshwanthpur Campus", lat: 13.037196562241775, lng: 77.5069922916129 },
+  { name: "Kengeri Campus", lat: 12.869504452408306, lng: 77.43640503831412 },
+  { name: "Delhi NCR Campus", lat: 28.86394683554733, lng: 77.35636918532354 },
+  { name: "Pune Lavasa Campus", lat: 18.6221158344556, lng: 73.48047100149613 },
 ];
+
+export const christCampuses = campusData.map((c) => c.name);
