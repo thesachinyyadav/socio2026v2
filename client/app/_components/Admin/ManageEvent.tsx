@@ -1412,75 +1412,77 @@ export default function EventForm({
 
                 {/* Campus Section - only visible when outsiders NOT allowed */}
                 {!watch("allowOutsiders") && (
-                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <h4 className="text-sm font-medium text-gray-700 mb-4">
-                      Campus Settings
-                      <span className="block text-xs text-gray-500 font-normal mt-1">
-                        Select the hosting campus and which campuses can register
-                      </span>
+                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50">
+                    <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide mb-5">
+                      Campus Restrictions
                     </h4>
 
-                    {/* Campus Hosted At */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Campus Hosted At
-                      </label>
-                      <Controller
-                        name="campusHostedAt"
-                        control={control}
-                        render={({ field }) => (
-                          <select
-                            {...field}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
-                          >
-                            <option value="">Select campus</option>
-                            {christCampuses.map((campus) => (
-                              <option key={campus} value={campus}>
-                                {campus}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      />
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Left: Hosted At */}
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1">
+                          Hosted At
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Which campus is this event taking place at?
+                        </p>
+                        <Controller
+                          name="campusHostedAt"
+                          control={control}
+                          render={({ field }) => (
+                            <select
+                              {...field}
+                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                            >
+                              <option value="">-- Select campus --</option>
+                              {christCampuses.map((campus) => (
+                                <option key={campus} value={campus}>
+                                  {campus}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        />
+                      </div>
 
-                    {/* Allowed Campuses */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Applicants Allowed From
-                        <span className="block text-xs text-gray-500 font-normal mt-1">
-                          Select which campuses can register. Leave empty to allow all campuses.
-                        </span>
-                      </label>
-                      <Controller
-                        name="allowedCampuses"
-                        control={control}
-                        render={({ field }) => (
-                          <div className="space-y-2">
-                            {christCampuses.map((campus) => (
-                              <label
-                                key={campus}
-                                className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={field.value?.includes(campus) || false}
-                                  onChange={(e) => {
-                                    const current = field.value || [];
-                                    if (e.target.checked) {
-                                      field.onChange([...current, campus]);
-                                    } else {
-                                      field.onChange(current.filter((c: string) => c !== campus));
-                                    }
-                                  }}
-                                  className="rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
-                                />
-                                {campus}
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      />
+                      {/* Right: Who Can Register */}
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1">
+                          Who Can Register?
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Tick the campuses whose students are allowed to apply. Leave all unchecked to allow everyone.
+                        </p>
+                        <Controller
+                          name="allowedCampuses"
+                          control={control}
+                          render={({ field }) => (
+                            <div className="space-y-2">
+                              {christCampuses.map((campus) => (
+                                <label
+                                  key={campus}
+                                  className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value?.includes(campus) || false}
+                                    onChange={(e) => {
+                                      const current = field.value || [];
+                                      if (e.target.checked) {
+                                        field.onChange([...current, campus]);
+                                      } else {
+                                        field.onChange(current.filter((c: string) => c !== campus));
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                                  />
+                                  {campus}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
