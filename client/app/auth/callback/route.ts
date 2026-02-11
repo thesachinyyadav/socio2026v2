@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Helper to determine organization type
@@ -86,11 +85,12 @@ async function createUserInDatabase(user: any) {
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
+  const origin = requestUrl.origin; // actual origin e.g. https://socio.christuniversity.in
   const code = requestUrl.searchParams.get("code");
 
   if (!code) {
     console.warn("Auth callback invoked without a 'code' parameter.");
-    return NextResponse.redirect(`${APP_URL}/?error=no_code`);
+    return NextResponse.redirect(`${origin}/?error=no_code`);
   }
 
   const cookieStore = await cookies();
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
         "Error exchanging code for session:",
         exchangeError.message
       );
-      return NextResponse.redirect(`${APP_URL}/?error=auth_exchange_failed`);
+      return NextResponse.redirect(`${origin}/?error=auth_exchange_failed`);
     }
 
     const {
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
         "Error getting session after exchange:",
         sessionError.message
       );
-      return NextResponse.redirect(`${APP_URL}/?error=session_fetch_failed`);
+      return NextResponse.redirect(`${origin}/?error=session_fetch_failed`);
     }
 
     if (!session || !session.user || !session.user.email) {
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
         "No session or user email found after successful code exchange."
       );
       await supabase.auth.signOut();
-      return NextResponse.redirect(`${APP_URL}/?error=auth_incomplete`);
+      return NextResponse.redirect(`${origin}/?error=auth_incomplete`);
     }
 
     // Create/update user in database asynchronously (don't wait to avoid slow redirects)
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
 
     // Allow all Gmail users (both Christ members and outsiders)
     console.log(`Auth callback successful for: ${session.user.email}`);
-    return NextResponse.redirect(`${APP_URL}/Discover`);
+    return NextResponse.redirect(`${origin}/Discover`);
   } catch (error) {
     console.error("Unexpected error in auth callback:", error);
     const cookieStore = await cookies();
@@ -172,6 +172,6 @@ export async function GET(request: NextRequest) {
       }
     );
     await supabaseClient.auth.signOut();
-    return NextResponse.redirect(`${APP_URL}/?error=callback_exception`);
+    return NextResponse.redirect(`${origin}/?error=callback_exception`);
   }
 }

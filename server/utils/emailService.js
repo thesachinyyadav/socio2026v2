@@ -172,7 +172,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId) 
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0;">
           <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
             <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
-              <img src="https://sociov2.vercel.app/images/withsocio.png" alt="SOCIO" width="140" height="auto" style="display: block; margin: 0 auto; max-width: 140px;">
+              <img src="https://socio.christuniversity.in/images/withsocio.png" alt="SOCIO" width="140" height="auto" style="display: block; margin: 0 auto; max-width: 140px;">
             </div>
             <div style="background: white; padding: 40px 36px; border-radius: 0 0 16px 16px;">
               <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 8px 0;">Registration Confirmed</h2>
@@ -202,13 +202,13 @@ export async function sendRegistrationEmail(email, name, event, registrationId) 
               </div>
             </div>
             <div style="text-align: center; padding: 24px; color: #94a3b8; font-size: 12px;">
-              <p style="margin: 0;">SOCIO Team | <a href="https://sociov2.vercel.app" style="color: #64748b; text-decoration: none;">sociov2.vercel.app</a></p>
+              <p style="margin: 0;">SOCIO Team | <a href="https://socio.christuniversity.in" style="color: #64748b; text-decoration: none;">socio.christuniversity.in</a></p>
             </div>
           </div>
         </body>
         </html>
       `,
-      text: `Registration Confirmed\n\nHi ${firstName}, you're all set for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nSee you there! 🎉\n\n---\n🚧 BETA PREVIEW\nThis is a preview version of SOCIO. We sincerely apologize for any inconvenience caused due to technical glitches. We're working hard to improve your experience every day.\n\nThank you for your patience and support! ❤️\n— With love, Team SOCIO\n---\n\nSOCIO Team\nhttps://sociov2.vercel.app`,
+      text: `Registration Confirmed\n\nHi ${firstName}, you're all set for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nSee you there! 🎉\n\n---\n🚧 BETA PREVIEW\nThis is a preview version of SOCIO. We sincerely apologize for any inconvenience caused due to technical glitches. We're working hard to improve your experience every day.\n\nThank you for your patience and support! ❤️\n— With love, Team SOCIO\n---\n\nSOCIO Team\nhttps://socio.christuniversity.in`,
     });
 
     if (error) {

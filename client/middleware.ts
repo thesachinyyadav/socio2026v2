@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicPaths = ["/", "/auth/callback", "/error", "/about", "/auth", "/events", "/event/*", "/fests", "/fest/*", "/clubs"];
+const publicPaths = ["/", "/auth/callback", "/error", "/about", "/auth", "/events", "/event/*", "/fests", "/fest/*", "/clubs", "/club/*", "/Discover", "/contact", "/faq", "/privacy", "/terms", "/cookies", "/pricing", "/solutions", "/support", "/support/*", "/about/*", "/app-download"];
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
@@ -25,8 +25,8 @@ export async function middleware(req: NextRequest) {
   );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { pathname } = req.nextUrl;
 
@@ -46,19 +46,19 @@ export async function middleware(req: NextRequest) {
           currentPath.startsWith(publicPath.slice(0, -2)))
     );
 
-  if (!session && !isPublic(pathname)) {
+  if (!user && !isPublic(pathname)) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/auth";
     return NextResponse.redirect(redirectUrl);
   }
 
   if (
-    session &&
+    user &&
     (pathname.startsWith("/manage") ||
       pathname.startsWith("/create") ||
       pathname.startsWith("/edit"))
   ) {
-    if (!session.user?.email) {
+    if (!user.email) {
       const errorRedirectUrl = req.nextUrl.clone();
       errorRedirectUrl.pathname = "/error";
       return NextResponse.redirect(errorRedirectUrl);
@@ -67,7 +67,7 @@ export async function middleware(req: NextRequest) {
     const { data: userData, error } = await supabase
       .from("users")
       .select("is_organiser")
-      .eq("email", session.user.email)
+      .eq("email", user.email)
       .single();
 
     if (error || !userData || !userData.is_organiser) {

@@ -28,11 +28,17 @@ initializeDatabase().catch(err => {
 const app = express();
 app.use(express.json());
 
-// Simple CORS - allow everything
+// CORS - restrict to allowed origins in production
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://socio.christuniversity.in,http://localhost:3000').split(',').map(s => s.trim());
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
