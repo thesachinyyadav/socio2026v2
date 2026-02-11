@@ -51,6 +51,7 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
   const [recipientSearch, setRecipientSearch] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // ── History State ─────────────────────────────────────────────────────────
   const [history, setHistory] = useState<NotificationItem[]>([]);
@@ -278,13 +279,13 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
       {/* ── Quick Stats ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Sent", value: stats.total, icon: "📬", color: "bg-blue-50 border-blue-200" },
-          { label: "Broadcasts", value: stats.broadcasts, icon: "📢", color: "bg-purple-50 border-purple-200" },
-          { label: "Individual", value: stats.individual, icon: "👤", color: "bg-green-50 border-green-200" },
-          { label: "Sent Today", value: stats.today, icon: "📅", color: "bg-amber-50 border-amber-200" },
+          { label: "Total Sent", value: stats.total, iconPath: "M22 12h-4l-3 9L9 3l-3 9H2", color: "bg-blue-50 border-blue-200", iconColor: "text-blue-500" },
+          { label: "Broadcasts", value: stats.broadcasts, iconPath: "m3 11 18-5v12L3 13v-2z", color: "bg-purple-50 border-purple-200", iconColor: "text-purple-500" },
+          { label: "Individual", value: stats.individual, iconPath: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", color: "bg-green-50 border-green-200", iconColor: "text-green-500" },
+          { label: "Sent Today", value: stats.today, iconPath: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", color: "bg-amber-50 border-amber-200", iconColor: "text-amber-500" },
         ].map((s, i) => (
           <div key={i} className={`${s.color} border rounded-xl p-4 flex items-center gap-3`}>
-            <span className="text-2xl">{s.icon}</span>
+            <svg className={`w-6 h-6 ${s.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={s.iconPath} />{s.label === "Individual" && <circle cx="12" cy="7" r="4" />}</svg>
             <div>
               <p className="text-2xl font-bold text-gray-900">{s.value}</p>
               <p className="text-xs text-gray-500 font-medium">{s.label}</p>
@@ -327,10 +328,10 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Send To</label>
               <div className="flex gap-2">
                 {([
-                  { id: "broadcast", label: "All Users", icon: "📢" },
-                  { id: "individual", label: "Specific User", icon: "👤" },
-                  { id: "event", label: "Event Update", icon: "📋" },
-                ] as { id: ComposeMode; label: string; icon: string }[]).map(mode => (
+                  { id: "broadcast", label: "All Users", path: "m3 11 18-5v12L3 13v-2z" },
+                  { id: "individual", label: "Specific User", path: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" },
+                  { id: "event", label: "Event Update", path: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5h6" },
+                ] as { id: ComposeMode; label: string; path: string }[]).map(mode => (
                   <button
                     key={mode.id}
                     onClick={() => setComposeMode(mode.id)}
@@ -340,7 +341,7 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
                         : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
-                    <span>{mode.icon}</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={mode.path} />{mode.id === "individual" && <circle cx="12" cy="7" r="4" />}</svg>
                     {mode.label}
                   </button>
                 ))}
@@ -485,10 +486,66 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
               </div>
             )}
 
+            {/* Confirmation disclaimer */}
+            {showConfirm && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      Are you sure you want to broadcast this notification to {composeMode === "individual" ? composeRecipient : "everyone"}?
+                    </p>
+                    <p className="text-xs text-amber-600 mt-1">This action cannot be undone. {composeMode !== "individual" ? "All users will receive this notification immediately." : "This user will receive the notification immediately."}</p>
+                  </div>
+                </div>
+
+                {/* Inline preview */}
+                <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Preview</p>
+                  <div className="flex items-start gap-2">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${getTypeConfig(composeType).dot}`} />
+                    <div>
+                      <p className={`text-sm font-bold ${getTypeConfig(composeType).text}`}>{composeTitle || "(No title)"}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{composeMessage || "(No message)"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setShowConfirm(false)}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { setShowConfirm(false); sendNotification(); }}
+                    disabled={isSending}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-[#154CB3] rounded-lg hover:bg-[#0e3a8a] disabled:opacity-50 transition-colors"
+                  >
+                    {isSending ? "Sending..." : "Yes, Send Now"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Actions */}
+            {!showConfirm && (
             <div className="flex items-center gap-3 pt-2">
               <button
-                onClick={sendNotification}
+                onClick={() => {
+                  if (!composeTitle.trim() || !composeMessage.trim()) {
+                    toast.error("Title and message are required");
+                    return;
+                  }
+                  if (composeMode === "individual" && !composeRecipient) {
+                    toast.error("Please select a recipient");
+                    return;
+                  }
+                  setShowConfirm(true);
+                }}
                 disabled={isSending || !composeTitle.trim() || !composeMessage.trim()}
                 className="flex items-center gap-2 px-6 py-2.5 bg-[#154CB3] text-white font-semibold rounded-lg hover:bg-[#0e3a8a] disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
               >
@@ -520,6 +577,7 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
                 Reset
               </button>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -584,7 +642,9 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
             </div>
           ) : paginatedHistory.length === 0 ? (
             <div className="text-center py-16">
-              <div className="text-4xl mb-3">📭</div>
+              <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0" />
+              </svg>
               <p className="text-sm font-medium text-gray-400">No notifications found</p>
               <p className="text-xs text-gray-300 mt-1">
                 {historySearch || historyFilter !== "all" ? "Try adjusting your filters" : "Send your first notification above"}

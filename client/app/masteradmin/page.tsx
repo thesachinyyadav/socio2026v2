@@ -1052,10 +1052,10 @@ export default function MasterAdminPage() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
                   >
                     <option value="all">All Events ({events.length})</option>
-                    <option value="live">🟢 Live ({events.filter(e => getEventStatus(e.event_date).label === "Live").length})</option>
-                    <option value="thisweek">🟡 This Week ({events.filter(e => getEventStatus(e.event_date).label === "This Week").length})</option>
-                    <option value="upcoming">🔵 Upcoming ({events.filter(e => getEventStatus(e.event_date).label === "Upcoming").length})</option>
-                    <option value="past">⚫ Past ({events.filter(e => getEventStatus(e.event_date).label === "Past").length})</option>
+                    <option value="live">Live ({events.filter(e => getEventStatus(e.event_date).label === "Live").length})</option>
+                    <option value="thisweek">This Week ({events.filter(e => getEventStatus(e.event_date).label === "This Week").length})</option>
+                    <option value="upcoming">Upcoming ({events.filter(e => getEventStatus(e.event_date).label === "Upcoming").length})</option>
+                    <option value="past">Past ({events.filter(e => getEventStatus(e.event_date).label === "Past").length})</option>
                   </select>
                 </div>
               </div>
