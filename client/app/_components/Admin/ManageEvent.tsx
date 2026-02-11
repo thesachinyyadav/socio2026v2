@@ -35,6 +35,7 @@ import { DynamicCustomFieldBuilder, CustomField } from "@/app/_components/UI/Dyn
 
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "@/app/_components/UI/LoadingIndicator";
+import PublishingOverlay from "@/app/_components/UI/PublishingOverlay";
 
 export const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -1026,6 +1027,10 @@ export default function EventForm({
 
   return (
     <div className="min-h-screen bg-white relative">
+      <PublishingOverlay
+        isVisible={isSubmittingProp || rhfIsSubmitting || isDeleting}
+        mode={isDeleting ? "deleting" : isEditMode ? "updating" : "publishing"}
+      />
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full">

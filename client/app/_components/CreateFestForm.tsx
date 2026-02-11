@@ -7,6 +7,7 @@ import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
 import { departments as baseDepartments, christCampuses } from "../lib/eventFormSchema";
 import { createBrowserClient } from "@supabase/ssr";
 import toast from "react-hot-toast";
+import PublishingOverlay from "./UI/PublishingOverlay";
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -1335,6 +1336,10 @@ function CreateFestForm(props?: CreateFestProps) {
 
   return (
     <div className="min-h-screen bg-white relative">
+      <PublishingOverlay
+        isVisible={isSubmitting || isNavigating || isUploadingImage}
+        mode={isNavigating ? "deleting" : isUploadingImage ? "uploading" : finalIsEditMode ? "updating" : "publishing"}
+      />
       {isModalOpen && (
         <div
           className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-300 ease-in-out"
