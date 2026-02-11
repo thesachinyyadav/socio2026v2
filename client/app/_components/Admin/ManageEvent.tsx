@@ -846,6 +846,8 @@ export default function EventForm({
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
+  const [pendingSuccess, setPendingSuccess] = React.useState<"publish" | "delete" | null>(null);
+  const [modalVisible, setModalVisible] = React.useState(false);
 
   const processSubmit: SubmitHandler<EventFormData> = async (data) => {
     if (Object.keys(errors).length > 0) {
@@ -854,7 +856,8 @@ export default function EventForm({
     }
     try {
       await onSubmit(data);
-      setIsModalOpen(true);
+      // Don't show modal yet — let the overlay finish its animation first
+      setPendingSuccess("publish");
     } catch (error: any) {
       console.error(
         "EventForm: Error from onSubmit prop:",
@@ -864,9 +867,25 @@ export default function EventForm({
     }
   };
 
+  // Called when PublishingOverlay finishes sprint + victory animation
+  const handleOverlayComplete = React.useCallback(() => {
+    if (pendingSuccess === "publish") {
+      setIsModalOpen(true);
+      setTimeout(() => setModalVisible(true), 30);
+      setPendingSuccess(null);
+    } else if (pendingSuccess === "delete") {
+      setShowDeletedSuccessModal(true);
+      setTimeout(() => setModalVisible(true), 30);
+      setPendingSuccess(null);
+    }
+  }, [pendingSuccess]);
+
   const handleNavigationToDashboard = () => {
-    setIsNavigating(true);
-    window.location.href = "/manage";
+    setModalVisible(false);
+    setTimeout(() => {
+      setIsNavigating(true);
+      router.push("/manage");
+    }, 300);
   };
 
   const handleDeleteRequest = async () => {
@@ -943,7 +962,7 @@ export default function EventForm({
       }
 
       console.log(successPayload.message);
-      setShowDeletedSuccessModal(true);
+      setPendingSuccess("delete");
     } catch (error: any) {
       console.error("Error deleting event:", error.message);
     } finally {
@@ -1030,6 +1049,7 @@ export default function EventForm({
       <PublishingOverlay
         isVisible={isSubmittingProp || rhfIsSubmitting || isDeleting}
         mode={isDeleting ? "deleting" : isEditMode ? "updating" : "publishing"}
+        onComplete={handleOverlayComplete}
       />
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[150] flex items-center justify-center p-4">
@@ -1064,8 +1084,17 @@ export default function EventForm({
 
       {/* Event Deleted Success Modal */}
       {showDeletedSuccessModal && (
-        <div className="fixed inset-0 bg-white z-[200] flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center">
+        <div
+          className="fixed inset-0 bg-white z-[200] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
+          style={{ opacity: modalVisible ? 1 : 0 }}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center transition-all duration-500 ease-out"
+            style={{
+              opacity: modalVisible ? 1 : 0,
+              transform: modalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
+            }}
+          >
             <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1092,8 +1121,11 @@ export default function EventForm({
             </div>
             <button
               onClick={() => {
-                setShowDeletedSuccessModal(false);
-                window.location.href = "/manage";
+                setModalVisible(false);
+                setTimeout(() => {
+                  setShowDeletedSuccessModal(false);
+                  router.push("/manage");
+                }, 300);
               }}
               className={`${primaryButtonClasses} w-full py-3`}
             >
@@ -1104,9 +1136,23 @@ export default function EventForm({
       )}
 
       {(isModalOpen || isNavigating || showRegistrationsClosedModal) && (
-        <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center px-4">
+        <div
+          className="fixed inset-0 bg-white z-[100] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
+          style={{ opacity: modalVisible ? 1 : 0 }}
+        >
           {isModalOpen && !isNavigating && !showRegistrationsClosedModal && (
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center">
+            <div
+              className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center transition-all duration-500 ease-out"
+              style={{
+                opacity: modalVisible ? 1 : 0,
+                transform: modalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
+              }}
+            >
+              <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
                 Event {isEditMode ? "Updated!" : "Published!"}
               </h2>
@@ -1123,7 +1169,13 @@ export default function EventForm({
             </div>
           )}
           {showRegistrationsClosedModal && !isNavigating && !isModalOpen && (
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center">
+            <div
+              className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center transition-all duration-500 ease-out"
+              style={{
+                opacity: modalVisible ? 1 : 0,
+                transform: modalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
+              }}
+            >
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
                 Registrations Closed
               </h2>

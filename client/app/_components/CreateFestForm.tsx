@@ -710,6 +710,8 @@ function CreateFestForm(props?: CreateFestProps) {
   const [isNavigating, setIsNavigating] = useState(false); // Used for delete operation
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingFestData, setIsLoadingFestData] = useState(false);
+  const [pendingFestSuccess, setPendingFestSuccess] = useState(false);
+  const [festModalVisible, setFestModalVisible] = useState(false);
 
   const { session } = useAuth();
   const currentDateRef = useRef(new Date());
@@ -1223,7 +1225,8 @@ function CreateFestForm(props?: CreateFestProps) {
         toast.success("Fest updated successfully!", { duration: 3000 });
       }
 
-      setIsModalOpen(true);
+      // Defer modal until overlay animation finishes
+      setPendingFestSuccess(true);
     } catch (error: any) {
       setErrors((prev) => ({ ...prev, submit: error.message }));
     } finally {
@@ -1339,17 +1342,24 @@ function CreateFestForm(props?: CreateFestProps) {
       <PublishingOverlay
         isVisible={isSubmitting || isNavigating || isUploadingImage}
         mode={isNavigating ? "deleting" : isUploadingImage ? "uploading" : finalIsEditMode ? "updating" : "publishing"}
+        onComplete={() => {
+          if (pendingFestSuccess) {
+            setIsModalOpen(true);
+            setTimeout(() => setFestModalVisible(true), 30);
+            setPendingFestSuccess(false);
+          }
+        }}
       />
       {isModalOpen && (
         <div
-          className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-300 ease-in-out"
-          style={{ opacity: isModalOpen ? 1 : 0 }}
+          className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
+          style={{ opacity: festModalVisible ? 1 : 0 }}
         >
           <div
-            className="bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl transform transition-all duration-300 ease-out"
+            className="bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl transform transition-all duration-500 ease-out"
             style={{
-              opacity: isModalOpen ? 1 : 0,
-              transform: isModalOpen ? "scale(1)" : "scale(0.95)",
+              opacity: festModalVisible ? 1 : 0,
+              transform: festModalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
             }}
             role="alertdialog"
             aria-labelledby="modal-title"
@@ -1392,7 +1402,14 @@ function CreateFestForm(props?: CreateFestProps) {
                 <Link
                   href={`/create/event`}
                   className="w-full sm:w-auto px-6 py-3 bg-[#FFCC00] text-[#063168] rounded-lg font-medium hover:bg-opacity-90 transition-all duration-150 ease-in-out text-center text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:ring-offset-2 flex items-center justify-center"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setFestModalVisible(false);
+                    setTimeout(() => {
+                      setIsModalOpen(false);
+                      window.location.href = "/create/event";
+                    }, 300);
+                  }}
                 >
                   Add an event to fest
                 </Link>
@@ -1400,7 +1417,14 @@ function CreateFestForm(props?: CreateFestProps) {
               <Link
                 href="/manage"
                 className="w-full sm:w-auto px-6 py-3 bg-transparent text-[#154CB3] rounded-lg font-medium hover:bg-blue-50 transition-all duration-150 ease-in-out text-center text-sm sm:text-base border-2 border-[#154CB3] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2"
-                onClick={() => setIsModalOpen(false)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setFestModalVisible(false);
+                  setTimeout(() => {
+                    setIsModalOpen(false);
+                    window.location.href = "/manage";
+                  }, 300);
+                }}
               >
                 Back to Dashboard
               </Link>

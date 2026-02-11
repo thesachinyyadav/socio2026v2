@@ -7,6 +7,7 @@ type OverlayMode = "publishing" | "updating" | "deleting" | "uploading";
 interface PublishingOverlayProps {
   isVisible: boolean;
   mode?: OverlayMode;
+  onComplete?: () => void;
 }
 
 const messages: Record<OverlayMode, string[]> = {
@@ -59,7 +60,9 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
-export default function PublishingOverlay({ isVisible, mode = "publishing" }: PublishingOverlayProps) {
+export default function PublishingOverlay({ isVisible, mode = "publishing", onComplete }: PublishingOverlayProps) {
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
   const [msgIndex, setMsgIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   // phase: "climbing" = normal loop, "sprinting" = rushing to top, "done" = at peak, "fadeout" = fading
@@ -158,12 +161,19 @@ export default function PublishingOverlay({ isVisible, mode = "publishing" }: Pu
     };
   }, [phase, animateClimb, animateSprint]);
 
-  // "Done" phase: hold at peak for 0.8s, then fade out
+  // "Done" phase: hold at peak briefly, fire onComplete, then fade out
   useEffect(() => {
     if (phase === "done") {
       setProgress(100);
-      const timer = setTimeout(() => setPhase("fadeout"), 800);
-      return () => clearTimeout(timer);
+      // Fire onComplete so parent can show success modal during our fade
+      const completeTimer = setTimeout(() => {
+        onCompleteRef.current?.();
+      }, 300);
+      const fadeTimer = setTimeout(() => setPhase("fadeout"), 600);
+      return () => {
+        clearTimeout(completeTimer);
+        clearTimeout(fadeTimer);
+      };
     }
   }, [phase]);
 
