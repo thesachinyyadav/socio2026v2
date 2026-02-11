@@ -435,9 +435,9 @@ export default function TeamPage() {
                         <Image 
                           src={advisor.photo} 
                           alt={advisor.name}
-                          width={80}
-                          height={80}
-                          className="w-full h-full object-cover"
+                          width={160}
+                          height={160}
+                          className="w-full h-full object-cover object-top"
                         />
                       </div>
                     ) : (
