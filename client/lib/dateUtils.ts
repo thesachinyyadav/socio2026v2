@@ -32,9 +32,18 @@ export const formatDateFull = (dateString: string | Date | null | undefined, fal
 export const formatTime = (timeString: string | null | undefined, fallback = "Time TBD"): string => {
   if (!timeString) return fallback;
   
-  // Try parsing with different time formats
-  const parsed = dayjs(timeString, ['HH:mm:ss', 'HH:mm'], true);
-  return parsed.isValid() ? parsed.format("h:mm A") : fallback;
+  const trimmed = timeString.trim();
+  if (!trimmed) return fallback;
+
+  // Try strict parsing first (HH:mm:ss or HH:mm)
+  const strict = dayjs(trimmed, ['HH:mm:ss', 'HH:mm', 'h:mm A', 'h:mm:ss A'], true);
+  if (strict.isValid()) return strict.format("h:mm A");
+
+  // Fallback: try general dayjs parse (handles ISO timestamps, etc.)
+  const general = dayjs(trimmed);
+  if (general.isValid()) return general.format("h:mm A");
+
+  return fallback;
 };
 
 /**

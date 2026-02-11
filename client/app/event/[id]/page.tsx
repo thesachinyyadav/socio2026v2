@@ -7,7 +7,7 @@ import {
   FetchedEvent as ContextFetchedEvent,
 } from "../../../context/EventContext";
 import { useAuth } from "../../../context/AuthContext";
-import { formatDateUTC, getDaysUntil, isDeadlinePassed, dayjs } from "@/lib/dateUtils";
+import { formatDateUTC, formatTime, getDaysUntil, isDeadlinePassed, dayjs } from "@/lib/dateUtils";
 
 interface EventData {
   id: string;
@@ -15,6 +15,7 @@ interface EventData {
   department: string;
   tags?: string[];
   date: string;
+  time: string;
   endDate: string;
   location: string;
   price: string;
@@ -209,6 +210,7 @@ export default function Page() {
       date: foundEvent.event_date
         ? formatDateUTC(foundEvent.event_date)
         : "Date TBD",
+      time: formatTime(foundEvent.event_time, "Time TBD"),
       endDate: foundEvent.end_date
         ? formatDateUTC(foundEvent.end_date)
         : foundEvent.event_date
@@ -782,6 +784,15 @@ export default function Page() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <ClockIcon />
+                  <div>
+                    <p className="text-sm text-gray-500">Time</p>
+                    <p className="text-gray-800 font-medium">
+                      {eventData.time}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
                   <CalendarIcon />
                   <div>
                     <p className="text-sm text-gray-500">End date</p>
@@ -1058,6 +1069,23 @@ export default function Page() {
     </div>
   );
 }
+
+const ClockIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="size-5 text-[#063168] flex-shrink-0"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+    />
+  </svg>
+);
 
 const CalendarIcon = () => (
   <svg
