@@ -409,6 +409,29 @@ const StudentProfile = () => {
                 </div>
               </div>
 
+              {(userData.is_organiser || (userData as any).is_masteradmin) && (
+                <div className="px-4 sm:px-6 pb-4 flex flex-col gap-2">
+                  {(userData.is_organiser || (userData as any).is_masteradmin) && (
+                    <Link
+                      href="/guide/organiser"
+                      className="flex items-center justify-between w-full border border-[#154CB3] text-[#154CB3] rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-[#154CB3] hover:text-white transition-colors duration-150"
+                    >
+                      <span>Organiser Guide</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </Link>
+                  )}
+                  {(userData as any).is_masteradmin && (
+                    <Link
+                      href="/guide/masteradmin"
+                      className="flex items-center justify-between w-full border border-red-500 text-red-500 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-red-500 hover:text-white transition-colors duration-150"
+                    >
+                      <span>Master Admin Guide</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </Link>
+                  )}
+                </div>
+              )}
+
               <div className="p-4 sm:p-6 border-t border-gray-200">
                 <button
                   onClick={handleLogout}
