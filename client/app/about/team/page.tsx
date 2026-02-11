@@ -149,10 +149,10 @@ export default function TeamPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Header Section */}
-        <div className="mb-12">
+        <div className="mb-6">
           <div className="flex flex-row items-center justify-between">
             <h1 className="text-3xl font-black text-[#154CB3] mb-2 mt-6">
               Meet Our Team
@@ -178,22 +178,29 @@ export default function TeamPage() {
               Back to About
             </Link>
           </div>
-          <p className="text-gray-500 mb-6 text-sm sm:text-base">
-            The passionate individuals behind SOCIO who are dedicated to transforming campus life through technology.
-          </p>
         </div>
 
-        {/* Team Intro */}
-        <div className="mb-16 bg-gradient-to-r from-[#154CB3] to-[#063168] text-white p-6 sm:p-12 rounded-lg">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl sm:text-4xl font-black mb-6">
-              From Trainers to Entrepreneurs
+        {/* Hero Section */}
+        <div className="relative mb-20 overflow-hidden rounded-2xl bg-gradient-to-br from-[#063168] via-[#154CB3] to-[#1e6fd9] text-white p-8 sm:p-16">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/3" />
+          <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-[#FFCC00]/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
+          
+          <div className="relative max-w-4xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full mb-6 border border-white/20">
+              <span className="w-2 h-2 bg-[#FFCC00] rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-blue-100">Building the future of campus life</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black mb-6 leading-tight">
+              From Trainers to<br />
+              <span className="text-[#FFCC00]">Entrepreneurs</span>
             </h2>
-            <p className="text-lg sm:text-xl text-blue-100 mb-4">
-              We're Digital Mission trainers who became entrepreneurs. Our journey started in a BBA classroom 
+            <p className="text-lg sm:text-xl text-blue-100 mb-4 max-w-3xl mx-auto leading-relaxed">
+              We&apos;re Digital Mission trainers who became entrepreneurs. Our journey started in a BBA classroom 
               teaching Python, where we identified a real problem and decided to solve it together.
             </p>
-            <p className="text-base sm:text-lg text-blue-200">
+            <p className="text-base sm:text-lg text-blue-200/80 max-w-2xl mx-auto">
               Our team has grown from 3 founders to include 11 talented interns across technical and business domains, 
               all working together to transform campus life.
             </p>
@@ -201,56 +208,71 @@ export default function TeamPage() {
         </div>
 
         {/* Founders Section */}
-        <div className="mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Founding Team
-          </h2>
+        <div className="mb-20">
+          <div className="text-center mb-12">
+            <span className="inline-block text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">The Founders</span>
+            <h2 className="text-2xl sm:text-4xl font-black text-[#063168]">
+              Founding Team
+            </h2>
+            <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {founders.map((founder, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all">
-                {/* Profile Image */}
-                <div className="h-48 bg-gradient-to-br from-[#154CB3] to-[#063168] flex items-center justify-center">
+              <div key={index} className="group relative bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-500 overflow-hidden border border-gray-100 hover:-translate-y-1">
+                {/* Profile Image Area */}
+                <div className="relative h-56 bg-gradient-to-br from-[#154CB3] to-[#063168] flex items-center justify-center overflow-hidden">
+                  {/* Decorative ring */}
+                  <div className="absolute w-44 h-44 border-2 border-white/10 rounded-full group-hover:scale-110 transition-transform duration-500" />
+                  <div className="absolute w-52 h-52 border border-white/5 rounded-full group-hover:scale-105 transition-transform duration-700" />
                   {founder.image ? (
                     <Image 
                       src={founder.image} 
                       alt={founder.name}
-                      width={96}
-                      height={96}
-                      className="rounded-full object-cover border-4 border-white"
+                      width={128}
+                      height={128}
+                      className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg group-hover:scale-105 transition-transform duration-500 relative z-10"
                     />
                   ) : (
-                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center">
+                    <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-lg relative z-10">
                       <span className="text-[#154CB3] text-3xl font-bold">
                         {founder.name.split(' ').map(n => n[0]).join('')}
                       </span>
                     </div>
                   )}
+                  {/* Gradient overlay at bottom for smooth blend */}
+                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
                 </div>
                 
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-1">
-                    {founder.name}
-                  </h3>
-                  <p className="text-[#154CB3] font-medium mb-4">
-                    {founder.role}
-                  </p>
-                  <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                <div className="p-6 pt-4">
+                  <div className="text-center mb-4">
+                    <h3 className="text-xl font-black text-gray-900 mb-1">
+                      {founder.name}
+                    </h3>
+                    <p className="text-[#154CB3] font-semibold text-sm">
+                      {founder.role}
+                    </p>
+                  </div>
+                  
+                  <p className="text-gray-600 text-sm mb-5 leading-relaxed text-center">
                     {founder.bio}
                   </p>
                   
                   {/* Quote */}
-                  <div className="bg-gray-50 border-l-4 border-[#FFCC00] p-4 rounded mb-4">
-                    <p className="text-gray-700 italic text-sm">
-                      "{founder.quote}"
+                  <div className="relative bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl mb-5">
+                    <svg className="absolute top-2 left-3 w-5 h-5 text-[#154CB3]/20" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z"/>
+                    </svg>
+                    <p className="text-gray-700 italic text-sm pl-6 leading-relaxed">
+                      {founder.quote}
                     </p>
                   </div>
                   
                   {/* Skills */}
-                  <div className="mb-4">
-                    <h4 className="text-sm font-bold text-gray-800 mb-2">Expertise:</h4>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="mb-5">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Expertise</h4>
+                    <div className="flex flex-wrap gap-1.5">
                       {founder.skills.map((skill, skillIndex) => (
-                        <span key={skillIndex} className="bg-[#154CB3]/10 text-[#154CB3] px-2 py-1 rounded-full text-xs font-medium">
+                        <span key={skillIndex} className="bg-[#154CB3]/8 text-[#154CB3] px-3 py-1 rounded-full text-xs font-semibold border border-[#154CB3]/15">
                           {skill}
                         </span>
                       ))}
@@ -258,18 +280,21 @@ export default function TeamPage() {
                   </div>
                   
                   {/* Fun Fact */}
-                  <div className="mb-4">
-                    <h4 className="text-sm font-bold text-gray-800 mb-1">Fun Fact:</h4>
-                    <p className="text-gray-600 text-xs">
-                      {founder.funFact}
-                    </p>
+                  <div className="mb-5 flex items-start gap-2">
+                    <span className="text-base mt-0.5">💡</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Fun Fact</h4>
+                      <p className="text-gray-600 text-xs leading-relaxed">
+                        {founder.funFact}
+                      </p>
+                    </div>
                   </div>
                   
                   {/* Contact Links */}
-                  <div className="flex space-x-4">
+                  <div className="flex items-center justify-center gap-3 pt-4 border-t border-gray-100">
                     <a
                       href={`mailto:${founder.email}`}
-                      className="text-[#154CB3] hover:text-[#063168] transition-colors"
+                      className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-300"
                       title="Email"
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -281,7 +306,7 @@ export default function TeamPage() {
                       href={founder.linkedin}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#154CB3] hover:text-[#063168] transition-colors"
+                      className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-300"
                       title="LinkedIn"
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -293,7 +318,7 @@ export default function TeamPage() {
                         href={founder.github}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#154CB3] hover:text-[#063168] transition-colors"
+                        className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-300"
                         title="GitHub"
                       >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -306,7 +331,7 @@ export default function TeamPage() {
                         href={founder.dribbble}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#154CB3] hover:text-[#063168] transition-colors"
+                        className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-300"
                         title="Dribbble"
                       >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -322,90 +347,125 @@ export default function TeamPage() {
         </div>
 
         {/* Advisors Section */}
-        <div className="mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Our Growing Team
-          </h2>
+        <div className="mb-20">
+          <div className="text-center mb-12">
+            <span className="inline-block text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Growing Together</span>
+            <h2 className="text-2xl sm:text-4xl font-black text-[#063168]">
+              Our Growing Team
+            </h2>
+            <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           
           {/* Team Expansion Story */}
-          <div className="mb-12 bg-blue-50 border-l-4 border-[#154CB3] p-6 rounded-lg">
-            <h3 className="text-lg font-bold text-[#154CB3] mb-3">
-              <span className="inline-block w-5 h-5 bg-[#154CB3] rounded-full mr-2"></span>
-              Team Expansion (March 2025)
-            </h3>
-            <p className="text-gray-700 mb-4">
-              After our successful incubation, we expanded our team to bring diverse expertise and fresh perspectives to SOCIO.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <h4 className="font-bold text-gray-800 mb-2">Technical Team</h4>
-                <p className="text-sm text-gray-600 mb-2">
-                  <strong>4 Technical Interns</strong> from Computer Science Department
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1">
-                  <li>• Frontend Development & UI/UX</li>
-                  <li>• Backend Development & Database</li>
-                  <li>• Mobile App Development</li>
-                  <li>• Quality Assurance & Testing</li>
-                </ul>
+          <div className="mb-14 relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 p-8 sm:p-10 rounded-2xl border border-blue-100">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-[#154CB3]/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-[#154CB3] rounded-xl flex items-center justify-center shadow-md">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-[#063168]">Team Expansion</h3>
+                  <p className="text-xs text-[#154CB3] font-semibold">March 2025</p>
+                </div>
               </div>
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <h4 className="font-bold text-gray-800 mb-2">Business Team</h4>
-                <p className="text-sm text-gray-600 mb-2">
-                  <strong>7 Finance & Research Interns</strong> from Business Management Department
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1">
-                  <li>• Market Research & User Analysis</li>
-                  <li>• Financial Planning & Strategy</li>
-                  <li>• Marketing & Community Outreach</li>
-                  <li>• Partnership Development</li>
-                </ul>
+              <p className="text-gray-700 mb-6 leading-relaxed">
+                After our successful incubation, we expanded our team to bring diverse expertise and fresh perspectives to SOCIO.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-white shadow-sm hover:shadow-md transition-all">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 bg-[#154CB3]/10 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      </svg>
+                    </div>
+                    <h4 className="font-bold text-gray-800">Technical Team</h4>
+                  </div>
+                  <p className="text-sm text-[#154CB3] font-semibold mb-3">
+                    4 Technical Interns
+                  </p>
+                  <ul className="text-xs text-gray-600 space-y-2">
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#154CB3] rounded-full" /> Frontend Development & UI/UX</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#154CB3] rounded-full" /> Backend Development & Database</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#154CB3] rounded-full" /> Mobile App Development</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#154CB3] rounded-full" /> Quality Assurance & Testing</li>
+                  </ul>
+                </div>
+                <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-white shadow-sm hover:shadow-md transition-all">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 bg-[#FFCC00]/20 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#063168]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <h4 className="font-bold text-gray-800">Business Team</h4>
+                  </div>
+                  <p className="text-sm text-[#154CB3] font-semibold mb-3">
+                    7 Finance & Research Interns
+                  </p>
+                  <ul className="text-xs text-gray-600 space-y-2">
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#FFCC00] rounded-full" /> Market Research & User Analysis</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#FFCC00] rounded-full" /> Financial Planning & Strategy</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#FFCC00] rounded-full" /> Marketing & Community Outreach</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#FFCC00] rounded-full" /> Partnership Development</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
 
-          <h3 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Faculty Advisors
-          </h3>
+          <div className="text-center mb-10">
+            <span className="inline-block text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Guidance</span>
+            <h3 className="text-2xl sm:text-3xl font-black text-[#063168]">
+              Faculty Advisors
+            </h3>
+            <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {advisors.map((advisor, index) => (
-              <div key={index} className="bg-white border-2 border-[#154CB3] rounded-xl p-8 shadow-lg hover:shadow-xl transition-all">
-                <div className="flex items-center mb-6">
-                  {advisor.photo ? (
-                    <Image 
-                      src={advisor.photo} 
-                      alt={advisor.name}
-                      width={80}
-                      height={80}
-                      className="rounded-full object-cover mr-6 border-3 border-[#154CB3] shadow-md"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 bg-[#154CB3] rounded-full flex items-center justify-center mr-6 shadow-md">
-                      <span className="text-white text-2xl font-bold">
-                        {advisor.name.split(' ').map(n => n[0]).join('')}
-                      </span>
-                    </div>
-                  )}
+              <div key={index} className="group bg-white rounded-2xl p-8 shadow-md hover:shadow-xl transition-all duration-500 border border-gray-100 hover:-translate-y-1">
+                <div className="flex items-start gap-6 mb-6">
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 bg-[#154CB3]/20 rounded-full scale-110 group-hover:scale-125 transition-transform duration-500" />
+                    {advisor.photo ? (
+                      <Image 
+                        src={advisor.photo} 
+                        alt={advisor.name}
+                        width={80}
+                        height={80}
+                        className="relative w-20 h-20 rounded-full object-cover border-3 border-white shadow-lg"
+                      />
+                    ) : (
+                      <div className="relative w-20 h-20 bg-gradient-to-br from-[#154CB3] to-[#063168] rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-white text-2xl font-bold">
+                          {advisor.name.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-1">
+                    <h3 className="text-xl font-black text-gray-900 mb-1">
                       {advisor.name}
                     </h3>
-                    <p className="text-[#154CB3] font-bold text-base mb-1">
+                    <p className="text-[#154CB3] font-bold text-sm mb-1">
                       {advisor.role}
                     </p>
-                    <p className="text-gray-600 text-sm font-medium">
+                    <p className="text-gray-500 text-xs font-medium">
                       {advisor.department}
                     </p>
                   </div>
                 </div>
-                <p className="text-gray-700 text-base mb-6 leading-relaxed">
+                <p className="text-gray-600 text-sm mb-6 leading-relaxed">
                   {advisor.bio}
                 </p>
                 <div>
-                  <h4 className="text-base font-bold text-gray-800 mb-3">Expertise:</h4>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Areas of Expertise</h4>
                   <div className="flex flex-wrap gap-2">
                     {advisor.expertise.map((area, areaIndex) => (
-                      <span key={areaIndex} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                      <span key={areaIndex} className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold border border-emerald-100">
                         {area}
                       </span>
                     ))}
@@ -417,67 +477,91 @@ export default function TeamPage() {
         </div>
 
         {/* Values Section */}
-        <div className="mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Our Values
-          </h2>
+        <div className="mb-20">
+          <div className="text-center mb-12">
+            <span className="inline-block text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">What Drives Us</span>
+            <h2 className="text-2xl sm:text-4xl font-black text-[#063168]">
+              Our Values
+            </h2>
+            <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {values.map((value, index) => (
-              <div key={index} className="text-center p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all">
-                {renderValueIcon(value.icon)}
-                <h3 className="text-lg font-bold text-gray-800 mb-3">
-                  {value.title}
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  {value.description}
-                </p>
+              <div key={index} className="group text-center p-8 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-500 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#154CB3]/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative">
+                  {renderValueIcon(value.icon)}
+                  <h3 className="text-lg font-black text-gray-900 mb-3">
+                    {value.title}
+                  </h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    {value.description}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Team Achievements */}
-        <div className="mb-16 bg-gradient-to-r from-[#154CB3] to-[#063168] text-white p-6 sm:p-12 rounded-lg">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-center">
-            What We've Achieved Together
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {milestones.map((milestone, index) => (
-              <div key={index}>
-                <div className="text-3xl sm:text-4xl font-black mb-2 text-[#FFCC00]">
-                  {milestone.metric}
+        <div className="mb-20 relative overflow-hidden bg-gradient-to-br from-[#063168] via-[#154CB3] to-[#1e6fd9] text-white p-8 sm:p-14 rounded-2xl">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 -translate-x-1/3" />
+          <div className="absolute bottom-0 right-0 w-48 h-48 bg-[#FFCC00]/10 rounded-full translate-y-1/3 translate-x-1/4" />
+          <div className="relative">
+            <div className="text-center mb-10">
+              <span className="inline-block text-sm font-bold text-[#FFCC00] uppercase tracking-widest mb-2">Impact</span>
+              <h2 className="text-2xl sm:text-4xl font-black">
+                What We&apos;ve Achieved Together
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              {milestones.map((milestone, index) => (
+                <div key={index} className="group">
+                  <div className="text-4xl sm:text-5xl font-black mb-2 text-[#FFCC00] group-hover:scale-110 transition-transform duration-300">
+                    {milestone.metric}
+                  </div>
+                  <div className="text-sm sm:text-base font-semibold mb-1">
+                    {milestone.achievement}
+                  </div>
+                  <div className="text-xs text-blue-200/70">
+                    {milestone.description}
+                  </div>
                 </div>
-                <div className="text-sm sm:text-base font-medium mb-1">
-                  {milestone.achievement}
-                </div>
-                <div className="text-xs text-blue-200">
-                  {milestone.description}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Join Us Section */}
-        <div className="text-center mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-6">
+        <div className="text-center mb-16 py-8">
+          <div className="inline-flex items-center gap-2 bg-[#154CB3]/5 px-4 py-2 rounded-full mb-6 border border-[#154CB3]/10">
+            <span className="w-2 h-2 bg-[#FFCC00] rounded-full animate-pulse" />
+            <span className="text-sm font-semibold text-[#154CB3]">We&apos;re hiring</span>
+          </div>
+          <h2 className="text-2xl sm:text-4xl font-black text-[#063168] mb-6">
             Want to Join Our Mission?
           </h2>
-          <p className="text-gray-600 mb-8 max-w-3xl mx-auto">
-            We're always looking for passionate students who want to help improve campus life. 
-            Whether you're a developer, designer, or just someone with great ideas, we'd love to hear from you.
+          <p className="text-gray-500 mb-10 max-w-2xl mx-auto text-base leading-relaxed">
+            We&apos;re always looking for passionate students who want to help improve campus life. 
+            Whether you&apos;re a developer, designer, or just someone with great ideas, we&apos;d love to hear from you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/contact"
-              className="bg-[#154CB3] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#063168] transition-all"
+              className="inline-flex items-center justify-center gap-2 bg-[#154CB3] text-white px-8 py-3.5 rounded-xl font-semibold hover:bg-[#063168] transition-all duration-300 shadow-lg shadow-[#154CB3]/25 hover:shadow-xl hover:shadow-[#154CB3]/30"
             >
               Get In Touch
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
             </Link>
             <a
               href="mailto:thesocio.blr@gmail.com"
-              className="border border-[#154CB3] text-[#154CB3] px-6 py-3 rounded-lg font-medium hover:bg-[#154CB3]/10 transition-all"
+              className="inline-flex items-center justify-center gap-2 border-2 border-[#154CB3] text-[#154CB3] px-8 py-3.5 rounded-xl font-semibold hover:bg-[#154CB3] hover:text-white transition-all duration-300"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
               Email Our Team
             </a>
           </div>
