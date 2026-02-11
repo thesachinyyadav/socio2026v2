@@ -214,8 +214,8 @@ export default function FAQPage() {
             <div className="text-sm text-gray-600">Questions Solved</div>
           </div>
           <div className="text-center p-4 bg-yellow-50 rounded-lg">
-            <div className="text-2xl font-black text-yellow-600 mb-1">&lt;2h</div>
-            <div className="text-sm text-gray-600">Response Time</div>
+            <div className="text-lg font-black text-yellow-600 mb-1">ASAP</div>
+            <div className="text-sm text-gray-600">Our team will get back to you at the earliest</div>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
             <div className="text-2xl font-black text-purple-600 mb-1">24/7</div>
