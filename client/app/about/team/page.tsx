@@ -431,13 +431,15 @@ export default function TeamPage() {
                   <div className="relative flex-shrink-0">
                     <div className="absolute inset-0 bg-[#154CB3]/20 rounded-full scale-110 group-hover:scale-125 transition-transform duration-500" />
                     {advisor.photo ? (
-                      <Image 
-                        src={advisor.photo} 
-                        alt={advisor.name}
-                        width={80}
-                        height={80}
-                        className="relative w-20 h-20 rounded-full object-cover border-3 border-white shadow-lg"
-                      />
+                      <div className="relative w-20 h-20 rounded-full overflow-hidden border-[3px] border-white shadow-lg">
+                        <Image 
+                          src={advisor.photo} 
+                          alt={advisor.name}
+                          width={80}
+                          height={80}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="relative w-20 h-20 bg-gradient-to-br from-[#154CB3] to-[#063168] rounded-full flex items-center justify-center shadow-lg">
                         <span className="text-white text-2xl font-bold">
