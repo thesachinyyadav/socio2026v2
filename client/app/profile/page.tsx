@@ -79,13 +79,15 @@ const StudentProfile = () => {
         year: "numeric",
       });
 
+      const isStaff = userData.email?.toLowerCase().endsWith('@christuniversity.in');
+
       setStudent((prevState) => ({
         ...prevState,
         name: userData.name || "Student",
         registerNumber: String(userData.register_number || ""),
         email: userData.email || "",
-        course: userData.course || "Not specified",
-        department: userData.department || "Not specified",
+        course: isStaff ? "Staff" : (userData.course || "Not specified"),
+        department: isStaff ? "Staff" : (userData.department || "Not specified"),
         campus: userData.campus || "Not specified",
         joined: joinedFormatted,
         profilePicture: userData.avatar_url || "",
