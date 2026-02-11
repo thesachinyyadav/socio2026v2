@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
@@ -20,6 +20,19 @@ const AnalyticsDashboard = dynamic(
       <div className="p-12 text-center">
         <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <div className="text-gray-600">Loading analytics...</div>
+      </div>
+    ),
+  }
+);
+
+const AdminNotifications = dynamic(
+  () => import("../_components/Admin/AdminNotifications"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-12 text-center">
+        <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-gray-600">Loading notifications...</div>
       </div>
     ),
   }
@@ -74,7 +87,7 @@ type Registration = {
 export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests" | "notifications">("dashboard");
   
   // User management state
   const [users, setUsers] = useState<User[]>([]);
@@ -92,13 +105,22 @@ export default function MasterAdminPage() {
   const [eventSearchQuery, setEventSearchQuery] = useState("");
   const [showDeleteEventConfirm, setShowDeleteEventConfirm] = useState<string | null>(null);
   const [eventPage, setEventPage] = useState(1);
+  const [eventStatusFilter, setEventStatusFilter] = useState<"all" | "live" | "upcoming" | "thisweek" | "past">("all");
+  const [eventSortKey, setEventSortKey] = useState<"title" | "date" | "registrations" | "dept">("date");
+  const [eventSortDir, setEventSortDir] = useState<"asc" | "desc">("desc");
   
+  // User sort state
+  const [userSortKey, setUserSortKey] = useState<"name" | "email">("name");
+  const [userSortDir, setUserSortDir] = useState<"asc" | "desc">("asc");
+
   // Fest management state
   const [fests, setFests] = useState<Fest[]>([]);
   const [filteredFests, setFilteredFests] = useState<Fest[]>([]);
   const [festSearchQuery, setFestSearchQuery] = useState("");
   const [showDeleteFestConfirm, setShowDeleteFestConfirm] = useState<string | null>(null);
   const [festPage, setFestPage] = useState(1);
+  const [festSortKey, setFestSortKey] = useState<"title" | "date" | "registrations" | "dept">("date");
+  const [festSortDir, setFestSortDir] = useState<"asc" | "desc">("desc");
 
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   
@@ -143,6 +165,10 @@ export default function MasterAdminPage() {
       fetchFests();
     } else if (activeTab === "dashboard") {
       fetchDashboardData();
+    } else if (activeTab === "notifications") {
+      // Ensure users/events are loaded for the notification composer
+      if (users.length === 0) fetchUsers();
+      if (events.length === 0) fetchEvents();
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -176,6 +202,53 @@ export default function MasterAdminPage() {
     setUserPage(1);
   }, [users, debouncedUserSearch, roleFilter]);
 
+  // Sort users
+  const sortedFilteredUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      let cmp = 0;
+      switch (userSortKey) {
+        case "name": cmp = (a.name || "").localeCompare(b.name || ""); break;
+        case "email": cmp = a.email.localeCompare(b.email); break;
+      }
+      return userSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filteredUsers, userSortKey, userSortDir]);
+
+  // Event status helper
+  const getEventStatus = (dateStr: string) => {
+    const now = new Date();
+    const eventDate = new Date(dateStr);
+    const diffMs = eventDate.getTime() - now.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    if (diffDays < -1) return { label: "Past", color: "bg-gray-100 text-gray-600" };
+    if (Math.abs(diffDays) <= 1) return { label: "Live", color: "bg-green-100 text-green-700" };
+    if (diffDays <= 7) return { label: "This Week", color: "bg-yellow-100 text-yellow-700" };
+    return { label: "Upcoming", color: "bg-blue-100 text-blue-700" };
+  };
+
+  // Sort toggle helper
+  const toggleSort = <T extends string>(
+    key: T,
+    currentKey: T,
+    currentDir: "asc" | "desc",
+    setKey: (k: T) => void,
+    setDir: (d: "asc" | "desc") => void
+  ) => {
+    if (currentKey === key) {
+      setDir(currentDir === "asc" ? "desc" : "asc");
+    } else {
+      setKey(key);
+      setDir("asc");
+    }
+  };
+
+  // Sort indicator
+  const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) => (
+    <span className={`ml-1 inline-block transition-colors ${active ? "text-[#154CB3]" : "text-gray-400"}`}>
+      {active ? (dir === "asc" ? "▲" : "▼") : "⇅"}
+    </span>
+  );
+
   useEffect(() => {
     let filtered = events;
 
@@ -188,9 +261,29 @@ export default function MasterAdminPage() {
       );
     }
 
+    // Status filter
+    if (eventStatusFilter !== "all") {
+      filtered = filtered.filter((event) => {
+        const status = getEventStatus(event.event_date).label.toLowerCase().replace(" ", "");
+        return status === eventStatusFilter;
+      });
+    }
+
+    // Sort
+    filtered = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (eventSortKey) {
+        case "title": cmp = a.title.localeCompare(b.title); break;
+        case "dept": cmp = (a.organizing_dept || "").localeCompare(b.organizing_dept || ""); break;
+        case "date": cmp = new Date(a.event_date).getTime() - new Date(b.event_date).getTime(); break;
+        case "registrations": cmp = (a.registration_count || 0) - (b.registration_count || 0); break;
+      }
+      return eventSortDir === "asc" ? cmp : -cmp;
+    });
+
     setFilteredEvents(filtered);
     setEventPage(1);
-  }, [events, debouncedEventSearch]);
+  }, [events, debouncedEventSearch, eventStatusFilter, eventSortKey, eventSortDir]);
 
   useEffect(() => {
     let filtered = fests;
@@ -207,6 +300,20 @@ export default function MasterAdminPage() {
     setFilteredFests(filtered);
     setFestPage(1);
   }, [fests, debouncedFestSearch]);
+
+  // Sort fests
+  const sortedFilteredFests = useMemo(() => {
+    return [...filteredFests].sort((a, b) => {
+      let cmp = 0;
+      switch (festSortKey) {
+        case "title": cmp = a.fest_title.localeCompare(b.fest_title); break;
+        case "dept": cmp = (a.organizing_dept || "").localeCompare(b.organizing_dept || ""); break;
+        case "date": cmp = new Date(a.opening_date).getTime() - new Date(b.opening_date).getTime(); break;
+        case "registrations": cmp = (a.registration_count || 0) - (b.registration_count || 0); break;
+      }
+      return festSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filteredFests, festSortKey, festSortDir]);
 
   const fetchRegistrations = async () => {
     try {
@@ -518,7 +625,8 @@ export default function MasterAdminPage() {
     hasNext, 
     hasPrev, 
     onNext, 
-    onPrev 
+    onPrev,
+    totalItems
   }: { 
     currentPage: number;
     totalPages: number;
@@ -526,10 +634,14 @@ export default function MasterAdminPage() {
     hasPrev: boolean;
     onNext: () => void;
     onPrev: () => void;
+    totalItems?: number;
   }) => (
     <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200">
       <div className="text-sm text-gray-600">
         Page {currentPage} of {totalPages}
+        {totalItems !== undefined && (
+          <span className="ml-2 text-gray-400">({totalItems} total items)</span>
+        )}
       </div>
       <div className="flex gap-2">
         <button
@@ -558,9 +670,9 @@ export default function MasterAdminPage() {
     </div>
   );
 
-  const paginatedUsers = paginateArray(filteredUsers, userPage);
+  const paginatedUsers = paginateArray(sortedFilteredUsers, userPage);
   const paginatedEvents = paginateArray(filteredEvents, eventPage);
-  const paginatedFests = paginateArray(filteredFests, festPage);
+  const paginatedFests = paginateArray(sortedFilteredFests, festPage);
 
   if (authLoading || !authToken) {
     return (
@@ -595,7 +707,8 @@ export default function MasterAdminPage() {
               { id: "dashboard", label: "Dashboard" },
               { id: "users", label: "User Management" },
               { id: "events", label: "Event Management" },
-              { id: "fests", label: "Fest Management" }
+              { id: "fests", label: "Fest Management" },
+              { id: "notifications", label: "Notifications" }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -700,6 +813,11 @@ export default function MasterAdminPage() {
                   </select>
                 </div>
               </div>
+              {/* Result summary */}
+              <div className="mt-3 text-sm text-gray-500">
+                Showing <strong className="text-gray-700">{sortedFilteredUsers.length}</strong> of{" "}
+                <strong className="text-gray-700">{users.length}</strong> users
+              </div>
             </div>
 
             {/* Users Table */}
@@ -720,8 +838,11 @@ export default function MasterAdminPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            User
+                          <th
+                            onClick={() => toggleSort("name", userSortKey, userSortDir, setUserSortKey, setUserSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            User <SortIcon active={userSortKey === "name"} dir={userSortDir} />
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Organiser
@@ -910,14 +1031,49 @@ export default function MasterAdminPage() {
         {/* Event Management Tab */}
         {activeTab === "events" && (
           <div className="space-y-6">
+            {/* Search + Status Filter + Result Count */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-              <input
-                type="text"
-                placeholder="Search events by title or department..."
-                value={eventSearchQuery}
-                onChange={(e) => setEventSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
-              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Events</label>
+                  <input
+                    type="text"
+                    placeholder="Search events by title or department..."
+                    value={eventSearchQuery}
+                    onChange={(e) => setEventSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={eventStatusFilter}
+                    onChange={(e) => setEventStatusFilter(e.target.value as any)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
+                  >
+                    <option value="all">All Events ({events.length})</option>
+                    <option value="live">🟢 Live ({events.filter(e => getEventStatus(e.event_date).label === "Live").length})</option>
+                    <option value="thisweek">🟡 This Week ({events.filter(e => getEventStatus(e.event_date).label === "This Week").length})</option>
+                    <option value="upcoming">🔵 Upcoming ({events.filter(e => getEventStatus(e.event_date).label === "Upcoming").length})</option>
+                    <option value="past">⚫ Past ({events.filter(e => getEventStatus(e.event_date).label === "Past").length})</option>
+                  </select>
+                </div>
+              </div>
+              {/* Result summary */}
+              <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                <span>
+                  Showing <strong className="text-gray-700">{filteredEvents.length}</strong> of{" "}
+                  <strong className="text-gray-700">{events.length}</strong> events
+                  {eventStatusFilter !== "all" && (
+                    <button onClick={() => setEventStatusFilter("all")} className="ml-2 text-[#154CB3] hover:underline">
+                      Clear filter
+                    </button>
+                  )}
+                </span>
+                <span className="text-xs text-gray-400">
+                  Sorted by {eventSortKey} ({eventSortDir === "asc" ? "ascending" : "descending"})
+                </span>
+              </div>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -929,7 +1085,7 @@ export default function MasterAdminPage() {
               ) : paginatedEvents.items.length === 0 ? (
                 <div className="p-12 text-center">
                   <div className="text-xl font-semibold text-gray-700 mb-2">No events found</div>
-                  <div className="text-gray-500">Try adjusting your search</div>
+                  <div className="text-gray-500">Try adjusting your search or filter</div>
                 </div>
               ) : (
                 <>
@@ -937,59 +1093,88 @@ export default function MasterAdminPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Event</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Registrations</th>
+                          <th
+                            onClick={() => toggleSort("title", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Event <SortIcon active={eventSortKey === "title"} dir={eventSortDir} />
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                          <th
+                            onClick={() => toggleSort("dept", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Department <SortIcon active={eventSortKey === "dept"} dir={eventSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("date", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Date <SortIcon active={eventSortKey === "date"} dir={eventSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("registrations", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Registrations <SortIcon active={eventSortKey === "registrations"} dir={eventSortDir} />
+                          </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {paginatedEvents.items.map((event) => (
-                          <tr key={event.event_id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-semibold text-gray-900">{event.title}</div>
-                              <div className="text-sm text-gray-500">ID: {event.event_id}</div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.organizing_dept}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {new Date(event.event_date).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric', 
-                                year: 'numeric' 
-                              })}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800">
-                                {event.registration_count || 0} Registered
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{event.created_by}</td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <a
-                                  href={`/edit/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-[#154CB3] text-white text-sm font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
-                                >
-                                  Edit
-                                </a>
-                                <a
-                                  href={`/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                                >
-                                  View
-                                </a>
-                                <button
-                                  onClick={() => setShowDeleteEventConfirm(event.event_id)}
-                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {paginatedEvents.items.map((event) => {
+                          const status = getEventStatus(event.event_date);
+                          return (
+                            <tr key={event.event_id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="font-semibold text-gray-900">{event.title}</div>
+                                <div className="text-xs text-gray-400 mt-0.5">ID: {event.event_id.slice(0, 8)}…</div>
+                              </td>
+                              <td className="px-6 py-3">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${status.color}`}>
+                                  {status.label}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.organizing_dept}</td>
+                              <td className="px-6 py-4 text-sm text-gray-600">
+                                {new Date(event.event_date).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800">
+                                  {event.registration_count || 0}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-600 max-w-[140px] truncate">{event.created_by}</td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <a
+                                    href={`/edit/event/${event.event_id}`}
+                                    className="px-3 py-1.5 bg-[#154CB3] text-white text-xs font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
+                                  >
+                                    Edit
+                                  </a>
+                                  <a
+                                    href={`/event/${event.event_id}`}
+                                    className="px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                                  >
+                                    View
+                                  </a>
+                                  <button
+                                    onClick={() => setShowDeleteEventConfirm(event.event_id)}
+                                    className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1011,6 +1196,7 @@ export default function MasterAdminPage() {
         {activeTab === "fests" && (
           <div className="space-y-6">
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search Fests</label>
               <input
                 type="text"
                 placeholder="Search fests by title or department..."
@@ -1018,6 +1204,10 @@ export default function MasterAdminPage() {
                 onChange={(e) => setFestSearchQuery(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
               />
+              <div className="mt-3 text-sm text-gray-500">
+                Showing <strong className="text-gray-700">{sortedFilteredFests.length}</strong> of{" "}
+                <strong className="text-gray-700">{fests.length}</strong> fests
+              </div>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -1037,10 +1227,30 @@ export default function MasterAdminPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Fest</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Opening Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Registrations</th>
+                          <th
+                            onClick={() => toggleSort("title", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Fest <SortIcon active={festSortKey === "title"} dir={festSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("dept", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Department <SortIcon active={festSortKey === "dept"} dir={festSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("date", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Opening Date <SortIcon active={festSortKey === "date"} dir={festSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("registrations", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Registrations <SortIcon active={festSortKey === "registrations"} dir={festSortDir} />
+                          </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
@@ -1105,6 +1315,15 @@ export default function MasterAdminPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === "notifications" && authToken && (
+          <AdminNotifications
+            authToken={authToken}
+            users={users.map(u => ({ email: u.email, name: u.name }))}
+            events={events.map(e => ({ event_id: e.event_id, title: e.title }))}
+          />
         )}
 
         {/* Delete Modals */}

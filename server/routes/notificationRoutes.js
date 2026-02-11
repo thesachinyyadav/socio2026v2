@@ -33,6 +33,78 @@ function mapNotification(n, userStatus = null) {
   };
 }
 
+// ─── ADMIN: NOTIFICATION HISTORY ────────────────────────────────────────────────
+// Returns ALL notifications (broadcasts + individual) for the admin panel.
+// Sorted by created_at desc. No per-user filtering.
+
+router.get("/notifications/admin/history", async (req, res) => {
+  try {
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
+
+    return res.json({
+      notifications: (notifications || []).map(n => ({
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        type: n.type,
+        event_id: n.event_id || null,
+        event_title: n.event_title || null,
+        user_email: n.user_email || null,
+        is_broadcast: n.is_broadcast || false,
+        read: n.read || false,
+        created_at: n.created_at,
+        action_url: n.action_url || null,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching admin notification history:", error);
+    return res.status(500).json({ error: "Failed to fetch notification history" });
+  }
+});
+
+// ─── ADMIN: BROADCAST NOTIFICATION (via API) ─────────────────────────────────────
+// POST endpoint to let the admin panel send broadcasts without importing the function.
+
+router.post("/notifications/broadcast", async (req, res) => {
+  try {
+    const { title, message, type = 'info', event_id, event_title, action_url } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({ error: "title and message are required" });
+    }
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        title,
+        message,
+        type,
+        event_id: event_id || null,
+        event_title: event_title || null,
+        action_url: action_url || null,
+        user_email: null,
+        is_broadcast: true,
+        read: false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log(`[BROADCAST API] Created broadcast (id: ${data.id}): ${title}`);
+    return res.status(201).json({ notification: data });
+  } catch (error) {
+    console.error("Error sending broadcast:", error);
+    return res.status(500).json({ error: "Failed to send broadcast notification" });
+  }
+});
+
 // ─── GET NOTIFICATIONS ──────────────────────────────────────────────────────────
 // Merges:
 //   1. Individual notifications (user_email = this user, not broadcast)
