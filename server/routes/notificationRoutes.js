@@ -439,6 +439,51 @@ router.post("/notifications", async (req, res) => {
   }
 });
 
+// ─── CLEAR ALL (for a user) ─────────────────────────────────────────────────────
+// Must be defined BEFORE the :id route so Express doesn't match "clear-all" as an :id
+
+router.delete("/notifications/clear-all", async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email parameter is required" });
+    }
+
+    // 1. Delete individual notifications for this user
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_email', email)
+      .or('is_broadcast.is.null,is_broadcast.eq.false');
+
+    // 2. Dismiss all broadcasts for this user
+    const { data: broadcasts } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('is_broadcast', true);
+
+    if (broadcasts && broadcasts.length > 0) {
+      const entries = broadcasts.map(b => ({
+        notification_id: b.id,
+        user_email: email,
+        is_dismissed: true,
+        is_read: true
+      }));
+
+      await supabase
+        .from('notification_user_status')
+        .upsert(entries, { onConflict: 'notification_id,user_email' });
+    }
+
+    return res.json({ message: "All notifications cleared" });
+
+  } catch (error) {
+    console.error("Error clearing notifications:", error);
+    return res.status(500).json({ error: "Failed to clear notifications" });
+  }
+});
+
 // ─── DISMISS ONE ────────────────────────────────────────────────────────────────
 // Broadcast → mark dismissed in user_status (the shared row stays intact)
 // Individual → actually delete the row
@@ -482,50 +527,6 @@ router.delete("/notifications/:id", async (req, res) => {
   } catch (error) {
     console.error("Error dismissing notification:", error);
     return res.status(500).json({ error: "Failed to dismiss notification" });
-  }
-});
-
-// ─── CLEAR ALL (for a user) ─────────────────────────────────────────────────────
-
-router.delete("/notifications/clear-all", async (req, res) => {
-  try {
-    const { email } = req.query;
-
-    if (!email) {
-      return res.status(400).json({ error: "Email parameter is required" });
-    }
-
-    // 1. Delete individual notifications for this user
-    await supabase
-      .from('notifications')
-      .delete()
-      .eq('user_email', email)
-      .or('is_broadcast.is.null,is_broadcast.eq.false');
-
-    // 2. Dismiss all broadcasts for this user
-    const { data: broadcasts } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('is_broadcast', true);
-
-    if (broadcasts && broadcasts.length > 0) {
-      const entries = broadcasts.map(b => ({
-        notification_id: b.id,
-        user_email: email,
-        is_dismissed: true,
-        is_read: true
-      }));
-
-      await supabase
-        .from('notification_user_status')
-        .upsert(entries, { onConflict: 'notification_id,user_email' });
-    }
-
-    return res.json({ message: "All notifications cleared" });
-
-  } catch (error) {
-    console.error("Error clearing notifications:", error);
-    return res.status(500).json({ error: "Failed to clear notifications" });
   }
 });
 
