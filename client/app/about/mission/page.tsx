@@ -177,7 +177,7 @@ export default function MissionPage() {
             </Link>
           </div>
           <p className="text-gray-500 mb-6 text-sm sm:text-base">
-            Discover what drives us and where we're heading in our mission to transform campus life.
+            Discover what drives us and where we&apos;re heading in our mission to transform campus life.
           </p>
         </div>
 
@@ -255,7 +255,6 @@ export default function MissionPage() {
                 where technology serves as a bridge, not a barrier, to meaningful experiences.
               </p>
             </div>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {visionElements.map((element, index) => (
@@ -392,7 +391,7 @@ export default function MissionPage() {
             Join Our Mission
           </h2>
           <p className="text-base sm:text-lg text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
-            Whether you're a student looking to get more involved, an organizer wanting better tools, 
+            Whether you&apos;re a student looking to get more involved, an organizer wanting better tools, 
             or someone who believes in our vision, there are many ways to be part of this journey.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
