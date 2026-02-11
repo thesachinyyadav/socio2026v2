@@ -14,9 +14,7 @@ const navigationLinks = [
     name: "Home",
     href: "/",
     dropdown: [
-      { name: "Dashboard", href: "/" },
-      { name: "Featured Events", href: "/#featured" },
-      { name: "Announcements", href: "/#announcements" }
+      { name: "Dashboard", href: "/" }
     ]
   },
   {
