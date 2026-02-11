@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -153,7 +154,7 @@ export default function EventReminderButton({ eventId, eventTitle, authToken }: 
         Notify
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4"
           onClick={close}
@@ -309,10 +310,11 @@ export default function EventReminderButton({ eventId, eventTitle, authToken }: 
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes reminderFadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -321,7 +323,7 @@ export default function EventReminderButton({ eventId, eventTitle, authToken }: 
           from { opacity: 0; transform: scale(0.96); }
           to { opacity: 1; transform: scale(1); }
         }
-      `}</style>
+      ` }} />
     </>
   );
 }
