@@ -170,7 +170,7 @@ export default function CampusDetectionModal({
             <>
               <div className="text-center mb-4">
                 <p className="text-lg font-bold text-[#063168]">{detectedCampus}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{detectedDistance} km away</p>
+                <p className="text-xs font-semibold text-[#154CB3] mt-0.5">{detectedDistance} km away</p>
               </div>
 
               <p className="text-sm text-gray-600 text-center mb-4">
@@ -187,7 +187,7 @@ export default function CampusDetectionModal({
                 onClick={handleDismiss}
                 className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-lg transition-colors text-sm"
               >
-                Wrong Campus — Dismiss
+                Wrong Campus — Try Later On Campus
               </button>
             </>
           )}
