@@ -100,20 +100,22 @@ const AboutPage = () => {
   ];
 
   return (
-    <div className="min-h-screen ">
-      <div className="bg-gradient-to-b from-[#063168] to-[#3D75BD] text-white">
-        <div className="container mx-auto px-4 py-12 md:py-16 max-w-7xl">
-          <div className="max-w-3xl text-left">
-            <h1 className="text-3xl md:text-4xl font-black mb-3">
+    <div className="min-h-screen">
+      <div className="bg-gradient-to-br from-[#063168] to-[#154CB3] text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-widest text-[#FFCC00] mb-4">
+              About the platform
+            </p>
+            <h1 className="text-3xl sm:text-5xl font-black mb-4 leading-tight">
               About SOCIO
             </h1>
-            {/* UPDATED Hero Text */}
-            <p className="text-lg md:text-xl mb-8 text-[#ffffff]">
+            <p className="text-base sm:text-lg text-blue-100 mb-8 leading-relaxed">
               Socio is a platform that brings every college event under one
               roof, helping students stay connected with everything happening on
               campus.
             </p>
-            <p className="text-base md:text-lg mb-8 opacity-80 hidden md:block">
+            <p className="text-sm sm:text-base mb-8 text-blue-200/80 hidden md:block leading-relaxed">
               We started Socio with one goal in mind: to remove the fear of
               missing out and help students experience the full spectrum of
               college life.
@@ -142,14 +144,14 @@ const AboutPage = () => {
         </div>
       </div>
 
-      <section className="py-12 md:py-16 container mx-auto px-4 max-w-7xl">
+      <section className="py-12 md:py-16 container mx-auto px-4 sm:px-6 max-w-7xl">
         <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-center">
           
             <div className="md:w-1/2">
             <video
               src="https://christuniversity.in/uploads/banners/815015418_2025-06-28_03-56-27.mp4"
               title="Students using SOCIO platform"
-              className="rounded-lg shadow-lg w-full"
+              className="rounded-xl shadow-lg w-full"
               controls
               autoPlay
               muted
@@ -159,7 +161,8 @@ const AboutPage = () => {
             </video>
             </div>
             <div className="md:w-1/2">
-            <h2 className="text-2xl md:text-3xl font-black text-[#154CB3] mb-6">
+            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-3">Purpose</p>
+            <h2 className="text-2xl md:text-3xl font-black text-[#063168] mb-6">
               Our Mission
             </h2>
             <p className="text-gray-700 text-base md:text-lg mb-6">
@@ -172,7 +175,7 @@ const AboutPage = () => {
               connected, inclusive, and exciting—where no one misses out just
               because they didn’t get the memo.
             </p>
-            <div className="bg-yellow-50 border-l-4 border-[#FFCC00] p-4 rounded">
+            <div className="bg-yellow-50 border-l-4 border-[#FFCC00] p-4 rounded-xl">
               <p className="italic text-sm md:text-base text-gray-700">
                 "SOCIO has transformed how our university community connects and
                 engages with campus events, creating a more vibrant and
@@ -186,9 +189,10 @@ const AboutPage = () => {
         </div>
       </section>
 
-      <section className="py-12 md:py-16 bg-blue-50">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <h2 className="text-2xl md:text-3xl font-black text-[#154CB3] mb-6 text-center">
+      <section className="py-12 md:py-16 bg-gray-50">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2 text-center">Features</p>
+          <h2 className="text-2xl md:text-3xl font-black text-[#063168] mb-2 text-center">
             What we offer
           </h2>
           <p className="text-gray-700 text-base md:text-lg mb-12 text-center max-w-3xl mx-auto">
@@ -200,7 +204,7 @@ const AboutPage = () => {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow-sm hover:shadow-md transition-all border-b-4 border-[#FFCC00] flex flex-col"
+                className="bg-white p-3 sm:p-4 md:p-6 rounded-xl shadow-sm hover:shadow-md transition-all border-b-4 border-[#FFCC00] flex flex-col"
               >
                 <div className="mb-1 sm:mb-2 md:mb-4">{feature.icon}</div>
                 <h3 className="text-[0.8rem] sm:text-sm md:text-base lg:text-lg font-bold text-gray-800 mb-1">
@@ -219,10 +223,12 @@ const AboutPage = () => {
         </div>
       </section>
 
-      <section className="py-12 md:py-16 container mx-auto px-4 max-w-7xl">
-        <h2 className="text-2xl md:text-3xl font-black text-[#154CB3] mb-6 text-center">
+      <section className="py-12 md:py-16 container mx-auto px-4 sm:px-6 max-w-7xl">
+        <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2 text-center">Progress</p>
+        <h2 className="text-2xl md:text-3xl font-black text-[#063168] mb-2 text-center">
           Our Impact
         </h2>
+        <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full mb-8" />
         
         <div className="mb-8 flex flex-col items-center">
           <div className="relative w-full max-w-2xl mx-auto overflow-hidden rounded-lg shadow-lg mb-6">
@@ -232,9 +238,9 @@ const AboutPage = () => {
               width={800}
               height={400}
               priority
-              className="w-full h-auto object-cover"
+              className="w-full h-auto object-cover rounded-xl"
             />
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#154CB3]/80 to-transparent p-4">
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#063168]/80 to-transparent p-4 rounded-b-xl">
               <p className="text-white text-center font-medium">
           Our founders: Sachin Yadav, Surya Vamshi, and Meeth Shah
               </p>
@@ -242,7 +248,7 @@ const AboutPage = () => {
           </div>
           <div className="w-16 h-1 bg-[#FFCC00] rounded-full mb-6"></div>
         </div>
-        <p className="text-gray-700 text-base md:text-lg mb-10 text-center max-w-3xl mx-auto">
+        <p className="text-gray-600 text-base md:text-lg mb-10 text-center max-w-3xl mx-auto">
           Socio was born from a simple idea pitched by Meeth Shah during a college
           competition—and it resonated. Joined by Surya Vamshi and Sachin Yadav, the team
           turned it into a reality. Today, Socio aims to help students across
@@ -251,8 +257,8 @@ const AboutPage = () => {
         </p>
 
         {/* Animated Stats Section */}
-        <div className="bg-gradient-to-r from-[#154CB3] to-[#063168] py-8 px-4 rounded-xl mb-12">
-          <h3 className="text-xl md:text-2xl font-bold text-white text-center mb-8">Our Impact in Numbers</h3>
+        <div className="bg-gradient-to-br from-[#063168] to-[#154CB3] py-8 px-6 rounded-2xl mb-12">
+          <h3 className="text-xl md:text-2xl font-black text-white text-center mb-8">Our Impact in Numbers</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div className="flex flex-col items-center">
               <div className="text-3xl md:text-4xl font-black text-white mb-2">4</div>
@@ -300,7 +306,7 @@ const AboutPage = () => {
             </div>
           </div>
 
-          <div className="bg-white p-3 sm:p-4 md:p-6 rounded-lg border-t-4 shadow-sm border-[#FFCC00]">
+          <div className="bg-white p-3 sm:p-4 md:p-6 rounded-xl border-t-4 shadow-sm border-[#FFCC00]">
             <div className="flex justify-center mb-1 sm:mb-2 md:mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -326,7 +332,7 @@ const AboutPage = () => {
             </div>
           </div>
 
-          <div className="bg-white p-3 sm:p-4 md:p-6 rounded-lg border-t-4 shadow-sm border-[#FFCC00]">
+          <div className="bg-white p-3 sm:p-4 md:p-6 rounded-xl border-t-4 shadow-sm border-[#FFCC00]">
             <div className="flex justify-center mb-1 sm:mb-2 md:mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -358,17 +364,19 @@ const AboutPage = () => {
 
       {/* Testimonials Section */}
       <section className="py-12 md:py-16 bg-white">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <h2 className="text-2xl md:text-3xl font-black text-[#154CB3] mb-6 text-center">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2 text-center">Testimonials</p>
+          <h2 className="text-2xl md:text-3xl font-black text-[#063168] mb-2 text-center">
             What People Are Saying
           </h2>
-          <p className="text-gray-700 text-base md:text-lg mb-12 text-center max-w-3xl mx-auto">
+          <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full mb-4" />
+          <p className="text-gray-600 text-base md:text-lg mb-12 text-center max-w-3xl mx-auto">
             Hear from students and faculty who have experienced the difference SOCIO makes.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Testimonial 1 */}
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 shadow-sm relative">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative">
               <div className="text-[#154CB3] text-5xl font-serif absolute -top-4 left-4">"</div>
               <p className="text-gray-700 italic mb-6 pt-4">
                 SOCIO has completely transformed how our club manages events. The QR attendance system saves us hours of manual work!
@@ -385,7 +393,7 @@ const AboutPage = () => {
             </div>
 
             {/* Testimonial 2 */}
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 shadow-sm relative">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative">
               <div className="text-[#154CB3] text-5xl font-serif absolute -top-4 left-4">"</div>
               <p className="text-gray-700 italic mb-6 pt-4">
                 As a faculty advisor, I've seen firsthand how SOCIO has increased student participation in department events by over 40%.
@@ -402,7 +410,7 @@ const AboutPage = () => {
             </div>
 
             {/* Testimonial 3 */}
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 shadow-sm relative">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative">
               <div className="text-[#154CB3] text-5xl font-serif absolute -top-4 left-4">"</div>
               <p className="text-gray-700 italic mb-6 pt-4">
                 I used to miss half the campus events because I'd find out too late. With SOCIO, I'm always in the loop and have made so many more connections.
@@ -422,16 +430,18 @@ const AboutPage = () => {
       </section>
 
       <section className="py-12 md:py-16 bg-gray-50">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <h2 className="text-2xl md:text-3xl font-black text-[#154CB3] mb-6 text-center">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2 text-center">Connect</p>
+          <h2 className="text-2xl md:text-3xl font-black text-[#063168] mb-2 text-center">
             Share Your Feedback
           </h2>
-          <p className="text-gray-700 text-base md:text-lg mb-12 text-center max-w-3xl mx-auto">
+          <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full mb-4" />
+          <p className="text-gray-600 text-base md:text-lg mb-12 text-center max-w-3xl mx-auto">
             We're constantly improving SOCIO based on your suggestions and
             experiences.
           </p>
 
-          <div className="max-w-2xl mx-auto bg-white p-6 md:p-8 rounded-lg border-2 border-gray-200">
+          <div className="max-w-2xl mx-auto bg-white p-6 md:p-8 rounded-xl border border-gray-200">
             {" "}
             <form>
               <div className="mb-6">
@@ -444,7 +454,7 @@ const AboutPage = () => {
                 <input
                   type="text"
                   id="name"
-                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                   placeholder="Enter your name"
                 />
               </div>
@@ -459,7 +469,7 @@ const AboutPage = () => {
                 <input
                   type="email"
                   id="email"
-                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                   placeholder="Enter your college email"
                 />
               </div>
@@ -474,7 +484,7 @@ const AboutPage = () => {
                 <textarea
                   id="message"
                   rows={4}
-                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                   placeholder="Type your message/query"
                 ></textarea>
               </div>
@@ -490,7 +500,7 @@ const AboutPage = () => {
         </div>
       </section>
 
-      <section className="py-16 md:py-20 lg:py-24 bg-gradient-to-b from-[#063168] to-[#3D75BD] text-white mb-8">
+      <section className="py-16 md:py-20 lg:py-24 bg-gradient-to-br from-[#063168] to-[#154CB3] text-white mb-8">
         <div className="container mx-auto px-4 max-w-7xl text-center">
           <h2 className="text-2xl md:text-3xl font-black mb-6">
             Ready to get started with SOCIO?
