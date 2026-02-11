@@ -7,9 +7,23 @@ import { createBrowserClient } from "@supabase/ssr";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import DateTimePickerAdmin from "../_components/DateTimePickerAdmin";
+import dynamic from "next/dynamic";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const ITEMS_PER_PAGE = 20;
+
+const AnalyticsDashboard = dynamic(
+  () => import("../_components/Admin/AnalyticsDashboard"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-12 text-center">
+        <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-gray-600">Loading analytics...</div>
+      </div>
+    ),
+  }
+);
 
 type User = {
   id: number;
@@ -47,6 +61,16 @@ type Fest = {
   registration_count?: number;
 };
 
+type Registration = {
+  registration_id: string;
+  event_id: string;
+  user_email?: string;
+  registration_type: string;
+  created_at: string;
+  participant_organization?: string;
+  teammates?: any[];
+};
+
 export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -75,6 +99,8 @@ export default function MasterAdminPage() {
   const [festSearchQuery, setFestSearchQuery] = useState("");
   const [showDeleteFestConfirm, setShowDeleteFestConfirm] = useState<string | null>(null);
   const [festPage, setFestPage] = useState(1);
+
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -182,10 +208,21 @@ export default function MasterAdminPage() {
     setFestPage(1);
   }, [fests, debouncedFestSearch]);
 
+  const fetchRegistrations = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/registrations`);
+      if (!response.ok) throw new Error("Failed to fetch registrations");
+      const data = await response.json();
+      setRegistrations(data.registrations || []);
+    } catch (error) {
+      console.error("Error fetching registrations:", error);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
-      await Promise.all([fetchUsers(), fetchEvents(), fetchFests()]);
+      await Promise.all([fetchUsers(), fetchEvents(), fetchFests(), fetchRegistrations()]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -578,80 +615,53 @@ export default function MasterAdminPage() {
         {/* Dashboard Tab */}
         {activeTab === "dashboard" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Users</h3>
-                <p className="text-4xl font-bold text-gray-900 mb-4">{users.length}</p>
-                <div className="space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-3">
-                  <div className="flex justify-between">
-                    <span>Organisers:</span>
-                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_organiser).length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Support:</span>
-                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_support).length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Admins:</span>
-                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_masteradmin).length}</span>
+            {isLoading ? (
+              <div className="p-12 text-center">
+                <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <div className="text-gray-600">Loading analytics...</div>
+              </div>
+            ) : (
+              <>
+                <AnalyticsDashboard
+                  users={users}
+                  events={events}
+                  fests={fests}
+                  registrations={registrations}
+                />
+
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+                  <h3 className="text-base font-bold mb-3 text-gray-900">Quick Actions</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { tab: "users", title: "Manage Users", desc: "Edit roles & permissions" },
+                      { tab: "events", title: "Manage Events", desc: "View, edit, or delete events" },
+                      { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete fests" },
+                      { href: "/manage", title: "Organiser View", desc: "Manage page" }
+                    ].map((action, idx) => (
+                      action.tab ? (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveTab(action.tab as any)}
+                          className="p-4 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left"
+                        >
+                          <div className="font-semibold text-gray-900 text-sm mb-0.5">{action.title}</div>
+                          <div className="text-xs text-gray-500">{action.desc}</div>
+                        </button>
+                      ) : (
+                        <a
+                          key={idx}
+                          href={action.href}
+                          className="p-4 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left block"
+                        >
+                          <div className="font-semibold text-gray-900 text-sm mb-0.5">{action.title}</div>
+                          <div className="text-xs text-gray-500">{action.desc}</div>
+                        </a>
+                      )
+                    ))}
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Events</h3>
-                <p className="text-4xl font-bold text-gray-900 mb-4">{events.length}</p>
-                <button
-                  onClick={() => setActiveTab("events")}
-                  className="text-sm bg-[#154CB3] hover:bg-[#154cb3df] text-white px-4 py-2 rounded-lg transition-colors font-medium"
-                >
-                  View all events
-                </button>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Fests</h3>
-                <p className="text-4xl font-bold text-gray-900 mb-4">{fests.length}</p>
-                <div className="text-sm text-gray-600 border-t border-gray-100 pt-3">
-                  <div className="flex justify-between">
-                    <span>Registrations:</span>
-                    <span className="font-semibold text-gray-900">{fests.reduce((sum, f) => sum + (f.registration_count || 0), 0)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-bold mb-4 text-gray-900">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { tab: "users", title: "Manage Users", desc: "Edit roles, permissions, and delete users" },
-                  { tab: "events", title: "Manage Events", desc: "View, edit, or delete any event" },
-                  { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete any fest" },
-                  { href: "/manage", title: "View Manage Page", desc: "See all events and fests in one place" }
-                ].map((action, idx) => (
-                  action.tab ? (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveTab(action.tab as any)}
-                      className="p-5 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left"
-                    >
-                      <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
-                      <div className="text-sm text-gray-600">{action.desc}</div>
-                    </button>
-                  ) : (
-                    <a
-                      key={idx}
-                      href={action.href}
-                      className="p-5 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left block"
-                    >
-                      <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
-                      <div className="text-sm text-gray-600">{action.desc}</div>
-                    </a>
-                  )
-                ))}
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 
