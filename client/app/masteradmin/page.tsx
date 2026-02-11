@@ -692,34 +692,85 @@ export default function MasterAdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
+        {/* Header — Command Center */}
         <div className="mb-8">
-          <div className="bg-white border-b border-gray-200 rounded-lg p-6 shadow-sm">
-            <h1 className="text-3xl font-bold text-gray-900 mb-1">Master Admin Panel</h1>
-            <p className="text-gray-600">System management and oversight</p>
+          <div className="relative overflow-hidden bg-gradient-to-br from-[#063168] via-[#154CB3] to-[#1e6fd9] rounded-2xl p-6 sm:p-8 shadow-lg">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
+            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-[#FFCC00]/10 rounded-full" />
+            
+            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full mb-3 border border-white/20">
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  <span className="text-xs font-medium text-blue-100">Platform Online</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-white mb-1">
+                  Welcome back, {userData?.name?.split(' ')[0] || 'Admin'} 👋
+                </h1>
+                <p className="text-blue-200 text-sm">
+                  SOCIO Command Center &middot; {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href="/create/event"
+                  className="inline-flex items-center gap-2 bg-[#FFCC00] text-[#063168] px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-yellow-300 transition-all shadow-lg shadow-black/20"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Create Event
+                </a>
+                <a
+                  href="/create/fest"
+                  className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-white/25 transition-all border border-white/20"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Create Fest
+                </a>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden border border-gray-200">
           <div className="flex border-b border-gray-200 overflow-x-auto">
             {[
-              { id: "dashboard", label: "Dashboard" },
-              { id: "users", label: "User Management" },
-              { id: "events", label: "Event Management" },
-              { id: "fests", label: "Fest Management" },
-              { id: "notifications", label: "Notifications" }
+              { id: "dashboard", label: "Dashboard", icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
+              )},
+              { id: "users", label: "Users", icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+              ), count: users.length },
+              { id: "events", label: "Events", icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              ), count: events.length },
+              { id: "fests", label: "Fests", icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+              ), count: fests.length },
+              { id: "notifications", label: "Notifications", icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              )}
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-6 py-4 font-medium transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-5 py-4 font-medium transition-all whitespace-nowrap text-sm ${
                   activeTab === tab.id
-                    ? "border-b-2 border-[#154CB3] text-[#154CB3] bg-blue-50"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-b-2 border-[#154CB3] text-[#154CB3] bg-blue-50/50"
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
+                {tab.icon}
                 {tab.label}
+                {"count" in tab && tab.count !== undefined && tab.count > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                    activeTab === tab.id ? "bg-[#154CB3]/10 text-[#154CB3]" : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -735,6 +786,83 @@ export default function MasterAdminPage() {
               </div>
             ) : (
               <>
+                {/* Live Platform Pulse — At-a-glance power stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {(() => {
+                    const now = new Date();
+                    const liveEvents = events.filter(e => {
+                      const d = new Date(e.event_date);
+                      return d.toDateString() === now.toDateString();
+                    });
+                    const upcomingEvents = events.filter(e => new Date(e.event_date) > now);
+                    const thisWeekRegs = registrations.filter(r => {
+                      const d = new Date(r.created_at);
+                      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                      return d >= weekAgo;
+                    });
+                    const organisers = users.filter(u => u.is_organiser);
+                    const totalParticipants = registrations.reduce((sum, r) => sum + 1 + (r.teammates?.length || 0), 0);
+                    
+                    return [
+                      {
+                        label: "Live Today",
+                        value: liveEvents.length,
+                        sub: liveEvents.length > 0 ? liveEvents[0].title : "No events today",
+                        color: "emerald",
+                        icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" strokeWidth={2}/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06" /></svg>),
+                        pulse: liveEvents.length > 0
+                      },
+                      {
+                        label: "Upcoming Events",
+                        value: upcomingEvents.length,
+                        sub: `${events.length} total created`,
+                        color: "blue",
+                        icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>),
+                        pulse: false
+                      },
+                      {
+                        label: "This Week",
+                        value: thisWeekRegs.length,
+                        sub: `${totalParticipants.toLocaleString()} total participants`,
+                        color: "violet",
+                        icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>),
+                        pulse: false
+                      },
+                      {
+                        label: "Active Organisers",
+                        value: organisers.length,
+                        sub: `${users.length} total users`,
+                        color: "amber",
+                        icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>),
+                        pulse: false
+                      }
+                    ];
+                  })().map((stat, idx) => (
+                    <div key={idx} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          stat.color === "emerald" ? "bg-emerald-50 text-emerald-600" :
+                          stat.color === "blue" ? "bg-blue-50 text-blue-600" :
+                          stat.color === "violet" ? "bg-violet-50 text-violet-600" :
+                          "bg-amber-50 text-amber-600"
+                        }`}>
+                          {stat.icon}
+                        </div>
+                        {stat.pulse && (
+                          <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                            LIVE
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-2xl font-black text-gray-900">{stat.value}</div>
+                      <div className="text-sm font-medium text-gray-600 mt-0.5">{stat.label}</div>
+                      <div className="text-xs text-gray-400 mt-1 truncate">{stat.sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Analytics Dashboard */}
                 <AnalyticsDashboard
                   users={users}
                   events={events}
@@ -742,34 +870,178 @@ export default function MasterAdminPage() {
                   registrations={registrations}
                 />
 
-                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
-                  <h3 className="text-base font-bold mb-3 text-gray-900">Quick Actions</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[
-                      { tab: "users", title: "Manage Users", desc: "Edit roles & permissions" },
-                      { tab: "events", title: "Manage Events", desc: "View, edit, or delete events" },
-                      { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete fests" },
-                      { href: "/manage", title: "Organiser View", desc: "Manage page" }
-                    ].map((action, idx) => (
-                      action.tab ? (
+                {/* Recent Activity + Quick Actions side by side */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Recent Activity Feed */}
+                  <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <svg className="w-4 h-4 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Recent Activity
+                      </h3>
+                      <span className="text-xs text-gray-400">Latest first</span>
+                    </div>
+                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                      {(() => {
+                        type ActivityItem = { type: string; text: string; time: Date; color: string };
+                        const activities: ActivityItem[] = [];
+                        
+                        // Recent events created
+                        events.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).forEach(e => {
+                          activities.push({
+                            type: "event",
+                            text: `Event "${e.title}" created by ${e.created_by?.split('@')[0] || 'unknown'}`,
+                            time: new Date(e.created_at),
+                            color: "blue"
+                          });
+                        });
+                        
+                        // Recent registrations
+                        registrations.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).forEach(r => {
+                          const event = events.find(e => e.event_id === r.event_id);
+                          activities.push({
+                            type: "registration",
+                            text: `New ${r.registration_type} registration for "${event?.title || r.event_id}"`,
+                            time: new Date(r.created_at),
+                            color: "emerald"
+                          });
+                        });
+                        
+                        // Recent users
+                        users.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).forEach(u => {
+                          activities.push({
+                            type: "user",
+                            text: `${u.name || u.email} joined the platform`,
+                            time: new Date(u.created_at),
+                            color: "violet"
+                          });
+                        });
+                        
+                        // Recent fests
+                        fests.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 2).forEach(f => {
+                          activities.push({
+                            type: "fest",
+                            text: `Fest "${f.fest_title}" created`,
+                            time: new Date(f.created_at),
+                            color: "amber"
+                          });
+                        });
+                        
+                        activities.sort((a, b) => b.time.getTime() - a.time.getTime());
+                        
+                        if (activities.length === 0) {
+                          return (
+                            <div className="text-center py-8 text-gray-400 text-sm">No recent activity</div>
+                          );
+                        }
+                        
+                        return activities.slice(0, 10).map((activity, idx) => {
+                          const now = new Date();
+                          const diff = now.getTime() - activity.time.getTime();
+                          const mins = Math.floor(diff / 60000);
+                          const hours = Math.floor(diff / 3600000);
+                          const days = Math.floor(diff / 86400000);
+                          const timeAgo = mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : hours < 24 ? `${hours}h ago` : `${days}d ago`;
+                          
+                          return (
+                            <div key={idx} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-all">
+                              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                                activity.color === "blue" ? "bg-blue-500" :
+                                activity.color === "emerald" ? "bg-emerald-500" :
+                                activity.color === "violet" ? "bg-violet-500" :
+                                "bg-amber-500"
+                              }`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-700 truncate">{activity.text}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">{timeAgo}</p>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+                    <h3 className="text-base font-bold mb-4 text-gray-900 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      Quick Actions
+                    </h3>
+                    <div className="space-y-2">
+                      {[
+                        { tab: "users", title: "Manage Users", desc: "Roles & permissions", icon: (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>), color: "blue" },
+                        { tab: "events", title: "Manage Events", desc: "View, edit, delete", icon: (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>), color: "emerald" },
+                        { tab: "fests", title: "Manage Fests", desc: "Oversee all fests", icon: (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>), color: "violet" },
+                        { tab: "notifications", title: "Send Broadcast", desc: "Notify all users", icon: (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>), color: "amber" }
+                      ].map((action, idx) => (
                         <button
                           key={idx}
                           onClick={() => setActiveTab(action.tab as any)}
-                          className="p-4 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left"
+                          className="w-full flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-[#154CB3]/30 hover:bg-blue-50/50 transition-all text-left group"
                         >
-                          <div className="font-semibold text-gray-900 text-sm mb-0.5">{action.title}</div>
-                          <div className="text-xs text-gray-500">{action.desc}</div>
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            action.color === "blue" ? "bg-blue-50 text-blue-600 group-hover:bg-blue-100" :
+                            action.color === "emerald" ? "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100" :
+                            action.color === "violet" ? "bg-violet-50 text-violet-600 group-hover:bg-violet-100" :
+                            "bg-amber-50 text-amber-600 group-hover:bg-amber-100"
+                          } transition-colors`}>
+                            {action.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 text-sm">{action.title}</div>
+                            <div className="text-xs text-gray-400">{action.desc}</div>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-300 group-hover:text-[#154CB3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
-                      ) : (
+                      ))}
+                      <div className="pt-2 border-t border-gray-100 mt-2">
                         <a
-                          key={idx}
-                          href={action.href}
-                          className="p-4 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left block"
+                          href="/manage"
+                          className="w-full flex items-center gap-3 p-3 border border-dashed border-gray-200 rounded-xl hover:border-[#154CB3]/30 hover:bg-blue-50/50 transition-all text-left group"
                         >
-                          <div className="font-semibold text-gray-900 text-sm mb-0.5">{action.title}</div>
-                          <div className="text-xs text-gray-500">{action.desc}</div>
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-50 text-gray-500 group-hover:bg-gray-100 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 text-sm">Organiser View</div>
+                            <div className="text-xs text-gray-400">Open manage page</div>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-300 group-hover:text-[#154CB3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </a>
-                      )
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Platform Health Bar */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+                  <h3 className="text-base font-bold mb-4 text-gray-900 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    Platform Health
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {(() => {
+                      const now = new Date();
+                      const todayUsers = users.filter(u => new Date(u.created_at).toDateString() === now.toDateString()).length;
+                      const todayRegs = registrations.filter(r => new Date(r.created_at).toDateString() === now.toDateString()).length;
+                      const avgRegsPerEvent = events.length > 0 ? Math.round(registrations.length / events.length) : 0;
+                      const paidEvents = events.filter(e => e.registration_fee > 0).length;
+                      const revenue = events.reduce((sum, e) => sum + (e.registration_fee * (e.registration_count || 0)), 0);
+                      
+                      return [
+                        { label: "New Users Today", value: todayUsers, icon: "👤" },
+                        { label: "Registrations Today", value: todayRegs, icon: "📝" },
+                        { label: "Avg Regs/Event", value: avgRegsPerEvent, icon: "📊" },
+                        { label: "Paid Events", value: paidEvents, icon: "💰" },
+                        { label: "Est. Revenue", value: `₹${revenue.toLocaleString('en-IN')}`, icon: "💵" }
+                      ];
+                    })().map((item, idx) => (
+                      <div key={idx} className="text-center p-3 bg-gray-50 rounded-xl">
+                        <div className="text-lg mb-1">{item.icon}</div>
+                        <div className="text-lg font-black text-gray-900">{item.value}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{item.label}</div>
+                      </div>
                     ))}
                   </div>
                 </div>
