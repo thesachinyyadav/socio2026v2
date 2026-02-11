@@ -75,7 +75,7 @@ function NavigationBar() {
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      window.location.href = `/Discover?search=${encodeURIComponent(searchQuery.trim())}`;
+      window.location.href = `/events?search=${encodeURIComponent(searchQuery.trim())}`;
     }
   }, [searchQuery]);
 

@@ -34,6 +34,8 @@ const EventsPage = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const categoryParam = searchParams.get("category");
+  const searchParam = searchParams.get("search") || "";
+  const [searchQuery, setSearchQuery] = useState(searchParam);
   const [currentPage, setCurrentPage] = useState(1);
 
   const { allEvents, isLoading, error } = useEvents();
@@ -82,21 +84,37 @@ const EventsPage = () => {
   const activeFilterName =
     filterOptions.find((filter) => filter.active)?.name || "All";
 
+  // Sync searchQuery state when URL param changes
+  useEffect(() => {
+    setSearchQuery(searchParam);
+  }, [searchParam]);
+
   const eventsToFilter = Array.isArray(allEvents) ? allEvents : [];
   const filteredEvents = (eventsToFilter as FetchedEvent[]).filter((event) => {
-    if (activeFilterName === "All") {
-      return true;
+    // Category filter
+    if (activeFilterName !== "All") {
+      const eventTagsForFiltering: string[] = [];
+      if (event.category) {
+        eventTagsForFiltering.push(event.category);
+      }
+      if (event.registration_fee === 0 || event.registration_fee === null) {
+        eventTagsForFiltering.push("Free");
+      }
+      if (!eventTagsForFiltering.some(
+        (tag) => tag.toLowerCase() === activeFilterName.toLowerCase()
+      )) return false;
     }
-    const eventTagsForFiltering: string[] = [];
-    if (event.category) {
-      eventTagsForFiltering.push(event.category);
+    // Text search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const titleMatch = event.title?.toLowerCase().includes(q);
+      const venueMatch = event.venue?.toLowerCase().includes(q);
+      const deptMatch = event.organizing_dept?.toLowerCase().includes(q);
+      const categoryMatch = event.category?.toLowerCase().includes(q);
+      const festMatch = event.fest?.toLowerCase().includes(q);
+      if (!titleMatch && !venueMatch && !deptMatch && !categoryMatch && !festMatch) return false;
     }
-    if (event.registration_fee === 0 || event.registration_fee === null) {
-      eventTagsForFiltering.push("Free");
-    }
-    return eventTagsForFiltering.some(
-      (tag) => tag.toLowerCase() === activeFilterName.toLowerCase()
-    );
+    return true;
   });
 
   // Pagination
@@ -104,10 +122,10 @@ const EventsPage = () => {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedEvents = filteredEvents.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Reset to page 1 when filter changes
+  // Reset to page 1 when filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeFilterName]);
+  }, [activeFilterName, searchQuery]);
 
   const handleFilterClick = (clickedFilterName: string) => {
     setFilterOptions(
@@ -188,9 +206,30 @@ const EventsPage = () => {
               Back to Discovery
             </Link>
           </div>
-          <p className="text-gray-500 mb-6 text-sm sm:text-base">
+          <p className="text-gray-500 mb-4 text-sm sm:text-base">
             Browse through all upcoming events happening on campus.
           </p>
+
+          {/* Search bar */}
+          <div className="relative mb-4">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input
+              type="text"
+              placeholder="Search by name, venue, department..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); router.push("/events"); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
+          </div>
+
           <div className="flex flex-wrap gap-2 mb-6 sm:mb-8">
             {filterOptions.map((filter, index) => (
               <button
