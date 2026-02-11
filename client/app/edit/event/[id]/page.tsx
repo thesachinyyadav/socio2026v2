@@ -223,6 +223,8 @@ export default function EditEventPage() {
             allowOutsiders: data.allow_outsiders || false,
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
             outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
+            campusHostedAt: data.campus_hosted_at || "",
+            allowedCampuses: data.allowed_campuses || [],
             scheduleItems: transformScheduleForForm(data.schedule),
             rules: transformSimpleListForForm(data.rules),
             prizes: transformSimpleListForForm(data.prizes),
@@ -319,6 +321,10 @@ export default function EditEventPage() {
     payload.append("allow_outsiders", String(formData.allowOutsiders || false));
     payload.append("outsider_registration_fee", formData.outsiderRegistrationFee || "");
     payload.append("outsider_max_participants", formData.outsiderMaxParticipants || "");
+
+    // Campus fields
+    payload.append("campus_hosted_at", formData.campusHostedAt || "");
+    payload.append("allowed_campuses", JSON.stringify(formData.allowedCampuses || []));
 
     // Custom fields
     payload.append("custom_fields", JSON.stringify(formData.customFields || []));

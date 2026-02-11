@@ -445,6 +445,10 @@ router.put(
         allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
+        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
+        allowed_campuses: Array.isArray(req.body.allowed_campuses)
+          ? req.body.allowed_campuses
+          : parseJsonField(req.body.allowed_campuses, []),
         updated_at: new Date().toISOString(),
         updated_by: req.userInfo.email
       };

@@ -139,6 +139,10 @@ export default function CreateEventPage() {
     appendIfExists("outsider_registration_fee", dataFromHookForm.outsiderRegistrationFee);
     appendIfExists("outsider_max_participants", dataFromHookForm.outsiderMaxParticipants);
 
+    // Campus fields
+    appendIfExists("campus_hosted_at", dataFromHookForm.campusHostedAt);
+    appendJsonArrayOrObject("allowed_campuses", dataFromHookForm.allowedCampuses);
+
     appendJsonArrayOrObject("schedule", dataFromHookForm.scheduleItems);
     appendJsonArrayOrObject("rules", dataFromHookForm.rules);
     appendJsonArrayOrObject("prizes", dataFromHookForm.prizes);

@@ -245,6 +245,10 @@ router.post("/", multerUpload.fields([
         allow_outsiders: eventData.allowOutsiders === "true" || eventData.allow_outsiders === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(eventData.outsiderRegistrationFee || eventData.outsider_registration_fee, null),
         outsider_max_participants: parseOptionalInt(eventData.outsiderMaxParticipants || eventData.outsider_max_participants, null),
+        campus_hosted_at: eventData.campus_hosted_at || eventData.campusHostedAt || null,
+        allowed_campuses: Array.isArray(eventData.allowed_campuses)
+          ? eventData.allowed_campuses
+          : parseJsonField(eventData.allowed_campuses, []),
         schedule: Array.isArray(eventData.scheduleItems)
           ? eventData.scheduleItems
           : parseJsonField(eventData.scheduleItems, []),

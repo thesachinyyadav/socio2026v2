@@ -163,7 +163,9 @@ router.post(
       timeline: festData.timeline || [],
       sponsors: festData.sponsors || [],
       social_links: festData.social_links || [],
-      faqs: festData.faqs || []
+      faqs: festData.faqs || [],
+      campus_hosted_at: festData.campus_hosted_at || festData.campusHostedAt || null,
+      allowed_campuses: festData.allowed_campuses || festData.allowedCampuses || [],
     };
 
   const inserted = await insert("fest", [festPayload]);
@@ -285,7 +287,9 @@ router.put(
       ["timeline", updateData.timeline],
       ["sponsors", updateData.sponsors],
       ["social_links", updateData.social_links],
-      ["faqs", updateData.faqs]
+      ["faqs", updateData.faqs],
+      ["campus_hosted_at", updateData.campus_hosted_at ?? updateData.campusHostedAt],
+      ["allowed_campuses", updateData.allowed_campuses ?? updateData.allowedCampuses],
     ];
 
     for (const [key, value] of mapFields) {

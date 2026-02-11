@@ -18,6 +18,7 @@ import {
   departments as departmentOptions,
   categories as categoryOptions,
   festEvents as festEventOptions,
+  christCampuses,
 } from "@/app/lib/eventFormSchema";
 
 import { getFests } from "@/lib/api";
@@ -788,6 +789,8 @@ export default function EventForm({
       allowOutsiders: false,
       outsiderRegistrationFee: "",
       outsiderMaxParticipants: "",
+      campusHostedAt: "",
+      allowedCampuses: [],
       imageFile: null,
       bannerFile: null,
       pdfFile: null,
@@ -1401,11 +1404,86 @@ export default function EventForm({
                         placeholder="e.g., 50"
                       />
                       <p className="text-xs text-gray-600 italic">
-                        💡 Leave blank to use standard event settings for outsiders
+                        Leave blank to use standard event settings for outsiders
                       </p>
                     </div>
                   )}
                 </div>
+
+                {/* Campus Section - only visible when outsiders NOT allowed */}
+                {!watch("allowOutsiders") && (
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 className="text-sm font-medium text-gray-700 mb-4">
+                      Campus Settings
+                      <span className="block text-xs text-gray-500 font-normal mt-1">
+                        Select the hosting campus and which campuses can register
+                      </span>
+                    </h4>
+
+                    {/* Campus Hosted At */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Campus Hosted At
+                      </label>
+                      <Controller
+                        name="campusHostedAt"
+                        control={control}
+                        render={({ field }) => (
+                          <select
+                            {...field}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent"
+                          >
+                            <option value="">Select campus</option>
+                            {christCampuses.map((campus) => (
+                              <option key={campus} value={campus}>
+                                {campus}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      />
+                    </div>
+
+                    {/* Allowed Campuses */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Applicants Allowed From
+                        <span className="block text-xs text-gray-500 font-normal mt-1">
+                          Select which campuses can register. Leave empty to allow all campuses.
+                        </span>
+                      </label>
+                      <Controller
+                        name="allowedCampuses"
+                        control={control}
+                        render={({ field }) => (
+                          <div className="space-y-2">
+                            {christCampuses.map((campus) => (
+                              <label
+                                key={campus}
+                                className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={field.value?.includes(campus) || false}
+                                  onChange={(e) => {
+                                    const current = field.value || [];
+                                    if (e.target.checked) {
+                                      field.onChange([...current, campus]);
+                                    } else {
+                                      field.onChange(current.filter((c: string) => c !== campus));
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                                />
+                                {campus}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <FileInput<EventFormData>
                   label="Event image:"

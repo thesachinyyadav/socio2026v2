@@ -9,6 +9,7 @@ import { ClubSection } from "../_components/Discover/ClubSection";
 import Footer from "../_components/Home/Footer";
 import { getFests } from "@/lib/api";
 import { allCentres } from "../lib/centresData";
+import { christCampuses } from "../lib/eventFormSchema";
 
 import {
   useEvents,
@@ -46,13 +47,6 @@ const DiscoverPage = () => {
   const [selectedCampus, setSelectedCampus] = useState("Central Campus (Main)");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const christCampuses = [
-    "Central Campus (Main)",
-    "Bannerghatta Road Campus",
-    "Yeshwanthpur Campus",
-    "Kengeri Campus",
-  ];
 
   const [upcomingFests, setUpcomingFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);

@@ -144,6 +144,10 @@ export const eventFormSchema = z
       )
       .transform((val) => (val === "" ? undefined : val)),
 
+    // Campus fields (only used when outsiders are NOT allowed)
+    campusHostedAt: z.string().optional().default(""),
+    allowedCampuses: z.array(z.string()).optional().default([]),
+
     imageFile: fileSchema(
       MAX_FILE_SIZE_IMAGE,
       ACCEPTED_IMAGE_TYPES,
@@ -305,4 +309,13 @@ export const categories = [
 export const festEvents = [
   { value: "", label: "Select a fest (optional)" },
   // This will be populated dynamically in the component
+];
+
+export const christCampuses = [
+  "Central Campus (Main)",
+  "Bannerghatta Road Campus",
+  "Yeshwanthpur Campus",
+  "Kengeri Campus",
+  "Delhi NCR Campus",
+  "Pune Lavasa Campus",
 ];
