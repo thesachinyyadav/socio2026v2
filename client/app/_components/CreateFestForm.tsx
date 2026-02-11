@@ -1946,9 +1946,14 @@ function CreateFestForm(props?: CreateFestProps) {
 
                   {/* Campus Settings */}
                   <div className="border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
-                    <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide mb-5">
-                      Campus Restrictions
-                    </h4>
+                    <div className="flex items-center gap-3 mb-5">
+                      <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
+                        Campus Restrictions
+                      </h4>
+                      <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded-full font-medium">
+                        Optional — single-campus deployment
+                      </span>
+                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {/* Left: Hosted At */}
