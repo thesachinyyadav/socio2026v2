@@ -304,59 +304,130 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       {/* Visitor Welcome Modal */}
       {showOutsiderWarning && outsiderVisitorId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-[#063168] to-[#154CB3] p-6 text-center">
-              <div className="flex items-center justify-center w-16 h-16 bg-white rounded-full mx-auto mb-3">
-                <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full overflow-hidden">
+            {/* Compact header */}
+            <div className="bg-[#063168] px-5 py-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-[#FFCC00]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-1">Welcome, Visitor!</h3>
-              <p className="text-blue-100 text-sm">We&apos;re glad to have you here</p>
+              <div>
+                <h3 className="text-lg font-bold text-white">Welcome, Visitor</h3>
+                <p className="text-blue-200 text-xs">External visitor access</p>
+              </div>
             </div>
             
-            <div className="p-6">
-              <p className="text-gray-600 text-center mb-4">
-                You&apos;re joining us as an <span className="font-semibold text-[#154CB3]">External Visitor</span>. 
-                You can explore and register for events that are open to visitors.
-              </p>
-              
-              <div className="bg-[#063168] rounded-xl p-4 mb-4">
-                <p className="text-sm text-blue-100 text-center mb-1">Your Visitor ID</p>
-                <p className="text-2xl font-bold text-[#FFCC00] text-center tracking-wider">{outsiderVisitorId}</p>
-                <p className="text-xs text-blue-200 text-center mt-2">Keep this ID handy for event registrations</p>
+            <div className="p-5 space-y-3">
+              {/* Visitor ID badge */}
+              <div className="flex items-center justify-between bg-[#063168] rounded-lg px-4 py-3">
+                <span className="text-xs text-blue-200">Visitor ID</span>
+                <span className="text-base font-bold text-[#FFCC00] tracking-wider">{outsiderVisitorId}</span>
               </div>
 
-              {/* Name section */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                <p className="text-xs text-gray-500 text-center mb-1">Your display name</p>
-                <p className="text-lg font-bold text-[#063168] text-center">{userData?.name || session?.user?.user_metadata?.full_name || "--"}</p>
+              {/* Name display with inline actions */}
+              <div className="bg-gray-50 rounded-lg px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Display Name</p>
+                    {!isEditingOutsiderName ? (
+                      <p className="text-sm font-semibold text-[#063168]">{userData?.name || session?.user?.user_metadata?.full_name || "--"}</p>
+                    ) : (
+                      <input
+                        type="text"
+                        value={outsiderNameInput}
+                        onChange={(e) => setOutsiderNameInput(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-[#154CB3] mt-0.5"
+                        placeholder="Enter your name"
+                        autoFocus
+                      />
+                    )}
+                  </div>
+                  {!isEditingOutsiderName && !isSavingOutsiderName && (
+                    <button
+                      onClick={() => {
+                        setOutsiderNameInput(userData?.name || session?.user?.user_metadata?.full_name || "");
+                        setIsEditingOutsiderName(true);
+                        setOutsiderNameError(null);
+                      }}
+                      className="text-[#154CB3] text-xs font-medium hover:underline flex-shrink-0 ml-3"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
               </div>
 
               {outsiderNameError && (
-                <p className="text-red-500 text-xs text-center mb-3">{outsiderNameError}</p>
+                <p className="text-red-500 text-xs text-center">{outsiderNameError}</p>
               )}
 
+              {isEditingOutsiderName && (
+                <p className="text-[11px] text-amber-600 text-center">You can only set your name once. Make sure it&apos;s correct.</p>
+              )}
+
+              {/* Action buttons */}
               {!isEditingOutsiderName ? (
+                <button
+                  onClick={async () => {
+                    setIsSavingOutsiderName(true);
+                    setOutsiderNameError(null);
+                    try {
+                      const currentName = userData?.name || session?.user?.user_metadata?.full_name || "";
+                      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                      const token = (session as any)?.access_token;
+                      if (token) headers['Authorization'] = `Bearer ${token}`;
+                      const bodyPayload: any = { name: currentName.trim(), visitor_id: outsiderVisitorId };
+                      const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
+                        method: 'PUT', headers, body: JSON.stringify(bodyPayload)
+                      });
+                      if (!resp.ok) {
+                        const data = await resp.json();
+                        setOutsiderNameError(data.error || 'Failed to save');
+                        setIsSavingOutsiderName(false);
+                        return;
+                      }
+                      setShowOutsiderWarning(false);
+                      window.location.reload();
+                    } catch {
+                      setOutsiderNameError('Network error');
+                      setIsSavingOutsiderName(false);
+                    }
+                  }}
+                  disabled={isSavingOutsiderName}
+                  className="w-full bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-medium py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
+                >
+                  {isSavingOutsiderName ? "Saving..." : "Confirm & Continue"}
+                </button>
+              ) : (
                 <div className="flex gap-2">
                   <button
+                    onClick={() => { setIsEditingOutsiderName(false); setOutsiderNameError(null); }}
+                    disabled={isSavingOutsiderName}
+                    className="flex-1 border border-gray-300 text-gray-600 font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
                     onClick={async () => {
-                      // Save current name as-is and close modal
+                      if (!outsiderNameInput.trim()) {
+                        setOutsiderNameError("Name cannot be empty");
+                        return;
+                      }
                       setIsSavingOutsiderName(true);
                       setOutsiderNameError(null);
                       try {
-                        const currentName = userData?.name || session?.user?.user_metadata?.full_name || "";
                         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                         const token = (session as any)?.access_token;
                         if (token) headers['Authorization'] = `Bearer ${token}`;
-                        const bodyPayload: any = { name: currentName.trim(), visitor_id: outsiderVisitorId };
+                        const bodyPayload: any = { name: outsiderNameInput.trim(), visitor_id: outsiderVisitorId };
                         const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
                           method: 'PUT', headers, body: JSON.stringify(bodyPayload)
                         });
                         if (!resp.ok) {
                           const data = await resp.json();
-                          setOutsiderNameError(data.error || 'Failed to save name');
+                          setOutsiderNameError(data.error || 'Failed to save');
                           setIsSavingOutsiderName(false);
                           return;
                         }
@@ -368,76 +439,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       }
                     }}
                     disabled={isSavingOutsiderName}
-                    className="flex-1 bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-semibold py-3 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
+                    className="flex-1 bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-medium py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
                   >
-                    {isSavingOutsiderName ? "Saving..." : "Save This As My Name"}
+                    {isSavingOutsiderName ? "Saving..." : "Save Name"}
                   </button>
-                  <button
-                    onClick={() => {
-                      setOutsiderNameInput(userData?.name || session?.user?.user_metadata?.full_name || "");
-                      setIsEditingOutsiderName(true);
-                      setOutsiderNameError(null);
-                    }}
-                    disabled={isSavingOutsiderName}
-                    className="flex-1 border-2 border-[#154CB3] text-[#154CB3] font-semibold py-3 px-4 rounded-lg hover:bg-blue-50 transition-colors text-sm disabled:opacity-50"
-                  >
-                    Edit Name
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={outsiderNameInput}
-                    onChange={(e) => setOutsiderNameInput(e.target.value)}
-                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#154CB3] transition-colors"
-                    placeholder="Enter your name"
-                    autoFocus
-                  />
-                  <p className="text-xs text-amber-600 text-center">You can only set your name once. Make sure it&apos;s correct.</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={async () => {
-                        if (!outsiderNameInput.trim()) {
-                          setOutsiderNameError("Name cannot be empty");
-                          return;
-                        }
-                        setIsSavingOutsiderName(true);
-                        setOutsiderNameError(null);
-                        try {
-                          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                          const token = (session as any)?.access_token;
-                          if (token) headers['Authorization'] = `Bearer ${token}`;
-                          const bodyPayload: any = { name: outsiderNameInput.trim(), visitor_id: outsiderVisitorId };
-                          const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
-                            method: 'PUT', headers, body: JSON.stringify(bodyPayload)
-                          });
-                          if (!resp.ok) {
-                            const data = await resp.json();
-                            setOutsiderNameError(data.error || 'Failed to save name');
-                            setIsSavingOutsiderName(false);
-                            return;
-                          }
-                          setShowOutsiderWarning(false);
-                          window.location.reload();
-                        } catch {
-                          setOutsiderNameError('Network error');
-                          setIsSavingOutsiderName(false);
-                        }
-                      }}
-                      disabled={isSavingOutsiderName}
-                      className="flex-1 bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-semibold py-3 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
-                    >
-                      {isSavingOutsiderName ? "Saving..." : "Save Name"}
-                    </button>
-                    <button
-                      onClick={() => { setIsEditingOutsiderName(false); setOutsiderNameError(null); }}
-                      disabled={isSavingOutsiderName}
-                      className="flex-1 border-2 border-gray-300 text-gray-600 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </div>
               )}
             </div>

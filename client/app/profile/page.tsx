@@ -192,8 +192,6 @@ const StudentProfile = () => {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      // include email for debugging/fallback on server if needed
-      if (userData?.email) headers['X-User-Email'] = userData.email;
 
       const bodyPayload: any = { name: nameInput.trim() };
       if ((userData as any)?.organization_type === 'outsider') {
