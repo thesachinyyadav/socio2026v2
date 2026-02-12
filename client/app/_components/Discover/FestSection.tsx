@@ -31,7 +31,7 @@ export const FestsSection = ({
     <div>
       <SectionHeader title={title} link="fests" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
         {fests.map((fest) => (
           <div key={fest.fest_id}>
             <FestCard

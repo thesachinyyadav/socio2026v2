@@ -151,7 +151,7 @@ const DiscoverPage = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <main className="container mx-auto px-4 py-6 max-w-7xl pb-16">
+      <main className="container mx-auto px-6 sm:px-8 lg:px-12 py-6 max-w-[1200px] pb-16">
         <section className="mb-12">
           <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-6 mb-10">
             <div className="flex-1">
