@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 /**
  * Send a welcome email to new users
@@ -13,6 +13,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  * @param {string} visitorId - Visitor ID (for outsiders only)
  */
 export async function sendWelcomeEmail(email, name, isOutsider = false, visitorId = null) {
+  if (!resend) { console.warn('⚠️ Resend not configured — skipping welcome email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
     
@@ -155,6 +156,7 @@ https://socio.christuniversity.in
  * @param {string} registrationId - Registration ID
  */
 export async function sendRegistrationEmail(email, name, event, registrationId) {
+  if (!resend) { console.warn('⚠️ Resend not configured — skipping registration email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
     
