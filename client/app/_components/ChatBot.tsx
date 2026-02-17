@@ -38,6 +38,19 @@ export default function ChatBot() {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
+  // Reset chat when user navigates to a different page
+  useEffect(() => {
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "Hi! 👋 I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform!",
+      },
+    ]);
+    setInput("");
+    setLoading(false);
+  }, [pathname]);
+
   // ── Dynamic Quick Questions Based on Page ──────────────────────────────
   const quickQuestions = (() => {
     // Events list page
@@ -165,6 +178,23 @@ export default function ChatBot() {
             content: "I'm taking a short break due to high usage. 😅 Please check our FAQ page or contact support for immediate help."
           },
         ]);
+      } else if (res.status === 404) {
+        setMessages((prev) => [
+          ...prev,
+          { 
+            role: "assistant", 
+            content: "AI chatbot is not available yet. The feature is still being deployed. Please try again in a few minutes."
+          },
+        ]);
+      } else if (!res.ok) {
+        console.error("Chat API error:", data);
+        setMessages((prev) => [
+          ...prev,
+          { 
+            role: "assistant", 
+            content: data.error || `Error: ${res.status}. Please try again or contact support.`
+          },
+        ]);
       } else if (data.reply) {
         setMessages((prev) => [
           ...prev,
@@ -176,10 +206,14 @@ export default function ChatBot() {
           { role: "assistant", content: "Sorry, I couldn't process that. Try again!" },
         ]);
       }
-    } catch {
+    } catch (error) {
+      console.error("Chat connection error:", error);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Connection error. Please check your internet and try again." },
+        { 
+          role: "assistant", 
+          content: "Unable to connect to AI chatbot. The server might be deploying updates. Please try again in a few minutes."
+        },
       ]);
     } finally {
       setLoading(false);
