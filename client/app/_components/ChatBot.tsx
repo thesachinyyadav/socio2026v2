@@ -179,6 +179,7 @@ export default function ChatBot() {
           { role: "assistant", content: "SocioAssist is temporarily unavailable. Please check our FAQ page or contact support." },
         ]);
       } else if (!res.ok) {
+        console.error('[SocioAssist] Server error:', data);
         setMessages((prev) => [
           ...prev,
           { role: "assistant", content: data.error || "Something went wrong. Please try again." },

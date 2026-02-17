@@ -50,6 +50,25 @@ setInterval(() => {
   }
 }, 3600000);
 
+// Health check — no auth, shows config status for debugging
+router.get("/health", (req, res) => {
+  const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+  const hasSupabaseUrl = !!process.env.SUPABASE_URL;
+  const hasSupabaseKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const keyPrefix = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0, 6) + "..." : "NOT SET";
+  
+  res.json({
+    status: "ok",
+    config: {
+      geminiKey: hasGeminiKey,
+      geminiKeyPrefix: keyPrefix,
+      supabaseUrl: hasSupabaseUrl,
+      supabaseServiceKey: hasSupabaseKey,
+    },
+    sdkVersion: "@google/generative-ai loaded"
+  });
+});
+
 router.post("/", authenticateUser, async (req, res) => {
   const userEmail = req.user?.email || "unknown";
   console.log("[ChatBot] Request received from:", userEmail);
@@ -229,7 +248,8 @@ ${fests?.map((f) => `- ${f.fest_title} | ${new Date(f.opening_date).toLocaleDate
     }
 
     res.status(500).json({ 
-      error: "Failed to generate response. Please try again." 
+      error: "Failed to generate response. Please try again.",
+      debug: error.message 
     });
   }
 });
