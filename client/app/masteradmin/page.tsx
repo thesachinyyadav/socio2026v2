@@ -688,18 +688,18 @@ export default function MasterAdminPage() {
           </div>
           <div className="flex items-center gap-2">
             <a
-              href="/create/event"
-              className="inline-flex items-center gap-2 bg-[#154CB3] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0f3d8f] transition-colors"
+              href="/create/fest"
+              className="inline-flex items-center gap-2 bg-[#154CB3] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#154cb3eb] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              New Event
+              Create fest
             </a>
             <a
-              href="/create/fest"
-              className="inline-flex items-center gap-2 bg-white text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 hover:bg-gray-50 transition-colors"
+              href="/create/event"
+              className="inline-flex items-center gap-2 bg-[#154CB3] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#154cb3eb] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              New Fest
+              Create event
             </a>
           </div>
         </div>
