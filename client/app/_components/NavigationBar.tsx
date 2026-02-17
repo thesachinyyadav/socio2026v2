@@ -49,6 +49,13 @@ function NavigationBar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const sessionDisplayName =
+    session?.user?.user_metadata?.full_name ||
+    session?.user?.user_metadata?.name ||
+    session?.user?.email?.split("@")[0] ||
+    "User";
+  const displayName = userData?.name || sessionDisplayName;
+  const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
   
 
   // OPTIMIZATION: Memoize callbacks to prevent recreation on every render
@@ -160,13 +167,13 @@ function NavigationBar() {
 
           {/* Auth Buttons */}
           <div className="flex gap-3 items-center">
-            {isLoading || (session && !userData) ? (
+            {isLoading && !session ? (
               <div className="flex items-center gap-2">
                 <div className="h-9 w-20 rounded-full bg-gray-200 animate-pulse" />
                 <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
               </div>
-            ) : session && userData ? (
-              userData.is_organiser || (userData as any).is_masteradmin ? (
+            ) : session ? (
+              userData && (userData.is_organiser || (userData as any).is_masteradmin) ? (
                 <div className="flex gap-4 items-center">
                   <NotificationSystem />
                   {(userData as any).is_masteradmin && (
@@ -186,9 +193,9 @@ function NavigationBar() {
                   <Link href="/profile">
                     <div className="flex items-center gap-4">
                       <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                        {userData?.avatar_url ? (
+                        {displayAvatar ? (
                           <Image
-                            src={userData.avatar_url}
+                            src={displayAvatar}
                             alt="Profile"
                             fill
                             className="object-cover"
@@ -207,16 +214,16 @@ function NavigationBar() {
                 </div>
               ) : (
                 <div className="flex gap-4 items-center">
-                  <NotificationSystem />
+                  {userData && <NotificationSystem />}
                   <Link href="/profile">
                     <div className="flex items-center gap-4">
                       <span className="font-medium">
-                        {userData?.name || "User"}
+                        {displayName}
                       </span>
                       <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                        {userData?.avatar_url ? (
+                        {displayAvatar ? (
                           <Image
-                            src={userData.avatar_url}
+                            src={displayAvatar}
                             alt="Profile"
                             fill
                             className="object-cover"
