@@ -5,7 +5,20 @@ import type { NextRequest } from "next/server";
 const publicPaths = ["/", "/auth/callback", "/error", "/about", "/auth", "/events", "/event/*", "/fests", "/fest/*", "/clubs", "/club/*", "/Discover", "/contact", "/faq", "/privacy", "/terms", "/cookies", "/pricing", "/solutions", "/support", "/support/*", "/about/*", "/app-download"];
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+  const { pathname } = req.nextUrl;
+
+  // 1. Skip middleware for static assets, internal Next.js requests and files with extensions
+  if (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/static/") ||
+    pathname.includes(".") ||
+    pathname === "/favicon.ico"
+  ) {
+    return NextResponse.next();
+  }
+
+  // 2. Handle Cookies and Supabase
+  let res = NextResponse.next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,31 +30,34 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            res.cookies.set(name, value, options);
+            req.cookies.set(name, value); // Update request cookies for current execution
+            res.cookies.set(name, value, options); // Update response cookies for browser
           });
         },
       },
     }
   );
 
+  // 3. Get user - this might trigger a session refresh
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = req.nextUrl;
+  // 4. Robust origin detection for redirects
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const protocol = req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(':', '');
+  const origin = host ? `${protocol}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin);
 
-  // Robust origin detection for redirects
-  const host = req.headers.get("host");
-  const protocol = req.headers.get("x-forwarded-proto") || "http";
-  const origin = host ? `${protocol}://${host}` : req.nextUrl.origin;
-
-  if (
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/static/") ||
-    pathname.includes(".")
-  ) {
-    return res;
-  }
+  // Helper to maintain cookies on redirect
+  const redirect = (path: string) => {
+    const redirectUrl = new URL(path, origin);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    // Copy updated cookies from our 'res' to the 'redirectResponse'
+    res.cookies.getAll().forEach((cookie: any) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+    });
+    return redirectResponse;
+  };
 
   const isPublic = (currentPath: string) =>
     publicPaths.some(
@@ -52,8 +68,7 @@ export async function middleware(req: NextRequest) {
     );
 
   if (!user && !isPublic(pathname)) {
-    const redirectUrl = new URL("/auth", origin);
-    return NextResponse.redirect(redirectUrl);
+    return redirect("/auth");
   }
 
   if (
@@ -63,8 +78,7 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/edit"))
   ) {
     if (!user.email) {
-      const errorRedirectUrl = new URL("/error", origin);
-      return NextResponse.redirect(errorRedirectUrl);
+      return redirect("/error");
     }
 
     const { data: userData, error } = await supabase
@@ -74,8 +88,7 @@ export async function middleware(req: NextRequest) {
       .single();
 
     if (error || !userData || !userData.is_organiser) {
-      const redirectUrl = new URL("/error", origin);
-      return NextResponse.redirect(redirectUrl);
+      return redirect("/error");
     }
   }
 
