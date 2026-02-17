@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const SYSTEM_PROMPT = `You are Socio AI, a helpful assistant for the Socio university event platform at Christ University.
+const SYSTEM_PROMPT = `You are SocioAssist, a helpful assistant for the Socio university event platform at Christ University.
 
 You help students with:
 - Finding events and fests
@@ -40,6 +40,8 @@ setInterval(() => {
 }, 3600000);
 
 router.post("/", authenticateUser, getUserInfo(), async (req, res) => {
+  console.log("[ChatBot] Request received from:", req.user?.email);
+  
   const userEmail = req.user?.email;
   const today = new Date().toDateString();
   const key = `${userEmail}_${today}`;
@@ -47,16 +49,26 @@ router.post("/", authenticateUser, getUserInfo(), async (req, res) => {
   // Check daily user limit (20 messages per day)
   const count = dailyLimitMap.get(key) || 0;
   if (count >= 20) {
+    console.log("[ChatBot] Rate limit hit for:", userEmail);
     return res.status(429).json({
-      error: "You've used all 20 daily questions. Please try again tomorrow! 🕐",
+      error: "You've used all 20 daily questions. Please try again tomorrow.",
     });
   }
 
   try {
     const { message, history = [], context } = req.body;
+    console.log("[ChatBot] Message:", message, "Context:", context?.page);
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Message is required" });
+    }
+
+    // Check if Gemini API key is configured
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("[ChatBot] GEMINI_API_KEY not configured!");
+      return res.status(503).json({
+        error: "AI chatbot is not configured. Please contact support.",
+      });
     }
 
     const currentPage = context?.page || "";
