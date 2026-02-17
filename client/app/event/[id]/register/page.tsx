@@ -36,11 +36,19 @@ const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventT
     let endDateTime: string;
     
     if (eventTime) {
-      // Parse the time (format: HH:mm or similar)
-      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})/);
+      // Parse the time (format: HH:mm or HH:mm AM/PM)
+      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
       if (timeMatch) {
-        const hours = parseInt(timeMatch[1]);
+        let hours = parseInt(timeMatch[1]);
         const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if AM/PM is present
+        if (period === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
         
         const startDate = dateObj.hour(hours).minute(minutes);
         const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
@@ -510,8 +518,8 @@ const Page = () => {
                 onClick={() => {
                   const calendarUrl = generateGoogleCalendarUrl(
                     selectedEvent.title,
-                    selectedEvent.date,
-                    selectedEvent.time
+                    selectedEvent.event_date,
+                    selectedEvent.event_time
                   );
                   if (calendarUrl) {
                     window.open(calendarUrl, '_blank');
