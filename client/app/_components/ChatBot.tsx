@@ -10,7 +10,7 @@ interface Message {
 }
 
 export default function ChatBot() {
-  const { user } = useAuth();
+  const { session, userData } = useAuth();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -114,7 +114,7 @@ export default function ChatBot() {
 
   const sendMessage = async (messageText?: string) => {
     // Check if user is logged in
-    if (!user) {
+    if (!session) {
       setShowLoginPrompt(true);
       return;
     }
@@ -134,14 +134,14 @@ export default function ChatBot() {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${user.token}` 
+            "Authorization": `Bearer ${session.access_token}` 
           },
           body: JSON.stringify({
             message: textToSend,
             history: messages.slice(-10),
             context: {
               page: pathname, // Send current page for context
-              userId: user.email,
+              userId: session.user.email,
             }
           }),
         }
@@ -207,7 +207,7 @@ export default function ChatBot() {
               <div>
                 <p className="font-semibold text-sm">Socio AI</p>
                 <p className="text-xs text-blue-100">
-                  {user ? "Online" : "Login required"}
+                  {session ? "Online" : "Login required"}
                 </p>
               </div>
             </div>
@@ -223,7 +223,7 @@ export default function ChatBot() {
           </div>
 
           {/* Login Prompt Overlay */}
-          {showLoginPrompt && !user && (
+          {showLoginPrompt && !session && (
             <div className="absolute inset-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm z-10 flex items-center justify-center p-6">
               <div className="text-center space-y-4">
                 <div className="text-5xl">🔒</div>
@@ -307,13 +307,13 @@ export default function ChatBot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={user ? "Ask about events, fests..." : "Sign in to chat..."}
-                disabled={!user}
+                placeholder={session ? "Ask about events, fests..." : "Sign in to chat..."}
+                disabled={!session}
                 className="flex-1 px-3 py-2 text-sm rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#154CB3] disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 onClick={() => sendMessage()}
-                disabled={!user || !input.trim() || loading}
+                disabled={!session || !input.trim() || loading}
                 className="w-9 h-9 bg-[#154CB3] hover:bg-[#063168] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
               >
                 ➤
