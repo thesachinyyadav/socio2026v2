@@ -14,6 +14,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import debugRoutes from "./routes/debugRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 
 dotenv.config();
 
@@ -63,7 +64,8 @@ app.get('/', (req, res) => {
       attendance: '/api/attendance',
       notifications: '/api/notifications',
       contact: '/api/contact',
-      supportMessages: '/api/support/messages'
+      supportMessages: '/api/support/messages',
+      chat: '/api/chat'
     }
   });
 });
@@ -77,6 +79,7 @@ app.use("/api", notificationRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", contactRoutes);
 app.use("/api/debug", debugRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Global error handler - ensures CORS headers are always sent
 app.use((err, req, res, next) => {

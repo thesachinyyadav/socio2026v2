@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import NavigationBar from "./_components/NavigationBar";
+import ChatBot from "./_components/ChatBot";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
 import { unstable_cache } from "next/cache";
@@ -249,6 +250,7 @@ export default async function RootLayout({
                 {children}
               </div>
           </EventsProvider>
+          <ChatBot />
         </AuthProvider>
       </body>
     </html>
