@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -20,11 +22,9 @@ export default function ChatBot() {
         "Hi! I'm SocioAssist. Select a question below to get started.",
     },
   ]);
-  // Removed input state: only template questions allowed
   const [loading, setLoading] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Removed inputRef: no manual input
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,8 +33,6 @@ export default function ChatBot() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Removed inputRef focus effect
 
   // Reset chat when user navigates to a different page
   useEffect(() => {
@@ -45,7 +43,6 @@ export default function ChatBot() {
           "Hi! I'm SocioAssist. Select a question below to get started.",
       },
     ]);
-    // No input to reset
     setLoading(false);
   }, [pathname]);
 
@@ -123,83 +120,68 @@ export default function ChatBot() {
     ];
   })();
 
-  const sendMessage = async (messageText?: string) => {
-    // Check if user is logged in
+  const sendMessage = async (messageText: string) => {
     if (!session) {
       setShowLoginPrompt(true);
       return;
     }
 
-    const textToSend = messageText;
-    if (!textToSend || loading) return;
+    if (!messageText || loading) return;
 
-    const userMessage: Message = { role: "user", content: textToSend };
+    const userMessage: Message = { role: "user", content: messageText };
     setMessages((prev) => [...prev, userMessage]);
-    // No input to clear
     setLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-      const chatEndpoint = `${apiUrl}/chat`;
+      const chatEndpoint = `${API_URL}/api/chat`;
       
       console.log('[SocioAssist] Calling:', chatEndpoint);
-      console.log('[SocioAssist] Auth token present:', !!session.access_token);
       
-      const res = await fetch(
-        chatEndpoint,
-        {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}` 
-          },
-          body: JSON.stringify({
-            message: textToSend,
-            history: messages.slice(-10),
-            context: {
-              page: pathname,
-              userId: session.user.email,
-            }
-          }),
-        }
-      );
+      const res = await fetch(chatEndpoint, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}` 
+        },
+        body: JSON.stringify({
+          message: messageText,
+          history: messages.slice(-10),
+          context: {
+            page: pathname,
+            userId: session.user.email,
+          }
+        }),
+      });
       
       console.log('[SocioAssist] Response status:', res.status);
+      
+      // Check if response is JSON before parsing
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error('[SocioAssist] Non-JSON response. Content-Type:', contentType);
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Server returned an unexpected response. The server may be restarting. Please try again in a moment." },
+        ]);
+        return;
+      }
 
       const data = await res.json();
 
       if (res.status === 429) {
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "assistant", 
-            content: data.error || "You've used all 20 daily questions. Please try again tomorrow."
-          },
+          { role: "assistant", content: data.error || "You've used all 20 daily questions. Please try again tomorrow." },
         ]);
       } else if (res.status === 503) {
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "assistant", 
-            content: "The AI assistant is temporarily unavailable due to high usage. Please check our FAQ page or contact support for immediate help."
-          },
-        ]);
-      } else if (res.status === 404) {
-        setMessages((prev) => [
-          ...prev,
-          { 
-            role: "assistant", 
-            content: `SocioAssist endpoint not found. Server URL: ${process.env.NEXT_PUBLIC_API_URL || 'not set'}. Please contact support if this persists.`
-          },
+          { role: "assistant", content: "SocioAssist is temporarily unavailable. Please check our FAQ page or contact support." },
         ]);
       } else if (!res.ok) {
-        console.error("Chat API error:", data);
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "assistant", 
-            content: data.error || `Error: ${res.status}. Please try again or contact support.`
-          },
+          { role: "assistant", content: data.error || "Something went wrong. Please try again." },
         ]);
       } else if (data.reply) {
         setMessages((prev) => [
@@ -214,20 +196,14 @@ export default function ChatBot() {
       }
     } catch (error) {
       console.error('[SocioAssist] Connection error:', error);
-      console.error('[SocioAssist] API URL:', process.env.NEXT_PUBLIC_API_URL);
       setMessages((prev) => [
         ...prev,
-        { 
-          role: "assistant", 
-          content: `Unable to connect to SocioAssist. ${!process.env.NEXT_PUBLIC_API_URL ? 'Server URL not configured. ' : ''}Please contact support.`
-        },
+        { role: "assistant", content: "Unable to connect to SocioAssist. Please check your internet connection and try again." },
       ]);
     } finally {
       setLoading(false);
     }
   };
-
-  // Removed handleKeyDown: no manual input
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -318,15 +294,18 @@ export default function ChatBot() {
               </div>
             ))}
 
-            {/* Quick questions (show only at start) */}
-            {messages.length === 1 && (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-400 font-medium">Quick questions for this page:</p>
+            {/* Quick questions - always visible */}
+            {!loading && (
+              <div className="space-y-2 mt-2">
+                <p className="text-xs text-gray-400 font-medium">
+                  {messages.length === 1 ? "Quick questions for this page:" : "Ask another question:"}
+                </p>
                 {quickQuestions.map((q, i) => (
                   <button
                     key={i}
                     onClick={() => sendMessage(q)}
-                    className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 cursor-pointer transition-colors"
+                    disabled={loading}
+                    className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {q}
                   </button>
