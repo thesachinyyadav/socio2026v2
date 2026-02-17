@@ -6,7 +6,7 @@ const publicPaths = ["/", "/auth/callback", "/error", "/about", "/auth", "/event
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
-  
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -30,6 +30,11 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
 
+  // Robust origin detection for redirects
+  const host = req.headers.get("host");
+  const protocol = req.headers.get("x-forwarded-proto") || "http";
+  const origin = host ? `${protocol}://${host}` : req.nextUrl.origin;
+
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/static/") ||
@@ -47,8 +52,7 @@ export async function middleware(req: NextRequest) {
     );
 
   if (!user && !isPublic(pathname)) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/auth";
+    const redirectUrl = new URL("/auth", origin);
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -59,8 +63,7 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/edit"))
   ) {
     if (!user.email) {
-      const errorRedirectUrl = req.nextUrl.clone();
-      errorRedirectUrl.pathname = "/error";
+      const errorRedirectUrl = new URL("/error", origin);
       return NextResponse.redirect(errorRedirectUrl);
     }
 
@@ -71,8 +74,7 @@ export async function middleware(req: NextRequest) {
       .single();
 
     if (error || !userData || !userData.is_organiser) {
-      const redirectUrl = req.nextUrl.clone();
-      redirectUrl.pathname = "/error";
+      const redirectUrl = new URL("/error", origin);
       return NextResponse.redirect(redirectUrl);
     }
   }

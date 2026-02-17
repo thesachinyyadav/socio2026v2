@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 // Helper to determine organization type
 const getOrganizationType = (email: string): 'christ_member' | 'outsider' => {
@@ -17,11 +18,11 @@ const getOrganizationType = (email: string): 'christ_member' | 'outsider' => {
 async function createUserInDatabase(user: any) {
   try {
     const orgType = getOrganizationType(user.email);
-    
+
     let fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
     let registerNumber = null;
     let course = null;
-    
+
     if (orgType === 'christ_member') {
       const emailParts = user.email.split("@");
       if (emailParts.length === 2) {
@@ -33,7 +34,7 @@ async function createUserInDatabase(user: any) {
           }
         }
       }
-      
+
       if (user.user_metadata?.last_name) {
         const lastNameStr = user.user_metadata.last_name.trim();
         if (/^\d+$/.test(lastNameStr)) {
@@ -50,7 +51,7 @@ async function createUserInDatabase(user: any) {
         }
       }
     }
-    
+
     const payload = {
       id: user.id,
       email: user.email,
@@ -77,7 +78,7 @@ async function createUserInDatabase(user: any) {
       .catch(err => {
         console.error("User creation request failed:", err);
       });
-    
+
   } catch (error) {
     console.error("Error preparing user data:", error);
   }
@@ -85,7 +86,17 @@ async function createUserInDatabase(user: any) {
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
-  const origin = requestUrl.origin; // actual origin e.g. https://socio.christuniversity.in
+
+  // Robust origin detection: 
+  // 1. First choice: Environment variable
+  // 2. Second choice: X-Forwarded-Host or Host header
+  // 3. Fallback: current request URL origin
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || requestUrl.protocol.replace(':', '');
+  const headerOrigin = host ? `${protocol}://${host}` : null;
+
+  const origin = APP_URL || headerOrigin || requestUrl.origin;
+
   const code = requestUrl.searchParams.get("code");
 
   if (!code) {
@@ -145,7 +156,7 @@ export async function GET(request: NextRequest) {
 
     // Create/update user in database asynchronously (don't wait to avoid slow redirects)
     // If it fails, user will be created on next page load via AuthContext
-    createUserInDatabase(session.user).catch(err => 
+    createUserInDatabase(session.user).catch(err =>
       console.error("Background user creation failed:", err)
     );
 
