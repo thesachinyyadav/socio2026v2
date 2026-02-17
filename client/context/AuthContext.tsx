@@ -140,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUserData(null);
+        setIsLoading(false);
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
         fetchUserData(newSession.user.email!);
@@ -277,6 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Sign out error:", error);
     } finally {
+      setIsLoading(false);
     }
   };
 
