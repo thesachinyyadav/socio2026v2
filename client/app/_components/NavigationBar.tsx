@@ -6,7 +6,7 @@ import Logo from "@/app/logo.svg";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationSystem } from "./NotificationSystem";
 import TermsConsentModal from "./TermsConsentModal";
-import { useState, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 
 // OPTIMIZATION: Move static data outside component to prevent recreation on every render
 const navigationLinks = [
@@ -49,6 +49,7 @@ function NavigationBar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const sessionDisplayName =
     session?.user?.user_metadata?.full_name ||
     session?.user?.user_metadata?.name ||
@@ -56,6 +57,11 @@ function NavigationBar() {
     "User";
   const displayName = userData?.name || sessionDisplayName;
   const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
+  const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [displayAvatar]);
   
 
   // OPTIMIZATION: Memoize callbacks to prevent recreation on every render
@@ -193,19 +199,17 @@ function NavigationBar() {
                   <Link href="/profile">
                     <div className="flex items-center gap-4">
                       <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                        {displayAvatar ? (
-                          <Image
+                        {displayAvatar && !avatarLoadError ? (
+                          <img
                             src={displayAvatar}
                             alt="Profile"
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            className="w-full h-full object-cover"
+                            onError={() => setAvatarLoadError(true)}
+                            referrerPolicy="no-referrer"
                           />
                         ) : (
                           <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
-                            {userData?.name
-                              ? userData.name.charAt(0).toUpperCase()
-                              : "U"}
+                            {avatarInitial}
                           </div>
                         )}
                       </div>
@@ -221,19 +225,17 @@ function NavigationBar() {
                         {displayName}
                       </span>
                       <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                        {displayAvatar ? (
-                          <Image
+                        {displayAvatar && !avatarLoadError ? (
+                          <img
                             src={displayAvatar}
                             alt="Profile"
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            className="w-full h-full object-cover"
+                            onError={() => setAvatarLoadError(true)}
+                            referrerPolicy="no-referrer"
                           />
                         ) : (
                           <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
-                            {userData?.name
-                              ? userData.name.charAt(0).toUpperCase()
-                              : "U"}
+                            {avatarInitial}
                           </div>
                         )}
                       </div>
