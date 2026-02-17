@@ -258,6 +258,8 @@ npm run dev
 ```
 SUPABASE_URL=<your-supabase-url>
 SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+SUPABASE_DB_URL=postgresql://postgres:<password>@<host>:5432/postgres?sslmode=require
+DB_SSL=true
 RESEND_API_KEY=<your-resend-key>
 ALLOWED_ORIGINS=https://socio.christuniversity.in,http://localhost:3000
 ```
@@ -286,6 +288,19 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ## Deployment
 
 Both client and server deploy to **Vercel** with their respective `vercel.json` configs. Database and auth are hosted on **Supabase**.
+
+### DB Migration Pipeline
+
+Migrations are SQL files in `server/migrations` and are tracked in `public.schema_migrations`.
+
+Run from `server`:
+```bash
+npm run migration:create -- add_new_column
+npm run migration:status
+npm run migration:up
+```
+
+Full guide: `server/MIGRATIONS.md`
 
 ---
 
