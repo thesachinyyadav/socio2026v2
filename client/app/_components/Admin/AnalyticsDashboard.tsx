@@ -405,6 +405,7 @@ export default function AnalyticsDashboard({
       map[dept].registrations += e.registration_count || 0;
     });
     return Object.entries(map)
+      .filter(([_, d]) => d.events > 0 || d.registrations > 0)
       .map(([name, d]) => ({
         name: name.length > 18 ? name.substring(0, 18) + "…" : name,
         fullName: name,
