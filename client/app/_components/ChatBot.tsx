@@ -17,14 +17,14 @@ export default function ChatBot() {
     {
       role: "assistant",
       content:
-        "Hi! I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform.",
+        "Hi! I'm SocioAssist. Select a question below to get started.",
     },
   ]);
-  const [input, setInput] = useState("");
+  // Removed input state: only template questions allowed
   const [loading, setLoading] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Removed inputRef: no manual input
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,9 +34,7 @@ export default function ChatBot() {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
-  }, [isOpen]);
+  // Removed inputRef focus effect
 
   // Reset chat when user navigates to a different page
   useEffect(() => {
@@ -44,10 +42,10 @@ export default function ChatBot() {
       {
         role: "assistant",
         content:
-          "Hi! I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform.",
+          "Hi! I'm SocioAssist. Select a question below to get started.",
       },
     ]);
-    setInput("");
+    // No input to reset
     setLoading(false);
   }, [pathname]);
 
@@ -132,17 +130,23 @@ export default function ChatBot() {
       return;
     }
 
-    const textToSend = messageText || input.trim();
+    const textToSend = messageText;
     if (!textToSend || loading) return;
 
     const userMessage: Message = { role: "user", content: textToSend };
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    // No input to clear
     setLoading(true);
 
     try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const chatEndpoint = `${apiUrl}/chat`;
+      
+      console.log('[SocioAssist] Calling:', chatEndpoint);
+      console.log('[SocioAssist] Auth token present:', !!session.access_token);
+      
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/chat`,
+        chatEndpoint,
         {
           method: "POST",
           headers: { 
@@ -153,12 +157,14 @@ export default function ChatBot() {
             message: textToSend,
             history: messages.slice(-10),
             context: {
-              page: pathname, // Send current page for context
+              page: pathname,
               userId: session.user.email,
             }
           }),
         }
       );
+      
+      console.log('[SocioAssist] Response status:', res.status);
 
       const data = await res.json();
 
@@ -183,7 +189,7 @@ export default function ChatBot() {
           ...prev,
           { 
             role: "assistant", 
-            content: "AI chatbot is not available yet. The feature is still being deployed. Please try again in a few minutes."
+            content: `SocioAssist endpoint not found. Server URL: ${process.env.NEXT_PUBLIC_API_URL || 'not set'}. Please contact support if this persists.`
           },
         ]);
       } else if (!res.ok) {
@@ -207,12 +213,13 @@ export default function ChatBot() {
         ]);
       }
     } catch (error) {
-      console.error("Chat connection error:", error);
+      console.error('[SocioAssist] Connection error:', error);
+      console.error('[SocioAssist] API URL:', process.env.NEXT_PUBLIC_API_URL);
       setMessages((prev) => [
         ...prev,
         { 
           role: "assistant", 
-          content: "Unable to connect to AI chatbot. The server might be deploying updates. Please try again in a few minutes."
+          content: `Unable to connect to SocioAssist. ${!process.env.NEXT_PUBLIC_API_URL ? 'Server URL not configured. ' : ''}Please contact support.`
         },
       ]);
     } finally {
@@ -220,12 +227,7 @@ export default function ChatBot() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  // Removed handleKeyDown: no manual input
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -243,7 +245,7 @@ export default function ChatBot() {
                 </svg>
               </div>
               <div>
-                <p className="font-semibold text-sm">Socio AI</p>
+                <p className="font-semibold text-sm">SocioAssist</p>
                 <p className="text-xs text-blue-100">
                   {session ? "Online" : "Login required"}
                 </p>
@@ -276,7 +278,7 @@ export default function ChatBot() {
                     Login Required
                   </h3>
                   <p className="text-sm text-gray-400">
-                    Please sign in to chat with Socio AI
+                    Please sign in to chat with SocioAssist
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -346,29 +348,11 @@ export default function ChatBot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={session ? "Ask about events, fests..." : "Sign in to chat..."}
-                disabled={!session}
-                className="flex-1 px-3 py-2 text-sm rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#154CB3] disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <button
-                onClick={() => sendMessage()}
-                disabled={!session || !input.trim() || loading}
-                className="w-9 h-9 bg-[#154CB3] hover:bg-[#0d3580] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
-            </div>
+          {/* Info Footer */}
+          <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+              Select a question above to continue
+            </p>
           </div>
         </div>
       )}
