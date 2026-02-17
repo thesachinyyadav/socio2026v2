@@ -291,7 +291,8 @@ export default function ChatBot() {
                     className="w-full px-6 py-3 text-sm text-gray-400 hover:text-white transition-colors"
                   >
                     Cancel
-                </button>
+                  </button>
+                </div>
               </div>
             </div>
           )}
