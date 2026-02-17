@@ -17,7 +17,7 @@ export default function ChatBot() {
     {
       role: "assistant",
       content:
-        "Hi! 👋 I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform!",
+        "Hi! I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -44,7 +44,7 @@ export default function ChatBot() {
       {
         role: "assistant",
         content:
-          "Hi! 👋 I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform!",
+          "Hi! I'm Socio AI. Ask me about events, fests, registrations, or anything about the platform.",
       },
     ]);
     setInput("");
@@ -167,7 +167,7 @@ export default function ChatBot() {
           ...prev,
           { 
             role: "assistant", 
-            content: data.error || "You've used all 20 daily questions. Please try again tomorrow! 🕐"
+            content: data.error || "You've used all 20 daily questions. Please try again tomorrow."
           },
         ]);
       } else if (res.status === 503) {
@@ -175,7 +175,7 @@ export default function ChatBot() {
           ...prev,
           { 
             role: "assistant", 
-            content: "I'm taking a short break due to high usage. 😅 Please check our FAQ page or contact support for immediate help."
+            content: "The AI assistant is temporarily unavailable due to high usage. Please check our FAQ page or contact support for immediate help."
           },
         ]);
       } else if (res.status === 404) {
@@ -234,9 +234,13 @@ export default function ChatBot() {
         <div className="mb-4 w-[360px] h-[500px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
           {/* Header */}
           <div className="bg-[#154CB3] text-white px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-sm">
-                🤖
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                  <circle cx="9" cy="10" r="1.5"/>
+                  <circle cx="15" cy="10" r="1.5"/>
+                </svg>
               </div>
               <div>
                 <p className="font-semibold text-sm">Socio AI</p>
@@ -250,34 +254,43 @@ export default function ChatBot() {
                 setIsOpen(false);
                 setShowLoginPrompt(false);
               }}
-              className="text-white/80 hover:text-white text-xl leading-none cursor-pointer"
+              className="text-white/80 hover:text-white transition-colors"
             >
-              ✕
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
           {/* Login Prompt Overlay */}
           {showLoginPrompt && !session && (
-            <div className="absolute inset-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm z-10 flex items-center justify-center p-6">
-              <div className="text-center space-y-4">
-                <div className="text-5xl">🔒</div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                  Login Required
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Please sign in to chat with Socio AI
-                </p>
-                <button
-                  onClick={() => window.location.href = "/auth"}
-                  className="px-6 py-2 bg-[#154CB3] hover:bg-[#063168] text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => setShowLoginPrompt(false)}
-                  className="block w-full text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                >
-                  Cancel
+            <div className="absolute inset-0 bg-[#1a1d29] z-10 flex items-center justify-center p-6">
+              <div className="text-center space-y-5 max-w-xs">
+                <div className="w-16 h-16 mx-auto bg-[#154CB3]/10 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Login Required
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    Please sign in to chat with Socio AI
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => window.location.href = "/auth"}
+                    className="w-full px-6 py-3 bg-[#154CB3] hover:bg-[#0d3580] text-white rounded-lg text-sm font-medium transition-all hover:shadow-lg"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => setShowLoginPrompt(false)}
+                    className="w-full px-6 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    Cancel
                 </button>
               </div>
             </div>
@@ -348,9 +361,11 @@ export default function ChatBot() {
               <button
                 onClick={() => sendMessage()}
                 disabled={!session || !input.trim() || loading}
-                className="w-9 h-9 bg-[#154CB3] hover:bg-[#063168] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
+                className="w-9 h-9 bg-[#154CB3] hover:bg-[#0d3580] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
               >
-                ➤
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
               </button>
             </div>
           </div>
@@ -360,9 +375,17 @@ export default function ChatBot() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 bg-[#154CB3] hover:bg-[#063168] text-white rounded-full shadow-lg flex items-center justify-center text-2xl cursor-pointer transition-all hover:scale-105"
+        className="w-14 h-14 bg-[#154CB3] hover:bg-[#0d3580] text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all hover:shadow-xl hover:scale-105"
       >
-        {isOpen ? "✕" : "💬"}
+        {isOpen ? (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+          </svg>
+        )}
       </button>
     </div>
   );
