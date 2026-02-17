@@ -55,10 +55,7 @@ export default function StudentsPage() {
       setIsDataLoading(true);
       setError(null);
       try {
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (!apiBaseUrl) {
-          throw new Error("API endpoint is not configured.");
-        }
+        const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
         
         // Fetch event details, registrations, and attendance status in parallel
         const [eventResponse, registrationsResponse, attendanceResponse] = await Promise.all([

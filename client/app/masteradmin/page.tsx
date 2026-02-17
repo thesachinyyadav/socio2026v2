@@ -9,7 +9,7 @@ import { useDebounce } from "@/lib/hooks/useDebounce";
 import DateTimePickerAdmin from "../_components/DateTimePickerAdmin";
 import dynamic from "next/dynamic";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 const ITEMS_PER_PAGE = 20;
 
 const AnalyticsDashboard = dynamic(
@@ -1538,3 +1538,4 @@ export default function MasterAdminPage() {
     </div>
   );
 }
+

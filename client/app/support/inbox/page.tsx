@@ -7,7 +7,7 @@ import Footer from "../../_components/Home/Footer";
 import LoadingIndicator from "../../_components/UI/LoadingIndicator";
 import { useAuth } from "../../../context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
 type ContactMessage = {
   id: string;
@@ -325,3 +325,4 @@ const SupportInboxPage = () => {
 };
 
 export default SupportInboxPage;
+

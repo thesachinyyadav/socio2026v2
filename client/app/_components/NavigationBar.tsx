@@ -6,7 +6,7 @@ import Logo from "@/app/logo.svg";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationSystem } from "./NotificationSystem";
 import TermsConsentModal from "./TermsConsentModal";
-import { useState, useMemo, useCallback, memo } from "react";
+import { useState, useCallback, memo } from "react";
 
 // OPTIMIZATION: Move static data outside component to prevent recreation on every render
 const navigationLinks = [
@@ -82,21 +82,6 @@ function NavigationBar() {
   const handleDropdownHover = useCallback((linkName: string | null) => {
     setActiveDropdown(linkName);
   }, []);
-
-  // OPTIMIZATION: Memoize loading state JSX
-  const loadingView = useMemo(() => (
-    <>
-      <nav className="w-full flex justify-between items-center pt-8 pb-7 px-12 text-[#154CB3] select-none">
-        <div className="h-10 w-24"></div>
-        <div className="h-10 w-24"></div>
-      </nav>
-      <hr className="border-[#3030304b]" />
-    </>
-  ), []);
-
-  if (isLoading) {
-    return loadingView;
-  }
 
   return (
     <>
@@ -175,7 +160,7 @@ function NavigationBar() {
 
           {/* Auth Buttons */}
           <div className="flex gap-3 items-center">
-            {isLoading ? (
+            {isLoading || (session && !userData) ? (
               <div className="flex items-center gap-2">
                 <div className="h-9 w-20 rounded-full bg-gray-200 animate-pulse" />
                 <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />

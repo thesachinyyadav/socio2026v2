@@ -3,7 +3,7 @@
 import React, { useState, useEffect, memo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
 export interface Notification {
   id: string;
@@ -496,3 +496,4 @@ export const createEventNotification = async (
 // OPTIMIZATION: Export memoized component
 export const NotificationSystem = memo(NotificationSystemComponent);
 export default NotificationSystem;
+

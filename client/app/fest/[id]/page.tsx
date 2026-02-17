@@ -74,7 +74,7 @@ const FestPage = () => {
     setLoadingFestDetails(true);
     setErrorFestDetails(null);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
     fetch(`${API_URL}/api/fests/${festIdSlug}`)
       .then((res) => {
@@ -527,3 +527,4 @@ const FestPage = () => {
 };
 
 export default FestPage;
+

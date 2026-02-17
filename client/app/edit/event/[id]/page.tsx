@@ -17,7 +17,7 @@ export default function EditEventPage() {
   const eventIdSlug = params?.id as string;
   const router = useRouter();
   const { session, userData, isLoading: authIsLoading } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const [initialData, setInitialData] = useState<Partial<EventFormData>>();
   const [existingImageFileUrl, setExistingImageFileUrl] = useState<
@@ -549,3 +549,4 @@ export default function EditEventPage() {
     </div>
   );
 }
+

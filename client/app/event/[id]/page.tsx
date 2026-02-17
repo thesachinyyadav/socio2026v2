@@ -37,7 +37,7 @@ interface EventData {
 export default function Page() {
   const params = useParams(); // { id: string }
   const eventIdSlug = params?.id ? String(params.id) : null;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const router = useRouter();
 
@@ -1230,3 +1230,4 @@ const PhoneSmallIcon = () => (
     />
   </svg>
 );
+

@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 
 // API Base URL
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
 // ============ EVENTS ============
 
@@ -323,3 +323,4 @@ export async function createNotification(notificationData: {
 
 // Export supabase client for direct use if needed
 export { supabase };
+

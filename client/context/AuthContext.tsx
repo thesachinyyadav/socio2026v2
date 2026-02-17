@@ -3,10 +3,9 @@
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Session, User } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
 import CampusDetectionModal, { isCampusDismissedRecently } from "../app/_components/CampusDetectionModal";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 type UserData = {
@@ -64,8 +63,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
   
-  const router = useRouter();
-
   const getOrganizationType = (email: string | undefined): 'christ_member' | 'outsider' => {
     if (!email) return 'outsider';
     const lowerEmail = email.toLowerCase();
@@ -84,12 +81,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession) {
           setSession(currentSession);
-          // Fetch user data without blocking
-          const existingUser = await fetchUserData(currentSession.user.email!);
-          // Show campus modal for christ_member users without a campus set (respect 12hr dismiss)
-          if (existingUser && existingUser.organization_type === 'christ_member' && !existingUser.campus && !isCampusDismissedRecently()) {
-            setShowCampusModal(true);
-          }
+          // Fetch user data in background so navbar can render immediately.
+          void fetchUserData(currentSession.user.email!).then((existingUser) => {
+            if (
+              existingUser &&
+              existingUser.organization_type === 'christ_member' &&
+              !existingUser.campus &&
+              !isCampusDismissedRecently()
+            ) {
+              setShowCampusModal(true);
+            }
+          });
         }
       } catch (error) {
         console.error("Error checking user session:", error);
@@ -104,53 +106,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (event === "SIGNED_IN" && newSession) {
-        // Set session immediately - don't block on user data
+        // Resolve auth state immediately and load profile details in background.
         setSession(newSession);
-        setIsLoading(true);
-        
-        // Check if user is an outsider
-        const orgType = getOrganizationType(newSession.user?.email);
-        
-        // Create user first (fast), then fetch - for new users
-        await createOrUpdateUser(newSession.user);
-        
-        // Fetch user data with exponential backoff for new users
-        let userData = await fetchUserData(newSession.user.email!);
-        
-        // Quick retry with minimal delay if not found (user just being created)
-        if (!userData) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-          userData = await fetchUserData(newSession.user.email!);
-        }
-        
-        // Show warning for first-time outsiders who haven't set their name yet
-        if (orgType === 'outsider' && userData?.visitor_id && !userData?.outsider_name_edit_used) {
-          setOutsiderVisitorId(userData.visitor_id);
-          const hasSeenWarning = localStorage.getItem(`outsider_warning_${newSession.user.id}`);
-          if (!hasSeenWarning) {
-            setShowOutsiderWarning(true);
-            localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
-          }
-        }
-        // Show campus modal for christ_member users without a campus set (respect 12hr dismiss)
-        if (orgType === 'christ_member' && userData && !userData.campus && !isCampusDismissedRecently()) {
-          setShowCampusModal(true);
-        }
         setIsLoading(false);
+
+        const orgType = getOrganizationType(newSession.user?.email);
+
+        void (async () => {
+          await createOrUpdateUser(newSession.user);
+
+          let fetchedUser = await fetchUserData(newSession.user.email!);
+          if (!fetchedUser) {
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            fetchedUser = await fetchUserData(newSession.user.email!);
+          }
+
+          if (
+            orgType === 'outsider' &&
+            fetchedUser?.visitor_id &&
+            !fetchedUser?.outsider_name_edit_used
+          ) {
+            setOutsiderVisitorId(fetchedUser.visitor_id);
+            const hasSeenWarning = localStorage.getItem(`outsider_warning_${newSession.user.id}`);
+            if (!hasSeenWarning) {
+              setShowOutsiderWarning(true);
+              localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
+            }
+          }
+
+          if (
+            orgType === 'christ_member' &&
+            fetchedUser &&
+            !fetchedUser.campus &&
+            !isCampusDismissedRecently()
+          ) {
+            setShowCampusModal(true);
+          }
+        })();
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUserData(null);
         setIsLoading(false);
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
-        fetchUserData(newSession.user.email!);
+        void fetchUserData(newSession.user.email!);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const createOrUpdateUser = async (user: User) => {
     if (!user?.email) return;
@@ -462,3 +468,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

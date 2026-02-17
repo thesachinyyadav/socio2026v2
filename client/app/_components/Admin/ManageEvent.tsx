@@ -910,7 +910,7 @@ export default function EventForm({
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}`,
         {
@@ -993,7 +993,7 @@ export default function EventForm({
         .toLowerCase()
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}/close`,
         {
@@ -1727,3 +1727,4 @@ export default function EventForm({
     </div>
   );
 }
+

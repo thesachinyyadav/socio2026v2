@@ -85,7 +85,7 @@ const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
   const { userData, isLoading: authIsLoading } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const { allEvents, isLoading: contextIsLoading, error: contextError } = useEvents();
   const eventId = routeParams?.id;
@@ -1035,3 +1035,4 @@ const Page = () => {
 };
 
 export default Page;
+
