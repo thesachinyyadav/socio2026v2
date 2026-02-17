@@ -27,6 +27,52 @@ interface FormErrors {
   customFields?: Record<string, string>;
 }
 
+// Helper function to generate Google Calendar URL
+const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventTime?: string): string | null => {
+  try {
+    const dateObj = dayjs(eventDate);
+    
+    let startDateTime: string;
+    let endDateTime: string;
+    
+    if (eventTime) {
+      // Parse the time (format: HH:mm or similar)
+      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        
+        const startDate = dateObj.hour(hours).minute(minutes);
+        const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
+        
+        startDateTime = startDate.format('YYYYMMDDTHHmmss');
+        endDateTime = endDate.format('YYYYMMDDTHHmmss');
+      } else {
+        // If time parsing fails, use date only
+        startDateTime = dateObj.format('YYYYMMDD');
+        endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+      }
+    } else {
+      // No time provided, use all-day event format
+      startDateTime = dateObj.format('YYYYMMDD');
+      endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+    }
+    
+    // Build Google Calendar URL
+    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    const params = new URLSearchParams({
+      text: eventTitle,
+      dates: `${startDateTime}/${endDateTime}`,
+      details: `Register for ${eventTitle} on SOCIO platform`
+    });
+    
+    return `${baseUrl}&${params.toString()}`;
+  } catch (error) {
+    console.error('Error generating calendar URL:', error);
+    return null;
+  }
+};
+
 const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
@@ -460,6 +506,35 @@ const Page = () => {
                   Back to Discover
                 </button>
               </Link>
+              <button
+                onClick={() => {
+                  const calendarUrl = generateGoogleCalendarUrl(
+                    selectedEvent.title,
+                    selectedEvent.date,
+                    selectedEvent.time
+                  );
+                  if (calendarUrl) {
+                    window.open(calendarUrl, '_blank');
+                  }
+                }}
+                className="w-full sm:w-auto bg-blue-100 text-blue-600 py-2 px-6 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-4 h-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                  />
+                </svg>
+                Add to Calendar
+              </button>
               {selectedEvent.whatsapp_invite_link && (
                 <a
                   href={selectedEvent.whatsapp_invite_link}
