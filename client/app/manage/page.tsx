@@ -30,6 +30,7 @@ const Page = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [eventsPage, setEventsPage] = useState(1);
   const [festsPage, setFestsPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<"fests" | "events">("fests");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const { userData, isMasterAdmin } = useAuth();
   const {
@@ -286,131 +287,154 @@ const Page = () => {
               </div>
             </div>
           </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4 sm:mb-6">
-              Your fests {searchedUserFests.length > 0 && `(${searchedUserFests.length})`}
-            </h2>
-            {isLoadingFests ? (
-              <p className="text-gray-500">Loading your fests...</p>
-            ) : festsError ? (
-              <p className="text-red-500">Error loading fests: {festsError}</p>
-            ) : paginatedFests.items.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
-                  {paginatedFests.items.map((fest) => (
-                    <FestCard
-                      key={fest.fest_id}
-                      id={fest.fest_id}
-                      title={fest.fest_title}
-                      dept={fest.organizing_dept}
-                      description={fest.description}
-                      dateRange={`${formatDate(fest.opening_date)} - ${formatDate(
-                        fest.closing_date
-                      )}`}
-                      image={
-                        fest.fest_image_url ||
-                        "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
-                      }
-                      baseUrl="edit/fest"
-                    />
-                  ))}
-                </div>
-                {paginatedFests.totalPages > 1 && (
-                  <div className="flex justify-center items-center gap-4 mt-8">
-                    <button
-                      onClick={() => setFestsPage(p => p - 1)}
-                      disabled={!paginatedFests.hasPrev}
-                      className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-gray-700 font-medium">
-                      Page {festsPage} of {paginatedFests.totalPages}
-                    </span>
-                    <button
-                      onClick={() => setFestsPage(p => p + 1)}
-                      disabled={!paginatedFests.hasNext}
-                      className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-gray-500">
-                {searchTerm && !isLoadingFests
-                  ? "No fests found matching your search."
-                  : "No fests created yet."}
-              </p>
-            )}
-          </div>
-        </section>
 
-        <section className="mb-12">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4 sm:mb-6">
+          {/* Toggle Buttons */}
+          <div className="flex gap-3 mb-8 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("fests")}
+              className={`pb-3 px-1 font-semibold text-lg transition-all ${
+                activeTab === "fests"
+                  ? "text-[#154CB3] border-b-2 border-[#154CB3]"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Your fests {searchedUserFests.length > 0 && `(${searchedUserFests.length})`}
+            </button>
+            <button
+              onClick={() => setActiveTab("events")}
+              className={`pb-3 px-1 font-semibold text-lg transition-all ${
+                activeTab === "events"
+                  ? "text-[#154CB3] border-b-2 border-[#154CB3]"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
               Your events {searchedUserEvents.length > 0 && `(${searchedUserEvents.length})`}
-            </h2>
-            {isLoadingContextEvents ? (
-              <p className="text-gray-500">Loading your events...</p>
-            ) : contextEventsError ? (
-              <p className="text-red-500">
-                Error loading events: {contextEventsError}
-              </p>
-            ) : paginatedEvents.items.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
-                  {paginatedEvents.items.map((event) => (
-                    <EventCard
-                      key={event.id}
-                      idForLink={event.event_id}
-                      title={event.title}
-                      festName={event.fest || ""}
-                      dept={event.organizing_dept || "N/A"}
-                      date={formatDate(event.event_date)}
-                      time={formatTimeStr(event.event_time)}
-                      location={event.venue || "TBD"}
-                      tags={getDisplayTagsForEvent(event)}
-                      image={
-                        event.event_image_url ||
-                        "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
-                      }
-                      baseUrl="edit/event"
-                      authToken={authToken || undefined}
-                    />
-                  ))}
-                </div>
-                {paginatedEvents.totalPages > 1 && (
-                  <div className="flex justify-center items-center gap-4 mt-8">
-                    <button
-                      onClick={() => setEventsPage(p => p - 1)}
-                      disabled={!paginatedEvents.hasPrev}
-                      className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-gray-700 font-medium">
-                      Page {eventsPage} of {paginatedEvents.totalPages}
-                    </span>
-                    <button
-                      onClick={() => setEventsPage(p => p + 1)}
-                      disabled={!paginatedEvents.hasNext}
-                      className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-gray-500">
-                {searchTerm && !isLoadingContextEvents
-                  ? "No events found matching your search."
-                  : "No events created yet."}
-              </p>
-            )}
+            </button>
           </div>
+
+          {/* Fests Section */}
+          {activeTab === "fests" && (
+            <div>
+              {isLoadingFests ? (
+                <p className="text-gray-500">Loading your fests...</p>
+              ) : festsError ? (
+                <p className="text-red-500">Error loading fests: {festsError}</p>
+              ) : paginatedFests.items.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
+                    {paginatedFests.items.map((fest) => (
+                      <FestCard
+                        key={fest.fest_id}
+                        id={fest.fest_id}
+                        title={fest.fest_title}
+                        dept={fest.organizing_dept}
+                        description={fest.description}
+                        dateRange={`${formatDate(fest.opening_date)} - ${formatDate(
+                          fest.closing_date
+                        )}`}
+                        image={
+                          fest.fest_image_url ||
+                          "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
+                        }
+                        baseUrl="edit/fest"
+                      />
+                    ))}
+                  </div>
+                  {paginatedFests.totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-4 mt-8">
+                      <button
+                        onClick={() => setFestsPage(p => p - 1)}
+                        disabled={!paginatedFests.hasPrev}
+                        className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-gray-700 font-medium">
+                        Page {festsPage} of {paginatedFests.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setFestsPage(p => p + 1)}
+                        disabled={!paginatedFests.hasNext}
+                        className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-500">
+                  {searchTerm && !isLoadingFests
+                    ? "No fests found matching your search."
+                    : "No fests created yet."}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Events Section */}
+          {activeTab === "events" && (
+            <div>
+              {isLoadingContextEvents ? (
+                <p className="text-gray-500">Loading your events...</p>
+              ) : contextEventsError ? (
+                <p className="text-red-500">
+                  Error loading events: {contextEventsError}
+                </p>
+              ) : paginatedEvents.items.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
+                    {paginatedEvents.items.map((event) => (
+                      <EventCard
+                        key={event.id}
+                        idForLink={event.event_id}
+                        title={event.title}
+                        festName={event.fest || ""}
+                        dept={event.organizing_dept || "N/A"}
+                        date={formatDate(event.event_date)}
+                        time={formatTimeStr(event.event_time)}
+                        location={event.venue || "TBD"}
+                        tags={getDisplayTagsForEvent(event)}
+                        image={
+                          event.event_image_url ||
+                          "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
+                        }
+                        baseUrl="edit/event"
+                        authToken={authToken || undefined}
+                      />
+                    ))}
+                  </div>
+                  {paginatedEvents.totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-4 mt-8">
+                      <button
+                        onClick={() => setEventsPage(p => p - 1)}
+                        disabled={!paginatedEvents.hasPrev}
+                        className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-gray-700 font-medium">
+                        Page {eventsPage} of {paginatedEvents.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setEventsPage(p => p + 1)}
+                        disabled={!paginatedEvents.hasNext}
+                        className="px-4 py-2 bg-[#154CB3] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#154cb3eb] transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-500">
+                  {searchTerm && !isLoadingContextEvents
+                    ? "No events found matching your search."
+                    : "No events created yet."}
+                </p>
+              )}
+            </div>
+          )}
         </section>
       </main>
     </div>
