@@ -207,7 +207,13 @@ export default function ChatBot() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <>
+      {/* Backdrop blur when chatbot is open */}
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => setIsOpen(false)} />
+      )}
+      
+      <div className="fixed bottom-6 right-6 z-50">
       {/* Chat Panel */}
       {isOpen && (
         <div className="mb-4 w-[360px] h-[500px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
@@ -276,63 +282,27 @@ export default function ChatBot() {
             </div>
           )}
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-[#154CB3] text-white rounded-br-sm"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm"
-                  }`}
-                >
-                  {msg.content}
-                </div>
+          {/* Coming Soon Message */}
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="text-center space-y-4 max-w-xs">
+              <div className="w-16 h-16 mx-auto bg-[#154CB3]/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
               </div>
-            ))}
-
-            {/* Quick questions - always visible */}
-            {!loading && (
-              <div className="space-y-2 mt-2">
-                <p className="text-xs text-gray-400 font-medium">
-                  {messages.length === 1 ? "Quick questions for this page:" : "Ask another question:"}
-                </p>
-                {quickQuestions.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendMessage(q)}
-                    disabled={loading}
-                    className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {q}
-                  </button>
-                ))}
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">SocioAssist</h3>
+                <p className="text-sm text-gray-600">Coming Soon</p>
               </div>
-            )}
-
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-2xl rounded-bl-sm">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.15s]" />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.3s]" />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+              <p className="text-xs text-gray-500 leading-relaxed">
+                We're working on bringing you an AI-powered assistant to help you navigate Socio. Stay tuned!
+              </p>
+            </div>
           </div>
 
-          {/* Info Footer */}
-          <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              Select a question above to continue
-            </p>
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-center">
+            <p className="text-xs text-gray-500">Launching Soon</p>
           </div>
         </div>
       )}
@@ -352,6 +322,7 @@ export default function ChatBot() {
           </svg>
         )}
       </button>
-    </div>
+      </div>
+    </>
   );
 }
