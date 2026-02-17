@@ -391,20 +391,37 @@ const Page = () => {
   }
 
   if (eventPageError || !selectedEvent || (!authIsLoading && !userData)) {
+    const handleLoginClick = () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('returnTo', window.location.pathname);
+      }
+      router.push('/auth');
+    };
+
     return (
       <div className="flex flex-col justify-center items-center min-h-[80vh] text-center px-4">
-        <p className="text-xl text-red-500">
+        <p className="text-xl text-gray-700 mb-4">
           {eventPageError ||
             (!selectedEvent
               ? "Could not load event details."
-              : "Access denied or session expired. Please log in.")}
+              : "Please log in or sign up to register for this event")}
         </p>
-        <Link
-          href="/"
-          className="mt-4 bg-[#063168] text-white py-2 px-4 rounded hover:bg-[#154CB3]"
-        >
-          Go to Homepage
-        </Link>
+        {!eventPageError && selectedEvent === null && !userData && (
+          <button
+            onClick={handleLoginClick}
+            className="mt-4 bg-[#154CB3] text-white py-2 px-6 rounded hover:bg-[#063168] transition-colors font-medium"
+          >
+            Log in or Sign up
+          </button>
+        )}
+        {(eventPageError || selectedEvent !== null) && (
+          <Link
+            href="/"
+            className="mt-4 bg-[#063168] text-white py-2 px-4 rounded hover:bg-[#154CB3]"
+          >
+            Go to Homepage
+          </Link>
+        )}
       </div>
     );
   }

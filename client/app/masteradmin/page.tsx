@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -1089,6 +1090,32 @@ export default function MasterAdminPage() {
         {/* Event Management Tab */}
         {activeTab === "events" && (
           <div className="space-y-6">
+            {/* Create Event Button */}
+            <div className="flex justify-end">
+              <Link href="/create/event">
+                <button
+                  type="button"
+                  className="bg-[#154CB3] cursor-pointer text-white text-sm py-3 px-4 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Create event
+                </button>
+              </Link>
+            </div>
+
             {/* Search + Status Filter + Result Count */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1253,6 +1280,32 @@ export default function MasterAdminPage() {
         {/* Fest Management Tab */}
         {activeTab === "fests" && (
           <div className="space-y-6">
+            {/* Create Fest Button */}
+            <div className="flex justify-end">
+              <Link href="/create/fest">
+                <button
+                  type="button"
+                  className="bg-[#154CB3] cursor-pointer text-white text-sm py-3 px-4 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Create fest
+                </button>
+              </Link>
+            </div>
+
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Search Fests</label>
               <input

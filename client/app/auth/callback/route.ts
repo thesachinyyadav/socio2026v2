@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
 
     // Allow all Gmail users (both Christ members and outsiders)
     console.log(`Auth callback successful for: ${session.user.email}`);
-    return NextResponse.redirect(`${origin}/Discover`);
+    return NextResponse.redirect(`${origin}/auth/verify`);
   } catch (error) {
     console.error("Unexpected error in auth callback:", error);
     const cookieStore = await cookies();

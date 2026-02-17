@@ -379,6 +379,14 @@ export default function Page() {
     // Custom fields need to be collected before registration
     const hasCustomFields = eventData.custom_fields && eventData.custom_fields.length > 0;
     if (hasCustomFields) {
+      // Check if user is logged in first
+      if (!userData) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('returnTo', window.location.pathname);
+        }
+        router.push('/auth');
+        return;
+      }
       router.push(`/event/${eventData.id}/register`);
       return;
     }
@@ -388,9 +396,19 @@ export default function Page() {
         setRegistrationApiError("Verifying user data, please wait...");
         return;
       }
-      if (!userData || userData.register_number == null) {
+      
+      // If user is not logged in, redirect to auth with returnTo
+      if (!userData) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('returnTo', window.location.pathname);
+        }
+        router.push('/auth');
+        return;
+      }
+      
+      if (userData.register_number == null) {
         setRegistrationApiError(
-          "User profile incomplete or not logged in. Registration number is required."
+          "User profile incomplete. Registration number is required."
         );
         return;
       }
@@ -470,6 +488,14 @@ export default function Page() {
         setIsRegistering(false);
       }
     } else {
+      // Team registration
+      if (!userData) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('returnTo', window.location.pathname);
+        }
+        router.push('/auth');
+        return;
+      }
       router.push(`/event/${eventData.id}/register`);
     }
   };
