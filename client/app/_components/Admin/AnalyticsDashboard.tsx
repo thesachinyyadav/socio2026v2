@@ -128,15 +128,17 @@ const ChartCard = ({
   className?: string;
   action?: React.ReactNode;
 }) => (
-  <div className={`bg-white border border-gray-200 rounded-xl shadow-sm p-5 ${className}`}>
-    <div className="flex items-start justify-between mb-3">
+  <div className={`bg-white border border-gray-200 rounded-xl shadow-sm p-6 ${className}`}>
+    <div className="flex items-start justify-between mb-4">
       <div>
         <h3 className="text-sm font-bold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
       </div>
       {action && <div className="flex-shrink-0">{action}</div>}
     </div>
-    {children}
+    <div className="overflow-hidden">
+      {children}
+    </div>
   </div>
 );
 
@@ -178,15 +180,15 @@ const StatCard = ({
     red: "bg-red-50 text-red-600",
   };
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex items-start gap-4">
-      <div className={`p-3 rounded-lg ${colorMap[color]}`}>{icon}</div>
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex items-start gap-4">
+      <div className={`p-3 rounded-lg flex-shrink-0 ${colorMap[color]}`}>{icon}</div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
-        <div className="flex items-baseline gap-2 mt-0.5">
+        <div className="flex items-baseline gap-2 mt-1">
           <p className="text-3xl font-bold text-gray-900">{typeof value === "number" ? value.toLocaleString() : value}</p>
           {growth && <GrowthBadge {...growth} />}
         </div>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-gray-500 mt-2">{subtitle}</p>}
       </div>
     </div>
   );
@@ -216,10 +218,10 @@ const renderCenterLabel = (total: number) => (props: any) => {
   const { cx, cy } = viewBox;
   return (
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central">
-      <tspan x={cx} dy="-6" fontSize={22} fontWeight={700} fill="#1f2937">
+      <tspan x={cx} dy="-10" fontSize={24} fontWeight={700} fill="#1f2937">
         {total.toLocaleString()}
       </tspan>
-      <tspan x={cx} dy="20" fontSize={10} fill="#9ca3af">Total</tspan>
+      <tspan x={cx} dy="28" fontSize={11} fill="#9ca3af" fontWeight={500}>Total</tspan>
     </text>
   );
 };
@@ -239,13 +241,13 @@ const DataTable = ({
   const hasMore = rows.length > maxVisible;
 
   return (
-    <div className="mt-3 border border-gray-100 rounded-lg overflow-hidden">
+    <div className="mt-4 border border-gray-100 rounded-lg overflow-hidden">
       <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="bg-gray-50 sticky top-0">
             <tr>
               {headers.map((h, i) => (
-                <th key={i} className="px-3 py-2 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                <th key={i} className="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
@@ -405,7 +407,6 @@ export default function AnalyticsDashboard({
       map[dept].registrations += e.registration_count || 0;
     });
     return Object.entries(map)
-      .filter(([_, d]) => d.events > 0 || d.registrations > 0)
       .map(([name, d]) => ({
         name: name.length > 18 ? name.substring(0, 18) + "…" : name,
         fullName: name,
@@ -812,7 +813,7 @@ export default function AnalyticsDashboard({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <ChartCard title="Registration Types" subtitle="Individual vs Team">
           {regTypes.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={regTypes} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -830,7 +831,7 @@ export default function AnalyticsDashboard({
 
         <ChartCard title="Event Pricing" subtitle="Free vs Paid events">
           {freeVsPaid.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={freeVsPaid} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -848,7 +849,7 @@ export default function AnalyticsDashboard({
 
         <ChartCard title="User Roles" subtitle="Role distribution">
           {userRoles.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={userRoles} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
