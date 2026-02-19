@@ -3,29 +3,59 @@
 import { useEffect, useState } from "react";
 
 export default function MobileDetectionRedirect() {
-  const [isMobile, setIsMobile] = useState(false);
+  // Start with null to avoid hydration mismatch
+  const [showRedirect, setShowRedirect] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Check if the device is mobile
+    // Comprehensive mobile detection
     const checkMobile = () => {
+      // Check 1: User agent
       const userAgent = navigator.userAgent.toLowerCase();
-      const mobileKeywords = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
-      const isMobileDevice = mobileKeywords.test(userAgent);
-      const isSmallScreen = window.innerWidth < 768;
+      const mobileKeywords = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i;
+      const isMobileUA = mobileKeywords.test(userAgent);
       
-      return isMobileDevice || isSmallScreen;
+      // Check 2: Screen size - be aggressive with threshold
+      const isSmallScreen = window.innerWidth <= 1024 || window.innerHeight <= 768;
+      
+      // Check 3: Touch support
+      const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      
+      // Consider it mobile if ANY condition is true
+      return isMobileUA || isSmallScreen || (hasTouch && isSmallScreen);
     };
 
-    if (checkMobile()) {
-      setIsMobile(true);
-    }
+    const updateMobileStatus = () => {
+      const isMobile = checkMobile();
+      console.log("Mobile detection:", isMobile, "Width:", window.innerWidth);
+      setShowRedirect(isMobile);
+    };
+
+    // Run immediately
+    updateMobileStatus();
+
+    // Also listen for resize events
+    window.addEventListener('resize', updateMobileStatus);
+    window.addEventListener('orientationchange', updateMobileStatus);
+    
+    return () => {
+      window.removeEventListener('resize', updateMobileStatus);
+      window.removeEventListener('orientationchange', updateMobileStatus);
+    };
   }, []);
 
   const handleRedirect = () => {
     window.location.href = "https://thesocio.vercel.app";
   };
 
-  if (!isMobile) return null;
+  // During SSR or before check, don't render anything
+  if (showRedirect === null) {
+    return null;
+  }
+
+  // If not mobile, don't show the redirect screen
+  if (!showRedirect) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] bg-[#154CB3] flex items-center justify-center p-6">
