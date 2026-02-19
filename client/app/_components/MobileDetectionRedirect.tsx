@@ -115,7 +115,7 @@ export default function MobileDetectionRedirect() {
             <line x1="12" y1="18" x2="12.01" y2="18" />
           </svg>
           <p className="text-base font-medium">
-            Use your phone for best experience
+            Use your desktop for best experience
           </p>
         </div>
       </div>
