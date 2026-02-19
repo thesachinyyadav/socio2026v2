@@ -61,9 +61,9 @@ export default function TeamPage() {
     },
     {
       name: "Alwin Joseph",
-      role: "Head Computer Science Faculty & Tech Consultant",
-      department: "Department of Computer Science",
-      bio: "Head of the Computer Science faculty and SOCIO's main tech consultant, Alwin Joseph assists with all technology-related challenges — from infrastructure and architecture decisions to troubleshooting and problem-solving across the tech stack.",
+      role: "Faculty Advisor & Tech Consultant",
+      department: "Department of Computer Science, CHRIST (Deemed to be University)",
+      bio: "Assistant Professor in the Department of Computer Science at CHRIST (Deemed to be University) and SOCIO's dedicated tech consultant. Alwin Joseph provides hands-on guidance for all technology-related challenges, from debugging and architecture decisions to ensuring the platform runs smoothly.",
       expertise: ["Computer Science", "Technical Consulting", "Problem Solving", "Software Architecture"],
       photo: "/faculty-alwin.jpg",
     },
