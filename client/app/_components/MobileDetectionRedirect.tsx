@@ -7,26 +7,26 @@ export default function MobileDetectionRedirect() {
   const [showRedirect, setShowRedirect] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Comprehensive mobile detection
+    // Mobile detection - only redirect on actual mobile devices
     const checkMobile = () => {
-      // Check 1: User agent
+      // Check 1: User agent - primary check
       const userAgent = navigator.userAgent.toLowerCase();
-      const mobileKeywords = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i;
+      const mobileKeywords = /android|webos|iphone|ipod|blackberry|iemobile|opera mini|mobile/i;
       const isMobileUA = mobileKeywords.test(userAgent);
       
-      // Check 2: Screen size - be aggressive with threshold
-      const isSmallScreen = window.innerWidth <= 1024 || window.innerHeight <= 768;
+      // Check 2: Screen size - only very small screens (tablets excluded)
+      const isSmallScreen = window.innerWidth <= 768;
       
-      // Check 3: Touch support
+      // Check 3: Touch support (only relevant with small screen)
       const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
       
-      // Consider it mobile if ANY condition is true
-      return isMobileUA || isSmallScreen || (hasTouch && isSmallScreen);
+      // Only consider it mobile if user agent indicates mobile OR small screen with touch
+      return isMobileUA || (isSmallScreen && hasTouch);
     };
 
     const updateMobileStatus = () => {
       const isMobile = checkMobile();
-      console.log("Mobile detection:", isMobile, "Width:", window.innerWidth);
+      console.log("Mobile detection:", isMobile, "Width:", window.innerWidth, "UA mobile:", /android|webos|iphone|ipod|blackberry|iemobile|opera mini|mobile/i.test(navigator.userAgent.toLowerCase()));
       setShowRedirect(isMobile);
     };
 
