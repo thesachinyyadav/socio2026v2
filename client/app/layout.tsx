@@ -7,6 +7,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
 import { unstable_cache } from "next/cache";
 import ClientInit from "./_components/ClientInit";
+import MobileDetectionRedirect from "./_components/MobileDetectionRedirect";
 
 import {
   EventsProvider,
@@ -212,6 +213,7 @@ export default async function RootLayout({
         className="font-sans antialiased bg-[#FFFFFF] text-[#101010] font-[DM_Sans] overflow-x-hidden"
       >
         <ClientInit />
+        <MobileDetectionRedirect />
         <AuthProvider>
           <EventsProvider
             initialAllEvents={allEvents}
