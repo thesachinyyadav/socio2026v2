@@ -77,15 +77,15 @@ export default function MobileDetectionRedirect() {
 
         {/* Heading */}
         <h1 className="text-4xl font-black text-white mb-6">
-          Best on Mobile
+          Best on Desktop
         </h1>
 
         {/* Description */}
         <p className="text-white text-lg mb-2 font-medium">
-          This app is designed as a mobile-first experience.
+          This app is designed as a desktop-first experience.
         </p>
         <p className="text-white text-lg mb-8 font-medium">
-          For the full desktop site, visit:
+          For the full mobile site, visit:
         </p>
 
         {/* Redirect Button */}
@@ -93,7 +93,7 @@ export default function MobileDetectionRedirect() {
           onClick={handleRedirect}
           className="bg-[#FFCC00] hover:bg-[#FFD700] text-[#063168] font-bold text-lg px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2 mx-auto mb-12"
         >
-          <span>socio.christuniversity.in</span>
+          <span>thesocio.vercel.app</span>
           <svg 
             className="w-5 h-5" 
             fill="none" 
@@ -118,7 +118,7 @@ export default function MobileDetectionRedirect() {
             <line x1="12" y1="18" x2="12.01" y2="18" />
           </svg>
           <p className="text-base font-medium">
-            Open on your phone for the best experience
+            Open on your phone for the best mobile experience
           </p>
         </div>
       </div>
