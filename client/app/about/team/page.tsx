@@ -59,6 +59,14 @@ export default function TeamPage() {
       expertise: ["Business Strategy", "Startup Incubation", "Entrepreneurship", "Consultancy Management"],
       photo: "/faculty-shruti-srinivasan.jpg",
     },
+    {
+      name: "Alwin Joseph",
+      role: "Head Computer Science Faculty & Tech Consultant",
+      department: "Department of Computer Science",
+      bio: "Head of the Computer Science faculty and SOCIO's main tech consultant, Alwin Joseph assists with all technology-related challenges — from infrastructure and architecture decisions to troubleshooting and problem-solving across the tech stack.",
+      expertise: ["Computer Science", "Technical Consulting", "Problem Solving", "Software Architecture"],
+      photo: "/faculty-alwin.jpg",
+    },
   ];
 
   const values = [
@@ -365,7 +373,7 @@ export default function TeamPage() {
             </h3>
             <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {advisors.map((advisor, i) => (
               <div
                 key={i}
