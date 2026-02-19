@@ -579,10 +579,12 @@ router.patch("/:email/campus", async (req, res) => {
     }
 
     const validCampuses = [
-      'Central Campus',
+      'Central Campus (Main)',
       'Bannerghatta Road Campus',
       'Yeshwanthpur Campus',
-      'Kengeri Campus'
+      'Kengeri Campus',
+      'Delhi NCR Campus',
+      'Pune Lavasa Campus'
     ];
 
     if (!validCampuses.includes(campus.trim())) {

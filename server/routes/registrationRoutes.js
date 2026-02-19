@@ -216,6 +216,74 @@ router.post("/register", async (req, res) => {
           : team_leader_email || user_email;
     }
 
+    const normalize = (value) => String(value || "").trim().toUpperCase();
+
+    const incomingRegisterNumbers = new Set();
+    if (processedData.individual_register_number) {
+      incomingRegisterNumbers.add(normalize(processedData.individual_register_number));
+    }
+    if (processedData.team_leader_register_number) {
+      incomingRegisterNumbers.add(normalize(processedData.team_leader_register_number));
+    }
+    if (Array.isArray(processedTeammates || teammates)) {
+      (processedTeammates || teammates).forEach((teammate) => {
+        if (teammate?.registerNumber) {
+          incomingRegisterNumbers.add(normalize(teammate.registerNumber));
+        }
+      });
+    }
+
+    const existingRegistrations = await queryAll("registrations", {
+      where: { event_id: normalizedEventId },
+    });
+
+    const existingRegisterNumbers = new Set();
+    const existingEmails = new Set();
+
+    existingRegistrations.forEach((registration) => {
+      if (registration?.individual_register_number) {
+        existingRegisterNumbers.add(normalize(registration.individual_register_number));
+      }
+      if (registration?.team_leader_register_number) {
+        existingRegisterNumbers.add(normalize(registration.team_leader_register_number));
+      }
+      if (registration?.individual_email) {
+        existingEmails.add(String(registration.individual_email).trim().toLowerCase());
+      }
+      if (registration?.team_leader_email) {
+        existingEmails.add(String(registration.team_leader_email).trim().toLowerCase());
+      }
+
+      if (registration?.teammates) {
+        try {
+          const teammatesList = Array.isArray(registration.teammates)
+            ? registration.teammates
+            : JSON.parse(registration.teammates || "[]");
+          teammatesList.forEach((teammate) => {
+            if (teammate?.registerNumber) {
+              existingRegisterNumbers.add(normalize(teammate.registerNumber));
+            }
+            if (teammate?.email) {
+              existingEmails.add(String(teammate.email).trim().toLowerCase());
+            }
+          });
+        } catch (e) {
+          // ignore malformed teammate payloads
+        }
+      }
+    });
+
+    const duplicateRegisterNumber = Array.from(incomingRegisterNumbers).find((rn) => existingRegisterNumbers.has(rn));
+    const normalizedParticipantEmail = String(participantEmail || "").trim().toLowerCase();
+    const hasDuplicateEmail = normalizedParticipantEmail && existingEmails.has(normalizedParticipantEmail);
+
+    if (duplicateRegisterNumber || hasDuplicateEmail) {
+      return res.status(409).json({
+        error: "You are already registered for this event",
+        code: "ALREADY_REGISTERED",
+      });
+    }
+
     const qrCodeData = generateQRCodeData(
       registration_id,
       normalizedEventId,
