@@ -93,7 +93,7 @@ export default function MobileDetectionRedirect() {
           onClick={handleRedirect}
           className="bg-[#FFCC00] hover:bg-[#FFD700] text-[#063168] font-bold text-lg px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2 mx-auto mb-12"
         >
-          <span>thesocio.vercel.app</span>
+          <span>Click here for mobile app</span>
           <svg 
             className="w-5 h-5" 
             fill="none" 
