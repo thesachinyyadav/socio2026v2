@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { formatDateFull, formatTime } from "@/lib/dateUtils";
+import { formatDateFull, formatTime, dayjs } from "@/lib/dateUtils";
 import { EventCard } from "@/app/_components/Discover/EventCard";
 import { useParams } from "next/navigation";
 import {
@@ -46,6 +46,60 @@ interface FestDetails {
   socialLinks?: { platform: string; url: string }[];
   faqs?: { question: string; answer: string }[];
 }
+
+// Helper function to generate Google Calendar URL
+const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventTime?: string): string | null => {
+  try {
+    const dateObj = dayjs(eventDate);
+    
+    let startDateTime: string;
+    let endDateTime: string;
+    
+    if (eventTime) {
+      // Parse the time (format: HH:mm or HH:mm AM/PM)
+      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if AM/PM is present
+        if (period === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        const startDate = dateObj.hour(hours).minute(minutes);
+        const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
+        
+        startDateTime = startDate.format('YYYYMMDDTHHmmss');
+        endDateTime = endDate.format('YYYYMMDDTHHmmss');
+      } else {
+        // If time parsing fails, use date only
+        startDateTime = dateObj.format('YYYYMMDD');
+        endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+      }
+    } else {
+      // No time provided, use all-day event format
+      startDateTime = dateObj.format('YYYYMMDD');
+      endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+    }
+    
+    // Build Google Calendar URL
+    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    const params = new URLSearchParams({
+      text: eventTitle,
+      dates: `${startDateTime}/${endDateTime}`,
+      details: `Register for ${eventTitle} on SOCIO platform`
+    });
+    
+    return `${baseUrl}&${params.toString()}`;
+  } catch (error) {
+    console.error('Error generating calendar URL:', error);
+    return null;
+  }
+};
 
 const FestPage = () => {
   const params = useParams();
@@ -466,6 +520,39 @@ const FestPage = () => {
               </div>
             </div>
           )}
+
+          {/* Add to Calendar Button */}
+          <div className="mb-6 sm:mb-8 flex gap-3">
+            <button
+              onClick={() => {
+                const calendarUrl = generateGoogleCalendarUrl(
+                  title,
+                  openingDate,
+                  undefined
+                );
+                if (calendarUrl) {
+                  window.open(calendarUrl, '_blank');
+                }
+              }}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-100 text-blue-600 rounded-full font-semibold hover:bg-blue-200 transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0121 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                />
+              </svg>
+              Add Fest to Calendar
+            </button>
+          </div>
 
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4 sm:mb-6">
