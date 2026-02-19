@@ -681,10 +681,10 @@ export default function Page() {
           <p className="text-gray-600 mb-6">
             You have successfully registered for {eventData.title}.
           </p>
-          <div className="flex flex-col sm:flex-row justify-around gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 flex-wrap">
             <button
               onClick={() => router.push("/Discover")}
-              className="bg-[#154CB3] cursor-pointer text-white py-2 px-6 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors"
+              className="bg-[#154CB3] cursor-pointer text-white py-2 px-8 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors whitespace-nowrap"
             >
               Back to Discover
             </button>
@@ -699,7 +699,7 @@ export default function Page() {
                   window.open(calendarUrl, '_blank');
                 }
               }}
-              className="bg-blue-100 text-blue-600 py-2 px-6 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
+              className="bg-blue-100 text-blue-600 py-2 px-8 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
