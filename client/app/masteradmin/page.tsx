@@ -111,8 +111,8 @@ export default function MasterAdminPage() {
   const [eventSortDir, setEventSortDir] = useState<"asc" | "desc">("desc");
   
   // User sort state
-  const [userSortKey, setUserSortKey] = useState<"name" | "email">("name");
-  const [userSortDir, setUserSortDir] = useState<"asc" | "desc">("asc");
+  const [userSortKey, setUserSortKey] = useState<"name" | "email" | "date">("date");
+  const [userSortDir, setUserSortDir] = useState<"asc" | "desc">("desc");
 
   // Fest management state
   const [fests, setFests] = useState<Fest[]>([]);
@@ -193,6 +193,7 @@ export default function MasterAdminPage() {
       switch (userSortKey) {
         case "name": cmp = (a.name || "").localeCompare(b.name || ""); break;
         case "email": cmp = a.email.localeCompare(b.email); break;
+        case "date": cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
       }
       return userSortDir === "asc" ? cmp : -cmp;
     });
@@ -912,6 +913,12 @@ export default function MasterAdminPage() {
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Master Admin
                           </th>
+                          <th
+                            onClick={() => toggleSort("date", userSortKey, userSortDir, setUserSortKey, setUserSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Joined <SortIcon active={userSortKey === "date"} dir={userSortDir} />
+                          </th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Actions
                           </th>
@@ -1025,6 +1032,12 @@ export default function MasterAdminPage() {
                                     </div>
                                   )}
                                 </div>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-gray-600">
+                                  {new Date(user.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
                               </td>
 
                               <td className="px-6 py-4 text-right">

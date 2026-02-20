@@ -135,7 +135,13 @@ const Hero = () => {
         <div className="flex mt-6 sm:mt-8 gap-4 sm:gap-5 items-center select-none flex-row">
           <FunkyButton 
             text="Get Started" 
-            onClick={handleSignInWithGoogle}
+            onClick={() => {
+              if (session && !isLoading) {
+                router.push("/Discover");
+              } else {
+                router.push("/auth");
+              }
+            }}
           />
           <button
             onClick={handleExploreClick}
