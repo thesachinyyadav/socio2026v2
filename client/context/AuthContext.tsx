@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { Session, User } from "@supabase/supabase-js";
+import { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import CampusDetectionModal, { isCampusDismissedRecently } from "../app/_components/CampusDetectionModal";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
@@ -102,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession) {
           setSession(currentSession);
+          persistSession(currentSession);
           // Fetch user data in background so navbar can render immediately.
           void fetchUserData(currentSession.user.email!).then((existingUser) => {
             if (
@@ -111,7 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               !isCampusDismissedRecently()
             ) {
               setShowCampusModal(true);
-          persistSession(newSession);
             }
           });
         }
@@ -126,10 +126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, newSession: Session | null) => {
       if (event === "SIGNED_IN" && newSession) {
         // Resolve auth state immediately and load profile details in background.
         setSession(newSession);
+        persistSession(newSession);
         setIsLoading(false);
 
         const orgType = getOrganizationType(newSession.user?.email);
@@ -151,10 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setOutsiderVisitorId(fetchedUser.visitor_id);
             const hasSeenWarning = localStorage.getItem(`outsider_warning_${newSession.user.id}`);
             if (!hasSeenWarning) {
-          persistSession(null);
               setShowOutsiderWarning(true);
               localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
-          persistSession(newSession);
             }
           }
 
@@ -170,9 +169,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUserData(null);
+        persistSession(null);
         setIsLoading(false);
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
+        persistSession(newSession);
         void fetchUserData(newSession.user.email!);
       }
     });
