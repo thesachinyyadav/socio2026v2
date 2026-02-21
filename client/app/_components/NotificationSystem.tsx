@@ -126,19 +126,6 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
         }
       }, [session?.access_token, userData?.email]);
 
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n =>
-            n.id === notificationId ? { ...n, read: true } : n
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-    }
-  }, [session?.access_token, userData?.email]);
-
   // OPTIMIZATION: Memoize markAllAsRead with useCallback
   const markAllAsRead = useCallback(async () => {
     if (!session?.access_token || !userData?.email) return;
