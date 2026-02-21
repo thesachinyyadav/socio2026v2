@@ -125,9 +125,6 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           setLoading(false);
         }
       }, [session?.access_token, userData?.email]);
-          body: JSON.stringify({ email: userData.email })
-        }
-      );
 
       if (response.ok) {
         setNotifications(prev =>
