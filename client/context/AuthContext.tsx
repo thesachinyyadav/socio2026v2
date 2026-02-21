@@ -48,8 +48,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showOutsiderWarning, setShowOutsiderWarning] = useState(false);
   const [outsiderVisitorId, setOutsiderVisitorId] = useState<string | null>(null);
-    const [userData, setUserData] = useState<UserData | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
   const [outsiderNameInput, setOutsiderNameInput] = useState("");
   const [isEditingOutsiderName, setIsEditingOutsiderName] = useState(false);
     const persistSession = (session: Session | null) => {
