@@ -34,6 +34,14 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   const [totalPages, setTotalPages] = useState(1);
   const { userData, session } = useAuth();
 
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
   // OPTIMIZATION: Memoize fetchNotifications with useCallback
   const fetchNotifications = useCallback(async (page = 1, append = false) => {
     if (!session?.access_token || !userData?.email) return;
@@ -68,43 +76,55 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
         }
         setHasMore(data.pagination?.hasMore || false);
         setTotalPages(data.pagination?.totalPages || 1);
-        setCurrentPage(page);
-      }
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.access_token, userData?.email]);
+        setLoading(true);
+        try {
+          const email = userData.email;
+          const response = await fetch(
+            `${API_URL}/api/notifications?email=${encodeURIComponent(email)}&page=${page}&limit=20`,
+            {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            }
+          );
 
-  const loadMore = useCallback(() => {
-    if (!loading && hasMore) {
-      fetchNotifications(currentPage + 1, true);
-    }
-  }, [loading, hasMore, currentPage, fetchNotifications]);
+          if (response.ok) {
+            const data = await response.json();
+            const newNotifications = data.notifications || [];
 
-  useEffect(() => {
-    if (userData?.email) {
-      fetchNotifications();
-      // Set up polling for new notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [userData?.email, fetchNotifications]);
+            // Find new notifications not already in state
+            setNotifications(prev => {
+              const prevIds = new Set(prev.map(n => n.id));
+              const trulyNew = newNotifications.filter(n => !prevIds.has(n.id));
+              // Send browser notifications for new ones
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                trulyNew.forEach(n => {
+                  new window.Notification(n.title, {
+                    body: n.message,
+                    icon: '/images/logo.png', // Change to your logo path if needed
+                    tag: n.id,
+                  });
+                });
+              }
+              return append ? [...prev, ...newNotifications] : newNotifications;
+            });
 
-  // OPTIMIZATION: Memoize markAsRead with useCallback
-  const markAsRead = useCallback(async (notificationId: string) => {
-    if (!session?.access_token || !userData?.email) return;
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/notifications/${notificationId}/read`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json"
-          },
+            // Use server-provided unread count (accurate across all pages)
+            if (data.unreadCount !== undefined) {
+              setUnreadCount(data.unreadCount);
+            } else {
+              setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
+            }
+            setHasMore(data.pagination?.hasMore || false);
+            setTotalPages(data.pagination?.totalPages || 1);
+            setCurrentPage(page);
+          }
+        } catch (error) {
+          console.error("Error fetching notifications:", error);
+        } finally {
+          setLoading(false);
+        }
+      }, [session?.access_token, userData?.email]);
           body: JSON.stringify({ email: userData.email })
         }
       );
