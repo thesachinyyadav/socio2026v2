@@ -44,7 +44,8 @@ export default function MobileDetectionRedirect() {
   }, []);
 
   const handleRedirect = () => {
-    window.location.href = "https://thesocio.vercel.app";
+    const pwaBaseUrl = process.env.NEXT_PUBLIC_PWA_URL || "https://thesocio.vercel.app";
+    window.location.href = `${pwaBaseUrl}${window.location.pathname}${window.location.search}`;
   };
 
   // During SSR or before check, don't render anything
