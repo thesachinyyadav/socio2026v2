@@ -124,9 +124,9 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
         } finally {
           setLoading(false);
         }
-        }, [session?.access_token, userData?.email]);
+      }, [session?.access_token, userData?.email]);
 
-      // OPTIMIZATION: Memoize markAllAsRead with useCallback
+  // OPTIMIZATION: Memoize markAllAsRead with useCallback
   const markAllAsRead = useCallback(async () => {
     if (!session?.access_token || !userData?.email) return;
 
