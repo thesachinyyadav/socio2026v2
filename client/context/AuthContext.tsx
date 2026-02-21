@@ -48,32 +48,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showOutsiderWarning, setShowOutsiderWarning] = useState(false);
   const [outsiderVisitorId, setOutsiderVisitorId] = useState<string | null>(null);
-    const [userData, setUserData] = useState<UserData | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
   const [outsiderNameInput, setOutsiderNameInput] = useState("");
   const [isEditingOutsiderName, setIsEditingOutsiderName] = useState(false);
-    const persistSession = (session: Session | null) => {
-      if (session) {
-        localStorage.setItem('socio_session', JSON.stringify(session));
-      } else {
-        localStorage.removeItem('socio_session');
-      }
-    };
   const [isSavingOutsiderName, setIsSavingOutsiderName] = useState(false);
   const [outsiderNameError, setOutsiderNameError] = useState<string | null>(null);
-    useEffect(() => {
-      const storedSession = localStorage.getItem('socio_session');
-      if (storedSession && !session) {
-        try {
-          const parsedSession = JSON.parse(storedSession);
-          setSession(parsedSession);
-        } catch (e) {
-          localStorage.removeItem('socio_session');
-        }
-      }
-    }, []);
   const [showCampusModal, setShowCampusModal] = useState(false);
-  
+
+  // Helper to persist session in localStorage
+  const persistSession = (session: Session | null) => {
+    if (session) {
+      localStorage.setItem('socio_session', JSON.stringify(session));
+    } else {
+      localStorage.removeItem('socio_session');
+    }
+  };
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const storedSession = localStorage.getItem('socio_session');
+    if (storedSession && !session) {
+      try {
+        const parsedSession = JSON.parse(storedSession);
+        setSession(parsedSession);
+      } catch (e) {
+        localStorage.removeItem('socio_session');
+      }
+    }
+  }, []);
+
   const supabase = useMemo(
     () =>
       createBrowserClient(
@@ -82,8 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ),
     []
   );
-  
-            persistSession(currentSession);
   const getOrganizationType = (email: string | undefined): 'christ_member' | 'outsider' => {
     if (!email) return 'outsider';
     const lowerEmail = email.toLowerCase();
