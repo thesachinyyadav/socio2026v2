@@ -34,60 +34,6 @@ interface EventData {
   custom_fields?: any[]; // Custom fields created by organizer
 }
 
-// Helper function to generate Google Calendar URL
-const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventTime?: string): string | null => {
-  try {
-    const dateObj = dayjs(eventDate);
-    
-    let startDateTime: string;
-    let endDateTime: string;
-    
-    if (eventTime) {
-      // Parse the time (format: HH:mm or HH:mm AM/PM)
-      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-      if (timeMatch) {
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const period = timeMatch[3]?.toUpperCase();
-        
-        // Convert to 24-hour format if AM/PM is present
-        if (period === 'PM' && hours < 12) {
-          hours += 12;
-        } else if (period === 'AM' && hours === 12) {
-          hours = 0;
-        }
-        
-        const startDate = dateObj.hour(hours).minute(minutes);
-        const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
-        
-        startDateTime = startDate.format('YYYYMMDDTHHmmss');
-        endDateTime = endDate.format('YYYYMMDDTHHmmss');
-      } else {
-        // If time parsing fails, use date only
-        startDateTime = dateObj.format('YYYYMMDD');
-        endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
-      }
-    } else {
-      // No time provided, use all-day event format
-      startDateTime = dateObj.format('YYYYMMDD');
-      endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
-    }
-    
-    // Build Google Calendar URL
-    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
-    const params = new URLSearchParams({
-      text: eventTitle,
-      dates: `${startDateTime}/${endDateTime}`,
-      details: `Register for ${eventTitle} on SOCIO platform`
-    });
-    
-    return `${baseUrl}&${params.toString()}`;
-  } catch (error) {
-    console.error('Error generating calendar URL:', error);
-    return null;
-  }
-};
-
 export default function Page() {
   const params = useParams(); // { id: string }
   const eventIdSlug = params?.id ? String(params.id) : null;
@@ -681,41 +627,12 @@ export default function Page() {
           <p className="text-gray-600 mb-6">
             You have successfully registered for {eventData.title}.
           </p>
-          <div className="flex flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-around gap-4">
             <button
               onClick={() => router.push("/Discover")}
-              className="bg-[#154CB3] cursor-pointer text-white py-2 px-8 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors"
+              className="bg-[#154CB3] cursor-pointer text-white py-2 px-6 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors"
             >
               Back to Discover
-            </button>
-            <button
-              onClick={() => {
-                const calendarUrl = generateGoogleCalendarUrl(
-                  eventData.title,
-                  eventData.date,
-                  eventData.time
-                );
-                if (calendarUrl) {
-                  window.open(calendarUrl, '_blank');
-                }
-              }}
-              className="bg-blue-100 text-blue-600 py-2 px-8 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-4 h-4"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-                />
-              </svg>
-              Add to Calendar
             </button>
             {eventData.whatsappLink && (
               <a
@@ -1165,48 +1082,13 @@ export default function Page() {
                   </div>
                 )
               )}
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
-              {!isUserRegisteredForThisEvent && (
-                <button
-                  onClick={handleRegistration}
-                  disabled={buttonState.disabled}
-                  className="bg-[#154CB3] cursor-pointer text-white py-3 px-8 rounded-full font-semibold hover:bg-[#154cb3eb] transition-colors text-base disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {buttonState.text === "Register" ? "Register" : buttonState.text}
-                </button>
-              )}
-              {isUserRegisteredForThisEvent && (
-                <button
-                  onClick={() => {
-                    const calendarUrl = generateGoogleCalendarUrl(
-                      eventData.title,
-                      eventData.date,
-                      eventData.time
-                    );
-                    if (calendarUrl) {
-                      window.open(calendarUrl, '_blank');
-                    }
-                  }}
-                  className="bg-blue-100 text-blue-600 py-3 px-8 rounded-full font-semibold hover:bg-blue-200 transition-colors text-base flex items-center justify-center gap-2"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0121 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-                    />
-                  </svg>
-                  Add to Calendar
-                </button>
-              )}
-            </div>
+            <button
+              onClick={handleRegistration}
+              disabled={buttonState.disabled}
+              className="bg-[#154CB3] cursor-pointer text-white py-3 px-8 rounded-full font-semibold hover:bg-[#154cb3eb] transition-colors text-base disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {buttonState.text === "Register" ? "Register" : buttonState.text}
+            </button>
           </div>
         </div>
       </div>

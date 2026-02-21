@@ -47,7 +47,7 @@ export default function TeamPage() {
       name: "Dr. Smitha Vinod",
       role: "Faculty Advisor",
       department: "Department of Computer Science",
-      bio: "Associate Professor in the Department of Computer Science at CHRIST (Deemed to be University), providing academic guidance and mentorship to ensure SOCIO aligns with educational best practices and institutional standards.",
+      bio: "Associate Professor providing academic guidance and ensuring SOCIO aligns with educational best practices and institutional standards.",
       expertise: ["Software Engineering", "Academic Innovation", "Student Development"],
       photo: "/faculty-smitha-vinod.jpg",
     },
@@ -55,17 +55,9 @@ export default function TeamPage() {
       name: "Dr. Shruti Srinivasan",
       role: "Head of Christ Incubation and Consultancy Foundation (CICF)",
       department: "Department of Business Management",
-      bio: "Leading Christ University's incubation initiatives through CICF and providing strategic guidance for startup development, entrepreneurial growth, and business consultancy within the campus ecosystem.",
+      bio: "Leading Christ University's incubation initiatives and providing strategic guidance for startup development and business consultancy.",
       expertise: ["Business Strategy", "Startup Incubation", "Entrepreneurship", "Consultancy Management"],
       photo: "/faculty-shruti-srinivasan.jpg",
-    },
-    {
-      name: "Alwin Joseph",
-      role: "Faculty Advisor & Tech Consultant",
-      department: "Department of Computer Science, CHRIST (Deemed to be University)",
-      bio: "Assistant Professor in the Department of Computer Science at CHRIST (Deemed to be University) and SOCIO's dedicated tech consultant, providing hands-on guidance for architecture decisions and platform reliability.",
-      expertise: ["Computer Science", "Technical Consulting", "Problem Solving", "Software Architecture"],
-      photo: "/faculty-alwin.jpg",
     },
   ];
 
@@ -373,7 +365,7 @@ export default function TeamPage() {
             </h3>
             <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {advisors.map((advisor, i) => (
               <div
                 key={i}

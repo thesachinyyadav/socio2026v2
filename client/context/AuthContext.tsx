@@ -48,10 +48,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showOutsiderWarning, setShowOutsiderWarning] = useState(false);
   const [outsiderVisitorId, setOutsiderVisitorId] = useState<string | null>(null);
+    const [userData, setUserData] = useState<UserData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
   const [outsiderNameInput, setOutsiderNameInput] = useState("");
   const [isEditingOutsiderName, setIsEditingOutsiderName] = useState(false);
+    const persistSession = (session: Session | null) => {
+      if (session) {
+        localStorage.setItem('socio_session', JSON.stringify(session));
+      } else {
+        localStorage.removeItem('socio_session');
+      }
+    };
   const [isSavingOutsiderName, setIsSavingOutsiderName] = useState(false);
   const [outsiderNameError, setOutsiderNameError] = useState<string | null>(null);
+    useEffect(() => {
+      const storedSession = localStorage.getItem('socio_session');
+      if (storedSession && !session) {
+        try {
+          const parsedSession = JSON.parse(storedSession);
+          setSession(parsedSession);
+        } catch (e) {
+          localStorage.removeItem('socio_session');
+        }
+      }
+    }, []);
   const [showCampusModal, setShowCampusModal] = useState(false);
   
   const supabase = useMemo(
@@ -63,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
   
+            persistSession(currentSession);
   const getOrganizationType = (email: string | undefined): 'christ_member' | 'outsider' => {
     if (!email) return 'outsider';
     const lowerEmail = email.toLowerCase();
@@ -90,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               !isCampusDismissedRecently()
             ) {
               setShowCampusModal(true);
+          persistSession(newSession);
             }
           });
         }
@@ -129,8 +151,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setOutsiderVisitorId(fetchedUser.visitor_id);
             const hasSeenWarning = localStorage.getItem(`outsider_warning_${newSession.user.id}`);
             if (!hasSeenWarning) {
+          persistSession(null);
               setShowOutsiderWarning(true);
               localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
+          persistSession(newSession);
             }
           }
 
