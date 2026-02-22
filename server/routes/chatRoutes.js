@@ -196,7 +196,7 @@ ${fests?.map((f) => `- ${f.fest_title} | ${new Date(f.opening_date).toLocaleDate
 
     console.log("[ChatBot] Creating Gemini model...");
     const model = ai.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction: fullSystemPrompt,
     });
 
