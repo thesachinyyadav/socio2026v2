@@ -96,9 +96,7 @@ export default function ChatBot() {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question or type your own!" },
   ]);
-  const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const pageQA = getPageQA(pathname);
   const allQA = [...pageQA, ...GLOBAL_QA];
@@ -108,12 +106,9 @@ export default function ChatBot() {
   useEffect(() => {
     setMessages([{ role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question or type your own!" }]);
   }, [pathname]);
-  useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 200); }, [isOpen]);
-
   const handleQuestion = (text: string) => {
     if (!text.trim()) return;
     setMessages((prev) => [...prev, { role: "user", content: text.trim() }]);
-    setInputValue("");
     const answer = findAnswer(text, allQA);
     setTimeout(() => {
       setMessages((prev) => [...prev, {
@@ -182,20 +177,7 @@ export default function ChatBot() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
-              <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); handleQuestion(inputValue); }}>
-                <input ref={inputRef} type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Type a question..."
-                  className="flex-1 text-sm px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-full border-none outline-none focus:ring-2 focus:ring-[#154CB3]/30 transition-all text-gray-900 dark:text-gray-100" />
-                <button type="submit" disabled={!inputValue.trim()}
-                  className="w-10 h-10 rounded-full bg-[#154CB3] hover:bg-[#0d3580] text-white flex items-center justify-center shrink-0 disabled:opacity-40 transition-all cursor-pointer">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </form>
-            </div>
+
           </div>
         )}
 
