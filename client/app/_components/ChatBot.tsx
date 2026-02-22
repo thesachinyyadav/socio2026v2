@@ -282,27 +282,86 @@ export default function ChatBot() {
             </div>
           )}
 
-          {/* Coming Soon Message */}
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-center space-y-4 max-w-xs">
-              <div className="w-16 h-16 mx-auto bg-[#154CB3]/10 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === "user"
+                      ? "bg-[#154CB3] text-white rounded-br-md"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-md"
+                  }`}
+                >
+                  {msg.content}
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">SocioAssist</h3>
-                <p className="text-sm text-gray-600">Coming Soon</p>
+            ))}
+
+            {/* Quick Questions */}
+            {messages.length <= 1 && !loading && (
+              <div className="flex flex-wrap gap-2 mt-3 justify-center">
+                {quickQuestions.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => sendMessage(q)}
+                    className="text-xs px-3 py-1.5 rounded-full border border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors cursor-pointer"
+                  >
+                    {q}
+                  </button>
+                ))}
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                We're working on bringing you an AI-powered assistant to help you navigate Socio. Stay tuned!
-              </p>
-            </div>
+            )}
+
+            {/* Loading dots */}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-center">
-            <p className="text-xs text-gray-500">Launching Soon</p>
+          {/* Input */}
+          <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const input = (e.target as HTMLFormElement).querySelector("input") as HTMLInputElement;
+                if (input.value.trim()) {
+                  sendMessage(input.value.trim());
+                  input.value = "";
+                }
+              }}
+            >
+              <input
+                type="text"
+                placeholder={session ? "Ask about events, fests..." : "Sign in to chat"}
+                disabled={!session || loading}
+                className="flex-1 text-sm px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-full border-none outline-none focus:ring-2 focus:ring-[#154CB3]/30 transition-all disabled:opacity-50 text-gray-900 dark:text-gray-100"
+              />
+              <button
+                type="submit"
+                disabled={loading || !session}
+                className="w-10 h-10 rounded-full bg-[#154CB3] hover:bg-[#0d3580] text-white flex items-center justify-center shrink-0 disabled:opacity-40 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            </form>
+            <p className="text-[10px] text-gray-400 text-center mt-1.5">
+              20 messages/day &bull; Responses may be inaccurate
+            </p>
           </div>
         </div>
       )}
