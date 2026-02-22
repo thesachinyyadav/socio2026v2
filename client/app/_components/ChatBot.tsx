@@ -2,385 +2,216 @@
 
 import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+/* ─── Types ─────────────────────────────────────────── */
+interface QA { q: string; a: string }
+interface Message { role: "user" | "assistant"; content: string }
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
+/* ─── Preset Q&A databases ──────────────────────────── */
+const GLOBAL_QA: QA[] = [
+  { q: "What is Socio?", a: "Socio is a campus event management platform that lets you discover, register for, and manage college events and fests — all in one place." },
+  { q: "How do I create an event?", a: "Go to the Manage page from the sidebar. If you have organiser access, you'll see a 'Create Event' button. Fill in the details and publish!" },
+  { q: "How do I register for an event?", a: "Open any event page and click the 'Register' button. You'll need to be signed in with your college email." },
+  { q: "How do I contact support?", a: "Head to the Contact page from the footer or sidebar. You can reach us via email or the support form." },
+  { q: "Is there a mobile app?", a: "Yes! Socio has a Progressive Web App (PWA) for mobile. Visit the App Download page for instructions on how to install it." },
+];
+
+function getPageQA(pathname: string): QA[] {
+  if (pathname === "/events") return [
+    { q: "How do I find events?", a: "You're on the right page! Browse all upcoming events here. Use the search bar and filters to narrow down by category, date, or fest." },
+    { q: "Can I filter by event type?", a: "Yes! Use the filter options at the top to filter by category (Technical, Cultural, Sports, etc.), date range, or associated fest." },
+    { q: "Are events free?", a: "It depends on the event. Each event card shows whether it's free or paid. Click on an event for full details including pricing." },
+    { q: "How do I know if registration is open?", a: "Events with open registration show a 'Register' button. If registration is closed, you'll see the status on the event card." },
+  ];
+  if (pathname.startsWith("/event/")) return [
+    { q: "How do I register for this event?", a: "Click the 'Register' button on this page. Make sure you're signed in first. You'll receive a confirmation with your QR code." },
+    { q: "Where is the venue?", a: "The venue details are shown in the event information section on this page. Look for the location/venue field." },
+    { q: "Can I cancel my registration?", a: "You can view your registration status on your Profile page. Contact the event organiser directly for cancellations." },
+    { q: "What is the QR code for?", a: "After registering, you receive a QR code. This is scanned at the venue entrance for attendance tracking. Keep it handy!" },
+  ];
+  if (pathname === "/fests") return [
+    { q: "What is a fest?", a: "A fest is a collection of related events, usually spanning multiple days — like a college cultural or technical festival." },
+    { q: "How do I view fest events?", a: "Click on any fest card to see all events that are part of that fest. You can register for individual events within." },
+    { q: "When is the next fest?", a: "Check the fest cards on this page — each shows the start and end dates. Upcoming fests are listed first." },
+  ];
+  if (pathname.startsWith("/fest/")) return [
+    { q: "What events are in this fest?", a: "Scroll down on this page to see all events that are part of this fest. You can register for each one individually." },
+    { q: "How long does this fest run?", a: "The fest duration is shown at the top of this page with start and end dates." },
+    { q: "Can I register for all events at once?", a: "You'll need to register for each event separately. Browse the events listed below and click Register on the ones you want." },
+  ];
+  if (pathname === "/profile") return [
+    { q: "Where are my registrations?", a: "Your registered events are shown on this page under the Registrations section. You can also see your attendance history." },
+    { q: "How do I edit my profile?", a: "Click the Edit Profile button on this page to update your name, bio, and other details." },
+    { q: "Where is my QR code?", a: "Your QR codes for registered events appear in the Registrations section. Click on a registration to view or download your QR." },
+  ];
+  if (pathname === "/Discover") return [
+    { q: "What is the Discover page?", a: "Discover helps you explore events and fests tailored to your interests. Browse by category to find something you'll enjoy!" },
+    { q: "Can I search for specific events?", a: "Yes! Use the search bar at the top to find events by name, or use filters to narrow down by type and date." },
+  ];
+  if (pathname === "/manage") return [
+    { q: "How do I create an event?", a: "Click 'Create Event' at the top of the Events tab. Fill in the event details like title, date, venue, and description, then publish." },
+    { q: "How do I view registrations?", a: "Go to the Events tab, find your event, and click on it to see all registrations. You can also export the data." },
+    { q: "How do I create a fest?", a: "Switch to the Fests tab and click 'Create Fest'. Set up the fest details, then add events to it from the Events tab." },
+    { q: "How do reports work?", a: "Go to the Report tab to generate detailed reports. Choose fest or event mode, select your data, and export to Excel." },
+  ];
+  if (pathname === "/masteradmin") return [
+    { q: "What can I do as master admin?", a: "You can manage all users, events, fests, view analytics, send notifications, and generate comprehensive reports." },
+    { q: "How do I manage user roles?", a: "Go to the Users tab to view all users. You can assign roles like organiser or modify existing permissions." },
+    { q: "How do I generate reports?", a: "Use the Report tab. Select fest or event mode, apply filters, and export detailed Excel reports with registration and attendance data." },
+  ];
+  if (pathname === "/" || pathname === "/dashboard") return [
+    { q: "Where do I start?", a: "Welcome to Socio! Head to the Events page to browse upcoming events, or check out Fests to see what's happening on campus." },
+    { q: "How do I sign in?", a: "Click the Sign In button in the top right. You can sign in with your Google account." },
+    { q: "What can I do on Socio?", a: "Discover and register for campus events, track your registrations and attendance, and manage events if you're an organiser." },
+  ];
+  if (pathname === "/auth") return [
+    { q: "How do I sign in?", a: "Click 'Sign in with Google' to use your Google account. Make sure to use your college email if required by your institution." },
+    { q: "I can't sign in", a: "Make sure you're using a supported browser and that pop-ups aren't blocked. Try clearing your cache or using an incognito window." },
+  ];
+  return [];
 }
 
+/* ─── Fuzzy match typed questions ───────────────────── */
+function findAnswer(input: string, qaList: QA[]): string | null {
+  const lower = input.toLowerCase().trim();
+  for (const qa of qaList) {
+    const keywords = qa.q.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    const hits = keywords.filter((k) => lower.includes(k)).length;
+    if (hits >= 2 || (keywords.length <= 3 && hits >= 1)) return qa.a;
+  }
+  if (/register|sign.?up|join/i.test(lower)) return "To register for an event, open the event page and click the 'Register' button. Make sure you're signed in first!";
+  if (/qr|code|ticket/i.test(lower)) return "After registering, you receive a unique QR code used for attendance tracking. Find it on your Profile page.";
+  if (/cancel|refund/i.test(lower)) return "To cancel a registration, please contact the event organiser directly. You can find their details on the event page.";
+  if (/contact|help|support/i.test(lower)) return "You can reach our support team via the Contact page. Navigate there from the sidebar or footer.";
+  if (/create|make|new.*event/i.test(lower)) return "To create an event, go to the Manage page. If you have organiser access, you'll see a 'Create Event' button.";
+  if (/fest|festival/i.test(lower)) return "Fests are collections of related events. Visit the Fests page to browse upcoming festivals.";
+  if (/profile|account/i.test(lower)) return "Visit your Profile page to see your registrations, attendance history, and edit your details.";
+  return null;
+}
+
+/* ─── Component ─────────────────────────────────────── */
 export default function ChatBot() {
-  const { session, userData } = useAuth();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! I'm SocioAssist. Select a question below to get started.",
-    },
+    { role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question or type your own!" },
   ]);
-  const [loading, setLoading] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const pageQA = getPageQA(pathname);
+  const allQA = [...pageQA, ...GLOBAL_QA];
+  const quickQuestions = [...pageQA.slice(0, 4), ...GLOBAL_QA.slice(0, Math.max(0, 4 - pageQA.length))].map((qa) => qa.q);
 
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Reset chat when user navigates to a different page
-  useEffect(() => {
-    setMessages([
-      {
-        role: "assistant",
-        content:
-          "Hi! I'm SocioAssist. Select a question below to get started.",
-      },
-    ]);
-    setLoading(false);
+    setMessages([{ role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question or type your own!" }]);
   }, [pathname]);
+  useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 200); }, [isOpen]);
 
-  // ── Dynamic Quick Questions Based on Page ──────────────────────────────
-  const quickQuestions = (() => {
-    // Events list page
-    if (pathname === "/events") {
-      return [
-        "What events are happening this week?",
-        "Show me free events",
-        "What cultural events are coming up?",
-      ];
-    }
-    
-    // Single event page
-    if (pathname.startsWith("/event/")) {
-      return [
-        "When is this event?",
-        "What type of event is this?",
-        "Where is the venue?",
-        "Is registration open?",
-      ];
-    }
-
-    // Fests list page
-    if (pathname === "/fests") {
-      return [
-        "What fests are happening this month?",
-        "Which fest has the most events?",
-        "When does the next fest start?",
-      ];
-    }
-
-    // Single fest page
-    if (pathname.startsWith("/fest/")) {
-      return [
-        "What events are in this fest?",
-        "When does this fest start?",
-        "How do I register?",
-      ];
-    }
-
-    // Profile page
-    if (pathname === "/profile") {
-      return [
-        "How many events have I participated in?",
-        "What are my upcoming events?",
-        "Show my registration history",
-      ];
-    }
-
-    // Discover page
-    if (pathname === "/Discover") {
-      return [
-        "Recommend events based on my interests",
-        "What's popular this week?",
-        "Show me technical events",
-      ];
-    }
-
-    // Dashboard/home
-    if (pathname === "/dashboard" || pathname === "/") {
-      return [
-        "What events are happening today?",
-        "How do I create an event?",
-        "Where can I see my registrations?",
-      ];
-    }
-
-    // Default questions
-    return [
-      "What events are happening this week?",
-      "How do I register for an event?",
-      "How do I create an event?",
-    ];
-  })();
-
-  const sendMessage = async (messageText: string) => {
-    if (!session) {
-      setShowLoginPrompt(true);
-      return;
-    }
-
-    if (!messageText || loading) return;
-
-    const userMessage: Message = { role: "user", content: messageText };
-    setMessages((prev) => [...prev, userMessage]);
-    setLoading(true);
-
-    try {
-      const chatEndpoint = `${API_URL}/api/chat`;
-      
-      console.log('[SocioAssist] Calling:', chatEndpoint);
-      
-      const res = await fetch(chatEndpoint, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}` 
-        },
-        body: JSON.stringify({
-          message: messageText,
-          history: messages.slice(-10),
-          context: {
-            page: pathname,
-            userId: session.user.email,
-          }
-        }),
-      });
-      
-      console.log('[SocioAssist] Response status:', res.status);
-      
-      // Check if response is JSON before parsing
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        console.error('[SocioAssist] Non-JSON response. Content-Type:', contentType);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Server returned an unexpected response. The server may be restarting. Please try again in a moment." },
-        ]);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (res.status === 429) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.error || "You've used all 20 daily questions. Please try again tomorrow." },
-        ]);
-      } else if (res.status === 503) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "SocioAssist is temporarily unavailable. Please check our FAQ page or contact support." },
-        ]);
-      } else if (!res.ok) {
-        console.error('[SocioAssist] Server error:', data);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.error || "Something went wrong. Please try again." },
-        ]);
-      } else if (data.reply) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.reply },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Sorry, I couldn't process that. Try again!" },
-        ]);
-      }
-    } catch (error) {
-      console.error('[SocioAssist] Connection error:', error);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Unable to connect to SocioAssist. Please check your internet connection and try again." },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+  const handleQuestion = (text: string) => {
+    if (!text.trim()) return;
+    setMessages((prev) => [...prev, { role: "user", content: text.trim() }]);
+    setInputValue("");
+    const answer = findAnswer(text, allQA);
+    setTimeout(() => {
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: answer || "I'm not sure about that one. Try picking a question below, or visit the FAQ or Contact page for more help!",
+      }]);
+    }, 400);
   };
+
+  const asked = messages.filter((m) => m.role === "user").map((m) => m.content);
+  const remaining = quickQuestions.filter((q) => !asked.includes(q));
 
   return (
     <>
-      {/* Backdrop blur when chatbot is open */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => setIsOpen(false)} />
       )}
-      
-      <div className="fixed bottom-6 right-6 z-50">
-      {/* Chat Panel */}
-      {isOpen && (
-        <div className="mb-4 w-[360px] h-[500px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
-          {/* Header */}
-          <div className="bg-[#154CB3] text-white px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-                  <circle cx="9" cy="10" r="1.5"/>
-                  <circle cx="15" cy="10" r="1.5"/>
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-sm">SocioAssist</p>
-                <p className="text-xs text-blue-100">
-                  {session ? "Online" : "Login required"}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                setShowLoginPrompt(false);
-              }}
-              className="text-white/80 hover:text-white transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
 
-          {/* Login Prompt Overlay */}
-          {showLoginPrompt && !session && (
-            <div className="absolute inset-0 bg-[#1a1d29] z-10 flex items-center justify-center p-6">
-              <div className="text-center space-y-5 max-w-xs">
-                <div className="w-16 h-16 mx-auto bg-[#154CB3]/10 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      <div className="fixed bottom-6 right-6 z-50">
+        {isOpen && (
+          <div className="mb-4 w-[360px] h-[520px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+            {/* Header */}
+            <div className="bg-[#154CB3] text-white px-4 py-3 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                    <circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/>
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-white mb-2">
-                    Login Required
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    Please sign in to chat with SocioAssist
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => window.location.href = "/auth"}
-                    className="w-full px-6 py-3 bg-[#154CB3] hover:bg-[#0d3580] text-white rounded-lg text-sm font-medium transition-all hover:shadow-lg"
-                  >
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => setShowLoginPrompt(false)}
-                    className="w-full px-6 py-3 text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
+                  <p className="font-semibold text-sm">SocioAssist</p>
+                  <p className="text-xs text-blue-100">Quick Help</p>
                 </div>
               </div>
+              <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors cursor-pointer">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-          )}
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                     msg.role === "user"
                       ? "bg-[#154CB3] text-white rounded-br-md"
                       : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-md"
-                  }`}
-                >
-                  {msg.content}
+                  }`}>
+                    {msg.content}
+                  </div>
                 </div>
-              </div>
-            ))}
-
-            {/* Quick Questions */}
-            {messages.length <= 1 && !loading && (
-              <div className="flex flex-wrap gap-2 mt-3 justify-center">
-                {quickQuestions.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => sendMessage(q)}
-                    className="text-xs px-3 py-1.5 rounded-full border border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors cursor-pointer"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Loading dots */}
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              ))}
+              {remaining.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                  {remaining.map((q) => (
+                    <button key={q} onClick={() => handleQuestion(q)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors cursor-pointer">
+                      {q}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            )}
+              )}
+              <div ref={messagesEndRef} />
+            </div>
 
-            <div ref={messagesEndRef} />
+            {/* Input */}
+            <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+              <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); handleQuestion(inputValue); }}>
+                <input ref={inputRef} type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)}
+                  placeholder="Type a question..."
+                  className="flex-1 text-sm px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-full border-none outline-none focus:ring-2 focus:ring-[#154CB3]/30 transition-all text-gray-900 dark:text-gray-100" />
+                <button type="submit" disabled={!inputValue.trim()}
+                  className="w-10 h-10 rounded-full bg-[#154CB3] hover:bg-[#0d3580] text-white flex items-center justify-center shrink-0 disabled:opacity-40 transition-all cursor-pointer">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </form>
+            </div>
           </div>
-
-          {/* Input */}
-          <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <form
-              className="flex items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const input = (e.target as HTMLFormElement).querySelector("input") as HTMLInputElement;
-                if (input.value.trim()) {
-                  sendMessage(input.value.trim());
-                  input.value = "";
-                }
-              }}
-            >
-              <input
-                type="text"
-                placeholder={session ? "Ask about events, fests..." : "Sign in to chat"}
-                disabled={!session || loading}
-                className="flex-1 text-sm px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-full border-none outline-none focus:ring-2 focus:ring-[#154CB3]/30 transition-all disabled:opacity-50 text-gray-900 dark:text-gray-100"
-              />
-              <button
-                type="submit"
-                disabled={loading || !session}
-                className="w-10 h-10 rounded-full bg-[#154CB3] hover:bg-[#0d3580] text-white flex items-center justify-center shrink-0 disabled:opacity-40 transition-all cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
-            </form>
-            <p className="text-[10px] text-gray-400 text-center mt-1.5">
-              20 messages/day &bull; Responses may be inaccurate
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Floating Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 bg-[#154CB3] hover:bg-[#0d3580] text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-      >
-        {isOpen ? (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-          </svg>
         )}
-      </button>
+
+        {/* FAB */}
+        <button onClick={() => setIsOpen(!isOpen)}
+          className="w-14 h-14 bg-[#154CB3] hover:bg-[#0d3580] text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all hover:shadow-xl hover:scale-105">
+          {isOpen ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+            </svg>
+          )}
+        </button>
       </div>
     </>
   );
