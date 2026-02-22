@@ -1,16 +1,27 @@
 import express from "express";
 import { queryAll, queryOne, supabase } from "../config/database.js";
-import { requireAuth, requireRole } from "../middleware/authMiddleware.js";
+import { authenticateUser, getUserInfo, checkRoleExpiration } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// Middleware: require organiser OR masteradmin
+const requireOrganiserOrAdmin = (req, res, next) => {
+  if (!req.userInfo) {
+    return res.status(401).json({ error: "User info not available" });
+  }
+  if (!req.userInfo.is_organiser && !req.userInfo.is_masteradmin) {
+    return res.status(403).json({ error: "Access denied: Organiser or Master Admin privileges required" });
+  }
+  next();
+};
+
 // Get comprehensive report data for selected events
 // Returns event details, registration counts, attendance stats, and participant list
-router.post("/report/data", requireAuth, requireRole(['organiser', 'masteradmin']), async (req, res) => {
+router.post("/report/data", authenticateUser, getUserInfo(), checkRoleExpiration, requireOrganiserOrAdmin, async (req, res) => {
   try {
     const { eventIds, festId } = req.body;
-    const userEmail = req.user?.email;
-    const isMasterAdmin = req.user?.is_masteradmin;
+    const userEmail = req.userInfo?.email;
+    const isMasterAdmin = req.userInfo?.is_masteradmin;
 
     if (!Array.isArray(eventIds) || eventIds.length === 0) {
       return res.status(400).json({ error: "eventIds array is required" });
