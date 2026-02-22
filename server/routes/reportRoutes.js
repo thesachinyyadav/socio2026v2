@@ -37,13 +37,24 @@ router.post("/report/data", authenticateUser, getUserInfo(), checkRoleExpiration
       return res.status(500).json({ error: "Failed to fetch events" });
     }
 
+    // If festId provided, fetch fest details early for auth checks
+    let festTitle = null;
+    if (festId) {
+      const { data: festLookup } = await supabase
+        .from('fests')
+        .select('fest_title, created_by')
+        .eq('fest_id', festId)
+        .single();
+      if (festLookup) festTitle = festLookup.fest_title;
+    }
+
     // Authorization check: organisers can only access their own events or events under their fests
     if (!isMasterAdmin) {
       const unauthorizedEvents = events.filter(event => {
         // Check if organiser created this event
         if (event.created_by === userEmail) return false;
-        // Check if organiser owns the fest this event belongs to
-        if (festId && event.fest === festId) {
+        // Check if event belongs to the selected fest (fest column stores fest_title)
+        if (festId && festTitle && event.fest === festTitle) {
           // We'll verify fest ownership below
           return false;
         }

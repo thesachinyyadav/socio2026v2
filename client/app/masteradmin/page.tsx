@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import ExcelJS from "exceljs";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -62,6 +63,7 @@ type Event = {
   created_at: string;
   registration_fee: number;
   registration_count?: number;
+  fest?: string | null;
 };
 
 type Fest = {
@@ -84,10 +86,20 @@ type Registration = {
   teammates?: any[];
 };
 
+const ACCREDITATION_BODIES = [
+  { id: "naac", name: "NAAC", fullName: "National Assessment and Accreditation Council", description: "India's primary accreditation body for higher education institutions.", focus: "Governance, teaching learning, research, infrastructure, student support, best practices." },
+  { id: "nba", name: "NBA", fullName: "National Board of Accreditation", description: "Program level accreditation mainly for engineering and technical courses.", focus: "Outcome Based Education, curriculum quality, placements." },
+  { id: "aacsb", name: "AACSB", fullName: "Association to Advance Collegiate Schools of Business", description: "Global business school accreditation.", focus: "Faculty quality, research impact, assurance of learning." },
+  { id: "acbsp", name: "ACBSP", fullName: "Accreditation Council for Business Schools and Programs", description: "Business program accreditation. More teaching focused than research heavy.", focus: "Teaching excellence, student learning outcomes." },
+  { id: "nirf", name: "NIRF", fullName: "National Institutional Ranking Framework", description: "Not accreditation, but a national ranking framework.", focus: "Teaching, research, graduation outcomes, outreach." },
+  { id: "aicte", name: "AICTE", fullName: "All India Council for Technical Education", description: "Regulatory approval body for technical institutions.", focus: "Technical education standards, infrastructure, faculty." },
+  { id: "ugc", name: "UGC", fullName: "University Grants Commission", description: "Regulatory authority for universities in India.", focus: "University standards, grants, governance." },
+];
+
 export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests" | "notifications">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests" | "notifications" | "report">("dashboard");
   const authToken = session?.access_token || null;
   
   // User management state
@@ -127,6 +139,16 @@ export default function MasterAdminPage() {
   
   const [isLoading, setIsLoading] = useState(true);
 
+  // Report state
+  const [reportMode, setReportMode] = useState<"fest" | "events">("fest");
+  const [selectedReportFest, setSelectedReportFest] = useState<string>("");
+  const [selectedAccreditation, setSelectedAccreditation] = useState<string>("");
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [searchTermReport, setSearchTermReport] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [reportEvents, setReportEvents] = useState<Event[]>([]);
+  const [reportFests, setReportFests] = useState<Fest[]>([]);
+
   // Debounced search queries for better performance
   const debouncedUserSearch = useDebounce(userSearchQuery, 300);
   const debouncedEventSearch = useDebounce(eventSearchQuery, 300);
@@ -153,6 +175,9 @@ export default function MasterAdminPage() {
       // Ensure users/events are loaded for the notification composer
       if (users.length === 0) fetchUsers();
       if (events.length === 0) fetchEvents();
+    } else if (activeTab === "report") {
+      // Fetch events and fests for report tab
+      fetchReportData();
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -456,6 +481,25 @@ export default function MasterAdminPage() {
     }
   };
 
+  const fetchReportData = async () => {
+    try {
+      const [eventsRes, festsRes] = await Promise.all([
+        fetch(`${API_URL}/api/events`),
+        fetch(`${API_URL}/api/fests`),
+      ]);
+      if (eventsRes.ok) {
+        const data = await eventsRes.json();
+        setReportEvents(data.events || []);
+      }
+      if (festsRes.ok) {
+        const data = await festsRes.json();
+        setReportFests(data.fests || data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching report data:", error);
+    }
+  };
+
   const startEditUser = (user: User) => {
     setEditingUserId(user.id);
     setEditingUserRoles({
@@ -713,7 +757,8 @@ export default function MasterAdminPage() {
               { id: "users", label: "Users", count: users.length },
               { id: "events", label: "Events", count: events.length },
               { id: "fests", label: "Fests", count: fests.length },
-              { id: "notifications", label: "Notifications" }
+              { id: "notifications", label: "Notifications" },
+              { id: "report", label: "Report" }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1103,31 +1148,6 @@ export default function MasterAdminPage() {
         {/* Event Management Tab */}
         {activeTab === "events" && (
           <div className="space-y-6">
-            {/* Create Event Button */}
-            <div className="flex justify-end">
-              <Link href="/create/event">
-                <button
-                  type="button"
-                  className="bg-[#154CB3] cursor-pointer text-white text-sm py-3 px-4 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 mr-2"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  Create event
-                </button>
-              </Link>
-            </div>
 
             {/* Search + Status Filter + Result Count */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
@@ -1293,31 +1313,6 @@ export default function MasterAdminPage() {
         {/* Fest Management Tab */}
         {activeTab === "fests" && (
           <div className="space-y-6">
-            {/* Create Fest Button */}
-            <div className="flex justify-end">
-              <Link href="/create/fest">
-                <button
-                  type="button"
-                  className="bg-[#154CB3] cursor-pointer text-white text-sm py-3 px-4 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 mr-2"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  Create fest
-                </button>
-              </Link>
-            </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Search Fests</label>
@@ -1448,6 +1443,346 @@ export default function MasterAdminPage() {
             users={users.map(u => ({ email: u.email, name: u.name }))}
             events={events.map(e => ({ event_id: e.event_id, title: e.title }))}
           />
+        )}
+
+        {/* Report Tab */}
+        {activeTab === "report" && (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Generate Report</h2>
+              <p className="text-sm text-gray-500 mb-4">Generate comprehensive Excel reports for accreditation submissions.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setReportMode("fest"); setSelectedEventIds(new Set()); setSelectedReportFest(""); setSelectedAccreditation(""); }}
+                  className={`px-5 py-2.5 rounded-full font-medium text-sm transition-all ${reportMode === "fest" ? "bg-[#154CB3] text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  By Fest
+                </button>
+                <button
+                  onClick={() => { setReportMode("events"); setSelectedEventIds(new Set()); setSelectedReportFest(""); setSelectedAccreditation(""); }}
+                  className={`px-5 py-2.5 rounded-full font-medium text-sm transition-all ${reportMode === "events" ? "bg-[#154CB3] text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  By Events
+                </button>
+              </div>
+            </div>
+
+            {/* Fest Mode */}
+            {reportMode === "fest" && (
+              <>
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Select Fest</h2>
+                  <p className="text-sm text-gray-500 mb-4">Choose a fest to generate a report for its events.</p>
+                  <select
+                    value={selectedReportFest}
+                    onChange={(e) => { setSelectedReportFest(e.target.value); setSelectedEventIds(new Set()); }}
+                    className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
+                  >
+                    <option value="">-- Select a fest --</option>
+                    {reportFests.map((fest) => (
+                      <option key={fest.fest_id} value={fest.fest_id}>{fest.fest_title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedReportFest && (() => {
+                  const selectedFestObj = reportFests.find(f => f.fest_id === selectedReportFest);
+                  const festEvts = (reportEvents as any[]).filter((e: any) => e.fest === selectedFestObj?.fest_title);
+                  if (festEvts.length === 0) {
+                    return (
+                      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                        <p className="text-gray-500 text-center">No events found under this fest.</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">Select Events ({festEvts.length})</h2>
+                        <button
+                          onClick={() => {
+                            if (selectedEventIds.size === festEvts.length) setSelectedEventIds(new Set());
+                            else setSelectedEventIds(new Set(festEvts.map((e: any) => e.event_id)));
+                          }}
+                          className="text-sm text-[#154CB3] hover:underline font-semibold"
+                        >
+                          {selectedEventIds.size === festEvts.length ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {festEvts.map((event: any) => (
+                          <label key={event.event_id} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedEventIds.has(event.event_id)}
+                              onChange={(ev) => {
+                                const newSet = new Set(selectedEventIds);
+                                if (ev.target.checked) newSet.add(event.event_id);
+                                else newSet.delete(event.event_id);
+                                setSelectedEventIds(newSet);
+                              }}
+                              className="mt-1 h-4 w-4 text-[#154CB3] border-gray-300 rounded focus:ring-[#154CB3]"
+                            />
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{event.title}</p>
+                              <p className="text-xs text-gray-500">{event.organizing_dept} &bull; {event.event_date}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-3">
+                        <span className="font-semibold text-[#154CB3]">{selectedEventIds.size}</span> event(s) selected
+                      </p>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+            {/* Events Mode */}
+            {reportMode === "events" && (() => {
+              const filteredReportEvents = reportEvents.filter((e: any) =>
+                e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
+                (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())
+              );
+              return (
+                <>
+                  <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                    <h2 className="text-xl font-bold text-gray-900 mb-1">Search Events</h2>
+                    <input
+                      type="text"
+                      placeholder="Search by title or department..."
+                      value={searchTermReport}
+                      onChange={(e) => setSearchTermReport(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
+                    />
+                  </div>
+                  {filteredReportEvents.length === 0 ? (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                      <p className="text-gray-500 text-center">No events found.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">All Events ({filteredReportEvents.length})</h2>
+                        <button
+                          onClick={() => {
+                            if (selectedEventIds.size === filteredReportEvents.length) setSelectedEventIds(new Set());
+                            else setSelectedEventIds(new Set(filteredReportEvents.map((e: any) => e.event_id)));
+                          }}
+                          className="text-sm text-[#154CB3] hover:underline font-semibold"
+                        >
+                          {selectedEventIds.size === filteredReportEvents.length ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {filteredReportEvents.map((event: any) => (
+                          <label key={event.event_id} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedEventIds.has(event.event_id)}
+                              onChange={(ev) => {
+                                const newSet = new Set(selectedEventIds);
+                                if (ev.target.checked) newSet.add(event.event_id);
+                                else newSet.delete(event.event_id);
+                                setSelectedEventIds(newSet);
+                              }}
+                              className="mt-1 h-4 w-4 text-[#154CB3] border-gray-300 rounded focus:ring-[#154CB3]"
+                            />
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{event.title}</p>
+                              <p className="text-xs text-gray-500">{event.organizing_dept} &bull; {event.event_date} &bull; {event.fest || "No fest"}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-3">
+                        <span className="font-semibold text-[#154CB3]">{selectedEventIds.size}</span> event(s) selected
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Accreditation Selection */}
+            {selectedEventIds.size > 0 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Select Accreditation Body</h2>
+                <p className="text-sm text-gray-500 mb-4">Choose the accreditation body for the report.</p>
+                <select
+                  value={selectedAccreditation}
+                  onChange={(e) => setSelectedAccreditation(e.target.value)}
+                  className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
+                >
+                  <option value="">-- Select accreditation body --</option>
+                  {ACCREDITATION_BODIES.map((body) => (
+                    <option key={body.id} value={body.id}>{body.name} - {body.fullName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Accreditation Info */}
+            {selectedAccreditation && selectedEventIds.size > 0 && (() => {
+              const body = ACCREDITATION_BODIES.find(b => b.id === selectedAccreditation);
+              if (!body) return null;
+              return (
+                <div className="bg-white border border-[#154CB3]/20 rounded-2xl p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-[#154CB3]/10 rounded-full flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">{body.name}</h3>
+                      <p className="text-sm text-gray-500">{body.fullName}</p>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 mb-2">{body.description}</p>
+                  <div className="bg-gray-50 rounded-lg px-4 py-3">
+                    <p className="text-sm text-gray-600"><span className="font-semibold text-gray-800">Focus: </span>{body.focus}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Generate Button */}
+            {selectedEventIds.size > 0 && selectedAccreditation && (
+              <div className="flex justify-start">
+                <button
+                  disabled={isGenerating}
+                  className={`bg-[#154CB3] hover:bg-[#0d3580] text-white font-semibold py-3 px-8 rounded-full transition-all hover:shadow-lg ${isGenerating ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  onClick={async () => {
+                    setIsGenerating(true);
+                    try {
+                      const response = await fetch(`${API_URL}/api/report/data`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+                        body: JSON.stringify({ eventIds: Array.from(selectedEventIds), festId: reportMode === "fest" ? selectedReportFest : null }),
+                      });
+                      if (!response.ok) throw new Error("Failed to fetch report data");
+                      const data = await response.json();
+
+                      const workbook = new ExcelJS.Workbook();
+                      workbook.creator = "SOCIO - Christ University";
+                      workbook.created = new Date();
+
+                      // Summary sheet
+                      const summarySheet = workbook.addWorksheet("Summary");
+                      summarySheet.columns = [
+                        { header: "Field", key: "field", width: 30 },
+                        { header: "Value", key: "value", width: 50 },
+                      ];
+                      const accBody = ACCREDITATION_BODIES.find(b => b.id === selectedAccreditation);
+                      const totalRegs = data.events.reduce((s: number, e: any) => s + e.total_registrations, 0);
+                      const totalParticipants = data.events.reduce((s: number, e: any) => s + e.total_participants, 0);
+                      const totalAttended = data.events.reduce((s: number, e: any) => s + e.attended_count, 0);
+                      summarySheet.addRows([
+                        { field: "Institution", value: "Christ University" },
+                        { field: "Accreditation Body", value: `${accBody?.name} - ${accBody?.fullName}` },
+                        { field: "Report Generated On", value: new Date().toLocaleString() },
+                        { field: "Generated By", value: data.generated_by },
+                        { field: "", value: "" },
+                        { field: "Report Type", value: reportMode === "fest" ? "Fest-based" : "Event-based" },
+                        ...(data.fest ? [{ field: "Fest", value: data.fest.fest_title }] : []),
+                        { field: "Total Events", value: data.events.length },
+                        { field: "Total Registrations", value: totalRegs },
+                        { field: "Total Participants", value: totalParticipants },
+                        { field: "Total Attended", value: totalAttended },
+                        { field: "Attendance Rate", value: totalParticipants > 0 ? `${((totalAttended / totalParticipants) * 100).toFixed(1)}%` : "N/A" },
+                      ]);
+                      summarySheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF154CB3" } };
+                      summarySheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+                      // Event List sheet
+                      const eventsSheet = workbook.addWorksheet("Event List");
+                      eventsSheet.columns = [
+                        { header: "Event ID", key: "event_id", width: 20 },
+                        { header: "Title", key: "title", width: 35 },
+                        { header: "Date", key: "date", width: 12 },
+                        { header: "Venue", key: "venue", width: 20 },
+                        { header: "Department", key: "dept", width: 20 },
+                        { header: "Category", key: "category", width: 15 },
+                        { header: "Fee", key: "fee", width: 10 },
+                        { header: "Registrations", key: "regs", width: 12 },
+                        { header: "Participants", key: "participants", width: 12 },
+                        { header: "Attended", key: "attended", width: 10 },
+                        { header: "Absent", key: "absent", width: 10 },
+                      ];
+                      data.events.forEach((event: any) => {
+                        eventsSheet.addRow({
+                          event_id: event.event_id,
+                          title: event.title,
+                          date: event.event_date || "N/A",
+                          venue: event.venue || "TBD",
+                          dept: event.organizing_dept || "N/A",
+                          category: event.category || "N/A",
+                          fee: event.registration_fee > 0 ? `₹${event.registration_fee}` : "Free",
+                          regs: event.total_registrations,
+                          participants: event.total_participants,
+                          attended: event.attended_count,
+                          absent: event.absent_count,
+                        });
+                      });
+                      eventsSheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF154CB3" } };
+                      eventsSheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+                      // Participant Details sheet
+                      const participantsSheet = workbook.addWorksheet("Participant Details");
+                      participantsSheet.columns = [
+                        { header: "Registration ID", key: "reg_id", width: 20 },
+                        { header: "Participant Name", key: "name", width: 30 },
+                        { header: "Register Number", key: "reg_num", width: 15 },
+                        { header: "Email", key: "email", width: 30 },
+                        { header: "Event", key: "event", width: 35 },
+                        { header: "Team", key: "team", width: 20 },
+                        { header: "Status", key: "status", width: 12 },
+                        { header: "Attended At", key: "attended_at", width: 20 },
+                      ];
+                      data.events.forEach((event: any) => {
+                        event.participants.forEach((p: any) => {
+                          participantsSheet.addRow({
+                            reg_id: p.registration_id,
+                            name: p.name,
+                            reg_num: p.register_number,
+                            email: p.email,
+                            event: event.title,
+                            team: p.team_name || "Individual",
+                            status: p.status,
+                            attended_at: p.attended_at ? new Date(p.attended_at).toLocaleString() : "",
+                          });
+                        });
+                      });
+                      participantsSheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF154CB3" } };
+                      participantsSheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+                      const buffer = await workbook.xlsx.writeBuffer();
+                      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      const filename = reportMode === "fest" && data.fest
+                        ? `report_${data.fest.fest_id}_${new Date().toISOString().split("T")[0]}.xlsx`
+                        : `report_events_${new Date().toISOString().split("T")[0]}.xlsx`;
+                      a.download = filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success("Report generated successfully!");
+                    } catch (error) {
+                      console.error("Error generating report:", error);
+                      toast.error("Failed to generate report. Please try again.");
+                    } finally {
+                      setIsGenerating(false);
+                    }
+                  }}
+                >
+                  {isGenerating ? "Generating..." : "Generate Report"}
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Delete Modals */}

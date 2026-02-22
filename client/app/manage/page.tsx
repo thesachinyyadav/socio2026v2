@@ -569,7 +569,8 @@ const Page = () => {
 
                   {/* Event Checklist */}
                   {selectedReportFest && (() => {
-                    const festEvents = contextAllEvents.filter(e => e.fest === selectedReportFest);
+                    const selectedFestObj = fests.find(f => f.fest_id === selectedReportFest);
+                    const festEvents = contextAllEvents.filter(e => e.fest === selectedFestObj?.fest_title);
                     if (festEvents.length === 0) {
                       return (
                         <div className="bg-white border border-gray-200 rounded-2xl p-6">
