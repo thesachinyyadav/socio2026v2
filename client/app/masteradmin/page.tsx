@@ -5,6 +5,7 @@ import ExcelJS from "exceljs";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
+import supabase from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import DateTimePickerAdmin from "../_components/DateTimePickerAdmin";
@@ -101,6 +102,16 @@ export default function MasterAdminPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests" | "notifications" | "report">("dashboard");
   const authToken = session?.access_token || null;
+
+  // Helper to get a fresh access token (avoids stale token from session state)
+  const getFreshToken = async (): Promise<string | null> => {
+    try {
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      return freshSession?.access_token || authToken;
+    } catch {
+      return authToken;
+    }
+  };
   
   // User management state
   const [users, setUsers] = useState<User[]>([]);
@@ -350,10 +361,11 @@ export default function MasterAdminPage() {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
+      const token = await getFreshToken();
       
       const response = await fetch(`${API_URL}/api/users`, {
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -531,11 +543,12 @@ export default function MasterAdminPage() {
 
   const saveRoleChanges = async (user: User) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(user.email)}/roles`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           is_organiser: editingUserRoles.is_organiser,
@@ -569,10 +582,11 @@ export default function MasterAdminPage() {
 
   const deleteUser = async (email: string) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -592,10 +606,11 @@ export default function MasterAdminPage() {
 
   const deleteEvent = async (eventId: string) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/events/${eventId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -615,10 +630,11 @@ export default function MasterAdminPage() {
 
   const deleteFest = async (festId: string) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/fests/${festId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -1657,9 +1673,10 @@ export default function MasterAdminPage() {
                   onClick={async () => {
                     setIsGenerating(true);
                     try {
+                      const token = await getFreshToken();
                       const response = await fetch(`${API_URL}/api/report/data`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ eventIds: Array.from(selectedEventIds), festId: reportMode === "fest" ? selectedReportFest : null }),
                       });
                       if (!response.ok) throw new Error("Failed to fetch report data");
