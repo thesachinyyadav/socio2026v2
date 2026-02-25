@@ -19,6 +19,7 @@ import {
   optionalAuth 
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
+import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -247,6 +248,14 @@ router.post(
         auth_uuid: req.userId, // Store UUID in auth_uuid
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
+        // Outsider & campus fields
+        allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
+        outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
+        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
+        allowed_campuses: Array.isArray(req.body.allowed_campuses)
+          ? req.body.allowed_campuses
+          : parseJsonField(req.body.allowed_campuses, []),
       }]);
 
       if (!created || created.length === 0) {
@@ -266,6 +275,27 @@ router.post(
       }).catch((notifError) => {
         console.error('❌ Failed to send event notifications:', notifError);
       });
+
+      // Push to UniversityGated if outsiders are enabled (non-blocking)
+      if (isGatedEnabled()) {
+        const createdEvent = created[0];
+        shouldPushEventToGated(createdEvent, queryOne).then(async (shouldPush) => {
+          if (shouldPush) {
+            try {
+              await pushEventToGated(
+                createdEvent,
+                req.userInfo?.email || req.body.organizer_email,
+                req.userInfo?.name || 'SOCIO Organiser'
+              );
+              console.log(`✅ Pushed event "${title}" to UniversityGated`);
+            } catch (gatedError) {
+              console.error(`❌ Failed to push event to Gated:`, gatedError.message);
+            }
+          }
+        }).catch((err) => {
+          console.error('❌ Error checking Gated push eligibility:', err.message);
+        });
+      }
 
       return res.status(201).json({ 
         message: "Event created successfully", 
@@ -488,6 +518,27 @@ router.put(
 
       if (!updated || updated.length === 0) {
         throw new Error("Event update failed.");
+      }
+
+      // Push to UniversityGated if outsiders were enabled/changed (non-blocking)
+      if (isGatedEnabled()) {
+        const updatedEvent = updated[0];
+        shouldPushEventToGated(updatedEvent, queryOne).then(async (shouldPush) => {
+          if (shouldPush) {
+            try {
+              await pushEventToGated(
+                updatedEvent,
+                req.userInfo?.email || req.body.organizer_email,
+                req.userInfo?.name || 'SOCIO Organiser'
+              );
+              console.log(`✅ Pushed updated event "${updatedEvent.title}" to UniversityGated`);
+            } catch (gatedError) {
+              console.error(`❌ Failed to push updated event to Gated:`, gatedError.message);
+            }
+          }
+        }).catch((err) => {
+          console.error('❌ Error checking Gated push eligibility on update:', err.message);
+        });
       }
 
       return res.status(200).json({ 

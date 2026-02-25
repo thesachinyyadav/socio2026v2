@@ -325,6 +325,7 @@ interface CreateFestState {
   faqs: { question: string; answer: string }[];
   campusHostedAt: string;
   allowedCampuses: string[];
+  allowOutsiders: boolean;
 }
 
 function DepartmentAndCategoryInputs({
@@ -705,6 +706,7 @@ function CreateFestForm(props?: CreateFestProps) {
     faqs,
     campusHostedAt: "",
     allowedCampuses: [],
+    allowOutsiders: false,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false); // Used for delete operation
@@ -784,6 +786,7 @@ function CreateFestForm(props?: CreateFestProps) {
               faqs: data.fest.faqs || [],
               campusHostedAt: data.fest.campus_hosted_at || "",
               allowedCampuses: data.fest.allowed_campuses || [],
+              allowOutsiders: data.fest.allow_outsiders === true || data.fest.allow_outsiders === 'true' || false,
             });
           } else {
             throw new Error("Fest data not found in response.");
@@ -1166,6 +1169,7 @@ function CreateFestForm(props?: CreateFestProps) {
         faqs: formData.faqs,
         campus_hosted_at: formData.campusHostedAt || null,
         allowed_campuses: formData.allowedCampuses || [],
+        allow_outsiders: formData.allowOutsiders,
       };
 
       if (uploadedFestImageUrl || existingImageFileUrl) {
@@ -1971,6 +1975,36 @@ function CreateFestForm(props?: CreateFestProps) {
                         <option value="cancelled">Cancelled</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Allow Outsiders Toggle */}
+                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
+                          Allow Outsider Registrations
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Permit non-Christ University members to register for events under this fest. This will notify the CSO for gate access approval.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer ml-4">
+                        <input
+                          type="checkbox"
+                          checked={formData.allowOutsiders}
+                          onChange={(e) => setFormData(prev => ({ ...prev, allowOutsiders: e.target.checked }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#154CB3]"></div>
+                      </label>
+                    </div>
+                    {formData.allowOutsiders && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-xs text-blue-700">
+                          <strong>Note:</strong> Events under this fest will not need individual CSO approval for outsiders — the fest-level approval covers all child events.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Campus Settings */}

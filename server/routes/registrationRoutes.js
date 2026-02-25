@@ -8,6 +8,7 @@ import {
   supabase,
 } from "../config/database.js";
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
+import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -369,6 +370,12 @@ router.post("/register", async (req, res) => {
     console.log('🎪 Event ID:', normalizedEventId);
     console.log('👥 Registration Type:', normalizedRegistrationType);
 
+    // For Christ members, add a simple QR string: "registerNumber/eventId"
+    if (participantOrganization === 'christ_member') {
+      const regNo = processedData.individual_register_number || processedData.team_leader_register_number || participantEmail;
+      qrCodeData.simple_qr = `${regNo}/${normalizedEventId}`;
+    }
+
     const [registration] = await insert("registrations", {
       registration_id,
       event_id: normalizedEventId,
@@ -389,6 +396,54 @@ router.post("/register", async (req, res) => {
     });
 
     console.log('✅ Registration saved:', registration);
+
+    // Auto-create Gated visitor pass for outsiders (non-blocking)
+    if (participantOrganization === 'outsider' && isGatedEnabled()) {
+      (async () => {
+        try {
+          // Try to resolve the Gated event — first by direct event_id, then by fest
+          let gatedEvent = await resolveGatedEvent(normalizedEventId);
+
+          // If not found directly, check if event belongs to an outsider-enabled fest
+          if (!gatedEvent && event.fest) {
+            gatedEvent = await resolveGatedEvent(event.fest);
+          }
+
+          if (gatedEvent) {
+            const participantName = processedData.individual_name || processedData.team_leader_name || 'Unknown';
+            const participantPhone = req.body.phone || null;
+            const participantRegNo = processedData.individual_register_number || processedData.team_leader_register_number || null;
+
+            const gatedVisitor = await createGatedVisitor({
+              name: participantName,
+              email: participantEmail,
+              phone: participantPhone,
+              registerNumber: participantRegNo,
+              eventName: event.title,
+              dateFrom: event.event_date,
+              dateTo: event.end_date || event.event_date,
+              gatedEventId: gatedEvent.id,
+            });
+
+            if (gatedVisitor) {
+              // Store the Gated visitor ID in qr_code_data for QR generation
+              const updatedQrData = {
+                ...qrCodeData,
+                gated_visitor_id: gatedVisitor.id,
+                gated_verify_url: getGatedVerifyUrl(gatedVisitor.id),
+              };
+              await update('registrations', { qr_code_data: updatedQrData }, { registration_id });
+              console.log(`🎫 Created Gated visitor pass for outsider ${participantEmail}: ${gatedVisitor.id}`);
+            }
+          } else {
+            console.log(`ℹ️  No approved Gated event found for SOCIO event ${normalizedEventId} — outsider registered without gate pass`);
+          }
+        } catch (gatedError) {
+          console.error('❌ Failed to create Gated visitor pass:', gatedError.message);
+          // Non-blocking — SOCIO registration proceeds regardless
+        }
+      })();
+    }
 
     const newTotalParticipants = Math.max(
       0,
@@ -567,9 +622,10 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     const registerIdStr = String(registerId).trim();
 
     // Use multiple queries instead of complex OR to avoid query failures
+    const registrationSelect = "registration_id, event_id, teammates, created_at";
     const queries = [
-      supabase.from("registrations").select("event_id").eq("individual_register_number", registerIdStr),
-      supabase.from("registrations").select("event_id").eq("team_leader_register_number", registerIdStr),
+      supabase.from("registrations").select(registrationSelect).eq("individual_register_number", registerIdStr),
+      supabase.from("registrations").select(registrationSelect).eq("team_leader_register_number", registerIdStr),
     ];
 
     const results = await Promise.allSettled(queries);
@@ -585,7 +641,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     try {
       const { data: teammateRegs } = await supabase
         .from("registrations")
-        .select("event_id, teammates")
+        .select(registrationSelect)
         .not("teammates", "is", null);
 
       if (teammateRegs) {
@@ -594,7 +650,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
           const teammates = Array.isArray(reg.teammates) ? reg.teammates : JSON.parse(reg.teammates || '[]');
           return teammates.some(tm => String(tm.registerNumber) === registerIdStr);
         });
-        allRegistrations.push(...matchingRegs.map(r => ({ event_id: r.event_id })));
+        allRegistrations.push(...matchingRegs);
       }
     } catch (teammateError) {
       console.warn("Could not check teammates:", teammateError.message);
@@ -604,7 +660,21 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
       return res.status(200).json({ events: [], count: 0 });
     }
 
-    const eventIds = [...new Set(allRegistrations.map((reg) => reg.event_id))].filter(Boolean);
+    const uniqueByRegistrationId = new Map();
+    for (const reg of allRegistrations) {
+      if (!reg?.registration_id || !reg?.event_id) continue;
+      uniqueByRegistrationId.set(reg.registration_id, reg);
+    }
+
+    const dedupedRegistrations = Array.from(uniqueByRegistrationId.values());
+    const registrationByEventId = new Map();
+    for (const reg of dedupedRegistrations) {
+      if (!registrationByEventId.has(reg.event_id)) {
+        registrationByEventId.set(reg.event_id, reg.registration_id);
+      }
+    }
+
+    const eventIds = [...new Set(dedupedRegistrations.map((reg) => reg.event_id))].filter(Boolean);
 
     if (eventIds.length === 0) {
       return res.status(200).json({ events: [], count: 0 });
@@ -623,6 +693,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     const events = (eventsData || []).map((evt) => ({
       id: evt.event_id,
       event_id: evt.event_id,
+      registration_id: registrationByEventId.get(evt.event_id) || null,
       name: evt.title,
       date: evt.event_date,
       department: evt.organizing_dept,

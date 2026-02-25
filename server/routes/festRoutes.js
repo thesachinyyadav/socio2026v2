@@ -10,6 +10,7 @@ import {
   requireOwnership 
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
+import { pushFestToGated, isGatedEnabled } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -166,6 +167,7 @@ router.post(
       faqs: festData.faqs || [],
       campus_hosted_at: festData.campus_hosted_at || festData.campusHostedAt || null,
       allowed_campuses: festData.allowed_campuses || festData.allowedCampuses || [],
+      allow_outsiders: festData.allow_outsiders === true || festData.allow_outsiders === 'true' || festData.allowOutsiders === true || festData.allowOutsiders === 'true' ? true : false,
     };
 
   const inserted = await insert("fest", [festPayload]);
@@ -207,6 +209,19 @@ router.post(
     }).catch((notifError) => {
       console.error('❌ Failed to send fest notifications:', notifError);
     });
+
+    // Push to UniversityGated if outsiders are enabled (non-blocking)
+    if (isGatedEnabled() && festPayload.allow_outsiders) {
+      pushFestToGated(
+        festPayload,
+        req.userInfo?.email || festPayload.created_by,
+        req.userInfo?.name || 'SOCIO Organiser'
+      ).then(() => {
+        console.log(`✅ Pushed fest "${festPayload.fest_title}" to UniversityGated`);
+      }).catch((gatedError) => {
+        console.error(`❌ Failed to push fest to Gated:`, gatedError.message);
+      });
+    }
 
     return res.status(201).json({
       message: "Fest created successfully",
@@ -290,6 +305,7 @@ router.put(
       ["faqs", updateData.faqs],
       ["campus_hosted_at", updateData.campus_hosted_at ?? updateData.campusHostedAt],
       ["allowed_campuses", updateData.allowed_campuses ?? updateData.allowedCampuses],
+      ["allow_outsiders", updateData.allow_outsiders !== undefined ? (updateData.allow_outsiders === true || updateData.allow_outsiders === 'true') : (updateData.allowOutsiders !== undefined ? (updateData.allowOutsiders === true || updateData.allowOutsiders === 'true') : undefined)],
     ];
 
     for (const [key, value] of mapFields) {
@@ -335,6 +351,22 @@ router.put(
 
     const updated = await update("fest", updatePayload, { fest_id: festId });
     const updatedFest = updated?.[0];
+
+    // Push to UniversityGated if outsiders are now enabled (non-blocking)
+    if (isGatedEnabled() && updatedFest) {
+      const outsidersEnabled = updatedFest.allow_outsiders === true || updatedFest.allow_outsiders === 'true';
+      if (outsidersEnabled) {
+        pushFestToGated(
+          updatedFest,
+          req.userInfo?.email || updatedFest.created_by,
+          req.userInfo?.name || 'SOCIO Organiser'
+        ).then(() => {
+          console.log(`✅ Pushed updated fest "${updatedFest.fest_title}" to UniversityGated`);
+        }).catch((gatedError) => {
+          console.error(`❌ Failed to push updated fest to Gated:`, gatedError.message);
+        });
+      }
+    }
 
     // Grant organiser access to event heads with expiration dates
     const eventHeads = updateData.eventHeads || updateData.event_heads || [];

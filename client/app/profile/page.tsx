@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "../_components/UI/LoadingIndicator";
 import CampusDetectionModal from "../_components/CampusDetectionModal";
+import { QRCodeDisplay } from "../_components/QRCodeDisplay";
 
 interface DisplayableEvent {
   id: string;
+  registration_id: string;
   event_id: string;
   name: string;
   date: string;
@@ -16,10 +18,16 @@ interface DisplayableEvent {
 
 interface FetchedUserEvent {
   id: string;
+  registration_id?: string;
   event_id?: string;
   name: string;
   date: string;
   department: string;
+}
+
+interface ActiveQR {
+  registrationId: string;
+  eventTitle: string;
 }
 
 interface Student {
@@ -68,6 +76,7 @@ const StudentProfile = () => {
   const [isLoadingRegisteredEvents, setIsLoadingRegisteredEvents] =
     useState(true);
   const [showCampusDetect, setShowCampusDetect] = useState(false);
+  const [activeQR, setActiveQR] = useState<ActiveQR | null>(null);
 
   useEffect(() => {
     if (userData) {
@@ -138,6 +147,7 @@ const StudentProfile = () => {
 
               return {
                 id: event.id,
+                registration_id: event.registration_id || event.id,
                 event_id: event.event_id || event.id, // fallback to id if event_id not available
                 name: event.name,
                 date: formattedDate,
@@ -535,7 +545,19 @@ const StudentProfile = () => {
                             <span className="truncate">{event.department}</span>
                           </div>
                         </div>
-                        <div className="mt-2 sm:mt-0 ml-0 sm:ml-2 self-start sm:self-center">
+                        <div className="mt-2 sm:mt-0 ml-0 sm:ml-2 self-start sm:self-center flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveQR({
+                                registrationId: event.registration_id,
+                                eventTitle: event.name,
+                              })
+                            }
+                            className="text-xs font-semibold px-3 py-1 rounded-full border border-[#154CB3] text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-colors"
+                          >
+                            QR
+                          </button>
                           <span
                             className={`text-xs font-medium px-2 sm:px-3 py-1 rounded-full ${
                               event.status === "upcoming"
@@ -560,6 +582,15 @@ const StudentProfile = () => {
           </div>
         </div>
       </div>
+
+      {activeQR && (
+        <QRCodeDisplay
+          registrationId={activeQR.registrationId}
+          eventTitle={activeQR.eventTitle}
+          participantName={student.name}
+          onClose={() => setActiveQR(null)}
+        />
+      )}
       
       {/* Edit Name Modal for Outsiders */}
       {isEditingName && (
