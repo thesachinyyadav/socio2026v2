@@ -102,9 +102,6 @@ export async function pushEventToGated(socioEvent, organiserEmail, organiserName
       where: { socio_event_id: socioEvent.event_id },
     });
 
-    const maxCapacity = socioEvent.outsider_max_participants || socioEvent.total_participants || 100;
-    const expectedStudents = Math.min(socioEvent.outsider_max_participants || maxCapacity, maxCapacity);
-
     const requestData = {
       organiser_id: gatedOrganiserId,
       department: socioEvent.organizing_dept || 'General',
@@ -112,8 +109,8 @@ export async function pushEventToGated(socioEvent, organiserEmail, organiserName
       event_description: socioEvent.description || null,
       date_from: socioEvent.event_date,
       date_to: socioEvent.end_date || socioEvent.event_date,
-      expected_students: expectedStudents,
-      max_capacity: maxCapacity,
+      expected_students: socioEvent.outsider_max_participants || 0,
+      max_capacity: socioEvent.outsider_max_participants || 0,
       socio_event_id: socioEvent.event_id,
       source: 'socio',
     };
@@ -197,8 +194,8 @@ export async function pushFestToGated(socioFest, organiserEmail, organiserName) 
       event_description: socioFest.description || null,
       date_from: socioFest.opening_date,
       date_to: socioFest.closing_date,
-      expected_students: 500, // Default estimate for fests
-      max_capacity: 1000, // Default capacity for fests
+      expected_students: 0,
+      max_capacity: 0,
       socio_event_id: socioFest.fest_id,
       source: 'socio',
     };
