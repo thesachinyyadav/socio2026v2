@@ -56,7 +56,7 @@ interface UserData {
 }
 
 const StudentProfile = () => {
-  const { userData, signOut, session } = useAuth();
+  const { userData, signOut, session, isLoading } = useAuth();
 
   const [student, setStudent] = useState<Student>({
     name: "",
@@ -233,9 +233,32 @@ const StudentProfile = () => {
   };
 
   if (!userData) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <LoadingIndicator label="Loading profile" />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <LoadingIndicator label="Loading profile" />
+        <div className="text-center space-y-4">
+          <p className="text-gray-600 text-lg">Unable to load your profile.</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2 bg-[#063168] text-white rounded-lg hover:bg-[#063168]/90 transition"
+            >
+              Try Again
+            </button>
+            <Link
+              href="/Discover"
+              className="px-5 py-2 border border-[#063168] text-[#063168] rounded-lg hover:bg-gray-50 transition"
+            >
+              Back to Discover
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

@@ -17,6 +17,9 @@ import {
   gatedUpdate,
 } from '../config/gatedDatabase.js';
 
+// Re-export isGatedEnabled so route files can import it from here
+export { isGatedEnabled };
+
 const GATED_APP_URL = process.env.GATED_APP_URL || 'https://universitygated.vercel.app';
 
 // ─── Organiser Management ──────────────────────────────────────────────────────
