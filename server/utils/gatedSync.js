@@ -128,11 +128,25 @@ export async function pushEventToGated(socioEvent, organiserEmail, organiserName
       console.log(`🔄 Updated Gated event_request for SOCIO event "${socioEvent.title}" (${existing.id})`);
       return updated?.[0] || existing;
     } else {
-      // Insert new request
+      // Insert new request as pending first
       requestData.status = 'pending';
       const [created] = await gatedInsert('event_requests', [requestData]);
 
       console.log(`📤 Pushed SOCIO event "${socioEvent.title}" to Gated event_requests (${created.id})`);
+
+      // Auto-approve SOCIO-sourced requests so the DB trigger creates the events row.
+      // This allows outsider registrations to immediately get a Gated visitor pass.
+      try {
+        await gatedUpdate('event_requests', {
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+        }, { id: created.id });
+        console.log(`✅ Auto-approved Gated event_request ${created.id} (SOCIO-sourced)`);
+      } catch (approveErr) {
+        console.error(`⚠️  Failed to auto-approve Gated event_request ${created.id}:`, approveErr.message);
+        // Non-fatal — CSO can still approve manually
+      }
+
       return created;
     }
   } catch (error) {
@@ -202,6 +216,18 @@ export async function pushFestToGated(socioFest, organiserEmail, organiserName) 
       const [created] = await gatedInsert('event_requests', [requestData]);
 
       console.log(`📤 Pushed SOCIO fest "${socioFest.fest_title}" to Gated event_requests (${created.id})`);
+
+      // Auto-approve SOCIO-sourced fest requests so the DB trigger creates the events row.
+      try {
+        await gatedUpdate('event_requests', {
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+        }, { id: created.id });
+        console.log(`✅ Auto-approved Gated event_request for fest ${created.id} (SOCIO-sourced)`);
+      } catch (approveErr) {
+        console.error(`⚠️  Failed to auto-approve Gated fest request ${created.id}:`, approveErr.message);
+      }
+
       return created;
     }
   } catch (error) {
