@@ -8,7 +8,7 @@ import {
   supabase,
 } from "../config/database.js";
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
-import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled } from "../utils/gatedSync.js";
+import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled, pushEventToGated } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -407,6 +407,29 @@ router.post("/register", async (req, res) => {
           // If not found directly, check if event belongs to an outsider-enabled fest
           if (!gatedEvent && event.fest) {
             gatedEvent = await resolveGatedEvent(event.fest);
+          }
+
+          // If still no Gated event, push this event to Gated now (handles events created before integration)
+          if (!gatedEvent) {
+            console.log(`ℹ️  No Gated event found for SOCIO event ${normalizedEventId} — pushing now...`);
+            try {
+              // Fetch organiser info for the push
+              const organiser = await queryOne('users', { where: { email: event.created_by || event.organizer_email } });
+              await pushEventToGated(
+                event,
+                event.created_by || event.organizer_email || 'unknown@socio.app',
+                organiser?.name || 'SOCIO Organiser'
+              );
+              // Wait a moment for the DB trigger to create the events row
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              // Try resolving again
+              gatedEvent = await resolveGatedEvent(normalizedEventId);
+              if (!gatedEvent && event.fest) {
+                gatedEvent = await resolveGatedEvent(event.fest);
+              }
+            } catch (pushErr) {
+              console.error(`❌ Failed to on-demand push event to Gated:`, pushErr.message);
+            }
           }
 
           if (gatedEvent) {
