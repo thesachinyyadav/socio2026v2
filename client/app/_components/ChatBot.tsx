@@ -41,7 +41,7 @@ function getPageQA(pathname: string): QA[] {
   ];
   if (pathname === "/profile") return [
     { q: "Where are my registrations?", a: "Your registered events are shown on this page under the Registrations section. You can also see your attendance history." },
-    { q: "How do I edit my profile?", a: "Click the Edit Profile button on this page to update your name, bio, and other details." },
+    { q: "Can I edit my profile here?", a: "Profile editing is not available right now. You can use this page to view your details, registrations, attendance history, and QR codes." },
     { q: "Where is my QR code?", a: "Your QR codes for registered events appear in the Registrations section. Click on a registration to view or download your QR." },
   ];
   if (pathname === "/Discover") return [
@@ -85,7 +85,7 @@ function findAnswer(input: string, qaList: QA[]): string | null {
   if (/contact|help|support/i.test(lower)) return "You can reach our support team via the Contact page. Navigate there from the sidebar or footer.";
   if (/create|make|new.*event/i.test(lower)) return "To create an event, go to the Manage page. If you have organiser access, you'll see a 'Create Event' button.";
   if (/fest|festival/i.test(lower)) return "Fests are collections of related events. Visit the Fests page to browse upcoming festivals.";
-  if (/profile|account/i.test(lower)) return "Visit your Profile page to see your registrations, attendance history, and edit your details.";
+  if (/profile|account/i.test(lower)) return "Visit your Profile page to view your registrations, attendance history, and QR codes. Profile editing is not available right now.";
   return null;
 }
 
@@ -94,7 +94,7 @@ export default function ChatBot() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question or type your own!" },
+    { role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question below and I’ll help." },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -104,7 +104,7 @@ export default function ChatBot() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => {
-    setMessages([{ role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question or type your own!" }]);
+    setMessages([{ role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question below and I’ll help." }]);
   }, [pathname]);
   const handleQuestion = (text: string) => {
     if (!text.trim()) return;
@@ -113,7 +113,7 @@ export default function ChatBot() {
     setTimeout(() => {
       setMessages((prev) => [...prev, {
         role: "assistant",
-        content: answer || "I'm not sure about that one. Try picking a question below, or visit the FAQ or Contact page for more help!",
+        content: answer || "I'm not sure about that one yet. Try another question below, or visit the FAQ or Contact page for more help.",
       }]);
     }, 400);
   };

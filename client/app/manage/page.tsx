@@ -229,6 +229,7 @@ const Page = () => {
                   <Link href="/create/fest">
                     <button
                       type="button"
+                      title="Fest = a group of related events"
                       className="bg-[#154CB3] cursor-pointer text-white text-sm py-3 px-4 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
                     >
                       <svg
@@ -251,6 +252,7 @@ const Page = () => {
                   <Link href="/create/event">
                     <button
                       type="button"
+                      title="Event = a single activity users register for"
                       className="bg-[#154CB3] cursor-pointer text-white text-sm py-3 px-4 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
                     >
                       <svg
@@ -276,6 +278,7 @@ const Page = () => {
                 <Link href="/create/fest">
                   <button
                     type="button"
+                    title="Fest = a group of related events"
                     className="bg-[#154CB3] cursor-pointer text-white text-xs py-2 px-3 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
                   >
                     <svg
@@ -298,6 +301,7 @@ const Page = () => {
                 <Link href="/create/event">
                   <button
                     type="button"
+                    title="Event = a single activity users register for"
                     className="bg-[#154CB3] cursor-pointer text-white text-xs py-2 px-3 rounded-full font-medium flex items-center hover:bg-[#154cb3eb] transition-colors"
                   >
                     <svg
