@@ -110,7 +110,7 @@ All roles support **expiration dates** with automatic revocation. Last Master Ad
 - Trending events, upcoming events, fests sections
 - Category browsing (Academic, Cultural, Sports, Arts, Literary, Innovation)
 - Clubs/Centres directory (15+ centres, 8 categories)
-- Campus filter dropdown
+- Campus filter dropdown and other features
 
 ### Identity System
 - Christ members: auto-extracts registration number and course code from email domain
