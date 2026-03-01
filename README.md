@@ -1,4 +1,4 @@
-# Socio -- University Event Platform
+# Socio -- Universities One Stop Event Platform
 
 A full-featured platform for managing university events, fests, and registrations at Christ University. Built for students, organisers, and administrators.
 
