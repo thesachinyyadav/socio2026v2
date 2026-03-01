@@ -2,10 +2,10 @@
 
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { Session, User } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
+import { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
+import CampusDetectionModal, { isCampusDismissedRecently } from "../app/_components/CampusDetectionModal";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 type UserData = {
@@ -48,7 +48,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showOutsiderWarning, setShowOutsiderWarning] = useState(false);
   const [outsiderVisitorId, setOutsiderVisitorId] = useState<string | null>(null);
-  
+  const [outsiderNameInput, setOutsiderNameInput] = useState("");
+  const [isEditingOutsiderName, setIsEditingOutsiderName] = useState(false);
+  const [isSavingOutsiderName, setIsSavingOutsiderName] = useState(false);
+  const [outsiderNameError, setOutsiderNameError] = useState<string | null>(null);
+  const [showCampusModal, setShowCampusModal] = useState(false);
+
+  // Helper to persist session in localStorage
+  const persistSession = (session: Session | null) => {
+    if (session) {
+      localStorage.setItem('socio_session', JSON.stringify(session));
+    } else {
+      localStorage.removeItem('socio_session');
+    }
+  };
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const storedSession = localStorage.getItem('socio_session');
+    if (storedSession && !session) {
+      try {
+        const parsedSession = JSON.parse(storedSession);
+        setSession(parsedSession);
+      } catch (e) {
+        localStorage.removeItem('socio_session');
+      }
+    }
+  }, []);
+
   const supabase = useMemo(
     () =>
       createBrowserClient(
@@ -57,12 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ),
     []
   );
-  
-  const router = useRouter();
-
   const getOrganizationType = (email: string | undefined): 'christ_member' | 'outsider' => {
     if (!email) return 'outsider';
-    return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+    const lowerEmail = email.toLowerCase();
+    const domain = lowerEmail.split('@')[1] || "";
+    if (domain.endsWith('christuniversity.in')) return 'christ_member';
+    return 'outsider';
   };
 
   useEffect(() => {
@@ -75,8 +102,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession) {
           setSession(currentSession);
-          // Fetch user data without blocking
-          fetchUserData(currentSession.user.email!);
+          persistSession(currentSession);
+          // Fetch user data in background so navbar can render immediately.
+          void fetchUserData(currentSession.user.email!).then((existingUser) => {
+            if (
+              existingUser &&
+              existingUser.organization_type === 'christ_member' &&
+              !existingUser.campus &&
+              !isCampusDismissedRecently()
+            ) {
+              setShowCampusModal(true);
+            }
+          });
         }
       } catch (error) {
         console.error("Error checking user session:", error);
@@ -89,48 +126,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, newSession: Session | null) => {
       if (event === "SIGNED_IN" && newSession) {
-        // Set session immediately - don't block on user data
+        // Resolve auth state immediately and load profile details in background.
         setSession(newSession);
-        setIsLoading(true);
-        
-        // Check if user is an outsider
-        const orgType = getOrganizationType(newSession.user?.email);
-        
-        // User creation is now handled in the callback route (server-side)
-        // Just fetch the user data - with retry for new users
-        let userData = await fetchUserData(newSession.user.email!);
-        
-        // If user data not found, wait briefly and retry (new user being created)
-        if (!userData) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          userData = await fetchUserData(newSession.user.email!);
-        }
-        
-        // Show warning for first-time outsiders
-        if (orgType === 'outsider' && userData?.visitor_id) {
-          setOutsiderVisitorId(userData.visitor_id);
-          const hasSeenWarning = localStorage.getItem(`outsider_warning_${newSession.user.id}`);
-          if (!hasSeenWarning) {
-            setShowOutsiderWarning(true);
-            localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
-          }
-        }
+        persistSession(newSession);
         setIsLoading(false);
+
+        const orgType = getOrganizationType(newSession.user?.email);
+
+        void (async () => {
+          await createOrUpdateUser(newSession.user);
+
+          let fetchedUser = await fetchUserData(newSession.user.email!);
+          if (!fetchedUser) {
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            fetchedUser = await fetchUserData(newSession.user.email!);
+          }
+
+          if (
+            orgType === 'outsider' &&
+            fetchedUser?.visitor_id &&
+            !fetchedUser?.outsider_name_edit_used
+          ) {
+            setOutsiderVisitorId(fetchedUser.visitor_id);
+            const hasSeenWarning = localStorage.getItem(`outsider_warning_${newSession.user.id}`);
+            if (!hasSeenWarning) {
+              setShowOutsiderWarning(true);
+              localStorage.setItem(`outsider_warning_${newSession.user.id}`, 'true');
+            }
+          }
+
+          if (
+            orgType === 'christ_member' &&
+            fetchedUser &&
+            !fetchedUser.campus &&
+            !isCampusDismissedRecently()
+          ) {
+            setShowCampusModal(true);
+          }
+        })();
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUserData(null);
+        persistSession(null);
+        setIsLoading(false);
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
-        fetchUserData(newSession.user.email!);
+        persistSession(newSession);
+        void fetchUserData(newSession.user.email!);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const createOrUpdateUser = async (user: User) => {
     if (!user?.email) return;
@@ -176,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-      // For outsiders, visitor_id will be generated by backend
+      // For outsiders, IDs are generated by backend
       
       const payload = {
         id: user.id,
@@ -238,10 +289,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     setIsLoading(true);
     try {
+      const redirectOrigin = typeof window !== "undefined" ? window.location.origin : APP_URL;
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${APP_URL}/auth/callback`,
+          redirectTo: `${redirectOrigin}/auth/callback`,
         },
       });
     } catch (error) {
@@ -257,6 +309,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Sign out error:", error);
     } finally {
+      setIsLoading(false);
     }
   };
 
@@ -268,54 +321,163 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{ session, userData, isLoading, isSupport, isMasterAdmin, signInWithGoogle, signOut }}
     >
       {children}
+
+      {/* Campus Detection Modal */}
+      {showCampusModal && session?.access_token && userData?.email && (
+        <CampusDetectionModal
+          userEmail={userData.email}
+          accessToken={session.access_token}
+          onComplete={(campus) => {
+            setShowCampusModal(false);
+            setUserData((prev) => prev ? { ...prev, campus } : prev);
+          }}
+          onDismiss={() => setShowCampusModal(false)}
+        />
+      )}
       
       {/* Visitor Welcome Modal */}
       {showOutsiderWarning && outsiderVisitorId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-[#063168] to-[#154CB3] p-6 text-center">
-              <div className="flex items-center justify-center w-16 h-16 bg-white rounded-full mx-auto mb-3">
-                <svg className="w-8 h-8 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full overflow-hidden">
+            {/* Compact header */}
+            <div className="bg-[#063168] px-5 py-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-[#FFCC00]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-1">Welcome, Visitor! 👋</h3>
-              <p className="text-blue-100 text-sm">We&apos;re glad to have you here</p>
+              <div>
+                <h3 className="text-lg font-bold text-white">Welcome, Visitor</h3>
+                <p className="text-blue-200 text-xs">External visitor access</p>
+              </div>
             </div>
             
-            <div className="p-6">
-              <p className="text-gray-600 text-center mb-4">
-                You&apos;re joining us as an <span className="font-semibold text-[#154CB3]">External Visitor</span>. 
-                You can explore and register for events that are open to visitors.
-              </p>
-              
-              <div className="bg-[#063168] rounded-xl p-4 mb-4">
-                <p className="text-sm text-blue-100 text-center mb-1">Your Visitor ID</p>
-                <p className="text-2xl font-bold text-[#FFCC00] text-center tracking-wider">{outsiderVisitorId}</p>
-                <p className="text-xs text-blue-200 text-center mt-2">Keep this ID handy for event registrations</p>
+            <div className="p-5 space-y-3">
+              {/* Visitor ID badge */}
+              <div className="flex items-center justify-between bg-[#063168] rounded-lg px-4 py-3">
+                <span className="text-xs text-blue-200">Visitor ID</span>
+                <span className="text-base font-bold text-[#FFCC00] tracking-wider">{outsiderVisitorId}</span>
               </div>
-              
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
-                <p className="text-sm text-amber-800 flex items-start gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 flex-shrink-0 mt-0.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                  </svg>
-                  <span><strong>Important:</strong> Please set your display name on the next page. You only get <strong>one chance</strong> to edit it!</span>
-                </p>
+
+              {/* Name display with inline actions */}
+              <div className="bg-gray-50 rounded-lg px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Display Name</p>
+                    {!isEditingOutsiderName ? (
+                      <p className="text-sm font-semibold text-[#063168]">{userData?.name || session?.user?.user_metadata?.full_name || "--"}</p>
+                    ) : (
+                      <input
+                        type="text"
+                        value={outsiderNameInput}
+                        onChange={(e) => setOutsiderNameInput(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-[#154CB3] mt-0.5"
+                        placeholder="Enter your name"
+                        autoFocus
+                      />
+                    )}
+                  </div>
+                  {!isEditingOutsiderName && !isSavingOutsiderName && (
+                    <button
+                      onClick={() => {
+                        setOutsiderNameInput(userData?.name || session?.user?.user_metadata?.full_name || "");
+                        setIsEditingOutsiderName(true);
+                        setOutsiderNameError(null);
+                      }}
+                      className="text-[#154CB3] text-xs font-medium hover:underline flex-shrink-0 ml-3"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
               </div>
-              
-              <button
-                onClick={() => {
-                  setShowOutsiderWarning(false);
-                  router.push('/profile');
-                }}
-                className="w-full bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                Continue to My Profile
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                </svg>
-              </button>
+
+              {outsiderNameError && (
+                <p className="text-red-500 text-xs text-center">{outsiderNameError}</p>
+              )}
+
+              {isEditingOutsiderName && (
+                <p className="text-[11px] text-amber-600 text-center">You can only set your name once. Make sure it&apos;s correct.</p>
+              )}
+
+              {/* Action buttons */}
+              {!isEditingOutsiderName ? (
+                <button
+                  onClick={async () => {
+                    setIsSavingOutsiderName(true);
+                    setOutsiderNameError(null);
+                    try {
+                      const currentName = userData?.name || session?.user?.user_metadata?.full_name || "";
+                      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                      const token = (session as any)?.access_token;
+                      if (token) headers['Authorization'] = `Bearer ${token}`;
+                      const bodyPayload: any = { name: currentName.trim(), visitor_id: outsiderVisitorId };
+                      const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
+                        method: 'PUT', headers, body: JSON.stringify(bodyPayload)
+                      });
+                      if (!resp.ok) {
+                        const data = await resp.json();
+                        setOutsiderNameError(data.error || 'Failed to save');
+                        setIsSavingOutsiderName(false);
+                        return;
+                      }
+                      setShowOutsiderWarning(false);
+                      window.location.reload();
+                    } catch {
+                      setOutsiderNameError('Network error');
+                      setIsSavingOutsiderName(false);
+                    }
+                  }}
+                  disabled={isSavingOutsiderName}
+                  className="w-full bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-medium py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
+                >
+                  {isSavingOutsiderName ? "Saving..." : "Confirm & Continue"}
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setIsEditingOutsiderName(false); setOutsiderNameError(null); }}
+                    disabled={isSavingOutsiderName}
+                    className="flex-1 border border-gray-300 text-gray-600 font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!outsiderNameInput.trim()) {
+                        setOutsiderNameError("Name cannot be empty");
+                        return;
+                      }
+                      setIsSavingOutsiderName(true);
+                      setOutsiderNameError(null);
+                      try {
+                        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                        const token = (session as any)?.access_token;
+                        if (token) headers['Authorization'] = `Bearer ${token}`;
+                        const bodyPayload: any = { name: outsiderNameInput.trim(), visitor_id: outsiderVisitorId };
+                        const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
+                          method: 'PUT', headers, body: JSON.stringify(bodyPayload)
+                        });
+                        if (!resp.ok) {
+                          const data = await resp.json();
+                          setOutsiderNameError(data.error || 'Failed to save');
+                          setIsSavingOutsiderName(false);
+                          return;
+                        }
+                        setShowOutsiderWarning(false);
+                        window.location.reload();
+                      } catch {
+                        setOutsiderNameError('Network error');
+                        setIsSavingOutsiderName(false);
+                      }
+                    }}
+                    disabled={isSavingOutsiderName}
+                    className="flex-1 bg-[#154CB3] hover:bg-[#0f3d8a] text-white font-medium py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
+                  >
+                    {isSavingOutsiderName ? "Saving..." : "Save Name"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -331,3 +493,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

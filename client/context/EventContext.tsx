@@ -13,6 +13,7 @@ export interface EventForCard {
   tags: string[];
   image: string;
   organizing_dept: string;
+  allow_outsiders?: boolean | null;
 }
 
 export interface CarouselDisplayImage {
@@ -53,6 +54,7 @@ export interface FetchedEvent {
   rules: string | any[] | null;
   schedule: string | Array<{ time: string; activity: string }> | null;
   prizes: string | string[] | null;
+  custom_fields: any[] | null;
   organizer_email: string | null;
   organizer_phone: number | string | null;
   whatsapp_invite_link: string | null;

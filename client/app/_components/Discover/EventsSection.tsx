@@ -13,6 +13,7 @@ interface Event {
   location?: string;
   tags?: string[];
   image: string;
+  allow_outsiders?: boolean | null;
 }
 
 interface EventsSectionProps {
@@ -31,7 +32,7 @@ export const EventsSection = ({
     <div>
       <SectionHeader title={title} link="events" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 ">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 md:gap-12">
         {events.map((event) => (
           <EventCard
             key={event.id}
@@ -43,6 +44,7 @@ export const EventsSection = ({
             location={event.location || ""}
             tags={event.tags || []}
             image={event.image}
+            allowOutsiders={event.allow_outsiders}
             baseUrl={baseUrl}
             idForLink={event.event_id} // Add the event_id for link generation
           />

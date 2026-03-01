@@ -9,6 +9,7 @@ interface Centre {
   description: string;
   link?: string;
   image?: string;
+  slug?: string;
 }
 
 interface Club {
@@ -53,6 +54,7 @@ export const ClubSection = ({
             }
             description={item.description}
             link={item.link}
+            slug={(item as Centre).slug}
             image={item.image}
             type={type === "centre" ? "center" : "club"}
           />

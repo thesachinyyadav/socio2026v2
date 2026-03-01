@@ -1,15 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import ExcelJS from "exceljs";
+import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import supabase from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import DateTimePickerAdmin from "../_components/DateTimePickerAdmin";
+import dynamic from "next/dynamic";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 const ITEMS_PER_PAGE = 20;
+
+const AnalyticsDashboard = dynamic(
+  () => import("../_components/Admin/AnalyticsDashboard"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-12 text-center">
+        <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-gray-600">Loading analytics...</div>
+      </div>
+    ),
+  }
+);
+
+const AdminNotifications = dynamic(
+  () => import("../_components/Admin/AdminNotifications"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-12 text-center">
+        <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-gray-600">Loading notifications...</div>
+      </div>
+    ),
+  }
+);
 
 type User = {
   id: number;
@@ -35,6 +64,7 @@ type Event = {
   created_at: string;
   registration_fee: number;
   registration_count?: number;
+  fest?: string | null;
 };
 
 type Fest = {
@@ -47,10 +77,41 @@ type Fest = {
   registration_count?: number;
 };
 
+type Registration = {
+  registration_id: string;
+  event_id: string;
+  user_email?: string;
+  registration_type: string;
+  created_at: string;
+  participant_organization?: string;
+  teammates?: any[];
+};
+
+const ACCREDITATION_BODIES = [
+  { id: "naac", name: "NAAC", fullName: "National Assessment and Accreditation Council", description: "India's primary accreditation body for higher education institutions.", focus: "Governance, teaching learning, research, infrastructure, student support, best practices." },
+  { id: "nba", name: "NBA", fullName: "National Board of Accreditation", description: "Program level accreditation mainly for engineering and technical courses.", focus: "Outcome Based Education, curriculum quality, placements." },
+  { id: "aacsb", name: "AACSB", fullName: "Association to Advance Collegiate Schools of Business", description: "Global business school accreditation.", focus: "Faculty quality, research impact, assurance of learning." },
+  { id: "acbsp", name: "ACBSP", fullName: "Accreditation Council for Business Schools and Programs", description: "Business program accreditation. More teaching focused than research heavy.", focus: "Teaching excellence, student learning outcomes." },
+  { id: "nirf", name: "NIRF", fullName: "National Institutional Ranking Framework", description: "Not accreditation, but a national ranking framework.", focus: "Teaching, research, graduation outcomes, outreach." },
+  { id: "aicte", name: "AICTE", fullName: "All India Council for Technical Education", description: "Regulatory approval body for technical institutions.", focus: "Technical education standards, infrastructure, faculty." },
+  { id: "ugc", name: "UGC", fullName: "University Grants Commission", description: "Regulatory authority for universities in India.", focus: "University standards, grants, governance." },
+];
+
 export default function MasterAdminPage() {
-  const { userData, isMasterAdmin, isLoading: authLoading } = useAuth();
+  const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests" | "notifications" | "report">("dashboard");
+  const authToken = session?.access_token || null;
+
+  // Helper to get a fresh access token (avoids stale token from session state)
+  const getFreshToken = async (): Promise<string | null> => {
+    try {
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      return freshSession?.access_token || authToken;
+    } catch {
+      return authToken;
+    }
+  };
   
   // User management state
   const [users, setUsers] = useState<User[]>([]);
@@ -68,37 +129,41 @@ export default function MasterAdminPage() {
   const [eventSearchQuery, setEventSearchQuery] = useState("");
   const [showDeleteEventConfirm, setShowDeleteEventConfirm] = useState<string | null>(null);
   const [eventPage, setEventPage] = useState(1);
+  const [eventStatusFilter, setEventStatusFilter] = useState<"all" | "live" | "upcoming" | "thisweek" | "past">("all");
+  const [eventSortKey, setEventSortKey] = useState<"title" | "date" | "registrations" | "dept">("date");
+  const [eventSortDir, setEventSortDir] = useState<"asc" | "desc">("desc");
   
+  // User sort state
+  const [userSortKey, setUserSortKey] = useState<"name" | "email" | "date">("date");
+  const [userSortDir, setUserSortDir] = useState<"asc" | "desc">("desc");
+
   // Fest management state
   const [fests, setFests] = useState<Fest[]>([]);
   const [filteredFests, setFilteredFests] = useState<Fest[]>([]);
   const [festSearchQuery, setFestSearchQuery] = useState("");
   const [showDeleteFestConfirm, setShowDeleteFestConfirm] = useState<string | null>(null);
   const [festPage, setFestPage] = useState(1);
+  const [festSortKey, setFestSortKey] = useState<"title" | "date" | "registrations" | "dept">("date");
+  const [festSortDir, setFestSortDir] = useState<"asc" | "desc">("desc");
+
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
-  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  // Report state
+  const [reportMode, setReportMode] = useState<"fest" | "events">("fest");
+  const [selectedReportFest, setSelectedReportFest] = useState<string>("");
+  const [selectedAccreditation, setSelectedAccreditation] = useState<string>("");
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [searchTermReport, setSearchTermReport] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [reportEvents, setReportEvents] = useState<Event[]>([]);
+  const [reportFests, setReportFests] = useState<Fest[]>([]);
 
   // Debounced search queries for better performance
   const debouncedUserSearch = useDebounce(userSearchQuery, 300);
   const debouncedEventSearch = useDebounce(eventSearchQuery, 300);
   const debouncedFestSearch = useDebounce(festSearchQuery, 300);
-
-  useEffect(() => {
-    const getToken = async () => {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        setAuthToken(session.access_token);
-      }
-    };
-    
-    getToken();
-  }, []);
 
   useEffect(() => {
     if (!authLoading && !isMasterAdmin) {
@@ -117,6 +182,13 @@ export default function MasterAdminPage() {
       fetchFests();
     } else if (activeTab === "dashboard") {
       fetchDashboardData();
+    } else if (activeTab === "notifications") {
+      // Ensure users/events are loaded for the notification composer
+      if (users.length === 0) fetchUsers();
+      if (events.length === 0) fetchEvents();
+    } else if (activeTab === "report") {
+      // Fetch events and fests for report tab
+      fetchReportData();
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -150,6 +222,54 @@ export default function MasterAdminPage() {
     setUserPage(1);
   }, [users, debouncedUserSearch, roleFilter]);
 
+  // Sort users
+  const sortedFilteredUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      let cmp = 0;
+      switch (userSortKey) {
+        case "name": cmp = (a.name || "").localeCompare(b.name || ""); break;
+        case "email": cmp = a.email.localeCompare(b.email); break;
+        case "date": cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
+      }
+      return userSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filteredUsers, userSortKey, userSortDir]);
+
+  // Event status helper
+  const getEventStatus = (dateStr: string) => {
+    const now = new Date();
+    const eventDate = new Date(dateStr);
+    const diffMs = eventDate.getTime() - now.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    if (diffDays < -1) return { label: "Past", color: "bg-gray-100 text-gray-600" };
+    if (Math.abs(diffDays) <= 1) return { label: "Live", color: "bg-green-100 text-green-700" };
+    if (diffDays <= 7) return { label: "This Week", color: "bg-yellow-100 text-yellow-700" };
+    return { label: "Upcoming", color: "bg-blue-100 text-blue-700" };
+  };
+
+  // Sort toggle helper
+  const toggleSort = <T extends string>(
+    key: T,
+    currentKey: T,
+    currentDir: "asc" | "desc",
+    setKey: (k: T) => void,
+    setDir: (d: "asc" | "desc") => void
+  ) => {
+    if (currentKey === key) {
+      setDir(currentDir === "asc" ? "desc" : "asc");
+    } else {
+      setKey(key);
+      setDir("asc");
+    }
+  };
+
+  // Sort indicator
+  const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) => (
+    <span className={`ml-1 inline-block transition-colors ${active ? "text-[#154CB3]" : "text-gray-400"}`}>
+      {active ? (dir === "asc" ? "▲" : "▼") : "⇅"}
+    </span>
+  );
+
   useEffect(() => {
     let filtered = events;
 
@@ -162,9 +282,29 @@ export default function MasterAdminPage() {
       );
     }
 
+    // Status filter
+    if (eventStatusFilter !== "all") {
+      filtered = filtered.filter((event) => {
+        const status = getEventStatus(event.event_date).label.toLowerCase().replace(" ", "");
+        return status === eventStatusFilter;
+      });
+    }
+
+    // Sort
+    filtered = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (eventSortKey) {
+        case "title": cmp = a.title.localeCompare(b.title); break;
+        case "dept": cmp = (a.organizing_dept || "").localeCompare(b.organizing_dept || ""); break;
+        case "date": cmp = new Date(a.event_date).getTime() - new Date(b.event_date).getTime(); break;
+        case "registrations": cmp = (a.registration_count || 0) - (b.registration_count || 0); break;
+      }
+      return eventSortDir === "asc" ? cmp : -cmp;
+    });
+
     setFilteredEvents(filtered);
     setEventPage(1);
-  }, [events, debouncedEventSearch]);
+  }, [events, debouncedEventSearch, eventStatusFilter, eventSortKey, eventSortDir]);
 
   useEffect(() => {
     let filtered = fests;
@@ -182,10 +322,35 @@ export default function MasterAdminPage() {
     setFestPage(1);
   }, [fests, debouncedFestSearch]);
 
+  // Sort fests
+  const sortedFilteredFests = useMemo(() => {
+    return [...filteredFests].sort((a, b) => {
+      let cmp = 0;
+      switch (festSortKey) {
+        case "title": cmp = a.fest_title.localeCompare(b.fest_title); break;
+        case "dept": cmp = (a.organizing_dept || "").localeCompare(b.organizing_dept || ""); break;
+        case "date": cmp = new Date(a.opening_date).getTime() - new Date(b.opening_date).getTime(); break;
+        case "registrations": cmp = (a.registration_count || 0) - (b.registration_count || 0); break;
+      }
+      return festSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filteredFests, festSortKey, festSortDir]);
+
+  const fetchRegistrations = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/registrations`);
+      if (!response.ok) throw new Error("Failed to fetch registrations");
+      const data = await response.json();
+      setRegistrations(data.registrations || []);
+    } catch (error) {
+      console.error("Error fetching registrations:", error);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
-      await Promise.all([fetchUsers(), fetchEvents(), fetchFests()]);
+      await Promise.all([fetchUsers(), fetchEvents(), fetchFests(), fetchRegistrations()]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -196,10 +361,11 @@ export default function MasterAdminPage() {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
+      const token = await getFreshToken();
       
       const response = await fetch(`${API_URL}/api/users`, {
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -327,6 +493,25 @@ export default function MasterAdminPage() {
     }
   };
 
+  const fetchReportData = async () => {
+    try {
+      const [eventsRes, festsRes] = await Promise.all([
+        fetch(`${API_URL}/api/events`),
+        fetch(`${API_URL}/api/fests`),
+      ]);
+      if (eventsRes.ok) {
+        const data = await eventsRes.json();
+        setReportEvents(data.events || []);
+      }
+      if (festsRes.ok) {
+        const data = await festsRes.json();
+        setReportFests(data.fests || data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching report data:", error);
+    }
+  };
+
   const startEditUser = (user: User) => {
     setEditingUserId(user.id);
     setEditingUserRoles({
@@ -358,11 +543,12 @@ export default function MasterAdminPage() {
 
   const saveRoleChanges = async (user: User) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(user.email)}/roles`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           is_organiser: editingUserRoles.is_organiser,
@@ -396,10 +582,11 @@ export default function MasterAdminPage() {
 
   const deleteUser = async (email: string) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -419,10 +606,11 @@ export default function MasterAdminPage() {
 
   const deleteEvent = async (eventId: string) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/events/${eventId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -442,10 +630,11 @@ export default function MasterAdminPage() {
 
   const deleteFest = async (festId: string) => {
     try {
+      const token = await getFreshToken();
       const response = await fetch(`${API_URL}/api/fests/${festId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -481,7 +670,8 @@ export default function MasterAdminPage() {
     hasNext, 
     hasPrev, 
     onNext, 
-    onPrev 
+    onPrev,
+    totalItems
   }: { 
     currentPage: number;
     totalPages: number;
@@ -489,10 +679,14 @@ export default function MasterAdminPage() {
     hasPrev: boolean;
     onNext: () => void;
     onPrev: () => void;
+    totalItems?: number;
   }) => (
     <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200">
       <div className="text-sm text-gray-600">
         Page {currentPage} of {totalPages}
+        {totalItems !== undefined && (
+          <span className="ml-2 text-gray-400">({totalItems} total items)</span>
+        )}
       </div>
       <div className="flex gap-2">
         <button
@@ -521,9 +715,9 @@ export default function MasterAdminPage() {
     </div>
   );
 
-  const paginatedUsers = paginateArray(filteredUsers, userPage);
+  const paginatedUsers = paginateArray(sortedFilteredUsers, userPage);
   const paginatedEvents = paginateArray(filteredEvents, eventPage);
-  const paginatedFests = paginateArray(filteredFests, festPage);
+  const paginatedFests = paginateArray(sortedFilteredFests, festPage);
 
   if (authLoading || !authToken) {
     return (
@@ -544,32 +738,61 @@ export default function MasterAdminPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
-        <div className="mb-8">
-          <div className="bg-white border-b border-gray-200 rounded-lg p-6 shadow-sm">
-            <h1 className="text-3xl font-bold text-gray-900 mb-1">Master Admin Panel</h1>
-            <p className="text-gray-600">System management and oversight</p>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Admin Panel
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/create/fest"
+              className="inline-flex items-center gap-2 bg-[#154CB3] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#154cb3eb] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Create fest
+            </a>
+            <a
+              href="/create/event"
+              className="inline-flex items-center gap-2 bg-[#154CB3] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#154cb3eb] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Create event
+            </a>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-lg shadow-sm mb-6 border border-gray-200">
           <div className="flex border-b border-gray-200 overflow-x-auto">
             {[
               { id: "dashboard", label: "Dashboard" },
-              { id: "users", label: "User Management" },
-              { id: "events", label: "Event Management" },
-              { id: "fests", label: "Fest Management" }
+              { id: "users", label: "Users", count: users.length },
+              { id: "events", label: "Events", count: events.length },
+              { id: "fests", label: "Fests", count: fests.length },
+              { id: "notifications", label: "Notifications" },
+              { id: "report", label: "Report" }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-6 py-4 font-medium transition-all whitespace-nowrap ${
+                className={`px-5 py-3 font-medium transition-all whitespace-nowrap text-sm ${
                   activeTab === tab.id
-                    ? "border-b-2 border-[#154CB3] text-[#154CB3] bg-blue-50"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "border-b-2 border-[#154CB3] text-[#154CB3]"
+                    : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                 }`}
               >
                 {tab.label}
+                {"count" in tab && tab.count !== undefined && tab.count > 0 && (
+                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                    activeTab === tab.id ? "bg-[#154CB3]/10 text-[#154CB3]" : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -577,81 +800,102 @@ export default function MasterAdminPage() {
 
         {/* Dashboard Tab */}
         {activeTab === "dashboard" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Users</h3>
-                <p className="text-4xl font-bold text-gray-900 mb-4">{users.length}</p>
-                <div className="space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-3">
-                  <div className="flex justify-between">
-                    <span>Organisers:</span>
-                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_organiser).length}</span>
+          <div>
+            {isLoading ? (
+              <div className="p-12 text-center">
+                <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <div className="text-gray-600">Loading analytics...</div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <AnalyticsDashboard
+                  users={users}
+                  events={events}
+                  fests={fests}
+                  registrations={registrations}
+                />
+
+                {/* Bottom row: Activity + Quick Actions */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Recent Activity */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {(() => {
+                        type ActivityItem = { text: string; time: Date };
+                        const activities: ActivityItem[] = [];
+
+                        events.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4).forEach(e => {
+                          activities.push({ text: `"${e.title}" created`, time: new Date(e.created_at) });
+                        });
+
+                        registrations.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4).forEach(r => {
+                          const event = events.find(e => e.event_id === r.event_id);
+                          activities.push({ text: `Registration for "${event?.title || '...'}"`, time: new Date(r.created_at) });
+                        });
+
+                        users.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).forEach(u => {
+                          activities.push({ text: `${u.name || u.email} joined`, time: new Date(u.created_at) });
+                        });
+
+                        activities.sort((a, b) => b.time.getTime() - a.time.getTime());
+
+                        if (activities.length === 0) {
+                          return <div className="text-center py-4 text-gray-400 text-sm">No recent activity</div>;
+                        }
+
+                        return activities.slice(0, 8).map((activity, idx) => {
+                          const now = new Date();
+                          const diff = now.getTime() - activity.time.getTime();
+                          const mins = Math.floor(diff / 60000);
+                          const hours = Math.floor(diff / 3600000);
+                          const days = Math.floor(diff / 86400000);
+                          const timeAgo = mins < 1 ? "now" : mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
+
+                          return (
+                            <div key={idx} className="flex items-center justify-between py-2 px-1 rounded hover:bg-gray-50">
+                              <span className="text-sm text-gray-700">{activity.text}</span>
+                              <span className="text-xs text-gray-400 ml-3 whitespace-nowrap">{timeAgo}</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Support:</span>
-                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_support).length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Admins:</span>
-                    <span className="font-semibold text-gray-900">{users.filter(u => u.is_masteradmin).length}</span>
+
+                  {/* Quick Actions */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                    <div className="space-y-1">
+                      {[
+                        { tab: "users", title: "Manage Users" },
+                        { tab: "events", title: "Manage Events" },
+                        { tab: "fests", title: "Manage Fests" },
+                        { tab: "notifications", title: "Send Notification" }
+                      ].map((action, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveTab(action.tab as any)}
+                          className="w-full flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-gray-50 transition-colors text-left text-sm text-gray-700"
+                        >
+                          {action.title}
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                      ))}
+                      <div className="pt-2 mt-2 border-t border-gray-100">
+                        <a
+                          href="/manage"
+                          className="w-full flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-gray-50 transition-colors text-left text-sm text-gray-500"
+                        >
+                          Organiser View
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Events</h3>
-                <p className="text-4xl font-bold text-gray-900 mb-4">{events.length}</p>
-                <button
-                  onClick={() => setActiveTab("events")}
-                  className="text-sm bg-[#154CB3] hover:bg-[#154cb3df] text-white px-4 py-2 rounded-lg transition-colors font-medium"
-                >
-                  View all events
-                </button>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Fests</h3>
-                <p className="text-4xl font-bold text-gray-900 mb-4">{fests.length}</p>
-                <div className="text-sm text-gray-600 border-t border-gray-100 pt-3">
-                  <div className="flex justify-between">
-                    <span>Registrations:</span>
-                    <span className="font-semibold text-gray-900">{fests.reduce((sum, f) => sum + (f.registration_count || 0), 0)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-bold mb-4 text-gray-900">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { tab: "users", title: "Manage Users", desc: "Edit roles, permissions, and delete users" },
-                  { tab: "events", title: "Manage Events", desc: "View, edit, or delete any event" },
-                  { tab: "fests", title: "Manage Fests", desc: "View, edit, or delete any fest" },
-                  { href: "/manage", title: "View Manage Page", desc: "See all events and fests in one place" }
-                ].map((action, idx) => (
-                  action.tab ? (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveTab(action.tab as any)}
-                      className="p-5 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left"
-                    >
-                      <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
-                      <div className="text-sm text-gray-600">{action.desc}</div>
-                    </button>
-                  ) : (
-                    <a
-                      key={idx}
-                      href={action.href}
-                      className="p-5 border border-gray-200 rounded-lg hover:border-[#154CB3] hover:bg-blue-50 transition-all text-left block"
-                    >
-                      <div className="font-semibold text-gray-900 text-base mb-1">{action.title}</div>
-                      <div className="text-sm text-gray-600">{action.desc}</div>
-                    </a>
-                  )
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -690,6 +934,11 @@ export default function MasterAdminPage() {
                   </select>
                 </div>
               </div>
+              {/* Result summary */}
+              <div className="mt-3 text-sm text-gray-500">
+                Showing <strong className="text-gray-700">{sortedFilteredUsers.length}</strong> of{" "}
+                <strong className="text-gray-700">{users.length}</strong> users
+              </div>
             </div>
 
             {/* Users Table */}
@@ -710,8 +959,11 @@ export default function MasterAdminPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            User
+                          <th
+                            onClick={() => toggleSort("name", userSortKey, userSortDir, setUserSortKey, setUserSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            User <SortIcon active={userSortKey === "name"} dir={userSortDir} />
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Organiser
@@ -721,6 +973,12 @@ export default function MasterAdminPage() {
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Master Admin
+                          </th>
+                          <th
+                            onClick={() => toggleSort("date", userSortKey, userSortDir, setUserSortKey, setUserSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Joined <SortIcon active={userSortKey === "date"} dir={userSortDir} />
                           </th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Actions
@@ -837,6 +1095,12 @@ export default function MasterAdminPage() {
                                 </div>
                               </td>
 
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-gray-600">
+                                  {new Date(user.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
+                              </td>
+
                               <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {isEditing ? (
@@ -900,14 +1164,50 @@ export default function MasterAdminPage() {
         {/* Event Management Tab */}
         {activeTab === "events" && (
           <div className="space-y-6">
+
+            {/* Search + Status Filter + Result Count */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-              <input
-                type="text"
-                placeholder="Search events by title or department..."
-                value={eventSearchQuery}
-                onChange={(e) => setEventSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
-              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Events</label>
+                  <input
+                    type="text"
+                    placeholder="Search events by title or department..."
+                    value={eventSearchQuery}
+                    onChange={(e) => setEventSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={eventStatusFilter}
+                    onChange={(e) => setEventStatusFilter(e.target.value as any)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
+                  >
+                    <option value="all">All Events ({events.length})</option>
+                    <option value="live">Live ({events.filter(e => getEventStatus(e.event_date).label === "Live").length})</option>
+                    <option value="thisweek">This Week ({events.filter(e => getEventStatus(e.event_date).label === "This Week").length})</option>
+                    <option value="upcoming">Upcoming ({events.filter(e => getEventStatus(e.event_date).label === "Upcoming").length})</option>
+                    <option value="past">Past ({events.filter(e => getEventStatus(e.event_date).label === "Past").length})</option>
+                  </select>
+                </div>
+              </div>
+              {/* Result summary */}
+              <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                <span>
+                  Showing <strong className="text-gray-700">{filteredEvents.length}</strong> of{" "}
+                  <strong className="text-gray-700">{events.length}</strong> events
+                  {eventStatusFilter !== "all" && (
+                    <button onClick={() => setEventStatusFilter("all")} className="ml-2 text-[#154CB3] hover:underline">
+                      Clear filter
+                    </button>
+                  )}
+                </span>
+                <span className="text-xs text-gray-400">
+                  Sorted by {eventSortKey} ({eventSortDir === "asc" ? "ascending" : "descending"})
+                </span>
+              </div>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -919,7 +1219,7 @@ export default function MasterAdminPage() {
               ) : paginatedEvents.items.length === 0 ? (
                 <div className="p-12 text-center">
                   <div className="text-xl font-semibold text-gray-700 mb-2">No events found</div>
-                  <div className="text-gray-500">Try adjusting your search</div>
+                  <div className="text-gray-500">Try adjusting your search or filter</div>
                 </div>
               ) : (
                 <>
@@ -927,59 +1227,88 @@ export default function MasterAdminPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Event</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Registrations</th>
+                          <th
+                            onClick={() => toggleSort("title", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Event <SortIcon active={eventSortKey === "title"} dir={eventSortDir} />
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                          <th
+                            onClick={() => toggleSort("dept", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Department <SortIcon active={eventSortKey === "dept"} dir={eventSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("date", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Date <SortIcon active={eventSortKey === "date"} dir={eventSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("registrations", eventSortKey, eventSortDir, setEventSortKey, setEventSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Registrations <SortIcon active={eventSortKey === "registrations"} dir={eventSortDir} />
+                          </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {paginatedEvents.items.map((event) => (
-                          <tr key={event.event_id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-semibold text-gray-900">{event.title}</div>
-                              <div className="text-sm text-gray-500">ID: {event.event_id}</div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.organizing_dept}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {new Date(event.event_date).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric', 
-                                year: 'numeric' 
-                              })}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800">
-                                {event.registration_count || 0} Registered
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{event.created_by}</td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <a
-                                  href={`/edit/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-[#154CB3] text-white text-sm font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
-                                >
-                                  Edit
-                                </a>
-                                <a
-                                  href={`/event/${event.event_id}`}
-                                  className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                                >
-                                  View
-                                </a>
-                                <button
-                                  onClick={() => setShowDeleteEventConfirm(event.event_id)}
-                                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {paginatedEvents.items.map((event) => {
+                          const status = getEventStatus(event.event_date);
+                          return (
+                            <tr key={event.event_id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="font-semibold text-gray-900">{event.title}</div>
+                                <div className="text-xs text-gray-400 mt-0.5">ID: {event.event_id.slice(0, 8)}…</div>
+                              </td>
+                              <td className="px-6 py-3">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${status.color}`}>
+                                  {status.label}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-600 font-medium">{event.organizing_dept}</td>
+                              <td className="px-6 py-4 text-sm text-gray-600">
+                                {new Date(event.event_date).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800">
+                                  {event.registration_count || 0}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-600 max-w-[140px] truncate">{event.created_by}</td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <a
+                                    href={`/edit/event/${event.event_id}`}
+                                    className="px-3 py-1.5 bg-[#154CB3] text-white text-xs font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
+                                  >
+                                    Edit
+                                  </a>
+                                  <a
+                                    href={`/event/${event.event_id}`}
+                                    className="px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                                  >
+                                    View
+                                  </a>
+                                  <button
+                                    onClick={() => setShowDeleteEventConfirm(event.event_id)}
+                                    className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1000,7 +1329,9 @@ export default function MasterAdminPage() {
         {/* Fest Management Tab */}
         {activeTab === "fests" && (
           <div className="space-y-6">
+
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search Fests</label>
               <input
                 type="text"
                 placeholder="Search fests by title or department..."
@@ -1008,6 +1339,10 @@ export default function MasterAdminPage() {
                 onChange={(e) => setFestSearchQuery(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
               />
+              <div className="mt-3 text-sm text-gray-500">
+                Showing <strong className="text-gray-700">{sortedFilteredFests.length}</strong> of{" "}
+                <strong className="text-gray-700">{fests.length}</strong> fests
+              </div>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -1027,10 +1362,30 @@ export default function MasterAdminPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Fest</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Opening Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Registrations</th>
+                          <th
+                            onClick={() => toggleSort("title", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Fest <SortIcon active={festSortKey === "title"} dir={festSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("dept", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Department <SortIcon active={festSortKey === "dept"} dir={festSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("date", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Opening Date <SortIcon active={festSortKey === "date"} dir={festSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("registrations", festSortKey, festSortDir, setFestSortKey, setFestSortDir)}
+                            className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Registrations <SortIcon active={festSortKey === "registrations"} dir={festSortDir} />
+                          </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Created By</th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                         </tr>
@@ -1094,6 +1449,356 @@ export default function MasterAdminPage() {
                 </>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === "notifications" && authToken && (
+          <AdminNotifications
+            authToken={authToken}
+            users={users.map(u => ({ email: u.email, name: u.name }))}
+            events={events.map(e => ({ event_id: e.event_id, title: e.title }))}
+          />
+        )}
+
+        {/* Report Tab */}
+        {activeTab === "report" && (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Generate Report</h2>
+              <p className="text-sm text-gray-500 mb-4">Generate comprehensive Excel reports for accreditation submissions.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setReportMode("fest"); setSelectedEventIds(new Set()); setSelectedReportFest(""); setSelectedAccreditation(""); }}
+                  className={`px-5 py-2.5 rounded-full font-medium text-sm transition-all ${reportMode === "fest" ? "bg-[#154CB3] text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  By Fest
+                </button>
+                <button
+                  onClick={() => { setReportMode("events"); setSelectedEventIds(new Set()); setSelectedReportFest(""); setSelectedAccreditation(""); }}
+                  className={`px-5 py-2.5 rounded-full font-medium text-sm transition-all ${reportMode === "events" ? "bg-[#154CB3] text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  By Events
+                </button>
+              </div>
+            </div>
+
+            {/* Fest Mode */}
+            {reportMode === "fest" && (
+              <>
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Select Fest</h2>
+                  <p className="text-sm text-gray-500 mb-4">Choose a fest to generate a report for its events.</p>
+                  <select
+                    value={selectedReportFest}
+                    onChange={(e) => { setSelectedReportFest(e.target.value); setSelectedEventIds(new Set()); }}
+                    className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
+                  >
+                    <option value="">-- Select a fest --</option>
+                    {reportFests.map((fest) => (
+                      <option key={fest.fest_id} value={fest.fest_id}>{fest.fest_title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedReportFest && (() => {
+                  const selectedFestObj = reportFests.find(f => f.fest_id === selectedReportFest);
+                  const festEvts = (reportEvents as any[]).filter((e: any) => e.fest === selectedFestObj?.fest_title);
+                  if (festEvts.length === 0) {
+                    return (
+                      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                        <p className="text-gray-500 text-center">No events found under this fest.</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">Select Events ({festEvts.length})</h2>
+                        <button
+                          onClick={() => {
+                            if (selectedEventIds.size === festEvts.length) setSelectedEventIds(new Set());
+                            else setSelectedEventIds(new Set(festEvts.map((e: any) => e.event_id)));
+                          }}
+                          className="text-sm text-[#154CB3] hover:underline font-semibold"
+                        >
+                          {selectedEventIds.size === festEvts.length ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {festEvts.map((event: any) => (
+                          <label key={event.event_id} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedEventIds.has(event.event_id)}
+                              onChange={(ev) => {
+                                const newSet = new Set(selectedEventIds);
+                                if (ev.target.checked) newSet.add(event.event_id);
+                                else newSet.delete(event.event_id);
+                                setSelectedEventIds(newSet);
+                              }}
+                              className="mt-1 h-4 w-4 text-[#154CB3] border-gray-300 rounded focus:ring-[#154CB3]"
+                            />
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{event.title}</p>
+                              <p className="text-xs text-gray-500">{event.organizing_dept} &bull; {event.event_date}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-3">
+                        <span className="font-semibold text-[#154CB3]">{selectedEventIds.size}</span> event(s) selected
+                      </p>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+            {/* Events Mode */}
+            {reportMode === "events" && (() => {
+              const filteredReportEvents = reportEvents.filter((e: any) =>
+                e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
+                (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())
+              );
+              return (
+                <>
+                  <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                    <h2 className="text-xl font-bold text-gray-900 mb-1">Search Events</h2>
+                    <input
+                      type="text"
+                      placeholder="Search by title or department..."
+                      value={searchTermReport}
+                      onChange={(e) => setSearchTermReport(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
+                    />
+                  </div>
+                  {filteredReportEvents.length === 0 ? (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                      <p className="text-gray-500 text-center">No events found.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">All Events ({filteredReportEvents.length})</h2>
+                        <button
+                          onClick={() => {
+                            if (selectedEventIds.size === filteredReportEvents.length) setSelectedEventIds(new Set());
+                            else setSelectedEventIds(new Set(filteredReportEvents.map((e: any) => e.event_id)));
+                          }}
+                          className="text-sm text-[#154CB3] hover:underline font-semibold"
+                        >
+                          {selectedEventIds.size === filteredReportEvents.length ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {filteredReportEvents.map((event: any) => (
+                          <label key={event.event_id} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedEventIds.has(event.event_id)}
+                              onChange={(ev) => {
+                                const newSet = new Set(selectedEventIds);
+                                if (ev.target.checked) newSet.add(event.event_id);
+                                else newSet.delete(event.event_id);
+                                setSelectedEventIds(newSet);
+                              }}
+                              className="mt-1 h-4 w-4 text-[#154CB3] border-gray-300 rounded focus:ring-[#154CB3]"
+                            />
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{event.title}</p>
+                              <p className="text-xs text-gray-500">{event.organizing_dept} &bull; {event.event_date} &bull; {event.fest || "No fest"}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-3">
+                        <span className="font-semibold text-[#154CB3]">{selectedEventIds.size}</span> event(s) selected
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Accreditation Selection */}
+            {selectedEventIds.size > 0 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Select Accreditation Body</h2>
+                <p className="text-sm text-gray-500 mb-4">Choose the accreditation body for the report.</p>
+                <select
+                  value={selectedAccreditation}
+                  onChange={(e) => setSelectedAccreditation(e.target.value)}
+                  className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
+                >
+                  <option value="">-- Select accreditation body --</option>
+                  {ACCREDITATION_BODIES.map((body) => (
+                    <option key={body.id} value={body.id}>{body.name} - {body.fullName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Accreditation Info */}
+            {selectedAccreditation && selectedEventIds.size > 0 && (() => {
+              const body = ACCREDITATION_BODIES.find(b => b.id === selectedAccreditation);
+              if (!body) return null;
+              return (
+                <div className="bg-white border border-[#154CB3]/20 rounded-2xl p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-[#154CB3]/10 rounded-full flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#154CB3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">{body.name}</h3>
+                      <p className="text-sm text-gray-500">{body.fullName}</p>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 mb-2">{body.description}</p>
+                  <div className="bg-gray-50 rounded-lg px-4 py-3">
+                    <p className="text-sm text-gray-600"><span className="font-semibold text-gray-800">Focus: </span>{body.focus}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Generate Button */}
+            {selectedEventIds.size > 0 && selectedAccreditation && (
+              <div className="flex justify-start">
+                <button
+                  disabled={isGenerating}
+                  className={`bg-[#154CB3] hover:bg-[#0d3580] text-white font-semibold py-3 px-8 rounded-full transition-all hover:shadow-lg ${isGenerating ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  onClick={async () => {
+                    setIsGenerating(true);
+                    try {
+                      const token = await getFreshToken();
+                      const response = await fetch(`${API_URL}/api/report/data`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ eventIds: Array.from(selectedEventIds), festId: reportMode === "fest" ? selectedReportFest : null }),
+                      });
+                      if (!response.ok) throw new Error("Failed to fetch report data");
+                      const data = await response.json();
+
+                      const workbook = new ExcelJS.Workbook();
+                      workbook.creator = "SOCIO - Christ University";
+                      workbook.created = new Date();
+
+                      // Summary sheet
+                      const summarySheet = workbook.addWorksheet("Summary");
+                      summarySheet.columns = [
+                        { header: "Field", key: "field", width: 30 },
+                        { header: "Value", key: "value", width: 50 },
+                      ];
+                      const accBody = ACCREDITATION_BODIES.find(b => b.id === selectedAccreditation);
+                      const totalRegs = data.events.reduce((s: number, e: any) => s + e.total_registrations, 0);
+                      const totalParticipants = data.events.reduce((s: number, e: any) => s + e.total_participants, 0);
+                      const totalAttended = data.events.reduce((s: number, e: any) => s + e.attended_count, 0);
+                      summarySheet.addRows([
+                        { field: "Institution", value: "Christ University" },
+                        { field: "Accreditation Body", value: `${accBody?.name} - ${accBody?.fullName}` },
+                        { field: "Report Generated On", value: new Date().toLocaleString() },
+                        { field: "Generated By", value: data.generated_by },
+                        { field: "", value: "" },
+                        { field: "Report Type", value: reportMode === "fest" ? "Fest-based" : "Event-based" },
+                        ...(data.fest ? [{ field: "Fest", value: data.fest.fest_title }] : []),
+                        { field: "Total Events", value: data.events.length },
+                        { field: "Total Registrations", value: totalRegs },
+                        { field: "Total Participants", value: totalParticipants },
+                        { field: "Total Attended", value: totalAttended },
+                        { field: "Attendance Rate", value: totalParticipants > 0 ? `${((totalAttended / totalParticipants) * 100).toFixed(1)}%` : "N/A" },
+                      ]);
+                      summarySheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF154CB3" } };
+                      summarySheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+                      // Event List sheet
+                      const eventsSheet = workbook.addWorksheet("Event List");
+                      eventsSheet.columns = [
+                        { header: "Event ID", key: "event_id", width: 20 },
+                        { header: "Title", key: "title", width: 35 },
+                        { header: "Date", key: "date", width: 12 },
+                        { header: "Venue", key: "venue", width: 20 },
+                        { header: "Department", key: "dept", width: 20 },
+                        { header: "Category", key: "category", width: 15 },
+                        { header: "Fee", key: "fee", width: 10 },
+                        { header: "Registrations", key: "regs", width: 12 },
+                        { header: "Participants", key: "participants", width: 12 },
+                        { header: "Attended", key: "attended", width: 10 },
+                        { header: "Absent", key: "absent", width: 10 },
+                      ];
+                      data.events.forEach((event: any) => {
+                        eventsSheet.addRow({
+                          event_id: event.event_id,
+                          title: event.title,
+                          date: event.event_date || "N/A",
+                          venue: event.venue || "TBD",
+                          dept: event.organizing_dept || "N/A",
+                          category: event.category || "N/A",
+                          fee: event.registration_fee > 0 ? `₹${event.registration_fee}` : "Free",
+                          regs: event.total_registrations,
+                          participants: event.total_participants,
+                          attended: event.attended_count,
+                          absent: event.absent_count,
+                        });
+                      });
+                      eventsSheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF154CB3" } };
+                      eventsSheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+                      // Participant Details sheet
+                      const participantsSheet = workbook.addWorksheet("Participant Details");
+                      participantsSheet.columns = [
+                        { header: "Registration ID", key: "reg_id", width: 20 },
+                        { header: "Participant Name", key: "name", width: 30 },
+                        { header: "Register Number", key: "reg_num", width: 15 },
+                        { header: "Email", key: "email", width: 30 },
+                        { header: "Event", key: "event", width: 35 },
+                        { header: "Team", key: "team", width: 20 },
+                        { header: "Status", key: "status", width: 12 },
+                        { header: "Attended At", key: "attended_at", width: 20 },
+                      ];
+                      data.events.forEach((event: any) => {
+                        event.participants.forEach((p: any) => {
+                          participantsSheet.addRow({
+                            reg_id: p.registration_id,
+                            name: p.name,
+                            reg_num: p.register_number,
+                            email: p.email,
+                            event: event.title,
+                            team: p.team_name || "Individual",
+                            status: p.status,
+                            attended_at: p.attended_at ? new Date(p.attended_at).toLocaleString() : "",
+                          });
+                        });
+                      });
+                      participantsSheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF154CB3" } };
+                      participantsSheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+                      const buffer = await workbook.xlsx.writeBuffer();
+                      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      const filename = reportMode === "fest" && data.fest
+                        ? `report_${data.fest.fest_id}_${new Date().toISOString().split("T")[0]}.xlsx`
+                        : `report_events_${new Date().toISOString().split("T")[0]}.xlsx`;
+                      a.download = filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success("Report generated successfully!");
+                    } catch (error) {
+                      console.error("Error generating report:", error);
+                      toast.error("Failed to generate report. Please try again.");
+                    } finally {
+                      setIsGenerating(false);
+                    }
+                  }}
+                >
+                  {isGenerating ? "Generating..." : "Generate Report"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1198,3 +1903,4 @@ export default function MasterAdminPage() {
     </div>
   );
 }
+

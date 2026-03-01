@@ -7,7 +7,7 @@ import {
   FetchedEvent as ContextFetchedEvent,
 } from "../../../context/EventContext";
 import { useAuth } from "../../../context/AuthContext";
-import moment from "moment";
+import { formatDateUTC, formatTime, getDaysUntil, isDeadlinePassed, dayjs } from "@/lib/dateUtils";
 
 interface EventData {
   id: string;
@@ -15,11 +15,12 @@ interface EventData {
   department: string;
   tags?: string[];
   date: string;
+  time: string;
   endDate: string;
   location: string;
   price: string;
   numTeammates: number;
-  daysLeft: number;
+  daysLeft: number | null; // null means no deadline (open registration)
   description: string;
   rules?: string[];
   schedule?: Array<{ time: string; activity: string }>;
@@ -30,12 +31,13 @@ interface EventData {
   whatsappLink?: string;
   registrationDeadlineISO?: string | null;
   allow_outsiders?: boolean;
+  custom_fields?: any[]; // Custom fields created by organizer
 }
 
 export default function Page() {
   const params = useParams(); // { id: string }
   const eventIdSlug = params?.id ? String(params.id) : null;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const router = useRouter();
 
@@ -50,6 +52,7 @@ export default function Page() {
   const rulesRef = useRef<HTMLDivElement>(null);
   const scheduleRef = useRef<HTMLDivElement>(null);
   const prizesRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -61,6 +64,14 @@ export default function Page() {
     string | null
   >(null);
 
+  // Auto-scroll to error message when it appears
+  useEffect(() => {
+    if (registrationApiError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      errorRef.current.focus();
+    }
+  }, [registrationApiError]);
+
   const [userRegisteredEventIds, setUserRegisteredEventIds] = useState<
     string[]
   >([]);
@@ -70,8 +81,12 @@ export default function Page() {
   const isUserRegisteredForThisEvent = eventData
     ? userRegisteredEventIds.includes(eventData.id)
     : false;
+  
+  // Check if registration deadline has passed
+  // null daysLeft means no deadline (open registration)
+  // Negative or 0 daysLeft means deadline has passed
   const isDeadlineOverForThisEvent = eventData
-    ? eventData.daysLeft <= 0
+    ? eventData.daysLeft !== null && eventData.daysLeft < 0
     : false;
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
@@ -193,12 +208,13 @@ export default function Page() {
         (tag): tag is string => tag != null && String(tag).trim() !== ""
       ),
       date: foundEvent.event_date
-        ? moment.utc(foundEvent.event_date, moment.ISO_8601, true).format("MMM D, YYYY")
+        ? formatDateUTC(foundEvent.event_date)
         : "Date TBD",
+      time: formatTime(foundEvent.event_time, "Time TBD"),
       endDate: foundEvent.end_date
-        ? moment.utc(foundEvent.end_date, moment.ISO_8601, true).format("MMM D, YYYY")
+        ? formatDateUTC(foundEvent.end_date)
         : foundEvent.event_date
-        ? moment.utc(foundEvent.event_date, moment.ISO_8601, true).format("MMM D, YYYY")
+        ? formatDateUTC(foundEvent.event_date)
         : "Date TBD",
       location: foundEvent.venue || "Location TBD",
       price:
@@ -206,13 +222,7 @@ export default function Page() {
           ? `₹${foundEvent.registration_fee}`
           : "Free",
       numTeammates: foundEvent.participants_per_team ?? 1,
-      daysLeft: (() => {
-        if (!foundEvent.registration_deadline) return 0;
-        const target = moment(foundEvent.registration_deadline);
-        const today = moment().startOf("day");
-        if (target.isBefore(today)) return 0;
-        return target.diff(today, "days");
-      })(),
+      daysLeft: getDaysUntil(foundEvent.registration_deadline),
       description: foundEvent.description || "No description available.",
       rules: processedRules,
       schedule: processedSchedule,
@@ -227,7 +237,30 @@ export default function Page() {
       whatsappLink: foundEvent.whatsapp_invite_link || undefined,
       registrationDeadlineISO: foundEvent.registration_deadline,
       allow_outsiders: !!foundEvent.allow_outsiders,
+      custom_fields: (() => {
+        // Handle custom_fields - could be array, JSON string, or null
+        let fields = foundEvent.custom_fields;
+        if (typeof fields === 'string') {
+          try {
+            fields = JSON.parse(fields);
+          } catch (e) {
+            console.warn('Failed to parse custom_fields:', e);
+            fields = [];
+          }
+        }
+        return Array.isArray(fields) ? fields : [];
+      })(),
     };
+    
+    // DEBUG: Log custom fields to see if they're coming through
+    console.log('🔍 EVENT PAGE - Custom Fields Debug:', {
+      eventId: foundEvent.event_id,
+      rawCustomFields: foundEvent.custom_fields,
+      processedCustomFields: finalEventData.custom_fields,
+      hasCustomFields: finalEventData.custom_fields && finalEventData.custom_fields.length > 0,
+      type: typeof foundEvent.custom_fields,
+    });
+    
     setEventData(finalEventData);
     setPageError(null);
     setPageLoading(false);
@@ -342,14 +375,40 @@ export default function Page() {
       return;
     setRegistrationApiError(null);
 
+    // ALWAYS redirect to registration page if event has custom fields
+    // Custom fields need to be collected before registration
+    const hasCustomFields = eventData.custom_fields && eventData.custom_fields.length > 0;
+    if (hasCustomFields) {
+      // Check if user is logged in first
+      if (!userData) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('returnTo', window.location.pathname);
+        }
+        router.push('/auth');
+        return;
+      }
+      router.push(`/event/${eventData.id}/register`);
+      return;
+    }
+
     if (eventData.numTeammates <= 1) {
       if (authIsLoading) {
         setRegistrationApiError("Verifying user data, please wait...");
         return;
       }
-      if (!userData || userData.register_number == null) {
+      
+      // If user is not logged in, redirect to auth with returnTo
+      if (!userData) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('returnTo', window.location.pathname);
+        }
+        router.push('/auth');
+        return;
+      }
+      
+      if (userData.register_number == null) {
         setRegistrationApiError(
-          "User profile incomplete or not logged in. Registration number is required."
+          "User profile incomplete. Registration number is required."
         );
         return;
       }
@@ -359,7 +418,7 @@ export default function Page() {
       // If the user is an outsider and the event disallows outsiders, block early
       if (userData.organization_type === "outsider" && eventData && !eventData.allow_outsiders) {
         setRegistrationApiError(
-          "This event is restricted to Christ University members only."
+          "OUTSIDER_NOT_ALLOWED"
         );
         return;
       }
@@ -384,10 +443,10 @@ export default function Page() {
           ];
         } else {
           const regNumStr = String(userData.register_number);
-          if (!/^\d{7}$/.test(regNumStr)) {
+          if (!/^(?:\d{7}|STF[A-Z0-9]+)$/i.test(regNumStr)) {
             setIsRegistering(false);
             setRegistrationApiError(
-              "Invalid registration number in your profile. It must be 7 digits."
+              "Invalid registration number in your profile. It must be 7 digits or a valid STF ID."
             );
             return;
           }
@@ -429,6 +488,14 @@ export default function Page() {
         setIsRegistering(false);
       }
     } else {
+      // Team registration
+      if (!userData) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('returnTo', window.location.pathname);
+        }
+        router.push('/auth');
+        return;
+      }
       router.push(`/event/${eventData.id}/register`);
     }
   };
@@ -475,6 +542,10 @@ export default function Page() {
     return { text: "Register", disabled: false };
   };
   const buttonState = getButtonTextAndProps();
+  const showOutsiderBadge =
+    !authIsLoading &&
+    userData?.organization_type === "outsider" &&
+    Boolean(eventData?.allow_outsiders);
 
   if (pageLoading || (authIsLoading && !eventData)) {
     return (
@@ -609,8 +680,13 @@ export default function Page() {
         ></div>
         <div className="absolute inset-0 flex flex-col-reverse sm:flex-row justify-between p-4 sm:p-10 sm:px-12 items-end z-[2]">
           <div className="flex flex-col w-full sm:w-auto mt-4 sm:mt-0 sm:text-left">
-            {eventData.tags && eventData.tags.length > 0 && (
+            {(eventData.tags && eventData.tags.length > 0) || showOutsiderBadge ? (
               <div className="flex flex-wrap gap-2 mb-2 items-center sm:justify-start">
+                {showOutsiderBadge && (
+                  <p className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-[#F59E0B] text-black">
+                    PUBLIC
+                  </p>
+                )}
                 {(eventData.tags || []).map((tag, index) => {
                   const titleTag = tag
                     .split(" ")
@@ -635,7 +711,7 @@ export default function Page() {
                   );
                 })}
               </div>
-            )}
+            ) : null}
             <h1 className="text-[1.3rem] sm:text-[2.1rem] font-bold text-white m-0">
               {eventData.title}
             </h1>
@@ -643,7 +719,8 @@ export default function Page() {
               {eventData.department}
             </p>
           </div>
-          {!isDeadlineOverForThisEvent ? (
+          {/* Show days left countdown only if deadline exists and hasn't passed */}
+          {eventData.daysLeft !== null && eventData.daysLeft >= 0 && (
             <div className="flex flex-col items-center bg-gradient-to-b from-[#FFCC00] to-[#FFE88D] rounded-xl border-2 border-[#FFCC0080] py-3 px-3 sm:px-4 sm:py-5 mb-4 sm:mb-0">
               <p className="text-3xl sm:text-5xl font-bold m-0 text-black">
                 {eventData.daysLeft}
@@ -652,11 +729,22 @@ export default function Page() {
                 {eventData.daysLeft === 1 ? "day left" : "days left"}
               </p>
             </div>
-          ) : null}
+          )}
+          {/* Show "Open Registration" for events without deadline */}
+          {eventData.daysLeft === null && !isDeadlineOverForThisEvent && (
+            <div className="flex flex-col items-center bg-gradient-to-b from-[#22C55E] to-[#86EFAC] rounded-xl border-2 border-[#22C55E80] py-3 px-3 sm:px-4 sm:py-5 mb-4 sm:mb-0">
+              <p className="text-lg sm:text-xl font-bold m-0 text-black">
+                Open
+              </p>
+              <p className="text-sm sm:text-base font-medium text-black">
+                Registration
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="hidden sm:flex flex-col sm:flex-row flex-wrap px-4 sm:px-8 gap-4 sm:gap-8 text-gray-500 font-medium items-center bg-[#F5F5F5] h-auto sm:h-[10vh] m-4 sm:m-10 rounded-xl border-2 border-[#E0E0E0] py-4 sm:py-0">
+      <div className="hidden sm:flex flex-col sm:flex-row flex-wrap px-4 sm:px-8 gap-4 sm:gap-8 text-gray-500 font-medium items-center bg-[#F5F5F5] h-auto sm:min-h-[10vh] m-4 sm:m-10 rounded-xl border-2 border-[#E0E0E0] py-4 sm:py-4 overflow-visible relative">
         <p
           className="text-[#063168] cursor-pointer transition-colors text-sm sm:text-base"
           onClick={() => scrollToSection(detailsRef)}
@@ -695,18 +783,7 @@ export default function Page() {
           >
             {buttonState.text}
           </button>
-          {registrationApiError &&
-            isIndividualEventForButton &&
-            !isUserRegisteredForThisEvent &&
-            !isDeadlineOverForThisEvent && (
-              <p
-                role="status"
-                aria-live="polite"
-                className="mt-2 w-full text-sm text-yellow-700 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 text-left"
-              >
-                {registrationApiError}
-              </p>
-            )}
+          {/* Error display removed from here - shown only at bottom of page for better visibility */}
         </div>
       </div>
 
@@ -729,6 +806,15 @@ export default function Page() {
                     <p className="text-sm text-gray-500">Date</p>
                     <p className="text-gray-800 font-medium">
                       {eventData.date}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <ClockIcon />
+                  <div>
+                    <p className="text-sm text-gray-500">Time</p>
+                    <p className="text-gray-800 font-medium">
+                      {eventData.time}
                     </p>
                   </div>
                 </div>
@@ -949,13 +1035,52 @@ export default function Page() {
               isIndividualEventForButton &&
               !isUserRegisteredForThisEvent &&
               !isDeadlineOverForThisEvent && (
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className="text-yellow-700 text-sm mb-2 text-center px-4 bg-yellow-50 border border-yellow-100 rounded px-3 py-1 w-full max-w-lg"
-                >
-                  {registrationApiError}
-                </p>
+                registrationApiError === "OUTSIDER_NOT_ALLOWED" ? (
+                  <div 
+                    ref={errorRef}
+                    tabIndex={-1}
+                    className="mb-4 w-full max-w-lg bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 shadow-lg outline-none focus:ring-4 focus:ring-red-300">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-red-800 text-base">Registration Restricted</h4>
+                        <p className="text-red-700 text-sm mt-1">
+                          This event is exclusively for <span className="font-semibold">Christ University members</span> only.
+                        </p>
+                        <div className="mt-3 p-2 bg-red-100 rounded-lg">
+                          <p className="text-red-600 text-xs flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            External participants cannot register for this event
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    ref={errorRef}
+                    tabIndex={-1}
+                    className="mb-4 w-full max-w-lg bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-xl p-4 shadow-lg outline-none focus:ring-4 focus:ring-amber-300"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-amber-800 text-sm">Registration Issue</h4>
+                        <p className="text-amber-700 text-sm mt-1">{registrationApiError}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             <button
               onClick={handleRegistration}
@@ -970,6 +1095,23 @@ export default function Page() {
     </div>
   );
 }
+
+const ClockIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="size-5 text-[#063168] flex-shrink-0"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+    />
+  </svg>
+);
 
 const CalendarIcon = () => (
   <svg
@@ -1088,3 +1230,4 @@ const PhoneSmallIcon = () => (
     />
   </svg>
 );
+

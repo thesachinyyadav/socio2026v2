@@ -31,8 +31,8 @@ export const FestCard = ({
 
   return (
     <Link href={`/${baseUrl}/${slug}`} className="w-full">
-      <div className="bg-[#F9F9F9] rounded-lg overflow-hidden cursor-pointer transform transition duration-100 ease-in-out hover:scale-101">
-        <div className="h-40 bg-gray-200 border border-gray-100">
+      <div className="bg-[#F9F9F9] rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer transform transition duration-100 ease-in-out hover:scale-101">
+        <div className="h-40 bg-gray-200">
           {image ? (
             <img
               src={image}
@@ -61,7 +61,7 @@ export const FestCard = ({
           )}
         </div>
 
-        <div className="p-4 rounded-b-lg border border-gray-300 border-t-0">
+        <div className="p-4 rounded-b-lg">
           <h3 className="text-lg font-bold mb-1">{title}</h3>
           <p className="text-sm text-gray-500 mb-3 font-semibold">{dept}</p>
 

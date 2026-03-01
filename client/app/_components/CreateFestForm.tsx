@@ -4,14 +4,15 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
-import { departments as baseDepartments } from "../lib/eventFormSchema";
+import { departments as baseDepartments, christCampuses } from "../lib/eventFormSchema";
 import { createBrowserClient } from "@supabase/ssr";
 import toast from "react-hot-toast";
+import PublishingOverlay from "./UI/PublishingOverlay";
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -315,6 +316,16 @@ interface CreateFestState {
   contactPhone: string;
   eventHeads: { email: string; expiresAt: string | null }[];
   organizingDept: string;
+  venue: string;
+  status: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled";
+  registration_deadline: string;
+  timeline: { time: string; title: string; description: string }[];
+  sponsors: { name: string; logo_url: string; website?: string }[];
+  social_links: { platform: string; url: string }[];
+  faqs: { question: string; answer: string }[];
+  campusHostedAt: string;
+  allowedCampuses: string[];
+  allowOutsiders: boolean;
 }
 
 function DepartmentAndCategoryInputs({
@@ -610,6 +621,13 @@ interface CreateFestProps {
   existingImageFileUrl?: string | null;
   existingBannerFileUrl?: string | null;
   existingPdfFileUrl?: string | null;
+  venue?: string;
+  status?: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled";
+  registration_deadline?: string;
+  timeline?: { time: string; title: string; description: string }[];
+  sponsors?: { name: string; logo_url: string; website?: string }[];
+  social_links?: { platform: string; url: string }[];
+  faqs?: { question: string; answer: string }[];
 }
 
 const FullPageSpinner: React.FC<{ text: string }> = ({ text }) => (
@@ -657,6 +675,14 @@ function CreateFestForm(props?: CreateFestProps) {
   const existingImageFileUrl = props?.existingImageFileUrl || null;
   const existingBannerFileUrl = props?.existingBannerFileUrl || null;
   const existingPdfFileUrl = props?.existingPdfFileUrl || null;
+  // New fest enhancement fields
+  const venue = props?.venue || "";
+  const status = props?.status || "upcoming";
+  const registration_deadline = props?.registration_deadline || "";
+  const timeline = props?.timeline || [];
+  const sponsors = props?.sponsors || [];
+  const social_links = props?.social_links || [];
+  const faqs = props?.faqs || [];
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -671,11 +697,23 @@ function CreateFestForm(props?: CreateFestProps) {
     contactPhone,
     organizingDept,
     eventHeads: initialEventHeads,
+    venue,
+    status,
+    registration_deadline,
+    timeline,
+    sponsors,
+    social_links,
+    faqs,
+    campusHostedAt: "",
+    allowedCampuses: [],
+    allowOutsiders: false,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false); // Used for delete operation
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingFestData, setIsLoadingFestData] = useState(false);
+  const [pendingFestSuccess, setPendingFestSuccess] = useState(false);
+  const [festModalVisible, setFestModalVisible] = useState(false);
 
   const { session } = useAuth();
   const currentDateRef = useRef(new Date());
@@ -737,6 +775,18 @@ function CreateFestForm(props?: CreateFestProps) {
               contactPhone: data.fest.contact_phone || "",
               eventHeads: transformedEventHeads,
               organizingDept: data.fest.organizing_dept || "",
+              venue: data.fest.venue || "",
+              status: data.fest.status || "upcoming",
+              registration_deadline: data.fest.registration_deadline
+                ? formatDateToYYYYMMDD(new Date(data.fest.registration_deadline))
+                : "",
+              timeline: data.fest.timeline || [],
+              sponsors: data.fest.sponsors || [],
+              social_links: data.fest.social_links || [],
+              faqs: data.fest.faqs || [],
+              campusHostedAt: data.fest.campus_hosted_at || "",
+              allowedCampuses: data.fest.allowed_campuses || [],
+              allowOutsiders: data.fest.allow_outsiders === true || data.fest.allow_outsiders === 'true' || false,
             });
           } else {
             throw new Error("Fest data not found in response.");
@@ -1110,6 +1160,16 @@ function CreateFestForm(props?: CreateFestProps) {
         eventHeads: formData.eventHeads.filter((head) => head.email.trim() !== ""),
         organizingDept: formData.organizingDept,
         createdBy: session.user.email,
+        venue: formData.venue,
+        status: formData.status,
+        registration_deadline: formData.registration_deadline || null,
+        timeline: formData.timeline,
+        sponsors: formData.sponsors,
+        social_links: formData.social_links,
+        faqs: formData.faqs,
+        campus_hosted_at: formData.campusHostedAt || null,
+        allowed_campuses: formData.allowedCampuses || [],
+        allow_outsiders: formData.allowOutsiders,
       };
 
       if (uploadedFestImageUrl || existingImageFileUrl) {
@@ -1169,7 +1229,8 @@ function CreateFestForm(props?: CreateFestProps) {
         toast.success("Fest updated successfully!", { duration: 3000 });
       }
 
-      setIsModalOpen(true);
+      // Defer modal until overlay animation finishes
+      setPendingFestSuccess(true);
     } catch (error: any) {
       setErrors((prev) => ({ ...prev, submit: error.message }));
     } finally {
@@ -1282,16 +1343,27 @@ function CreateFestForm(props?: CreateFestProps) {
 
   return (
     <div className="min-h-screen bg-white relative">
+      <PublishingOverlay
+        isVisible={isSubmitting || isNavigating || isUploadingImage}
+        mode={isNavigating ? "deleting" : isUploadingImage ? "uploading" : finalIsEditMode ? "updating" : "publishing"}
+        onComplete={() => {
+          if (pendingFestSuccess) {
+            setIsModalOpen(true);
+            setTimeout(() => setFestModalVisible(true), 30);
+            setPendingFestSuccess(false);
+          }
+        }}
+      />
       {isModalOpen && (
         <div
-          className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-300 ease-in-out"
-          style={{ opacity: isModalOpen ? 1 : 0 }}
+          className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
+          style={{ opacity: festModalVisible ? 1 : 0 }}
         >
           <div
-            className="bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl transform transition-all duration-300 ease-out"
+            className="bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl transform transition-all duration-500 ease-out"
             style={{
-              opacity: isModalOpen ? 1 : 0,
-              transform: isModalOpen ? "scale(1)" : "scale(0.95)",
+              opacity: festModalVisible ? 1 : 0,
+              transform: festModalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
             }}
             role="alertdialog"
             aria-labelledby="modal-title"
@@ -1334,7 +1406,14 @@ function CreateFestForm(props?: CreateFestProps) {
                 <Link
                   href={`/create/event`}
                   className="w-full sm:w-auto px-6 py-3 bg-[#FFCC00] text-[#063168] rounded-lg font-medium hover:bg-opacity-90 transition-all duration-150 ease-in-out text-center text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:ring-offset-2 flex items-center justify-center"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setFestModalVisible(false);
+                    setTimeout(() => {
+                      setIsModalOpen(false);
+                      window.location.href = "/create/event";
+                    }, 300);
+                  }}
                 >
                   Add an event to fest
                 </Link>
@@ -1342,7 +1421,14 @@ function CreateFestForm(props?: CreateFestProps) {
               <Link
                 href="/manage"
                 className="w-full sm:w-auto px-6 py-3 bg-transparent text-[#154CB3] rounded-lg font-medium hover:bg-blue-50 transition-all duration-150 ease-in-out text-center text-sm sm:text-base border-2 border-[#154CB3] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2"
-                onClick={() => setIsModalOpen(false)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setFestModalVisible(false);
+                  setTimeout(() => {
+                    setIsModalOpen(false);
+                    window.location.href = "/manage";
+                  }, 300);
+                }}
               >
                 Back to Dashboard
               </Link>
@@ -1842,6 +1928,406 @@ function CreateFestForm(props?: CreateFestProps) {
                     </div>
                   ))}
                 </div>
+
+                {/* Additional Fest Details Section */}
+                <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
+                  <div className="flex items-center gap-3 mb-6">
+                    <h3 className="text-lg font-semibold text-gray-800">Additional Fields</h3>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-medium border border-gray-200">
+                      Optional
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-6 -mt-4">
+                    These fields are optional and can be used to add extra details about your fest.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {/* Venue */}
+                    <div>
+                      <label htmlFor="venue" className="block mb-2 text-sm font-medium text-gray-700">
+                        Venue
+                      </label>
+                      <input
+                        type="text"
+                        id="venue"
+                        placeholder="Enter fest venue"
+                        value={formData.venue}
+                        onChange={(e) => setFormData(prev => ({ ...prev, venue: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm"
+                      />
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <label htmlFor="status" className="block mb-2 text-sm font-medium text-gray-700">
+                        Status
+                      </label>
+                      <select
+                        id="status"
+                        value={formData.status}
+                        onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as CreateFestState["status"] }))}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="upcoming">Upcoming</option>
+                        <option value="ongoing">Ongoing</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Allow Outsiders Toggle */}
+                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
+                          Allow Outsider Registrations
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Permit non-Christ University members to register for events under this fest. This will notify the CSO for gate access approval.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer ml-4">
+                        <input
+                          type="checkbox"
+                          checked={formData.allowOutsiders}
+                          onChange={(e) => setFormData(prev => ({ ...prev, allowOutsiders: e.target.checked }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#154CB3]"></div>
+                      </label>
+                    </div>
+                    {formData.allowOutsiders && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-xs text-blue-700">
+                          <strong>Note:</strong> Events under this fest will not need individual CSO approval for outsiders — the fest-level approval covers all child events.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Campus Settings */}
+                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
+                    <div className="flex items-center gap-3 mb-5">
+                      <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
+                        Campus Restrictions
+                      </h4>
+                      <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded-full font-medium">
+                        Optional — single-campus deployment
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Left: Hosted At */}
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1">
+                          Hosted At
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Which campus is this fest taking place at?
+                        </p>
+                        <select
+                          value={formData.campusHostedAt}
+                          onChange={(e) => setFormData(prev => ({ ...prev, campusHostedAt: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm bg-white"
+                        >
+                          <option value="">-- Select campus --</option>
+                          {christCampuses.map((campus) => (
+                            <option key={campus} value={campus}>{campus}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Right: Who Can Register */}
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1">
+                          Who Can Register?
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Tick the campuses whose students are allowed to apply. Leave all unchecked to allow everyone.
+                        </p>
+                        <div className="space-y-2">
+                          {christCampuses.map((campus) => (
+                            <label
+                              key={campus}
+                              className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={formData.allowedCampuses.includes(campus)}
+                                onChange={(e) => {
+                                  const current = formData.allowedCampuses;
+                                  if (e.target.checked) {
+                                    setFormData(prev => ({ ...prev, allowedCampuses: [...current, campus] }));
+                                  } else {
+                                    setFormData(prev => ({ ...prev, allowedCampuses: current.filter(c => c !== campus) }));
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                              />
+                              {campus}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <CustomDateInput
+                      id="registration_deadline"
+                      label="Registration Deadline"
+                      value={formData.registration_deadline}
+                      onChange={(value) => setFormData(prev => ({ ...prev, registration_deadline: value }))}
+                      placeholder="Select registration deadline"
+                    />
+                  </div>
+
+                  {/* Social Links */}
+                  <div className="mb-6">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">Social Links</label>
+                    {formData.social_links.map((link, index) => (
+                      <div key={index} className="flex gap-2 mb-2">
+                        <select
+                          value={link.platform}
+                          onChange={(e) => {
+                            const newLinks = [...formData.social_links];
+                            newLinks[index] = { ...newLinks[index], platform: e.target.value };
+                            setFormData(prev => ({ ...prev, social_links: newLinks }));
+                          }}
+                          className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                        >
+                          <option value="instagram">Instagram</option>
+                          <option value="twitter">Twitter</option>
+                          <option value="facebook">Facebook</option>
+                          <option value="linkedin">LinkedIn</option>
+                          <option value="youtube">YouTube</option>
+                          <option value="website">Website</option>
+                        </select>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={link.url}
+                          onChange={(e) => {
+                            const newLinks = [...formData.social_links];
+                            newLinks[index] = { ...newLinks[index], url: e.target.value };
+                            setFormData(prev => ({ ...prev, social_links: newLinks }));
+                          }}
+                          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newLinks = formData.social_links.filter((_, i) => i !== index);
+                            setFormData(prev => ({ ...prev, social_links: newLinks }));
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-500"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                            <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, social_links: [...prev.social_links, { platform: "instagram", url: "" }] }))}
+                      className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
+                    >
+                      + Add Social Link
+                    </button>
+                  </div>
+
+                  {/* FAQs */}
+                  <div className="mb-6">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">FAQs</label>
+                    {formData.faqs.map((faq, index) => (
+                      <div key={index} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <input
+                              type="text"
+                              placeholder="Question"
+                              value={faq.question}
+                              onChange={(e) => {
+                                const newFaqs = [...formData.faqs];
+                                newFaqs[index] = { ...newFaqs[index], question: e.target.value };
+                                setFormData(prev => ({ ...prev, faqs: newFaqs }));
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                            />
+                            <textarea
+                              placeholder="Answer"
+                              value={faq.answer}
+                              onChange={(e) => {
+                                const newFaqs = [...formData.faqs];
+                                newFaqs[index] = { ...newFaqs[index], answer: e.target.value };
+                                setFormData(prev => ({ ...prev, faqs: newFaqs }));
+                              }}
+                              rows={2}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newFaqs = formData.faqs.filter((_, i) => i !== index);
+                              setFormData(prev => ({ ...prev, faqs: newFaqs }));
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                              <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, faqs: [...prev.faqs, { question: "", answer: "" }] }))}
+                      className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
+                    >
+                      + Add FAQ
+                    </button>
+                  </div>
+
+                  {/* Sponsors */}
+                  <div className="mb-6">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">Sponsors</label>
+                    {formData.sponsors.map((sponsor, index) => (
+                      <div key={index} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <input
+                              type="text"
+                              placeholder="Sponsor Name"
+                              value={sponsor.name}
+                              onChange={(e) => {
+                                const newSponsors = [...formData.sponsors];
+                                newSponsors[index] = { ...newSponsors[index], name: e.target.value };
+                                setFormData(prev => ({ ...prev, sponsors: newSponsors }));
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="url"
+                                placeholder="Logo URL"
+                                value={sponsor.logo_url}
+                                onChange={(e) => {
+                                  const newSponsors = [...formData.sponsors];
+                                  newSponsors[index] = { ...newSponsors[index], logo_url: e.target.value };
+                                  setFormData(prev => ({ ...prev, sponsors: newSponsors }));
+                                }}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              />
+                              <input
+                                type="url"
+                                placeholder="Website (optional)"
+                                value={sponsor.website || ""}
+                                onChange={(e) => {
+                                  const newSponsors = [...formData.sponsors];
+                                  newSponsors[index] = { ...newSponsors[index], website: e.target.value };
+                                  setFormData(prev => ({ ...prev, sponsors: newSponsors }));
+                                }}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSponsors = formData.sponsors.filter((_, i) => i !== index);
+                              setFormData(prev => ({ ...prev, sponsors: newSponsors }));
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                              <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, sponsors: [...prev.sponsors, { name: "", logo_url: "", website: "" }] }))}
+                      className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
+                    >
+                      + Add Sponsor
+                    </button>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="mb-6">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">Timeline</label>
+                    {formData.timeline.map((item, index) => (
+                      <div key={index} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                placeholder="Time (e.g., 10:00 AM)"
+                                value={item.time}
+                                onChange={(e) => {
+                                  const newTimeline = [...formData.timeline];
+                                  newTimeline[index] = { ...newTimeline[index], time: e.target.value };
+                                  setFormData(prev => ({ ...prev, timeline: newTimeline }));
+                                }}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Title"
+                                value={item.title}
+                                onChange={(e) => {
+                                  const newTimeline = [...formData.timeline];
+                                  newTimeline[index] = { ...newTimeline[index], title: e.target.value };
+                                  setFormData(prev => ({ ...prev, timeline: newTimeline }));
+                                }}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Description"
+                              value={item.description}
+                              onChange={(e) => {
+                                const newTimeline = [...formData.timeline];
+                                newTimeline[index] = { ...newTimeline[index], description: e.target.value };
+                                setFormData(prev => ({ ...prev, timeline: newTimeline }));
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newTimeline = formData.timeline.filter((_, i) => i !== index);
+                              setFormData(prev => ({ ...prev, timeline: newTimeline }));
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                              <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, timeline: [...prev.timeline, { time: "", title: "", description: "" }] }))}
+                      className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
+                    >
+                      + Add Timeline Item
+                    </button>
+                  </div>
+                </div>
+
                 {errors.submit && (
                   <p className="text-red-500 text-sm mt-4 bg-red-50 p-3 rounded-md">
                     {errors.submit}
@@ -1945,3 +2431,4 @@ function CreateFestForm(props?: CreateFestProps) {
 }
 
 export default CreateFestForm;
+

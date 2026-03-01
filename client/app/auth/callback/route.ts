@@ -3,23 +3,26 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 // Helper to determine organization type
 const getOrganizationType = (email: string): 'christ_member' | 'outsider' => {
-  return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+  const lowerEmail = email.toLowerCase();
+  const domain = lowerEmail.split('@')[1] || "";
+  if (domain.endsWith('christuniversity.in')) return 'christ_member';
+  return 'outsider';
 };
 
 // Create or update user in database (server-side for speed)
 async function createUserInDatabase(user: any) {
   try {
     const orgType = getOrganizationType(user.email);
-    
+
     let fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
     let registerNumber = null;
     let course = null;
-    
+
     if (orgType === 'christ_member') {
       const emailParts = user.email.split("@");
       if (emailParts.length === 2) {
@@ -31,7 +34,7 @@ async function createUserInDatabase(user: any) {
           }
         }
       }
-      
+
       if (user.user_metadata?.last_name) {
         const lastNameStr = user.user_metadata.last_name.trim();
         if (/^\d+$/.test(lastNameStr)) {
@@ -48,7 +51,7 @@ async function createUserInDatabase(user: any) {
         }
       }
     }
-    
+
     const payload = {
       id: user.id,
       email: user.email,
@@ -58,13 +61,24 @@ async function createUserInDatabase(user: any) {
       course: course
     };
 
-    // Fire and forget - don't wait for response to speed up redirect
+    // Send user creation request asynchronously - don't block redirect
     fetch(`${API_URL}/api/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user: payload }),
-    }).catch(err => console.error("Background user creation error:", err));
-    
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error("User creation failed:", response.status, errorData);
+        } else {
+          console.log(`✅ User record created/updated for: ${user.email}`);
+        }
+      })
+      .catch(err => {
+        console.error("User creation request failed:", err);
+      });
+
   } catch (error) {
     console.error("Error preparing user data:", error);
   }
@@ -72,11 +86,22 @@ async function createUserInDatabase(user: any) {
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
+
+  // Robust origin detection: 
+  // 1. First choice: Environment variable
+  // 2. Second choice: X-Forwarded-Host or Host header
+  // 3. Fallback: current request URL origin
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || requestUrl.protocol.replace(':', '');
+  const headerOrigin = host ? `${protocol}://${host}` : null;
+
+  const origin = APP_URL || headerOrigin || requestUrl.origin;
+
   const code = requestUrl.searchParams.get("code");
 
   if (!code) {
     console.warn("Auth callback invoked without a 'code' parameter.");
-    return NextResponse.redirect(`${APP_URL}/?error=no_code`);
+    return NextResponse.redirect(`${origin}/?error=no_code`);
   }
 
   const cookieStore = await cookies();
@@ -106,7 +131,7 @@ export async function GET(request: NextRequest) {
         "Error exchanging code for session:",
         exchangeError.message
       );
-      return NextResponse.redirect(`${APP_URL}/?error=auth_exchange_failed`);
+      return NextResponse.redirect(`${origin}/?error=auth_exchange_failed`);
     }
 
     const {
@@ -118,7 +143,7 @@ export async function GET(request: NextRequest) {
         "Error getting session after exchange:",
         sessionError.message
       );
-      return NextResponse.redirect(`${APP_URL}/?error=session_fetch_failed`);
+      return NextResponse.redirect(`${origin}/?error=session_fetch_failed`);
     }
 
     if (!session || !session.user || !session.user.email) {
@@ -126,15 +151,18 @@ export async function GET(request: NextRequest) {
         "No session or user email found after successful code exchange."
       );
       await supabase.auth.signOut();
-      return NextResponse.redirect(`${APP_URL}/?error=auth_incomplete`);
+      return NextResponse.redirect(`${origin}/?error=auth_incomplete`);
     }
 
-    // Create/update user in database (fire and forget for speed)
-    createUserInDatabase(session.user);
+    // Create/update user in database asynchronously (don't wait to avoid slow redirects)
+    // If it fails, user will be created on next page load via AuthContext
+    createUserInDatabase(session.user).catch(err =>
+      console.error("Background user creation failed:", err)
+    );
 
     // Allow all Gmail users (both Christ members and outsiders)
     console.log(`Auth callback successful for: ${session.user.email}`);
-    return NextResponse.redirect(`${APP_URL}/Discover`);
+    return NextResponse.redirect(`${origin}/auth/verify`);
   } catch (error) {
     console.error("Unexpected error in auth callback:", error);
     const cookieStore = await cookies();
@@ -155,6 +183,7 @@ export async function GET(request: NextRequest) {
       }
     );
     await supabaseClient.auth.signOut();
-    return NextResponse.redirect(`${APP_URL}/?error=callback_exception`);
+    return NextResponse.redirect(`${origin}/?error=callback_exception`);
   }
 }
+

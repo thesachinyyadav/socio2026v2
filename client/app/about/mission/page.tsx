@@ -53,7 +53,7 @@ export default function MissionPage() {
     {
       title: "Simplify Participation", 
       description: "From discovery to registration to attendance - we make the entire journey seamless and intuitive.",
-      icon: "⚡",
+      icon: "innovation",
       impact: "Registration time reduced from 10 minutes to under 1 minute"
     },
     {
@@ -148,7 +148,7 @@ export default function MissionPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <main className="container mx-auto px-4 py-6 max-w-7xl">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Header Section */}
         <div className="mb-12">
           <div className="flex flex-row items-center justify-between">
@@ -177,35 +177,44 @@ export default function MissionPage() {
             </Link>
           </div>
           <p className="text-gray-500 mb-6 text-sm sm:text-base">
-            Discover what drives us and where we're heading in our mission to transform campus life.
+            Discover what drives us and where we&apos;re heading in our mission to transform campus life.
           </p>
         </div>
 
         {/* Mission Statement */}
-        <div className="mb-16 bg-gradient-to-r from-[#154CB3] to-[#063168] text-white p-6 sm:p-12 rounded-lg text-center">
-          <h2 className="text-2xl sm:text-4xl font-black mb-8">
-            Our Mission
-          </h2>
-          <div className="max-w-4xl mx-auto">
-            <p className="text-xl sm:text-2xl text-blue-100 mb-6 leading-relaxed">
-              To eliminate FOMO and create meaningful connections by making campus events 
-              accessible, discoverable, and engaging for every student.
+        <div className="relative mb-16 rounded-2xl overflow-hidden bg-gradient-to-br from-[#063168] to-[#154CB3] text-white">
+          <div className="px-8 py-14 sm:px-14 sm:py-20 text-center">
+            <p className="text-sm font-semibold uppercase tracking-widest text-[#FFCC00] mb-4">
+              Why we exist
             </p>
-            <p className="text-lg text-blue-200">
-              We believe every student deserves to experience the full richness of campus life, 
-              and technology should make that easier, not harder.
-            </p>
+            <h2 className="text-2xl sm:text-4xl font-black mb-8">
+              Our Mission
+            </h2>
+            <div className="max-w-4xl mx-auto">
+              <p className="text-lg sm:text-2xl text-blue-100 mb-6 leading-relaxed">
+                To eliminate FOMO and create meaningful connections by making campus events 
+                accessible, discoverable, and engaging for every student.
+              </p>
+              <p className="text-base sm:text-lg text-blue-200/80">
+                We believe every student deserves to experience the full richness of campus life, 
+                and technology should make that easier, not harder.
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Mission Breakdown */}
         <div className="mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            How We're Achieving Our Mission
-          </h2>
+          <div className="text-center mb-10">
+            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">How</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#063168] mb-2">
+              How We&apos;re Achieving Our Mission
+            </h2>
+            <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {missionPoints.map((point, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-all">
+              <div key={index} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
                 <div className="flex items-start mb-4">
                   <div className="text-3xl mr-4 mt-1">{point.icon}</div>
                   <div className="flex-1">
@@ -230,10 +239,13 @@ export default function MissionPage() {
         {/* Vision Statement */}
         <div className="mb-16">
           <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-6">
+            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Looking Ahead</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#063168] mb-2">
               Our Vision
             </h2>
-            <div className="max-w-4xl mx-auto bg-[#FFCC00]/10 border-l-4 border-[#FFCC00] p-6 sm:p-8 rounded-lg">
+            <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
+            <div className="max-w-4xl mx-auto bg-[#FFCC00]/10 border-l-4 border-[#FFCC00] p-6 sm:p-8 rounded-xl">
               <p className="text-xl sm:text-2xl text-gray-800 font-medium mb-4">
                 A world where every student feels connected, informed, and empowered 
                 to make the most of their campus experience.
@@ -243,11 +255,10 @@ export default function MissionPage() {
                 where technology serves as a bridge, not a barrier, to meaningful experiences.
               </p>
             </div>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {visionElements.map((element, index) => (
-              <div key={index} className={`${element.color} border-l-4 p-6 rounded-lg`}>
+              <div key={index} className={`${element.color} border-l-4 p-6 rounded-xl`}>
                 <h3 className="text-lg font-bold mb-3">
                   {element.title}
                 </h3>
@@ -261,12 +272,16 @@ export default function MissionPage() {
 
         {/* Guiding Principles */}
         <div className="mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Our Guiding Principles
-          </h2>
+          <div className="text-center mb-10">
+            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Principles</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#063168] mb-2">
+              Our Guiding Principles
+            </h2>
+            <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="space-y-6">
             {principles.map((item, index) => (
-              <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <div key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between">
                   <div className="flex-1 mb-4 lg:mb-0 lg:mr-6">
                     <h3 className="text-lg font-bold text-gray-800 mb-2">
@@ -276,7 +291,7 @@ export default function MissionPage() {
                       {item.description}
                     </p>
                   </div>
-                  <div className="lg:w-2/5 bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="lg:w-2/5 bg-white border border-gray-200 rounded-xl p-4">
                     <h4 className="text-sm font-bold text-[#154CB3] mb-2">
                       Example in Action:
                     </h4>
@@ -292,12 +307,16 @@ export default function MissionPage() {
 
         {/* Goals & Roadmap */}
         <div className="mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Our Roadmap
-          </h2>
+          <div className="text-center mb-10">
+            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Goals</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#063168] mb-2">
+              Our Roadmap
+            </h2>
+            <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {goals.map((goal, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <div key={index} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="text-center mb-6">
                   <h3 className="text-lg font-bold text-[#154CB3] mb-2">
                     {goal.timeframe}
@@ -318,41 +337,45 @@ export default function MissionPage() {
         </div>
 
         {/* Impact Metrics */}
-        <div className="mb-16 bg-gradient-to-br from-gray-50 to-blue-50 p-6 sm:p-12 rounded-lg">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#063168] mb-8 text-center">
-            Our Impact So Far
-          </h2>
+        <div className="mb-16 bg-gray-50 p-6 sm:p-12 rounded-2xl border border-gray-200">
+          <div className="text-center mb-10">
+            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Numbers</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#063168] mb-2">
+              Our Impact So Far
+            </h2>
+            <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="bg-white p-6 rounded-xl shadow-sm">
               <div className="text-3xl font-black text-[#154CB3] mb-2">4+</div>
               <div className="text-sm text-gray-600">Campuses Served</div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="bg-white p-6 rounded-xl shadow-sm">
               <div className="text-3xl font-black text-green-600 mb-2">20K+</div>
               <div className="text-sm text-gray-600">Active Students</div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="bg-white p-6 rounded-xl shadow-sm">
               <div className="text-3xl font-black text-yellow-600 mb-2">500+</div>
               <div className="text-sm text-gray-600">Events Managed</div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="bg-white p-6 rounded-xl shadow-sm">
               <div className="text-3xl font-black text-purple-600 mb-2">95%</div>
               <div className="text-sm text-gray-600">Satisfaction Rate</div>
             </div>
           </div>
           
           <div className="mt-12 text-center">
-            <h3 className="text-xl font-bold text-[#063168] mb-4">
+            <h3 className="text-xl font-black text-[#063168] mb-4">
               What This Means
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              <div className="bg-white p-6 rounded-lg shadow-sm text-left">
+              <div className="bg-white p-6 rounded-xl shadow-sm text-left">
                 <h4 className="font-bold text-gray-800 mb-2">For Students:</h4>
                 <p className="text-gray-600 text-sm">
                   Fewer missed opportunities, easier event discovery, and more meaningful campus connections.
                 </p>
               </div>
-              <div className="bg-white p-6 rounded-lg shadow-sm text-left">
+              <div className="bg-white p-6 rounded-xl shadow-sm text-left">
                 <h4 className="font-bold text-gray-800 mb-2">For Organizers:</h4>
                 <p className="text-gray-600 text-sm">
                   Higher attendance rates, streamlined management, and better engagement with their target audience.
@@ -363,12 +386,12 @@ export default function MissionPage() {
         </div>
 
         {/* Call to Action */}
-        <div className="bg-gradient-to-r from-[#154CB3] to-[#063168] text-white p-6 sm:p-12 rounded-lg text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-6">
+        <div className="bg-gradient-to-br from-[#063168] to-[#154CB3] text-white p-8 sm:p-14 rounded-2xl text-center">
+          <h2 className="text-2xl sm:text-3xl font-black mb-6">
             Join Our Mission
           </h2>
-          <p className="text-lg text-blue-100 mb-8 max-w-3xl mx-auto">
-            Whether you're a student looking to get more involved, an organizer wanting better tools, 
+          <p className="text-base sm:text-lg text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
+            Whether you&apos;re a student looking to get more involved, an organizer wanting better tools, 
             or someone who believes in our vision, there are many ways to be part of this journey.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

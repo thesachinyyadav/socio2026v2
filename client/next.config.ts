@@ -10,11 +10,31 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "*.googleusercontent.com",
+      },
+      {
+        protocol: "https",
         hostname: "img.recraft.ai",
       },
       {
         protocol: "https",
         hostname: "placehold.co",
+      },
+      {
+        protocol: "https",
+        hostname: "vkappuaapscvteexogtp.supabase.co",
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+      },
+      {
+        protocol: "https",
+        hostname: "christuniversity.in",
+      },
+      {
+        protocol: "https",
+        hostname: "*.christuniversity.in",
       },
     ],
     // OPTIMIZATION: Enable image optimization caching
@@ -23,7 +43,7 @@ const nextConfig: NextConfig = {
   },
   // OPTIMIZATION: Enable compiler optimizations
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
 };
 

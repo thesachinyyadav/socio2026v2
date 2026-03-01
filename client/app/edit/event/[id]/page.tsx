@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import moment from "moment";
+import { dayjs } from "@/lib/dateUtils";
 import EventForm from "@/app/_components/Admin/ManageEvent";
 import {
   EventFormData,
@@ -17,7 +17,7 @@ export default function EditEventPage() {
   const eventIdSlug = params?.id as string;
   const router = useRouter();
   const { session, userData, isLoading: authIsLoading } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const [initialData, setInitialData] = useState<Partial<EventFormData>>();
   const [existingImageFileUrl, setExistingImageFileUrl] = useState<
@@ -199,10 +199,10 @@ export default function EditEventPage() {
           const transformedData: Partial<EventFormData> = {
             eventTitle: data.title || "",
             eventDate: data.event_date
-              ? moment(data.event_date).format("YYYY-MM-DD")
+              ? dayjs(data.event_date).format("YYYY-MM-DD")
               : "",
             endDate: data.end_date
-              ? moment(data.end_date).format("YYYY-MM-DD")
+              ? dayjs(data.end_date).format("YYYY-MM-DD")
               : "",
             eventTime: formEventTimeString,
             detailedDescription: data.description || "",
@@ -211,7 +211,7 @@ export default function EditEventPage() {
             organizingDept: data.organizing_dept || "",
             festEvent: data.fest || "none",
             registrationDeadline: data.registration_deadline
-              ? moment(data.registration_deadline).format("YYYY-MM-DD")
+              ? dayjs(data.registration_deadline).format("YYYY-MM-DD")
               : "",
             location: data.venue || "",
             registrationFee: data.registration_fee?.toString() ?? "0",
@@ -223,9 +223,12 @@ export default function EditEventPage() {
             allowOutsiders: data.allow_outsiders || false,
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
             outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
+            campusHostedAt: data.campus_hosted_at || "",
+            allowedCampuses: data.allowed_campuses || [],
             scheduleItems: transformScheduleForForm(data.schedule),
             rules: transformSimpleListForForm(data.rules),
             prizes: transformSimpleListForForm(data.prizes),
+            customFields: Array.isArray(data.custom_fields) ? data.custom_fields : [],
             imageFile: null, // Always null initially for form, URL is separate
             bannerFile: null,
             pdfFile: null,
@@ -318,6 +321,13 @@ export default function EditEventPage() {
     payload.append("allow_outsiders", String(formData.allowOutsiders || false));
     payload.append("outsider_registration_fee", formData.outsiderRegistrationFee || "");
     payload.append("outsider_max_participants", formData.outsiderMaxParticipants || "");
+
+    // Campus fields
+    payload.append("campus_hosted_at", formData.campusHostedAt || "");
+    payload.append("allowed_campuses", JSON.stringify(formData.allowedCampuses || []));
+
+    // Custom fields
+    payload.append("custom_fields", JSON.stringify(formData.customFields || []));
 
     if (formData.imageFile instanceof File)
       payload.append("eventImage", formData.imageFile);
@@ -539,3 +549,4 @@ export default function EditEventPage() {
     </div>
   );
 }
+

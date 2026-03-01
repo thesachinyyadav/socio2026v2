@@ -1,0 +1,213 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{svg}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+\setstretch{1.15}
+\setlist[itemize]{leftmargin=1.5em}
+\setlist[enumerate]{leftmargin=1.8em}
+
+\titleformat{\section}{\bfseries\large}{}{0em}{}
+\titleformat{\subsection}{\bfseries\normalsize}{}{0em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Socio -- Internship NDA}
+\rhead{Page \thepage\ of \pageref{LastPage}}
+
+\newcommand{\confidentialpage}{
+\clearpage
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+    \IfFileExists{logo.svg}{\includesvg[width=4cm]{logo}\\[1.6em]}{}
+    {\Huge \textbf{CONFIDENTIAL}}
+\end{center}
+\vspace*{\fill}
+\clearpage
+}
+
+\begin{document}
+
+\confidentialpage
+
+\IfFileExists{logo.svg}{
+\begin{center}
+    \includesvg[width=3cm]{logo}
+\end{center}
+\vspace{0.4em}
+}{}
+
+\begin{center}
+    {\LARGE \textbf{NON-DISCLOSURE AND NON-USE AGREEMENT}}\\[0.5em]
+    {\large (Internship Confidentiality Agreement)}
+\end{center}
+
+\vspace{0.8em}
+
+This Non-Disclosure and Non-Use Agreement (\textbf{``Agreement''}) is made and entered into on \rule{3cm}{0.4pt} (\textbf{``Effective Date''}) by and between:
+
+\textbf{Company:} Socio, including its parent entities, affiliated entities, associated products, subsidiaries, partner entities, and related business operations (collectively, \textbf{``Socio''}); and
+
+\textbf{Interns:}
+\begin{itemize}
+    \item Hatim Abizer
+    \item Alton Joe
+    \item Suryachalam V M
+    \item Advaith Biju
+\end{itemize}
+
+Each of the above-named interns is referred to individually as an \textbf{``Intern''} and collectively as the \textbf{``Interns.''}
+
+Socio and each Intern may be referred to individually as a \textbf{``Party''} and together as the \textbf{``Parties.''}
+
+\section{1. Purpose}
+Intern may receive access to certain confidential, proprietary, technical, commercial, financial, product, operational, legal, and strategic information while participating in internship-related activities with Socio. This Agreement sets out Intern's obligations to strictly protect and not misuse such information.
+
+\section{2. Definition of Confidential Information}
+\textbf{``Confidential Information''} includes any information disclosed by Socio, directly or indirectly, in any form (oral, written, visual, electronic, digital, source code, object code, APIs, documentation, demos, screenshots, recordings, repositories, systems, credentials, or otherwise), including but not limited to:
+\begin{itemize}
+    \item Product concepts, roadmaps, features, architecture, and launch plans;
+    \item Source code, scripts, algorithms, data models, prompts, AI/ML workflows, and technical designs;
+    \item Customer, user, vendor, pricing, and business strategy information;
+    \item Internal reports, dashboards, analytics, metrics, and financial information;
+    \item Security practices, vulnerabilities, credentials, and infrastructure details;
+    \item Information relating to all Socio-associated products, services, subsidiaries, partner initiatives, and internal tools.
+\end{itemize}
+
+Confidential Information also includes any notes, summaries, derivations, reproductions, or materials prepared by Intern based on the above.
+
+\section{3. Non-Disclosure Obligation}
+Intern agrees to:
+\begin{enumerate}
+    \item Hold all Confidential Information in strict confidence and exercise at least reasonable care, and not less than the care used for Intern's own sensitive information;
+    \item Not disclose, publish, share, upload, discuss, transmit, display, or otherwise make available any Confidential Information to any third party without prior written consent from Socio;
+    \item Not disclose Confidential Information to friends, classmates, family, social media, communities, recruiters, interviewers, public forums, or any non-authorized person;
+    \item Not use Confidential Information in resumes, portfolios, blogs, talks, case studies, or code repositories without express written approval from Socio.
+\end{enumerate}
+
+\section{4. Non-Use Obligation}
+Intern agrees that Confidential Information shall be used \textbf{only} for authorized internship work for Socio. Intern shall \textbf{not}:
+\begin{itemize}
+    \item Use Confidential Information for personal gain, outside projects, freelancing, competitions, or any third-party work;
+    \item Reverse engineer, replicate, clone, adapt, or commercially exploit Socio products, systems, tools, or processes;
+    \item Use any part of Confidential Information to develop competing products, services, features, or business models;
+    \item Retain, copy, export, or transfer Confidential Information to personal devices/accounts except as expressly permitted by Socio in writing.
+\end{itemize}
+
+\section{5. Access Control and Security}
+Intern shall comply with all Socio policies relating to information security, access management, and acceptable use, including:
+\begin{itemize}
+    \item Maintaining strong credential security and not sharing credentials;
+    \item Using only approved systems and communication channels;
+    \item Promptly reporting suspected data leaks, unauthorized access, or security incidents;
+    \item Not bypassing monitoring, access controls, or other security safeguards.
+\end{itemize}
+
+\section{6. Exclusions}
+The obligations under this Agreement do not apply to information that Intern can demonstrate by written evidence:
+\begin{enumerate}
+    \item Was publicly available at the time of disclosure without breach of this Agreement;
+    \item Becomes publicly available through no fault of Intern;
+    \item Was lawfully known to Intern before disclosure by Socio and without restriction;
+    \item Is lawfully obtained from a third party without confidentiality obligations.
+\end{enumerate}
+
+\section{7. Legal Disclosure Requirement}
+If Intern is legally compelled by law, regulation, or court order to disclose Confidential Information, Intern must (to the extent legally permissible):
+\begin{enumerate}
+    \item Give prompt written notice to Socio before disclosure;
+    \item Cooperate with Socio in seeking protective treatment;
+    \item Disclose only the minimum portion legally required.
+\end{enumerate}
+
+\section{8. Ownership and Intellectual Property}
+All Confidential Information remains the exclusive property of Socio. No license, ownership, or rights are granted to Intern by disclosure, except limited rights strictly necessary to perform authorized internship duties.
+
+Any work product, materials, documentation, analyses, drafts, code, models, designs, ideas, or improvements created, conceived, or developed by Intern in connection with the internship and/or using Socio resources or Confidential Information shall belong solely and exclusively to Socio, subject to applicable law.
+
+\section{9. Return/Deletion of Materials}
+Upon request by Socio, completion/termination of internship, or expiration of this Agreement (whichever is earlier), Intern shall immediately:
+\begin{itemize}
+    \item Return all documents, devices, badges, and materials provided by Socio;
+    \item Permanently delete all Confidential Information from personal systems, cloud storage, and accounts;
+    \item Certify in writing, if requested, that no Confidential Information is retained in any form.
+\end{itemize}
+
+\section{10. Term and Survival}
+This Agreement is effective from the Effective Date and continues during the internship. The confidentiality and non-use obligations survive internship completion/termination and shall remain in force in perpetuity unless expressly released in writing by Socio, and in any event until Socio becomes a publicly listed company.
+
+\section{11. Remedies}
+Intern acknowledges that any breach may cause irreparable harm to Socio for which monetary damages may be insufficient. Socio shall be entitled to seek injunctive and equitable relief, in addition to any other remedies available under law, including damages.
+
+\section{12. General Provisions}
+\begin{enumerate}
+    \item \textbf{No Waiver:} Failure to enforce a provision is not a waiver of future enforcement.
+    \item \textbf{Severability:} If any provision is unenforceable, remaining provisions remain in full force.
+    \item \textbf{Entire Agreement:} This document is the complete agreement on confidentiality and non-use and supersedes prior discussions on this subject.
+    \item \textbf{Amendment:} Any amendment must be in writing and signed by both Parties.
+    \item \textbf{Governing Law and Jurisdiction:} This Agreement is governed by the Constitution and applicable laws of India, and courts in India shall have jurisdiction.
+\end{enumerate}
+
+\vspace{1.5em}
+\textbf{IN WITNESS WHEREOF}, the Parties have executed this Agreement as of the Effective Date.
+
+\vspace{2em}
+\textbf{For Socio}
+
+Name: Sachin Yadav
+
+Title: Co Founder SOCIO
+
+Signature:\hfill \rule{6.5cm}{0.4pt}
+
+Date: 25th February 2026
+
+\vspace{1.2em}
+\textbf{Witness}
+
+Name: Surya Vamshi S
+
+Designation: Co Founder socio
+
+Date: 25th February 2026
+
+Signature:\hfill \rule{7cm}{0.4pt}
+
+\vspace{1.4em}
+\textbf{Intern Signatures}
+
+1. Name: Hatim Abizer \hfill Signature: \rule{5.5cm}{0.4pt} \\
+Date: \rule{4cm}{0.4pt} \\
+\\[1.2em]
+
+\vspace{0.8em}
+2. Name: Alton Joe \hfill Signature: \rule{6cm}{0.4pt} \\
+Date: \rule{4cm}{0.4pt} \\
+\\[1.2em]
+
+\vspace{0.8em}
+3. Name: Suryachalam V M \hfill Signature: \rule{4.8cm}{0.4pt} \\
+Date: \rule{4cm}{0.4pt} \\
+\\[1.2em]
+
+\vspace{0.8em}
+4. Name: Mr Advaith Biju  \hfill Signature: \rule{5.6cm}{0.4pt} \\
+Date: \rule{4cm}{0.4pt} \\
+\\[1.2em]
+
+\vfill
+\begin{center}
+\small Each Intern acknowledges that they have read, understood, and agree to comply fully with this Agreement.
+\end{center}
+
+\confidentialpage
+
+\end{document}

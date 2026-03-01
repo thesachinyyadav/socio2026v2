@@ -6,24 +6,37 @@ import { useParams } from "next/navigation";
 import ExcelJS from "exceljs";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
+interface CustomField {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
+}
+
 interface Student {
   id: number;
+  registration_id?: string;
   name: string;
   register_number: string;
   course?: string;
   department?: string;
   email: string;
   created_at?: string;
+  custom_field_responses?: Record<string, string | number>;
+  attendance_status?: string;
 }
 
 const ITEMS_PER_PAGE = 20;
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eventTitle, setEventTitle] = useState<string>("");
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({});
 
   const params = useParams();
   const event_id = params?.id as string;
@@ -34,7 +47,7 @@ export default function StudentsPage() {
   useEffect(() => {
     window.scrollTo(0, 0);
 
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       if (!event_id) {
         setIsDataLoading(false);
         return;
@@ -42,36 +55,75 @@ export default function StudentsPage() {
       setIsDataLoading(true);
       setError(null);
       try {
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (!apiBaseUrl) {
-          throw new Error("API endpoint is not configured.");
+        const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+        
+        // Fetch event details, registrations, and attendance status in parallel
+        const [eventResponse, registrationsResponse, attendanceResponse] = await Promise.all([
+          fetch(`${apiBaseUrl}/api/events/${event_id}`),
+          fetch(`${apiBaseUrl}/api/registrations?event_id=${event_id}`),
+          fetch(`${apiBaseUrl}/api/events/${event_id}/participants`)
+        ]);
+        
+        // Parse event custom fields
+        if (eventResponse.ok) {
+          const eventData = await eventResponse.json();
+          const event = eventData.event || eventData;
+          setEventTitle(event.title || "");
+          let fields: CustomField[] = [];
+          if (event.custom_fields) {
+            if (typeof event.custom_fields === 'string') {
+              try {
+                fields = JSON.parse(event.custom_fields);
+              } catch (e) {
+                console.warn('Failed to parse custom_fields:', e);
+              }
+            } else if (Array.isArray(event.custom_fields)) {
+              fields = event.custom_fields;
+            }
+          }
+          setCustomFields(fields);
         }
-        const apiUrl = `${apiBaseUrl}/api/registrations?event_id=${event_id}`;
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-          let errorMessage = `Error: ${response.status} ${response.statusText}`;
+        
+        // Build attendance map by registration_id
+        if (attendanceResponse.ok) {
+          const attendanceData = await attendanceResponse.json();
+          const map: Record<string, string> = {};
+          (attendanceData.participants || []).forEach((p: any) => {
+            const key = String(p.registration_id || p.id || "");
+            if (key) {
+              map[key] = p.attendance_status || "absent";
+            }
+          });
+          setAttendanceMap(map);
+        }
+
+        if (!registrationsResponse.ok) {
+          let errorMessage = `Error: ${registrationsResponse.status} ${registrationsResponse.statusText}`;
           try {
-            const errorData = await response.json();
+            const errorData = await registrationsResponse.json();
             errorMessage = `Server Error: ${
               errorData.details || errorData.error || "Unknown error"
             }`;
           } catch {
-            const errorText = await response.text();
+            const errorText = await registrationsResponse.text();
             errorMessage = `Error ${
-              response.status
+              registrationsResponse.status
             }: Failed to retrieve data. ${errorText.substring(0, 150)}`;
           }
           throw new Error(errorMessage);
         }
-        const data = await response.json();
+        const data = await registrationsResponse.json();
         const mappedStudents = (data.registrations || []).map((reg: any) => ({
           id: reg.registration_id || reg.id || 0,
+          registration_id: reg.registration_id || reg.id || "",
           name: reg.registration_type === 'individual' ? reg.individual_name : reg.team_leader_name || "",
           register_number: reg.registration_type === 'individual' ? reg.individual_register_number : reg.team_leader_register_number || "",
-          course: "",
-          department: "",
+          course: reg.course || "",
+          department: reg.department || "",
           email: reg.registration_type === 'individual' ? reg.individual_email : reg.team_leader_email || "",
           created_at: reg.created_at || "",
+          custom_field_responses: reg.custom_field_responses || {},
+          attendance_status: reg.attendance_status || "",
         }));
         setStudents(mappedStudents);
       } catch (err) {
@@ -83,7 +135,7 @@ export default function StudentsPage() {
         setIsDataLoading(false);
       }
     };
-    if (event_id) fetchStudents();
+    if (event_id) fetchData();
   }, [event_id]);
 
   const handleGenerateExcel = async () => {
@@ -95,14 +147,19 @@ export default function StudentsPage() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Participants");
 
-    const headers = [
+    // Build headers dynamically including custom fields
+    const baseHeaders = [
       "Name",
       "Register No.",
       "Course",
       "Department",
       "E-mail",
-      "Attendance",
     ];
+    
+    // Add custom field labels as additional headers
+    const customFieldHeaders = customFields.map(field => field.label);
+    const headers = [...baseHeaders, ...customFieldHeaders, "Attendance"];
+    
     const headerRow = worksheet.addRow(headers);
 
     headerRow.eachCell((cell) => {
@@ -123,14 +180,24 @@ export default function StudentsPage() {
     headerRow.height = 30;
 
     students.forEach((student, index) => {
-      const rowData = [
+      // Build row data with custom field responses
+      const baseData = [
         student.name || "",
         student.register_number || "",
         student.course || "",
         student.department || "",
         student.email || "",
-        "",
       ];
+      
+      // Add custom field values in the same order as headers
+      const customFieldValues = customFields.map(field => {
+        const value = student.custom_field_responses?.[field.id];
+        return value !== undefined && value !== null ? String(value) : "";
+      });
+      
+      const attendanceKey = String(student.registration_id || student.id || "");
+      const attendanceStatus = attendanceMap[attendanceKey] || student.attendance_status || "absent";
+      const rowData = [...baseData, ...customFieldValues, attendanceStatus];
       const row = worksheet.addRow(rowData);
 
       row.eachCell((cell, colNumber) => {
@@ -158,8 +225,18 @@ export default function StudentsPage() {
         if (headers[colNumber - 1] === "Register No.") {
           cell.alignment = { ...cell.alignment, horizontal: "center" };
         }
-        if (headers[colNumber - 1] === "E-mail") {
+        // Make URLs clickable for email and URL-type custom fields
+        const headerName = headers[colNumber - 1];
+        if (headerName === "E-mail") {
           cell.font = { ...cell.font, color: { argb: "FF1E90FF" } };
+        }
+        // Check if this is a URL-type custom field
+        const customFieldIndex = colNumber - baseHeaders.length - 1;
+        if (customFieldIndex >= 0 && customFieldIndex < customFields.length) {
+          const field = customFields[customFieldIndex];
+          if (field.type === 'url' && cell.value) {
+            cell.font = { ...cell.font, color: { argb: "FF1E90FF" }, underline: true };
+          }
         }
       });
 
@@ -175,13 +252,13 @@ export default function StudentsPage() {
       row.height = estimatedHeight;
     });
 
+    // Set column widths dynamically
+    const baseWidths = [25, 15, 20, 20, 35];
+    const customFieldWidths = customFields.map(() => 30); // 30 width for each custom field
     worksheet.columns = [
-      { width: 25 },
-      { width: 15 },
-      { width: 20 },
-      { width: 20 },
-      { width: 35 },
-      { width: 12 },
+      ...baseWidths.map(width => ({ width })),
+      ...customFieldWidths.map(width => ({ width })),
+      { width: 12 }, // Attendance column
     ];
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -262,14 +339,47 @@ export default function StudentsPage() {
           <h1 className="text-xl md:text-2xl font-bold text-[#154CB3]">
             Participants ({students.length})
           </h1>
-          <button
-            onClick={handleGenerateExcel}
-            className="bg-[#154CB3] cursor-pointer text-white text-sm px-4 py-2 rounded-full font-medium hover:bg-[#063168] transition-colors focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isDataLoading || students.length === 0}
-          >
-            Generate excel sheet
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/attendance?eventId=${event_id}&eventTitle=${encodeURIComponent(eventTitle || "Event")}`}
+              className="bg-white text-[#154CB3] border border-[#154CB3] text-sm px-4 py-2 rounded-full font-medium hover:bg-[#154CB3] hover:text-white transition-colors"
+            >
+              Mark attendance
+            </Link>
+            <button
+              onClick={handleGenerateExcel}
+              className="bg-[#154CB3] cursor-pointer text-white text-sm px-4 py-2 rounded-full font-medium hover:bg-[#063168] transition-colors focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isDataLoading || students.length === 0}
+            >
+              Generate excel sheet
+            </button>
+          </div>
         </div>
+
+        {/* Custom Fields Info Banner */}
+        {customFields.length > 0 && !isDataLoading && (
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#154CB3] flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#063168]">Custom Fields Collected</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  This event has {customFields.length} additional field{customFields.length > 1 ? 's' : ''} that participants filled during registration:
+                  <span className="font-medium text-[#154CB3] ml-1">
+                    {customFields.map(f => f.label).join(', ')}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 These fields are included in the Excel export and displayed in the table below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="relative mb-6 md:mb-8">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
@@ -297,12 +407,60 @@ export default function StudentsPage() {
           />
         </div>
 
-        <div className="hidden md:grid md:grid-cols-5 gap-6 px-4 py-4 text-gray-500 font-medium border-b border-gray-200">
-          <div>Name</div>
-          <div>Register No.</div>
-          <div>Course</div>
-          <div>Department</div>
-          <div>E-mail</div>
+        {/* Desktop Table - Single scrollable container for header and rows */}
+        <div className="hidden md:block overflow-x-auto">
+          {/* Table Header */}
+          <div className={`grid gap-4 px-4 py-4 text-gray-500 font-medium border-b border-gray-200`}
+               style={{ gridTemplateColumns: `200px 120px 150px 150px 250px ${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}>
+            <div>Name</div>
+            <div>Register No.</div>
+            <div>Course</div>
+            <div>Department</div>
+            <div>E-mail</div>
+            {customFields.map(field => (
+              <div key={field.id} className="text-[#154CB3] font-semibold">
+                {field.label}
+              </div>
+            ))}
+          </div>
+          
+          {/* Table Body */}
+          {!isDataLoading && !error && paginatedStudents.length > 0 && paginatedStudents.map((student: Student) => (
+            <div 
+              key={student.id}
+              className="grid gap-4 px-4 py-4 items-center border-b border-gray-200 hover:bg-gray-50 transition-colors"
+              style={{ gridTemplateColumns: `200px 120px 150px 150px 250px ${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}
+            >
+              <div className="font-medium truncate">
+                {student.name || "N/A"}
+              </div>
+              <div>{student.register_number || "N/A"}</div>
+              <div>{student.course || "N/A"}</div>
+              <div>{student.department || "N/A"}</div>
+              <div className="text-[#154CB3] truncate">
+                {student.email || "N/A"}
+              </div>
+              {customFields.map(field => {
+                const value = student.custom_field_responses?.[field.id];
+                return (
+                  <div key={field.id} className="truncate">
+                    {field.type === 'url' && value ? (
+                      <a 
+                        href={String(value)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[#154CB3] hover:underline"
+                      >
+                        {String(value)}
+                      </a>
+                    ) : (
+                      <span>{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         {isDataLoading ? (
@@ -330,61 +488,87 @@ export default function StudentsPage() {
           </div>
         ) : (
           <>
-            {paginatedStudents.length > 0 ? (
-              paginatedStudents.map((student: Student) => (
-                <div
-                  key={student.id}
-                  className="mb-4 md:mb-0 border rounded-lg md:rounded-none shadow-sm md:shadow-none md:border-0 md:border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  {/* Mobile Card View */}
-                  <div className="block md:hidden p-4">
-                    <div className="font-medium text-lg mb-2">
-                      {student.name || "N/A"}
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          Register No.
-                        </span>
-                        <span>{student.register_number || "N/A"}</span>
+            {/* Mobile Card Views */}
+            <div className="md:hidden">
+              {paginatedStudents.length > 0 ? (
+                paginatedStudents.map((student: Student) => (
+                  <div
+                    key={student.id}
+                    className="mb-4 border rounded-lg shadow-sm border-gray-200"
+                  >
+                    <div className="p-4">
+                      <div className="font-medium text-lg mb-2">
+                        {student.name || "N/A"}
                       </div>
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          Course
-                        </span>
-                        <span>{student.course || "N/A"}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          Department
-                        </span>
-                        <span>{student.department || "N/A"}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-gray-500 w-28 flex-shrink-0">
-                          E-mail
-                        </span>
-                        <span className="text-[#154CB3] break-all">
-                          {student.email || "N/A"}
-                        </span>
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            Register No.
+                          </span>
+                          <span>{student.register_number || "N/A"}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            Course
+                          </span>
+                          <span>{student.course || "N/A"}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            Department
+                          </span>
+                          <span>{student.department || "N/A"}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 w-28 flex-shrink-0">
+                            E-mail
+                          </span>
+                          <span className="text-[#154CB3] break-all">
+                            {student.email || "N/A"}
+                          </span>
+                        </div>
+                        {/* Custom Fields in Mobile View */}
+                        {customFields.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="text-sm font-medium text-[#154CB3] mb-2">Additional Information</div>
+                            {customFields.map(field => {
+                              const value = student.custom_field_responses?.[field.id];
+                              return (
+                                <div key={field.id} className="flex flex-col mb-2">
+                                  <span className="text-gray-500 text-xs">{field.label}</span>
+                                  {field.type === 'url' && value ? (
+                                    <a 
+                                      href={String(value)} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-[#154CB3] text-sm break-all hover:underline"
+                                    >
+                                      {String(value)}
+                                    </a>
+                                  ) : (
+                                    <span className="text-sm break-all">{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="hidden md:grid md:grid-cols-5 gap-6 px-4 py-4 items-center">
-                    <div className="font-medium truncate">
-                      {student.name || "N/A"}
-                    </div>
-                    <div>{student.register_number || "N/A"}</div>
-                    <div>{student.course || "N/A"}</div>
-                    <div>{student.department || "N/A"}</div>
-                    <div className="text-[#154CB3] truncate">
-                      {student.email || "N/A"}
-                    </div>
-                  </div>
+                ))
+              ) : (
+                <div className="flex justify-center items-center h-32 text-gray-500">
+                  {searchQuery
+                    ? "No participants found matching your search criteria."
+                    : "No participants registered for this event yet."}
                 </div>
-              ))
-            ) : (
-              <div className="flex justify-center items-center h-32 text-gray-500">
+              )}
+            </div>
+
+            {/* Desktop - Empty state only */}
+            {paginatedStudents.length === 0 && (
+              <div className="hidden md:flex justify-center items-center h-32 text-gray-500">
                 {searchQuery
                   ? "No participants found matching your search criteria."
                   : "No participants registered for this event yet."}

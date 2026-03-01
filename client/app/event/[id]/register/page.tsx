@@ -8,8 +8,8 @@ import {
   FetchedEvent as ContextFetchedEvent,
 } from "../../../../context/EventContext";
 import { useAuth } from "../../../../context/AuthContext";
-import { QRCodeDisplay } from "../../../_components/QRCodeDisplay";
-import moment from "moment";
+import { dayjs } from "@/lib/dateUtils";
+import { CustomFieldRenderer, validateCustomFields, CustomField } from "../../../_components/UI/CustomFieldRenderer";
 
 interface Teammate {
   name: string;
@@ -24,13 +24,68 @@ interface FormErrors {
     registerNumber?: string;
     email?: string;
   }>;
+  customFields?: Record<string, string>;
 }
+
+// Helper function to generate Google Calendar URL
+const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventTime?: string): string | null => {
+  try {
+    const dateObj = dayjs(eventDate);
+    
+    let startDateTime: string;
+    let endDateTime: string;
+    
+    if (eventTime) {
+      // Parse the time (format: HH:mm or HH:mm AM/PM)
+      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if AM/PM is present
+        if (period === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        const startDate = dateObj.hour(hours).minute(minutes);
+        const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
+        
+        startDateTime = startDate.format('YYYYMMDDTHHmmss');
+        endDateTime = endDate.format('YYYYMMDDTHHmmss');
+      } else {
+        // If time parsing fails, use date only
+        startDateTime = dateObj.format('YYYYMMDD');
+        endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+      }
+    } else {
+      // No time provided, use all-day event format
+      startDateTime = dateObj.format('YYYYMMDD');
+      endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+    }
+    
+    // Build Google Calendar URL
+    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    const params = new URLSearchParams({
+      text: eventTitle,
+      dates: `${startDateTime}/${endDateTime}`,
+      details: `Register for ${eventTitle} on SOCIO platform`
+    });
+    
+    return `${baseUrl}&${params.toString()}`;
+  } catch (error) {
+    console.error('Error generating calendar URL:', error);
+    return null;
+  }
+};
 
 const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
   const { userData, isLoading: authIsLoading } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const { allEvents, isLoading: contextIsLoading, error: contextError } = useEvents();
   const eventId = routeParams?.id;
@@ -54,10 +109,11 @@ const Page = () => {
   const [errors, setErrors] = useState<FormErrors>({
     teamName: "",
     teammates: [{}],
+    customFields: {},
   });
+  const [customFieldResponses, setCustomFieldResponses] = useState<Record<string, string | number>>({});
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [registrationId, setRegistrationId] = useState<string | null>(null);
-  const [showQRCode, setShowQRCode] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(
     null
   );
@@ -81,7 +137,41 @@ const Page = () => {
     if (allEvents.length > 0) {
       const foundEvent = allEvents.find((e) => e.event_id === eventId);
       if (foundEvent) {
-        setSelectedEvent(foundEvent);
+        // Parse custom_fields - handle all possible formats
+        let parsedCustomFields: any[] = [];
+        const rawCustomFields: unknown = foundEvent.custom_fields;
+        
+        // Handle JSON string (cast to unknown first to allow string check)
+        if (typeof rawCustomFields === 'string' && (rawCustomFields as string).trim() !== '') {
+          try {
+            const parsed = JSON.parse(rawCustomFields as string);
+            if (Array.isArray(parsed)) {
+              parsedCustomFields = parsed;
+            }
+          } catch (e) {
+            console.warn('Failed to parse custom_fields JSON:', e);
+            parsedCustomFields = [];
+          }
+        } 
+        // Handle array directly
+        else if (Array.isArray(rawCustomFields)) {
+          parsedCustomFields = rawCustomFields;
+        }
+        
+        // Debug log to help troubleshoot
+        console.log('🔍 Custom Fields Debug:', {
+          eventId: foundEvent.event_id,
+          rawCustomFields,
+          parsedCustomFields,
+          rawType: typeof rawCustomFields,
+          isArray: Array.isArray(rawCustomFields),
+          fieldCount: parsedCustomFields.length
+        });
+        
+        setSelectedEvent({
+          ...foundEvent,
+          custom_fields: parsedCustomFields,
+        });
         setEventPageError(null);
         const teamSize = foundEvent.participants_per_team ?? 1;
         setMaxTeammates(teamSize);
@@ -150,8 +240,13 @@ const Page = () => {
       } else {
         error = "This field is required";
       }
-    } else if (field === "registerNumber" && !/^\d{7}$/.test(trimmedValue)) {
-      error = "Register number must be exactly 7 digits";
+    } else if (field === "registerNumber") {
+      const isRegisterNumber = /^\d{7}$/.test(trimmedValue);
+      const isVisitorId = /^VIS[A-Z0-9]+$/i.test(trimmedValue);
+      const isStaffId = /^STF[A-Z0-9]+$/i.test(trimmedValue);
+      if (!isRegisterNumber && !isVisitorId && !isStaffId) {
+        error = "Register number must be 7 digits or a valid Visitor/Staff ID (VIS.../STF...)";
+      }
     } else if (
       field === "email" &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)
@@ -201,12 +296,23 @@ const Page = () => {
     const newErrors: FormErrors = {
       teamName: "",
       teammates: formData.teammates.map(() => ({})),
+      customFields: {},
     };
 
     if (!isIndividualEvent) {
       const teamNameError = validateField("teamName", formData.teamName);
       if (teamNameError) {
         newErrors.teamName = teamNameError;
+        hasErrors = true;
+      }
+    }
+
+    // Validate custom fields
+    const eventCustomFields = selectedEvent?.custom_fields as CustomField[] | undefined;
+    if (eventCustomFields && eventCustomFields.length > 0) {
+      const customFieldValidation = validateCustomFields(eventCustomFields, customFieldResponses);
+      if (!customFieldValidation.isValid) {
+        newErrors.customFields = customFieldValidation.errors;
         hasErrors = true;
       }
     }
@@ -267,6 +373,7 @@ const Page = () => {
           registerNumber: tm.registerNumber.trim(),
           email: tm.email.trim(),
         })),
+        custom_field_responses: Object.keys(customFieldResponses).length > 0 ? customFieldResponses : null,
       };
 
       try {
@@ -338,20 +445,37 @@ const Page = () => {
   }
 
   if (eventPageError || !selectedEvent || (!authIsLoading && !userData)) {
+    const handleLoginClick = () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('returnTo', window.location.pathname);
+      }
+      router.push('/auth');
+    };
+
     return (
       <div className="flex flex-col justify-center items-center min-h-[80vh] text-center px-4">
-        <p className="text-xl text-red-500">
+        <p className="text-xl text-gray-700 mb-4">
           {eventPageError ||
             (!selectedEvent
               ? "Could not load event details."
-              : "Access denied or session expired. Please log in.")}
+              : "Please log in or sign up to register for this event")}
         </p>
-        <Link
-          href="/"
-          className="mt-4 bg-[#063168] text-white py-2 px-4 rounded hover:bg-[#154CB3]"
-        >
-          Go to Homepage
-        </Link>
+        {!eventPageError && selectedEvent === null && !userData && (
+          <button
+            onClick={handleLoginClick}
+            className="mt-4 bg-[#154CB3] text-white py-2 px-6 rounded hover:bg-[#063168] transition-colors font-medium"
+          >
+            Log in or Sign up
+          </button>
+        )}
+        {(eventPageError || selectedEvent !== null) && (
+          <Link
+            href="/"
+            className="mt-4 bg-[#063168] text-white py-2 px-4 rounded hover:bg-[#154CB3]"
+          >
+            Go to Homepage
+          </Link>
+        )}
       </div>
     );
   }
@@ -384,36 +508,41 @@ const Page = () => {
               You have successfully registered for {selectedEvent.title}.
             </p>
 
-            {/* QR Code Section */}
-            {registrationId && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-center mb-3">
-                  <svg className="w-6 h-6 text-[#154CB3] mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4m-4-4h4m-4-4v1m0 0h-1m1-1V8a5 5 0 00-10 0v.01M8 7a3 3 0 016 0v.01M12 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-blue-800">Your Event Ticket</h3>
-                </div>
-                <p className="text-sm text-blue-700 mb-4">
-                  Your QR code ticket has been generated! Show this QR code at the event entrance for instant attendance marking.
-                </p>
-                <button
-                  onClick={() => setShowQRCode(true)}
-                  className="w-full bg-[#154CB3] text-white py-2 px-4 rounded-lg hover:bg-[#154cb3df] transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4m-4-4h4m-4-4v1m0 0h-1m1-1V8a5 5 0 00-10 0v.01M8 7a3 3 0 016 0v.01M12 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  View QR Code Ticket
-                </button>
-              </div>
-            )}
-
             <div className="flex flex-col sm:flex-row justify-around gap-3">
               <Link href={`/Discover`} className="w-full sm:w-auto">
                 <button className="w-full bg-[#154CB3] text-white py-2 px-6 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors">
                   Back to Discover
                 </button>
               </Link>
+              <button
+                onClick={() => {
+                  const calendarUrl = generateGoogleCalendarUrl(
+                    selectedEvent.title,
+                    selectedEvent.event_date,
+                    selectedEvent.event_time
+                  );
+                  if (calendarUrl) {
+                    window.open(calendarUrl, '_blank');
+                  }
+                }}
+                className="w-full sm:w-auto bg-blue-100 text-blue-600 py-2 px-6 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-4 h-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                  />
+                </svg>
+                Add to Calendar
+              </button>
               {selectedEvent.whatsapp_invite_link && (
                 <a
                   href={selectedEvent.whatsapp_invite_link}
@@ -443,20 +572,6 @@ const Page = () => {
             </div>
           </div>
         </div>
-
-        {/* QR Code Display Modal */}
-        {showQRCode && registrationId && (
-          <QRCodeDisplay
-            registrationId={registrationId}
-            eventTitle={selectedEvent.title}
-            participantName={
-              isIndividualEvent
-                ? (userData?.name || "Participant")
-                : (formData.teamName || "Team")
-            }
-            onClose={() => setShowQRCode(false)}
-          />
-        )}
       </div>
     );
   }
@@ -730,7 +845,7 @@ const Page = () => {
                       } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent ${
                         index === 0 ? "bg-gray-100 cursor-not-allowed" : ""
                       }`}
-                      placeholder="Enter 7-digit register number..."
+                      placeholder="Enter register number or VIS/STF ID..."
                       disabled={index === 0}
                     />
                     {errors.teammates[index]?.registerNumber && (
@@ -742,6 +857,71 @@ const Page = () => {
                 </div>
               </div>
             ))}
+
+            {/* Custom Fields Section - Additional fields created by event organiser */}
+            {Array.isArray(selectedEvent?.custom_fields) && selectedEvent.custom_fields.length > 0 && (
+              <div className="mt-8 sm:mt-10">
+                {/* Section Divider */}
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t-2 border-dashed border-[#154CB3]/20"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-4 text-sm font-medium text-[#154CB3]">
+                      Additional Information Required
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#154CB3] to-[#063168] flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-[#063168]">Additional Details</h3>
+                      <p className="text-xs text-gray-500">Requested by the event organiser</p>
+                    </div>
+                  </div>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full font-medium border border-amber-200 w-fit">
+                    {selectedEvent.custom_fields.length} {selectedEvent.custom_fields.length === 1 ? 'Field' : 'Fields'}
+                  </span>
+                </div>
+                
+                {/* Info Banner */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 flex items-start gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-blue-800">
+                    The event organiser requires the following additional information from all participants. 
+                    Fields marked with <span className="text-red-500 font-bold">*</span> are mandatory.
+                  </p>
+                </div>
+                
+                {/* Custom Fields Container */}
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-[#EEF2FF] rounded-xl p-5 sm:p-6 border-2 border-[#154CB3]/10 shadow-sm">
+                  <CustomFieldRenderer
+                    fields={selectedEvent.custom_fields as CustomField[]}
+                    values={customFieldResponses}
+                    onChange={(fieldId, value) => {
+                      setCustomFieldResponses(prev => ({ ...prev, [fieldId]: value }));
+                      // Clear error when user starts typing
+                      if (errors.customFields?.[fieldId]) {
+                        setErrors(prev => ({
+                          ...prev,
+                          customFields: { ...prev.customFields, [fieldId]: "" }
+                        }));
+                      }
+                    }}
+                    errors={errors.customFields}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center w-full sm:w-auto">
@@ -831,7 +1011,7 @@ const Page = () => {
                 {selectedEvent.registration_deadline && (
                   <li>
                     • Registration closes on{" "}
-                    {moment(selectedEvent.registration_deadline).format(
+                    {dayjs(selectedEvent.registration_deadline).format(
                       "MMM Do, YYYY"
                     )}
                     .
@@ -855,3 +1035,4 @@ const Page = () => {
 };
 
 export default Page;
+

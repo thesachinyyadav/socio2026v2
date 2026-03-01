@@ -419,3 +419,12 @@ CREATE TABLE public.users (
   outsider_name_edit_used boolean DEFAULT false,
   CONSTRAINT users_pkey PRIMARY KEY (register_number)
 );
+
+-- Campus fields for events and fests
+ALTER TABLE events
+  ADD COLUMN IF NOT EXISTS campus_hosted_at TEXT,
+  ADD COLUMN IF NOT EXISTS allowed_campuses JSON DEFAULT '[]';
+
+ALTER TABLE fest
+  ADD COLUMN IF NOT EXISTS campus_hosted_at TEXT,
+  ADD COLUMN IF NOT EXISTS allowed_campuses JSON DEFAULT '[]';

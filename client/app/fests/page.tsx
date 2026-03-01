@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import moment from "moment";
+import { formatDateRange } from "@/lib/dateUtils";
 
 import { FestCard } from "../_components/Discover/FestCard";
 import Footer from "../_components/Home/Footer";
@@ -39,7 +39,7 @@ const FestsPage = () => {
   ]);
 
   const [allFests, setAllFests] = useState<Fest[]>([]);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
   
   useEffect(() => {
     fetch(`${API_URL}/api/fests`)
@@ -155,11 +155,7 @@ const FestsPage = () => {
                       title={fest.fest_title}
                       dept={fest.organizing_dept}
                       description={fest.description}
-                      dateRange={
-                        moment(fest.opening_date).format("MMM DD, YYYY") +
-                        " - " +
-                        moment(fest.closing_date).format("MMM DD, YYYY")
-                      }
+                      dateRange={formatDateRange(fest.opening_date, fest.closing_date)}
                       image={fest.fest_image_url}
                     />
                   ))}
@@ -207,3 +203,4 @@ const FestsPage = () => {
 };
 
 export default FestsPage;
+

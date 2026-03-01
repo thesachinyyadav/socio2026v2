@@ -3,9 +3,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "../_components/UI/LoadingIndicator";
+import CampusDetectionModal from "../_components/CampusDetectionModal";
+import { QRCodeDisplay } from "../_components/QRCodeDisplay";
 
 interface DisplayableEvent {
   id: string;
+  registration_id: string;
   event_id: string;
   name: string;
   date: string;
@@ -15,10 +18,16 @@ interface DisplayableEvent {
 
 interface FetchedUserEvent {
   id: string;
+  registration_id?: string;
   event_id?: string;
   name: string;
   date: string;
   department: string;
+}
+
+interface ActiveQR {
+  registrationId: string;
+  eventTitle: string;
 }
 
 interface Student {
@@ -47,7 +56,7 @@ interface UserData {
 }
 
 const StudentProfile = () => {
-  const { userData, signOut, session } = useAuth();
+  const { userData, signOut, session, isLoading } = useAuth();
 
   const [student, setStudent] = useState<Student>({
     name: "",
@@ -66,6 +75,8 @@ const StudentProfile = () => {
   >([]);
   const [isLoadingRegisteredEvents, setIsLoadingRegisteredEvents] =
     useState(true);
+  const [showCampusDetect, setShowCampusDetect] = useState(false);
+  const [activeQR, setActiveQR] = useState<ActiveQR | null>(null);
 
   useEffect(() => {
     if (userData) {
@@ -77,13 +88,15 @@ const StudentProfile = () => {
         year: "numeric",
       });
 
+      const isStaff = userData.email?.toLowerCase().endsWith('@christuniversity.in');
+
       setStudent((prevState) => ({
         ...prevState,
         name: userData.name || "Student",
         registerNumber: String(userData.register_number || ""),
         email: userData.email || "",
-        course: userData.course || "Not specified",
-        department: userData.department || "Not specified",
+        course: isStaff ? "Staff" : (userData.course || "Not specified"),
+        department: isStaff ? "Staff" : (userData.department || "Not specified"),
         campus: userData.campus || "Not specified",
         joined: joinedFormatted,
         profilePicture: userData.avatar_url || "",
@@ -92,7 +105,7 @@ const StudentProfile = () => {
       // Fetch registered events if possible
       const fetchRegisteredEvents = async () => {
         setIsLoadingRegisteredEvents(true);
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
         try {
           // Check if we have a registration number
           if (!userData.register_number) {
@@ -134,6 +147,7 @@ const StudentProfile = () => {
 
               return {
                 id: event.id,
+                registration_id: event.registration_id || event.id,
                 event_id: event.event_id || event.id, // fallback to id if event_id not available
                 name: event.name,
                 date: formattedDate,
@@ -182,14 +196,12 @@ const StudentProfile = () => {
     }
     setIsSubmittingName(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
       const headers: any = { 'Content-Type': 'application/json' };
       const token = (session as any)?.access_token || (session as any)?.provider_token || (session as any)?.refresh_token;
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      // include email for debugging/fallback on server if needed
-      if (userData?.email) headers['X-User-Email'] = userData.email;
 
       const bodyPayload: any = { name: nameInput.trim() };
       if ((userData as any)?.organization_type === 'outsider') {
@@ -221,9 +233,32 @@ const StudentProfile = () => {
   };
 
   if (!userData) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <LoadingIndicator label="Loading profile" />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <LoadingIndicator label="Loading profile" />
+        <div className="text-center space-y-4">
+          <p className="text-gray-600 text-lg">Unable to load your profile.</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2 bg-[#063168] text-white rounded-lg hover:bg-[#063168]/90 transition"
+            >
+              Try Again
+            </button>
+            <Link
+              href="/Discover"
+              className="px-5 py-2 border border-[#063168] text-[#063168] rounded-lg hover:bg-gray-50 transition"
+            >
+              Back to Discover
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -344,9 +379,23 @@ const StudentProfile = () => {
                     <h3 className="text-xs sm:text-sm font-medium text-gray-500">
                       Campus
                     </h3>
-                    <p className="text-sm sm:text-base text-gray-800 font-medium">
-                      {student.campus}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm sm:text-base text-gray-800 font-medium">
+                        {student.campus}
+                      </p>
+                      {userData?.organization_type === 'christ_member' && !userData?.campus && (
+                        <button
+                          onClick={() => setShowCampusDetect(true)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-[#154CB3] hover:bg-[#0f3d8a] text-white rounded-md transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                          </svg>
+                          Detect Campus
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <h3 className="text-xs sm:text-sm font-medium text-gray-500">
@@ -386,18 +435,33 @@ const StudentProfile = () => {
                           </p>
                         )}
                       </div>
-                      {(userData as any).is_masteradmin && (
-                        <a
-                          href="/masteradmin"
-                          className="mt-3 block text-sm text-red-600 hover:text-red-700 font-medium hover:underline"
-                        >
-                          Master Admin Panel →
-                        </a>
-                      )}
                     </div>
                   )}
                 </div>
               </div>
+
+              {(userData.is_organiser || (userData as any).is_masteradmin) && (
+                <div className="px-4 sm:px-6 pb-4 flex flex-col gap-2">
+                  {userData.is_organiser && (
+                    <Link
+                      href="/guide/organiser"
+                      className="flex items-center justify-between w-full border border-[#154CB3] text-[#154CB3] rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-[#154CB3] hover:text-white transition-colors duration-150"
+                    >
+                      <span>Organiser Guide</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </Link>
+                  )}
+                  {(userData as any).is_masteradmin && (
+                    <Link
+                      href="/guide/masteradmin"
+                      className="flex items-center justify-between w-full border border-red-500 text-red-500 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-red-500 hover:text-white transition-colors duration-150"
+                    >
+                      <span>Master Admin Guide</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </Link>
+                  )}
+                </div>
+              )}
 
               <div className="p-4 sm:p-6 border-t border-gray-200">
                 <button
@@ -504,7 +568,19 @@ const StudentProfile = () => {
                             <span className="truncate">{event.department}</span>
                           </div>
                         </div>
-                        <div className="mt-2 sm:mt-0 ml-0 sm:ml-2 self-start sm:self-center">
+                        <div className="mt-2 sm:mt-0 ml-0 sm:ml-2 self-start sm:self-center flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveQR({
+                                registrationId: event.registration_id,
+                                eventTitle: event.name,
+                              })
+                            }
+                            className="text-xs font-semibold px-3 py-1 rounded-full border border-[#154CB3] text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-colors"
+                          >
+                            QR
+                          </button>
                           <span
                             className={`text-xs font-medium px-2 sm:px-3 py-1 rounded-full ${
                               event.status === "upcoming"
@@ -529,6 +605,15 @@ const StudentProfile = () => {
           </div>
         </div>
       </div>
+
+      {activeQR && (
+        <QRCodeDisplay
+          registrationId={activeQR.registrationId}
+          eventTitle={activeQR.eventTitle}
+          participantName={student.name}
+          onClose={() => setActiveQR(null)}
+        />
+      )}
       
       {/* Edit Name Modal for Outsiders */}
       {isEditingName && (
@@ -603,8 +688,24 @@ const StudentProfile = () => {
           </div>
         </div>
       )}
+
+      {/* Campus Detection Modal */}
+      {showCampusDetect && session?.access_token && userData?.email && (
+        <CampusDetectionModal
+          userEmail={userData.email}
+          accessToken={session.access_token}
+          onComplete={(campus) => {
+            setShowCampusDetect(false);
+            setStudent((prev) => ({ ...prev, campus }));
+            // Force page reload to update userData in AuthContext
+            window.location.reload();
+          }}
+          onDismiss={() => setShowCampusDetect(false)}
+        />
+      )}
     </div>
   );
 };
 
 export default StudentProfile;
+

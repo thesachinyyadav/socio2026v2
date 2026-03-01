@@ -12,7 +12,7 @@ export default function CreateEventPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
   const handleCreateEvent: SubmitHandler<EventFormData> = async (
     dataFromHookForm
@@ -139,10 +139,15 @@ export default function CreateEventPage() {
     appendIfExists("outsider_registration_fee", dataFromHookForm.outsiderRegistrationFee);
     appendIfExists("outsider_max_participants", dataFromHookForm.outsiderMaxParticipants);
 
+    // Campus fields
+    appendIfExists("campus_hosted_at", dataFromHookForm.campusHostedAt);
+    appendJsonArrayOrObject("allowed_campuses", dataFromHookForm.allowedCampuses);
+
     appendJsonArrayOrObject("schedule", dataFromHookForm.scheduleItems);
     appendJsonArrayOrObject("rules", dataFromHookForm.rules);
     appendJsonArrayOrObject("prizes", dataFromHookForm.prizes);
     appendJsonArrayOrObject("event_heads", dataFromHookForm.eventHeads);
+    appendJsonArrayOrObject("custom_fields", dataFromHookForm.customFields);
     appendIfExists("created_by", userEmail);
 
     const appendFile = (key: string, file: any) => {
@@ -266,3 +271,4 @@ export default function CreateEventPage() {
     />
   );
 }
+

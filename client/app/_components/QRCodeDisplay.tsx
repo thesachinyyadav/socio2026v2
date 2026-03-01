@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
 interface QRCodeDisplayProps {
   registrationId: string;
@@ -192,3 +192,4 @@ export const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
     </div>
   );
 };
+

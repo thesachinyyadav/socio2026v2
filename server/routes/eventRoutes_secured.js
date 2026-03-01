@@ -19,6 +19,7 @@ import {
   optionalAuth 
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
+import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -50,7 +51,8 @@ router.get("/", async (req, res) => {
       department_access: normalizeJsonField(event.department_access),
       rules: normalizeJsonField(event.rules),
       schedule: normalizeJsonField(event.schedule),
-      prizes: normalizeJsonField(event.prizes)
+      prizes: normalizeJsonField(event.prizes),
+      custom_fields: normalizeJsonField(event.custom_fields)
     }));
 
     return res.status(200).json({ events: processedEvents });
@@ -83,7 +85,8 @@ router.get("/:eventId", async (req, res) => {
       department_access: normalizeJsonField(event.department_access),
       rules: normalizeJsonField(event.rules),
       schedule: normalizeJsonField(event.schedule),
-      prizes: normalizeJsonField(event.prizes)
+      prizes: normalizeJsonField(event.prizes),
+      custom_fields: normalizeJsonField(event.custom_fields)
     };
 
     return res.status(200).json({ event: processedEvent });
@@ -204,6 +207,7 @@ router.post(
       const parsedRules = parseJsonField(rules, []);
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
+      const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
 
       console.log("About to insert into database with params:", {
         event_id,
@@ -234,6 +238,7 @@ router.post(
         rules: parsedRules,
         schedule: parsedSchedule,
         prizes: parsedPrizes,
+        custom_fields: parsedCustomFields,
         organizer_email: req.body.organizer_email || req.userInfo?.email || null,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
@@ -243,6 +248,14 @@ router.post(
         auth_uuid: req.userId, // Store UUID in auth_uuid
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
+        // Outsider & campus fields
+        allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
+        outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
+        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
+        allowed_campuses: Array.isArray(req.body.allowed_campuses)
+          ? req.body.allowed_campuses
+          : parseJsonField(req.body.allowed_campuses, []),
       }]);
 
       if (!created || created.length === 0) {
@@ -251,8 +264,8 @@ router.post(
 
       // Send notifications to all users about the new event (non-blocking)
       sendBroadcastNotification({
-        title: '🎉 New Event Published!',
-        message: `${title} - Check out this new event!`,
+        title: 'New Event Published',
+        message: `${title} — Check out this new event!`,
         type: 'info',
         event_id: event_id,
         event_title: title,
@@ -262,6 +275,27 @@ router.post(
       }).catch((notifError) => {
         console.error('❌ Failed to send event notifications:', notifError);
       });
+
+      // Push to UniversityGated if outsiders are enabled (non-blocking)
+      if (isGatedEnabled()) {
+        const createdEvent = created[0];
+        shouldPushEventToGated(createdEvent, queryOne).then(async (shouldPush) => {
+          if (shouldPush) {
+            try {
+              await pushEventToGated(
+                createdEvent,
+                req.userInfo?.email || req.body.organizer_email,
+                req.userInfo?.name || 'SOCIO Organiser'
+              );
+              console.log(`✅ Pushed event "${title}" to UniversityGated`);
+            } catch (gatedError) {
+              console.error(`❌ Failed to push event to Gated:`, gatedError.message);
+            }
+          }
+        }).catch((err) => {
+          console.error('❌ Error checking Gated push eligibility:', err.message);
+        });
+      }
 
       return res.status(201).json({ 
         message: "Event created successfully", 
@@ -407,6 +441,7 @@ router.put(
       const parsedRules = parseJsonField(rules, []);
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
+      const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
 
       // Prepare update payload
       const updateData = {
@@ -428,6 +463,7 @@ router.put(
         rules: parsedRules,
         schedule: parsedSchedule,
         prizes: parsedPrizes,
+        custom_fields: parsedCustomFields,
         organizer_email: req.body.organizer_email || null,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
@@ -439,6 +475,10 @@ router.put(
         allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
+        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
+        allowed_campuses: Array.isArray(req.body.allowed_campuses)
+          ? req.body.allowed_campuses
+          : parseJsonField(req.body.allowed_campuses, []),
         updated_at: new Date().toISOString(),
         updated_by: req.userInfo.email
       };
@@ -462,8 +502,12 @@ router.put(
         }
         
         try {
-          // Update notifications that reference this event (only update event_id, not action_url)
-          await update("notifications", { event_id: newEventId }, { event_id: eventId });
+          // Update notifications: event_id, event_title, and action_url so links stay valid
+          await update("notifications", { 
+            event_id: newEventId, 
+            event_title: title.trim(),
+            action_url: `/event/${newEventId}` 
+          }, { event_id: eventId });
           console.log(`Updated notifications from event_id '${eventId}' to '${newEventId}'`);
         } catch (notifError) {
           console.log(`No notifications to update or error: ${notifError.message}`);
@@ -474,6 +518,27 @@ router.put(
 
       if (!updated || updated.length === 0) {
         throw new Error("Event update failed.");
+      }
+
+      // Push to UniversityGated if outsiders were enabled/changed (non-blocking)
+      if (isGatedEnabled()) {
+        const updatedEvent = updated[0];
+        shouldPushEventToGated(updatedEvent, queryOne).then(async (shouldPush) => {
+          if (shouldPush) {
+            try {
+              await pushEventToGated(
+                updatedEvent,
+                req.userInfo?.email || req.body.organizer_email,
+                req.userInfo?.name || 'SOCIO Organiser'
+              );
+              console.log(`✅ Pushed updated event "${updatedEvent.title}" to UniversityGated`);
+            } catch (gatedError) {
+              console.error(`❌ Failed to push updated event to Gated:`, gatedError.message);
+            }
+          }
+        }).catch((err) => {
+          console.error('❌ Error checking Gated push eligibility on update:', err.message);
+        });
       }
 
       return res.status(200).json({ 

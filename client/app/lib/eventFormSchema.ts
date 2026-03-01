@@ -59,6 +59,16 @@ export const scheduleItemSchema = z.object({
   activity: z.string().min(1, "Activity is required").max(200, "Max 200 chars"),
 });
 
+// Custom field schema for event organizers
+export const customFieldSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1, "Label is required"),
+  type: z.enum(["text", "url", "email", "number", "select", "textarea"]),
+  required: z.boolean(),
+  placeholder: z.string().optional(),
+  options: z.array(z.string()).optional(),
+});
+
 export const eventFormSchema = z
   .object({
     eventTitle: z
@@ -134,6 +144,10 @@ export const eventFormSchema = z
       )
       .transform((val) => (val === "" ? undefined : val)),
 
+    // Campus fields (only used when outsiders are NOT allowed)
+    campusHostedAt: z.string().optional().default(""),
+    allowedCampuses: z.array(z.string()).optional().default([]),
+
     imageFile: fileSchema(
       MAX_FILE_SIZE_IMAGE,
       ACCEPTED_IMAGE_TYPES,
@@ -167,6 +181,7 @@ export const eventFormSchema = z
 
     scheduleItems: z.array(scheduleItemSchema).optional(),
     eventHeads: z.array(z.string().email("Invalid email format")).optional(),
+    customFields: z.array(customFieldSchema).optional(),
   })
   .refine(
     (data) => {
@@ -182,13 +197,14 @@ export const eventFormSchema = z
   )
   .refine(
     (data) => {
-      if (data.eventDate && data.registrationDeadline) {
-        return new Date(data.eventDate) >= new Date(data.registrationDeadline);
+      if (data.endDate && data.registrationDeadline) {
+        // Registration deadline must be on or before the event end date
+        return new Date(data.endDate) >= new Date(data.registrationDeadline);
       }
       return true;
     },
     {
-      message: "Registration deadline cannot be after event date",
+      message: "Registration deadline cannot be after the event end date",
       path: ["registrationDeadline"],
     }
   );
@@ -294,3 +310,14 @@ export const festEvents = [
   { value: "", label: "Select a fest (optional)" },
   // This will be populated dynamically in the component
 ];
+
+export const campusData = [
+  { name: "Central Campus (Main)", lat: 12.93611753346996, lng: 77.60604219692418 },
+  { name: "Bannerghatta Road Campus", lat: 12.878129156102318, lng: 77.59588398930113 },
+  { name: "Yeshwanthpur Campus", lat: 13.037196562241775, lng: 77.5069922916129 },
+  { name: "Kengeri Campus", lat: 12.869504452408306, lng: 77.43640503831412 },
+  { name: "Delhi NCR Campus", lat: 28.86394683554733, lng: 77.35636918532354 },
+  { name: "Pune Lavasa Campus", lat: 18.6221158344556, lng: 73.48047100149613 },
+];
+
+export const christCampuses = campusData.map((c) => c.name);

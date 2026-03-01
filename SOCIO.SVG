@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="100" fill="white"/>
+  
+  <g opacity="0.4">
+    <path d="M50 20L150 80L250 30L350 90L480 40" stroke="#7B89D3" stroke-width="1.5"/>
+    <path d="M150 80L280 120L350 90" stroke="#7B89D3" stroke-width="1.5"/>
+    <circle cx="50" cy="20" r="3" fill="#7B89D3"/>
+    <circle cx="150" cy="80" r="3" fill="#7B89D3"/>
+    <circle cx="250" cy="30" r="3" fill="#7B89D3"/>
+    <circle cx="350" cy="90" r="3" fill="#7B89D3"/>
+    <circle cx="280" cy="120" r="3" fill="#7B89D3"/>
+  </g>
+
+  <g opacity="0.4">
+    <path d="M30 480L180 400L320 460L450 380L500 440" stroke="#7B89D3" stroke-width="1.5"/>
+    <path d="M180 400L250 320L320 460" stroke="#7B89D3" stroke-width="1.5"/>
+    <circle cx="180" cy="400" r="3" fill="#7B89D3"/>
+    <circle cx="320" cy="460" r="3" fill="#7B89D3"/>
+    <circle cx="250" cy="320" r="3" fill="#7B89D3"/>
+    <circle cx="450" cy="380" r="3" fill="#7B89D3"/>
+  </g>
+
+  <g fill="#1D53B7">
+    <text x="50%" y="55%" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="110" letter-spacing="-2">SOCIO</text>
+  </g>
+</svg>

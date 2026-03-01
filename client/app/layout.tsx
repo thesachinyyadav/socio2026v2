@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { TermsConsentProvider } from "@/context/TermsConsentContext";
 import NavigationBar from "./_components/NavigationBar";
-import { createClient } from "@supabase/supabase-js";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/react";
+import ChatBot from "./_components/ChatBot";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
+import { unstable_cache } from "next/cache";
+import ClientInit from "./_components/ClientInit";
+import MobileDetectionRedirect from "./_components/MobileDetectionRedirect";
 
 import {
   EventsProvider,
@@ -15,9 +16,8 @@ import {
   FetchedEvent,
 } from "../context/EventContext";
 
-// Force dynamic rendering for this layout
-export const dynamic = 'force-dynamic';
-// OPTIMIZATION: Add revalidation for better caching
+// OPTIMIZATION: Use Incremental Static Regeneration instead of force-dynamic
+// This caches the initial data and revalidates every 5 minutes
 export const revalidate = 300; // Revalidate every 5 minutes
 
 export const metadata: Metadata = {
@@ -63,6 +63,7 @@ const transformToEventCardData = (event: FetchedEvent): EventForCard => {
       event.event_image_url ||
       "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image",
     organizing_dept: event.organizing_dept || "TBD",
+    allow_outsiders: event.allow_outsiders ?? false,
   };
 };
 
@@ -81,6 +82,48 @@ const transformToCarouselImage = (
   };
 };
 
+// Create a singleton Supabase client for server-side operations
+let serverSupabase: SupabaseClient | null = null;
+
+function getServerSupabase(): SupabaseClient {
+  if (serverSupabase) return serverSupabase;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase configuration missing");
+  }
+  
+  serverSupabase = createClient(supabaseUrl, supabaseAnonKey);
+  return serverSupabase;
+}
+
+async function fetchEventsFromSupabase() {
+  const supabase = getServerSupabase();
+  
+  const { data, error: supabaseError } = await supabase
+    .from("events")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (supabaseError) {
+    throw new Error(supabaseError.message);
+  }
+
+  return data as FetchedEvent[];
+}
+
+// OPTIMIZATION: Cache the Supabase query with unstable_cache
+const getCachedEvents = unstable_cache(
+  fetchEventsFromSupabase,
+  ['events-list'],
+  { 
+    revalidate: 60, // 1 minute - reduced for faster updates when events are modified
+    tags: ['events']
+  }
+);
+
 async function getInitialEventsData() {
   let allEvents: FetchedEvent[] = [];
   let carouselEvents: CarouselDisplayImage[] = [];
@@ -90,27 +133,11 @@ async function getInitialEventsData() {
   let error: string | null = null;
 
   try {
-    // Use Supabase directly instead of localhost API
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Supabase configuration missing");
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    
-    const { data, error: supabaseError } = await supabase
-      .from("events")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (supabaseError) {
-      throw new Error(supabaseError.message);
-    }
+    // Use cached Supabase query
+    const data = await getCachedEvents();
 
     if (data && Array.isArray(data)) {
-      allEvents = data as FetchedEvent[];
+      allEvents = data;
 
       if (allEvents.length > 0) {
         const randomEventsForCarousel = getRandomEvents(allEvents, 3);
@@ -185,16 +212,17 @@ export default async function RootLayout({
       <body
         className="font-sans antialiased bg-[#FFFFFF] text-[#101010] font-[DM_Sans] overflow-x-hidden"
       >
+        <ClientInit />
+        <MobileDetectionRedirect />
         <AuthProvider>
-          <TermsConsentProvider>
-            <EventsProvider
-              initialAllEvents={allEvents}
-              initialCarouselEvents={carouselEvents}
-              initialTrendingEvents={trendingEvents}
-              initialUpcomingEvents={upcomingEvents}
-              initialIsLoading={isLoading}
-              initialError={error}
-            >
+          <EventsProvider
+            initialAllEvents={allEvents}
+            initialCarouselEvents={carouselEvents}
+            initialTrendingEvents={trendingEvents}
+            initialUpcomingEvents={upcomingEvents}
+            initialIsLoading={isLoading}
+            initialError={error}
+          >
               <Toaster 
                 position="top-right"
                 toastOptions={{
@@ -223,11 +251,9 @@ export default async function RootLayout({
                 <NavigationBar />
                 {children}
               </div>
-            </EventsProvider>
-          </TermsConsentProvider>
+          </EventsProvider>
+          <ChatBot />
         </AuthProvider>
-        <SpeedInsights />
-        <Analytics />
       </body>
     </html>
   );

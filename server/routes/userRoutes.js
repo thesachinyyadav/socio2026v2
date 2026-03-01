@@ -138,33 +138,73 @@ router.put("/:email/name", optionalAuth, async (req, res) => {
   }
 });
 
-// Helper function to generate unique visitor ID for outsiders
-async function generateVisitorId() {
-  let attempts = 0;
-  const maxAttempts = 10;
-  
-  while (attempts < maxAttempts) {
-    // Generate random 7-digit number
-    const randomNumber = Math.floor(1000000 + Math.random() * 9000000);
-    const visitorId = `VIS${randomNumber}`;
-    
-    // Check if this visitor ID already exists
-    const existing = await queryOne("users", { where: { visitor_id: visitorId } });
-    
-    if (!existing) {
-      return visitorId;
+// Allow christ_member to set their campus
+router.put("/:email/campus", authenticateUser, async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { campus } = req.body;
+
+    if (!campus || typeof campus !== 'string' || campus.trim() === '') {
+      return res.status(400).json({ error: 'Campus must be a non-empty string' });
     }
-    
-    attempts++;
+
+    // Verify the authenticated user matches
+    if (!req.user || req.user.email !== email) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const existingUser = await queryOne('users', { where: { email } });
+    if (!existingUser) return res.status(404).json({ error: 'User not found' });
+
+    if (existingUser.organization_type !== 'christ_member') {
+      return res.status(403).json({ error: 'Only Christ University members can set a campus' });
+    }
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({ campus: campus.trim() })
+      .eq('email', email)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ user: updatedUser, message: 'Campus updated successfully' });
+  } catch (error) {
+    console.error('Error updating campus:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  
-  throw new Error("Failed to generate unique visitor ID after 10 attempts");
+});
+
+// Helper function to generate unique visitor ID for outsiders
+// Uses timestamp + random for guaranteed uniqueness without DB lookup
+function generateVisitorId() {
+  const timestamp = Date.now().toString(36).toUpperCase(); // Base36 timestamp
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase(); // 3 random chars
+  return `VIS${timestamp.slice(-4)}${random}`; // e.g., VIS1A2BXYZ
+}
+
+// Helper function to generate unique staff ID
+function generateStaffId() {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+  return `STF${timestamp.slice(-4)}${random}`;
 }
 
 // Helper function to determine organization type from email
 function getOrganizationType(email) {
   if (!email) return 'outsider';
-  return email.toLowerCase().endsWith('@christuniversity.in') ? 'christ_member' : 'outsider';
+  const lowerEmail = email.toLowerCase();
+  const domain = lowerEmail.split('@')[1] || '';
+  if (domain.endsWith('christuniversity.in')) return 'christ_member';
+  return 'outsider';
+}
+
+function isStaffDomain(email) {
+  if (!email) return false;
+  const lowerEmail = email.toLowerCase();
+  const domain = lowerEmail.split('@')[1] || '';
+  return domain === 'christuniversity.in';
 }
 
 router.post("/", async (req, res) => {
@@ -178,6 +218,7 @@ router.post("/", async (req, res) => {
 
     // Determine organization type from email
     const organizationType = getOrganizationType(authClientUser.email);
+    const isStaffEmail = isStaffDomain(authClientUser.email);
     
     console.log(`📧 User login: ${authClientUser.email} | Organization: ${organizationType}`);
     
@@ -221,10 +262,9 @@ router.post("/", async (req, res) => {
       if (!existingUser.organization_type) {
         updateData.organization_type = organizationType;
         
-        // Only generate visitor_id for NEW outsiders (those without organization_type)
-        // This prevents overwriting existing Christ members
+        // Only generate IDs for new outsiders (those without organization_type)
         if (organizationType === 'outsider') {
-          const visitorId = await generateVisitorId();
+          const visitorId = generateVisitorId();
           updateData.visitor_id = visitorId;
           updateData.register_number = visitorId; // Use visitor_id as register_number for outsiders
         }
@@ -232,11 +272,22 @@ router.post("/", async (req, res) => {
       
       // If user is already marked as outsider but missing visitor_id, generate it
       if (existingUser.organization_type === 'outsider' && !existingUser.visitor_id) {
-        const visitorId = await generateVisitorId();
+        const visitorId = generateVisitorId();
         updateData.visitor_id = visitorId;
         if (!existingUser.register_number || existingUser.register_number === '0') {
           updateData.register_number = visitorId;
         }
+      }
+
+      // If staff-domain user is missing a register_number, generate STF under christ_member
+      if (isStaffEmail && existingUser.organization_type !== 'outsider' && (!existingUser.register_number || existingUser.register_number === '0')) {
+        const staffId = generateStaffId();
+        updateData.register_number = staffId;
+      }
+
+      // Auto-grant organiser access ONLY for staff-domain users (e.g. sachin@christuniversity.in)
+      if (!existingUser.is_organiser && isStaffEmail) {
+        updateData.is_organiser = true;
       }
       
       // Update user if needed
@@ -273,11 +324,16 @@ router.post("/", async (req, res) => {
     // Handle outsiders differently
     if (organizationType === 'outsider') {
       // Generate visitor ID for outsiders
-      visitorId = await generateVisitorId();
+      visitorId = generateVisitorId();
       registerNumber = visitorId; // Use visitor_id as register_number for outsiders
       course = null; // Outsiders don't have a course
       
       console.log(`Generated visitor ID for outsider: ${visitorId}`);
+    } else if (isStaffEmail) {
+      const staffId = generateStaffId();
+      registerNumber = staffId;
+      course = null;
+      console.log(`Generated staff ID: ${staffId}`);
     } else {
       // Christ member - extract registration number from name if not provided
       if (!registerNumber && name) {
@@ -329,7 +385,7 @@ router.post("/", async (req, res) => {
         email: authClientUser.email,
         name: name || "New User",
         avatar_url: avatarUrl,
-        is_organiser: organizationType === 'christ_member', // Only Christ members can be organisers
+        is_organiser: isStaffEmail, // Only staff-domain (@christuniversity.in) get organiser access
         is_support: false,
         register_number: registerNumber,
         course: course,
@@ -341,7 +397,15 @@ router.post("/", async (req, res) => {
 
     if (insertError) throw insertError;
 
-    // Send welcome email (fire and forget - don't block response)
+    // Return response immediately - don't block on background tasks
+    res.status(201).json({
+      user: newUser,
+      isNew: true,
+      message: "User created successfully.",
+    });
+
+    // Background tasks (fire and forget after response sent)
+    // 1. Send welcome email
     sendWelcomeEmail(
       newUser.email,
       newUser.name,
@@ -349,11 +413,35 @@ router.post("/", async (req, res) => {
       visitorId
     ).catch(err => console.error('Welcome email failed:', err));
 
-    return res.status(201).json({
-      user: newUser,
-      isNew: true,
-      message: "User created successfully.",
-    });
+    // 2. Check if user was pre-added as event head (non-blocking)
+    (async () => {
+      try {
+        const allFests = await queryAll('fest');
+        for (const fest of allFests || []) {
+          const eventHeads = fest.event_heads || [];
+          const matchingHead = eventHeads.find((head) => 
+            head && head.email && head.email.toLowerCase() === newUser.email.toLowerCase()
+          );
+          
+          if (matchingHead) {
+            console.log(`Found pending organiser access for ${newUser.email} in fest ${fest.fest_id}`);
+            await supabase
+              .from('users')
+              .update({ 
+                is_organiser: true,
+                organiser_expires_at: matchingHead.expiresAt || null
+              })
+              .eq('email', newUser.email);
+            console.log(`Granted pending organiser access to ${newUser.email}`);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('Error checking for pending organiser access:', err);
+      }
+    })();
+
+    return; // Already sent response
   } catch (error) {
     console.error("Error creating user:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -477,6 +565,51 @@ router.delete("/:email", authenticateUser, getUserInfo(), checkRoleExpiration, r
   } catch (error) {
     console.error("Error deleting user:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update user campus (self-service for Christ members)
+router.patch("/:email/campus", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { campus } = req.body;
+
+    if (!campus || typeof campus !== 'string' || campus.trim() === '') {
+      return res.status(400).json({ error: 'Campus must be a non-empty string' });
+    }
+
+    const validCampuses = [
+      'Central Campus (Main)',
+      'Bannerghatta Road Campus',
+      'Yeshwanthpur Campus',
+      'Kengeri Campus',
+      'Delhi NCR Campus',
+      'Pune Lavasa Campus'
+    ];
+
+    if (!validCampuses.includes(campus.trim())) {
+      return res.status(400).json({ error: 'Invalid campus selection' });
+    }
+
+    const existingUser = await queryOne('users', { where: { email } });
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({ campus: campus.trim() })
+      .eq('email', email)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log(`📍 Campus updated for ${email}: ${campus}`);
+    return res.status(200).json({ user: updatedUser, message: 'Campus updated successfully' });
+  } catch (error) {
+    console.error('Error updating campus:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

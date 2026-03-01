@@ -18,6 +18,7 @@ import {
   departments as departmentOptions,
   categories as categoryOptions,
   festEvents as festEventOptions,
+  christCampuses,
 } from "@/app/lib/eventFormSchema";
 
 import { getFests } from "@/lib/api";
@@ -30,8 +31,11 @@ import {
   DynamicTextList,
 } from "@/app/_components/UI/FormElements";
 
+import { DynamicCustomFieldBuilder, CustomField } from "@/app/_components/UI/DynamicCustomFieldBuilder";
+
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "@/app/_components/UI/LoadingIndicator";
+import PublishingOverlay from "@/app/_components/UI/PublishingOverlay";
 
 export const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -786,6 +790,8 @@ export default function EventForm({
       allowOutsiders: false,
       outsiderRegistrationFee: "",
       outsiderMaxParticipants: "",
+      campusHostedAt: "",
+      allowedCampuses: [],
       imageFile: null,
       bannerFile: null,
       pdfFile: null,
@@ -796,6 +802,8 @@ export default function EventForm({
   const { session } = useAuth();
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] =
+    React.useState(false);
+  const [showDeletedSuccessModal, setShowDeletedSuccessModal] =
     React.useState(false);
   const [showRegistrationsClosedModal, setShowRegistrationsClosedModal] =
     React.useState(false);
@@ -821,6 +829,7 @@ export default function EventForm({
   }, [defaultValues, reset, isEditMode]);
 
   const watchedEventDate = useWatch({ control, name: "eventDate" });
+  const watchedEndDate = useWatch({ control, name: "endDate" });
 
   useEffect(() => {
     if (watchedEventDate && !isEditMode && watch("eventDate")) {
@@ -837,6 +846,8 @@ export default function EventForm({
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
+  const [pendingSuccess, setPendingSuccess] = React.useState<"publish" | "delete" | null>(null);
+  const [modalVisible, setModalVisible] = React.useState(false);
 
   const processSubmit: SubmitHandler<EventFormData> = async (data) => {
     if (Object.keys(errors).length > 0) {
@@ -845,7 +856,8 @@ export default function EventForm({
     }
     try {
       await onSubmit(data);
-      setIsModalOpen(true);
+      // Don't show modal yet — let the overlay finish its animation first
+      setPendingSuccess("publish");
     } catch (error: any) {
       console.error(
         "EventForm: Error from onSubmit prop:",
@@ -855,9 +867,25 @@ export default function EventForm({
     }
   };
 
+  // Called when PublishingOverlay finishes sprint + victory animation
+  const handleOverlayComplete = React.useCallback(() => {
+    if (pendingSuccess === "publish") {
+      setIsModalOpen(true);
+      setTimeout(() => setModalVisible(true), 30);
+      setPendingSuccess(null);
+    } else if (pendingSuccess === "delete") {
+      setShowDeletedSuccessModal(true);
+      setTimeout(() => setModalVisible(true), 30);
+      setPendingSuccess(null);
+    }
+  }, [pendingSuccess]);
+
   const handleNavigationToDashboard = () => {
-    setIsNavigating(true);
-    window.location.href = "/manage";
+    setModalVisible(false);
+    setTimeout(() => {
+      setIsNavigating(true);
+      router.push("/manage");
+    }, 300);
   };
 
   const handleDeleteRequest = async () => {
@@ -882,7 +910,7 @@ export default function EventForm({
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}`,
         {
@@ -934,7 +962,7 @@ export default function EventForm({
       }
 
       console.log(successPayload.message);
-      window.location.href = "/manage";
+      setPendingSuccess("delete");
     } catch (error: any) {
       console.error("Error deleting event:", error.message);
     } finally {
@@ -965,7 +993,7 @@ export default function EventForm({
         .toLowerCase()
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}/close`,
         {
@@ -1018,6 +1046,11 @@ export default function EventForm({
 
   return (
     <div className="min-h-screen bg-white relative">
+      <PublishingOverlay
+        isVisible={isSubmittingProp || rhfIsSubmitting || isDeleting}
+        mode={isDeleting ? "deleting" : isEditMode ? "updating" : "publishing"}
+        onComplete={handleOverlayComplete}
+      />
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full">
@@ -1049,10 +1082,77 @@ export default function EventForm({
         </div>
       )}
 
+      {/* Event Deleted Success Modal */}
+      {showDeletedSuccessModal && (
+        <div
+          className="fixed inset-0 bg-white z-[200] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
+          style={{ opacity: modalVisible ? 1 : 0 }}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center transition-all duration-500 ease-out"
+            style={{
+              opacity: modalVisible ? 1 : 0,
+              transform: modalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
+            }}
+          >
+            <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3">
+              Event Deleted
+            </h2>
+            <p className="text-gray-600 mb-4 text-sm sm:text-base">
+              Your event has been successfully deleted. All registrations associated with this event have also been removed.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="text-left">
+                  <p className="text-sm text-amber-800 font-medium">Please note</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    The event may still appear on the website for a short while due to caching. However, no one will be able to register for this event.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setModalVisible(false);
+                setTimeout(() => {
+                  setShowDeletedSuccessModal(false);
+                  router.push("/manage");
+                }, 300);
+              }}
+              className={`${primaryButtonClasses} w-full py-3`}
+            >
+              Back to My Events
+            </button>
+          </div>
+        </div>
+      )}
+
       {(isModalOpen || isNavigating || showRegistrationsClosedModal) && (
-        <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center px-4">
+        <div
+          className="fixed inset-0 bg-white z-[100] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
+          style={{ opacity: modalVisible ? 1 : 0 }}
+        >
           {isModalOpen && !isNavigating && !showRegistrationsClosedModal && (
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center">
+            <div
+              className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center transition-all duration-500 ease-out"
+              style={{
+                opacity: modalVisible ? 1 : 0,
+                transform: modalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
+              }}
+            >
+              <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
                 Event {isEditMode ? "Updated!" : "Published!"}
               </h2>
@@ -1069,7 +1169,13 @@ export default function EventForm({
             </div>
           )}
           {showRegistrationsClosedModal && !isNavigating && !isModalOpen && (
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center">
+            <div
+              className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 shadow-xl text-center transition-all duration-500 ease-out"
+              style={{
+                opacity: modalVisible ? 1 : 0,
+                transform: modalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
+              }}
+            >
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
                 Registrations Closed
               </h2>
@@ -1263,10 +1369,9 @@ export default function EventForm({
                         error={fieldState.error}
                         required
                         placeholder="YYYY-MM-DD"
-                        minDate={new Date()}
                         maxDate={
-                          watchedEventDate && parseYYYYMMDD(watchedEventDate)
-                            ? parseYYYYMMDD(watchedEventDate) || undefined
+                          watchedEndDate && parseYYYYMMDD(watchedEndDate)
+                            ? parseYYYYMMDD(watchedEndDate) || undefined
                             : undefined
                         }
                       />
@@ -1356,11 +1461,93 @@ export default function EventForm({
                         placeholder="e.g., 50"
                       />
                       <p className="text-xs text-gray-600 italic">
-                        💡 Leave blank to use standard event settings for outsiders
+                        Leave blank to use standard event settings for outsiders
                       </p>
                     </div>
                   )}
                 </div>
+
+                {/* Campus Section - only visible when outsiders NOT allowed */}
+                {!watch("allowOutsiders") && (
+                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50">
+                    <div className="flex items-center gap-3 mb-5">
+                      <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
+                        Campus Restrictions
+                      </h4>
+                      <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded-full font-medium">
+                        Optional — single-campus deployment
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Left: Hosted At */}
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1">
+                          Hosted At
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Which campus is this event taking place at?
+                        </p>
+                        <Controller
+                          name="campusHostedAt"
+                          control={control}
+                          render={({ field }) => (
+                            <select
+                              {...field}
+                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                            >
+                              <option value="">-- Select campus --</option>
+                              {christCampuses.map((campus) => (
+                                <option key={campus} value={campus}>
+                                  {campus}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Right: Who Can Register */}
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1">
+                          Who Can Register?
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Tick the campuses whose students are allowed to apply. Leave all unchecked to allow everyone.
+                        </p>
+                        <Controller
+                          name="allowedCampuses"
+                          control={control}
+                          render={({ field }) => (
+                            <div className="space-y-2">
+                              {christCampuses.map((campus) => (
+                                <label
+                                  key={campus}
+                                  className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value?.includes(campus) || false}
+                                    onChange={(e) => {
+                                      const current = field.value || [];
+                                      if (e.target.checked) {
+                                        field.onChange([...current, campus]);
+                                      } else {
+                                        field.onChange(current.filter((c: string) => c !== campus));
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                                  />
+                                  {campus}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <FileInput<EventFormData>
                   label="Event image:"
@@ -1469,6 +1656,22 @@ export default function EventForm({
                   register={register}
                   errors={errors}
                 />
+
+                {/* Custom Fields Section */}
+                <div className="mt-6 p-4 sm:p-6 bg-[#f5f8fe] rounded-xl border border-[#e0e7f1]">
+                  <Controller
+                    name="customFields"
+                    control={control}
+                    render={({ field }) => (
+                      <DynamicCustomFieldBuilder
+                        fields={(field.value as CustomField[]) || []}
+                        onChange={(newFields) => field.onChange(newFields)}
+                        maxFields={10}
+                      />
+                    )}
+                  />
+                </div>
+
                 <div className="flex flex-col-reverse sm:flex-row items-center justify-end space-y-3 space-y-reverse sm:space-y-0 sm:space-x-4 mt-8 sm:mt-10">
                   <button
                     type="button"
@@ -1524,3 +1727,4 @@ export default function EventForm({
     </div>
   );
 }
+

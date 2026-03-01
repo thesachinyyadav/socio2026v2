@@ -1,25 +1,14 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import gsap from "gsap";
-import TermsConsentModal from "../TermsConsentModal";
-import { useTermsConsent } from "@/context/TermsConsentContext";
 
 const CTA = () => {
   const ctaRef = useRef<HTMLDivElement>(null);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const { hasConsented, setHasConsented, checkConsentStatus } = useTermsConsent();
+  
 
-  const signInWithGoogle = async (isSignUp = true) => {
-    // Only show terms consent for Sign Up (default behavior for CTA component)
-    if (isSignUp && !checkConsentStatus()) {
-      // If not consented and this is sign up, show the terms modal
-      setShowTermsModal(true);
-      return;
-    }
-    
-    // If already consented or not requiring consent, proceed with sign in
+  const signInWithGoogle = async () => {
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -36,30 +25,6 @@ const CTA = () => {
     }
   };
   
-  const handleTermsAccept = () => {
-    setHasConsented(true);
-    setShowTermsModal(false);
-    // After accepting terms, trigger the sign in
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    try {
-      supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-    } catch (error) {
-      console.error("Google authentication error:", error);
-    }
-  };
-  
-  const handleTermsDecline = () => {
-    setShowTermsModal(false);
-    // Optionally show a message or do something when terms are declined
-  };
 
   useEffect(() => {
     const elements = ctaRef.current?.querySelectorAll(
@@ -104,13 +69,6 @@ const CTA = () => {
   }, []);
 
   return (
-    <>
-      {showTermsModal && (
-        <TermsConsentModal 
-          onAccept={handleTermsAccept}
-          onDecline={handleTermsDecline}
-        />
-      )}
       <div
         ref={ctaRef}
         className="py-12 sm:py-16 md:py-24 w-full flex flex-col items-center justify-center mt-8 sm:mt-12 md:mt-16 mb-8 bg-gradient-to-b from-[#063168] to-[#3D75BD]"
@@ -126,7 +84,7 @@ const CTA = () => {
       </p>
       <div className="mt-6 sm:mt-8 flex flex-row sm:flex-row gap-4 px-4">
         <button
-          onClick={() => signInWithGoogle(true)}
+          onClick={signInWithGoogle}
           className="cursor-pointer font-semibold px-4 py-1.5 sm:px-4 sm:py-2 border-2 border-[#fff] hover:bg-[#ffffff1a] transition-all ease-in-out text-xs sm:text-sm rounded-full text-white whitespace-nowrap"
         >
           Get started
@@ -138,7 +96,6 @@ const CTA = () => {
         </a>
       </div>
     </div>
-    </>
   );
 };
 

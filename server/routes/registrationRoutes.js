@@ -8,6 +8,7 @@ import {
   supabase,
 } from "../config/database.js";
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
+import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled, pushEventToGated } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -35,18 +36,67 @@ router.get("/registrations", async (req, res) => {
       });
     }
 
-    const formattedRegistrations = registrations.map((reg) => ({
-      ...reg,
-      teammates: Array.isArray(reg.teammates)
-        ? reg.teammates
-        : (() => {
-            try {
-              return reg.teammates ? JSON.parse(reg.teammates) : [];
-            } catch (e) {
-              return [];
-            }
-          })(),
-    }));
+    // Collect all unique register numbers to look up user data
+    const registerNumbers = new Set();
+    registrations.forEach(reg => {
+      if (reg.individual_register_number) {
+        registerNumbers.add(String(reg.individual_register_number));
+      }
+      if (reg.team_leader_register_number) {
+        registerNumbers.add(String(reg.team_leader_register_number));
+      }
+    });
+
+    // Fetch user data for all register numbers in one query
+    let userDataMap = {};
+    if (registerNumbers.size > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('register_number, course, department')
+        .in('register_number', Array.from(registerNumbers));
+      
+      if (usersData) {
+        usersData.forEach(user => {
+          userDataMap[String(user.register_number)] = {
+            course: user.course || '',
+            department: user.department || ''
+          };
+        });
+      }
+    }
+
+    const formattedRegistrations = registrations.map((reg) => {
+      // Get user data based on register number
+      const regNum = reg.registration_type === 'individual' 
+        ? reg.individual_register_number 
+        : reg.team_leader_register_number;
+      const userData = userDataMap[String(regNum)] || { course: '', department: '' };
+      
+      return {
+        ...reg,
+        // Add course and department from user lookup
+        course: userData.course,
+        department: userData.department,
+        teammates: Array.isArray(reg.teammates)
+          ? reg.teammates
+          : (() => {
+              try {
+                return reg.teammates ? JSON.parse(reg.teammates) : [];
+              } catch (e) {
+                return [];
+              }
+            })(),
+        custom_field_responses: (() => {
+          if (!reg.custom_field_responses) return null;
+          if (typeof reg.custom_field_responses === 'object') return reg.custom_field_responses;
+          try {
+            return JSON.parse(reg.custom_field_responses);
+          } catch (e) {
+            return null;
+          }
+        })(),
+      };
+    });
 
     return res.status(200).json({
       registrations: formattedRegistrations,
@@ -119,7 +169,7 @@ router.post("/register", async (req, res) => {
         : team_leader_register_number;
     }
     
-    // Check if register number is a visitor ID (starts with VIS) - case-insensitive
+    // Check if register number is a visitor ID - case-insensitive
     if (registerNumber && String(registerNumber).toUpperCase().startsWith('VIS')) {
       participantOrganization = 'outsider';
       console.log('🌍 Outsider registration detected (by register number):', registerNumber);
@@ -165,6 +215,74 @@ router.post("/register", async (req, res) => {
         normalizedRegistrationType === "individual"
           ? individual_email || user_email
           : team_leader_email || user_email;
+    }
+
+    const normalize = (value) => String(value || "").trim().toUpperCase();
+
+    const incomingRegisterNumbers = new Set();
+    if (processedData.individual_register_number) {
+      incomingRegisterNumbers.add(normalize(processedData.individual_register_number));
+    }
+    if (processedData.team_leader_register_number) {
+      incomingRegisterNumbers.add(normalize(processedData.team_leader_register_number));
+    }
+    if (Array.isArray(processedTeammates || teammates)) {
+      (processedTeammates || teammates).forEach((teammate) => {
+        if (teammate?.registerNumber) {
+          incomingRegisterNumbers.add(normalize(teammate.registerNumber));
+        }
+      });
+    }
+
+    const existingRegistrations = await queryAll("registrations", {
+      where: { event_id: normalizedEventId },
+    });
+
+    const existingRegisterNumbers = new Set();
+    const existingEmails = new Set();
+
+    existingRegistrations.forEach((registration) => {
+      if (registration?.individual_register_number) {
+        existingRegisterNumbers.add(normalize(registration.individual_register_number));
+      }
+      if (registration?.team_leader_register_number) {
+        existingRegisterNumbers.add(normalize(registration.team_leader_register_number));
+      }
+      if (registration?.individual_email) {
+        existingEmails.add(String(registration.individual_email).trim().toLowerCase());
+      }
+      if (registration?.team_leader_email) {
+        existingEmails.add(String(registration.team_leader_email).trim().toLowerCase());
+      }
+
+      if (registration?.teammates) {
+        try {
+          const teammatesList = Array.isArray(registration.teammates)
+            ? registration.teammates
+            : JSON.parse(registration.teammates || "[]");
+          teammatesList.forEach((teammate) => {
+            if (teammate?.registerNumber) {
+              existingRegisterNumbers.add(normalize(teammate.registerNumber));
+            }
+            if (teammate?.email) {
+              existingEmails.add(String(teammate.email).trim().toLowerCase());
+            }
+          });
+        } catch (e) {
+          // ignore malformed teammate payloads
+        }
+      }
+    });
+
+    const duplicateRegisterNumber = Array.from(incomingRegisterNumbers).find((rn) => existingRegisterNumbers.has(rn));
+    const normalizedParticipantEmail = String(participantEmail || "").trim().toLowerCase();
+    const hasDuplicateEmail = normalizedParticipantEmail && existingEmails.has(normalizedParticipantEmail);
+
+    if (duplicateRegisterNumber || hasDuplicateEmail) {
+      return res.status(409).json({
+        error: "You are already registered for this event",
+        code: "ALREADY_REGISTERED",
+      });
     }
 
     const qrCodeData = generateQRCodeData(
@@ -252,6 +370,12 @@ router.post("/register", async (req, res) => {
     console.log('🎪 Event ID:', normalizedEventId);
     console.log('👥 Registration Type:', normalizedRegistrationType);
 
+    // For Christ members, add a simple QR string: "registerNumber/eventId"
+    if (participantOrganization === 'christ_member') {
+      const regNo = processedData.individual_register_number || processedData.team_leader_register_number || participantEmail;
+      qrCodeData.simple_qr = `${regNo}/${normalizedEventId}`;
+    }
+
     const [registration] = await insert("registrations", {
       registration_id,
       event_id: normalizedEventId,
@@ -268,9 +392,81 @@ router.post("/register", async (req, res) => {
       participant_organization: participantOrganization,
       qr_code_data: qrCodeData,
       qr_code_generated_at: new Date().toISOString(),
+      custom_field_responses: req.body.custom_field_responses || null,
     });
 
     console.log('✅ Registration saved:', registration);
+
+    // Auto-create Gated visitor pass for outsiders (non-blocking)
+    if (participantOrganization === 'outsider' && isGatedEnabled()) {
+      (async () => {
+        try {
+          // Try to resolve the Gated event — first by direct event_id, then by fest
+          let gatedEvent = await resolveGatedEvent(normalizedEventId);
+
+          // If not found directly, check if event belongs to an outsider-enabled fest
+          if (!gatedEvent && event.fest) {
+            gatedEvent = await resolveGatedEvent(event.fest);
+          }
+
+          // If still no Gated event, push this event to Gated now (handles events created before integration)
+          if (!gatedEvent) {
+            console.log(`ℹ️  No Gated event found for SOCIO event ${normalizedEventId} — pushing now...`);
+            try {
+              // Fetch organiser info for the push
+              const organiser = await queryOne('users', { where: { email: event.created_by || event.organizer_email } });
+              await pushEventToGated(
+                event,
+                event.created_by || event.organizer_email || 'unknown@socio.app',
+                organiser?.name || 'SOCIO Organiser'
+              );
+              // Wait a moment for the DB trigger to create the events row
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              // Try resolving again
+              gatedEvent = await resolveGatedEvent(normalizedEventId);
+              if (!gatedEvent && event.fest) {
+                gatedEvent = await resolveGatedEvent(event.fest);
+              }
+            } catch (pushErr) {
+              console.error(`❌ Failed to on-demand push event to Gated:`, pushErr.message);
+            }
+          }
+
+          if (gatedEvent) {
+            const participantName = processedData.individual_name || processedData.team_leader_name || 'Unknown';
+            const participantPhone = req.body.phone || null;
+            const participantRegNo = processedData.individual_register_number || processedData.team_leader_register_number || null;
+
+            const gatedVisitor = await createGatedVisitor({
+              name: participantName,
+              email: participantEmail,
+              phone: participantPhone,
+              registerNumber: participantRegNo,
+              eventName: event.title,
+              dateFrom: event.event_date,
+              dateTo: event.end_date || event.event_date,
+              gatedEventId: gatedEvent.id,
+            });
+
+            if (gatedVisitor) {
+              // Store the Gated visitor ID in qr_code_data for QR generation
+              const updatedQrData = {
+                ...qrCodeData,
+                gated_visitor_id: gatedVisitor.id,
+                gated_verify_url: getGatedVerifyUrl(gatedVisitor.id),
+              };
+              await update('registrations', { qr_code_data: updatedQrData }, { registration_id });
+              console.log(`🎫 Created Gated visitor pass for outsider ${participantEmail}: ${gatedVisitor.id}`);
+            }
+          } else {
+            console.log(`ℹ️  No approved Gated event found for SOCIO event ${normalizedEventId} — outsider registered without gate pass`);
+          }
+        } catch (gatedError) {
+          console.error('❌ Failed to create Gated visitor pass:', gatedError.message);
+          // Non-blocking — SOCIO registration proceeds regardless
+        }
+      })();
+    }
 
     const newTotalParticipants = Math.max(
       0,
@@ -449,9 +645,10 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     const registerIdStr = String(registerId).trim();
 
     // Use multiple queries instead of complex OR to avoid query failures
+    const registrationSelect = "registration_id, event_id, teammates, created_at";
     const queries = [
-      supabase.from("registrations").select("event_id").eq("individual_register_number", registerIdStr),
-      supabase.from("registrations").select("event_id").eq("team_leader_register_number", registerIdStr),
+      supabase.from("registrations").select(registrationSelect).eq("individual_register_number", registerIdStr),
+      supabase.from("registrations").select(registrationSelect).eq("team_leader_register_number", registerIdStr),
     ];
 
     const results = await Promise.allSettled(queries);
@@ -467,7 +664,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     try {
       const { data: teammateRegs } = await supabase
         .from("registrations")
-        .select("event_id, teammates")
+        .select(registrationSelect)
         .not("teammates", "is", null);
 
       if (teammateRegs) {
@@ -476,7 +673,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
           const teammates = Array.isArray(reg.teammates) ? reg.teammates : JSON.parse(reg.teammates || '[]');
           return teammates.some(tm => String(tm.registerNumber) === registerIdStr);
         });
-        allRegistrations.push(...matchingRegs.map(r => ({ event_id: r.event_id })));
+        allRegistrations.push(...matchingRegs);
       }
     } catch (teammateError) {
       console.warn("Could not check teammates:", teammateError.message);
@@ -486,7 +683,21 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
       return res.status(200).json({ events: [], count: 0 });
     }
 
-    const eventIds = [...new Set(allRegistrations.map((reg) => reg.event_id))].filter(Boolean);
+    const uniqueByRegistrationId = new Map();
+    for (const reg of allRegistrations) {
+      if (!reg?.registration_id || !reg?.event_id) continue;
+      uniqueByRegistrationId.set(reg.registration_id, reg);
+    }
+
+    const dedupedRegistrations = Array.from(uniqueByRegistrationId.values());
+    const registrationByEventId = new Map();
+    for (const reg of dedupedRegistrations) {
+      if (!registrationByEventId.has(reg.event_id)) {
+        registrationByEventId.set(reg.event_id, reg.registration_id);
+      }
+    }
+
+    const eventIds = [...new Set(dedupedRegistrations.map((reg) => reg.event_id))].filter(Boolean);
 
     if (eventIds.length === 0) {
       return res.status(200).json({ events: [], count: 0 });
@@ -505,6 +716,7 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
     const events = (eventsData || []).map((evt) => ({
       id: evt.event_id,
       event_id: evt.event_id,
+      registration_id: registrationByEventId.get(evt.event_id) || null,
       name: evt.title,
       date: evt.event_date,
       department: evt.organizing_dept,

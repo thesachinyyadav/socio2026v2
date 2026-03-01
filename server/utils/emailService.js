@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 /**
  * Send a welcome email to new users
@@ -13,31 +13,28 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  * @param {string} visitorId - Visitor ID (for outsiders only)
  */
 export async function sendWelcomeEmail(email, name, isOutsider = false, visitorId = null) {
+  if (!resend) { console.warn('⚠️ Resend not configured — skipping welcome email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
     
     const outsiderSection = isOutsider && visitorId ? `
-      <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px; padding: 28px; margin: 28px 0; text-align: center;">
-        <p style="color: #e0e7ff; font-size: 13px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 1px;">Your Visitor ID</p>
-        <p style="color: #FFCC00; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 3px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">${visitorId}</p>
-        <p style="color: #93c5fd; font-size: 12px; margin: 12px 0 0 0;">Save this — you'll need it for event registrations ✨</p>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
+        <p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px;">Your Visitor ID</p>
+        <p style="color: #063168; font-size: 28px; font-weight: 700; margin: 0; letter-spacing: 2px; font-family: 'Courier New', monospace;">${visitorId}</p>
+        <p style="color: #94a3b8; font-size: 13px; margin: 12px 0 0 0;">Keep this safe — you'll need it for event registrations.</p>
       </div>
-      <div style="background: #fef3c7; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: flex-start;">
-        <span style="font-size: 20px; margin-right: 12px;">💡</span>
+      <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 20px; margin-bottom: 24px;">
         <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.5;">
-          <strong>Quick tip:</strong> Head to your profile to personalize your display name. You only get one shot at this, so make it count!
+          <strong>Tip:</strong> Visit your profile to set your display name. This can only be done once.
         </p>
       </div>
     ` : '';
 
     const memberSection = !isOutsider ? `
-      <div style="background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%); border-radius: 16px; padding: 24px; margin: 28px 0;">
-        <div style="display: flex; align-items: center; margin-bottom: 12px;">
-          <span style="font-size: 24px; margin-right: 12px;">🎓</span>
-          <p style="color: #1e40af; font-weight: 700; font-size: 16px; margin: 0;">You're part of the Christ University family!</p>
-        </div>
+      <div style="background: #f0f9ff; border-left: 4px solid #154CB3; padding: 20px; margin: 24px 0;">
+        <p style="color: #1e40af; font-weight: 600; font-size: 15px; margin: 0 0 8px 0;">You're all set! 🎉</p>
         <p style="color: #475569; font-size: 14px; margin: 0; line-height: 1.6;">
-          As a member, you have full access to create events, build your community, and be part of something amazing. The stage is yours!
+          Discover events, register instantly, and get updates directly — no middlemen, no hassle.
         </p>
       </div>
     ` : '';
@@ -49,86 +46,59 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; margin: 0; padding: 0;">
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0;">
       <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
         
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 50%, #1e3a5f 100%); border-radius: 20px 20px 0 0; padding: 50px 32px; text-align: center;">
-          <div style="margin-bottom: 20px;">
-            <span style="font-size: 48px;">🎊</span>
-          </div>
-          <h1 style="color: white; font-size: 28px; margin: 0 0 8px 0; font-weight: 300;">
-            Welcome aboard
-          </h1>
-          <h2 style="color: #FFCC00; font-size: 42px; margin: 0; font-weight: 800; letter-spacing: -1px;">
-            SOCIO
-          </h2>
+        <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 40px 32px; text-align: center;">
+          <h1 style="color: white; font-size: 42px; font-weight: 700; margin: 0 0 8px 0; letter-spacing: -1px;">SOCIO</h1>
+          <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0; font-weight: 400;">
+            Campus Events Platform
+          </p>
         </div>
         
         <!-- Body -->
-        <div style="background: white; padding: 44px 36px; border-radius: 0 0 20px 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);">
+        <div style="background: white; padding: 40px 36px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);">
           
-          <h2 style="color: #1e293b; font-size: 26px; margin: 0 0 8px 0; font-weight: 600;">
-            Hey ${firstName}! 
+          <h2 style="color: #1e293b; font-size: 24px; margin: 0 0 8px 0; font-weight: 600;">
+            Welcome, ${firstName}
           </h2>
-          <p style="color: #64748b; font-size: 15px; margin: 0 0 28px 0;">
-            So glad you're here. Seriously.
+          <p style="color: #64748b; font-size: 15px; margin: 0 0 24px 0;">
+            Thank you for joining SOCIO <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">BETA</span>
           </p>
           
-          <p style="color: #475569; font-size: 16px; line-height: 1.7; margin: 0 0 8px 0;">
-            You just joined a community where <strong style="color: #154CB3;">ideas come to life</strong>, 
-            where events aren't just events — they're experiences, memories, and connections waiting to happen.
-          </p>
-          
-          <p style="color: #475569; font-size: 16px; line-height: 1.7; margin: 0 0 28px 0;">
-            Whether you're here to discover something new, meet like-minded people, or create moments that matter — 
-            <strong style="color: #1e293b;">you're in the right place.</strong>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 16px 0;">
+            SOCIO is your gateway to campus events, club activities, and community experiences. 
+            Whether you're looking to discover events or organize your own, we're here to help you connect.
           </p>
           
           ${outsiderSection}
           ${memberSection}
           
-          <div style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); border-radius: 16px; padding: 24px; margin: 28px 0; text-align: center;">
-            <p style="color: #854d0e; font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">
-              Ready to dive in? 🏊‍♂️
-            </p>
-            <p style="color: #a16207; font-size: 14px; margin: 0; line-height: 1.5;">
-              Browse upcoming events, find your vibe, and let the adventure begin.
-            </p>
-          </div>
-          
           <!-- CTA Button -->
-          <div style="text-align: center; margin: 36px 0;">
-            <a href="https://sociov2.vercel.app/Discover" 
-               style="display: inline-block; background: linear-gradient(135deg, #154CB3 0%, #063168 100%); 
-                      color: white; text-decoration: none; padding: 18px 48px; border-radius: 50px; 
-                      font-weight: 600; font-size: 16px; box-shadow: 0 8px 24px rgba(21, 76, 179, 0.35);
-                      transition: transform 0.2s;">
-              Explore Events →
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="https://socio.christuniversity.in/Discover" 
+               style="display: inline-block; background: #154CB3; 
+                      color: white; text-decoration: none; padding: 14px 36px; border-radius: 8px; 
+                      font-weight: 600; font-size: 15px;">
+              Browse Events
             </a>
           </div>
           
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 36px 0;">
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
           
-          <div style="text-align: center;">
-            <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">
-              Questions? We're always here for you.
-            </p>
-            <a href="mailto:support@withsocio.com" style="color: #154CB3; text-decoration: none; font-weight: 500;">
-              support@withsocio.com
-            </a>
-          </div>
+          <p style="color: #94a3b8; font-size: 13px; margin: 0; text-align: center; line-height: 1.6;">
+            Need help? <a href="https://socio.christuniversity.in/support" style="color: #154CB3; text-decoration: none;">Contact our support</a>
+          </p>
         </div>
         
         <!-- Footer -->
-        <div style="text-align: center; padding: 28px; color: #94a3b8; font-size: 12px;">
-          <p style="margin: 0 0 12px 0;">
-            Made with 💙 by the SOCIO Team
+        <div style="text-align: center; padding: 24px; color: #94a3b8; font-size: 12px;">
+          <p style="margin: 0 0 8px 0;">
+            SOCIO Team
           </p>
           <p style="margin: 0;">
-            <a href="https://sociov2.vercel.app" style="color: #64748b; text-decoration: none;">sociov2.vercel.app</a>
-            <span style="margin: 0 8px; color: #cbd5e1;">•</span>
-            <a href="https://withsocio.com" style="color: #64748b; text-decoration: none;">withsocio.com</a>
+            <a href="https://socio.christuniversity.in" style="color: #64748b; text-decoration: none;">socio.christuniversity.in</a>
           </p>
         </div>
       </div>
@@ -136,11 +106,33 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
     </html>
     `;
 
+    // Plain text version for better deliverability
+    const textContent = `
+Welcome, ${firstName}
+
+Thank you for joining SOCIO (Beta).
+
+SOCIO is your gateway to campus events, club activities, and community experiences. Whether you're looking to discover events or organize your own, we're here to help you connect.
+
+${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — you'll need it for event registrations.\n\nTip: Visit your profile to set your display name. This can only be done once.` : `You're all set! Discover events, register instantly, and get updates directly — no middlemen, no hassle.`}
+
+Browse events: https://socio.christuniversity.in/Discover
+
+Need help? Contact our support: https://socio.christuniversity.in/support
+
+SOCIO Team
+https://socio.christuniversity.in
+    `.trim();
+
     const { data, error } = await resend.emails.send({
       from: 'SOCIO <hello@withsocio.com>',
       to: [email],
-      subject: `${firstName}, welcome to SOCIO! 🎉`,
+      subject: `Welcome to SOCIO, ${firstName}`,
       html: htmlContent,
+      text: textContent,
+      headers: {
+        'X-Entity-Ref-ID': `welcome-${Date.now()}`,
+      },
     });
 
     if (error) {
@@ -148,7 +140,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
       return { success: false, error };
     }
 
-    console.log(`✉️ Welcome email sent to ${email}`);
+    console.log(`Welcome email sent to ${email}`);
     return { success: true, data };
   } catch (error) {
     console.error('Error sending welcome email:', error);
@@ -164,28 +156,61 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
  * @param {string} registrationId - Registration ID
  */
 export async function sendRegistrationEmail(email, name, event, registrationId) {
+  if (!resend) { console.warn('⚠️ Resend not configured — skipping registration email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
     
     const { data, error } = await resend.emails.send({
-      from: 'SOCIO <onboarding@resend.dev>',
+      from: 'SOCIO <hello@withsocio.com>',
       to: [email],
-      subject: `You're registered for ${event.title}! 🎟️`,
+      subject: `Registration Confirmed - ${event.title}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #154CB3;">Registration Confirmed! 🎉</h1>
-          <p>Hi ${firstName},</p>
-          <p>You're all set for <strong>${event.title}</strong>!</p>
-          <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Event:</strong> ${event.title}</p>
-            <p><strong>Date:</strong> ${event.event_date || 'TBA'}</p>
-            <p><strong>Venue:</strong> ${event.venue || 'TBA'}</p>
-            <p><strong>Registration ID:</strong> ${registrationId}</p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+              <img src="https://socio.christuniversity.in/images/withsocio.png" alt="SOCIO" width="140" height="auto" style="display: block; margin: 0 auto; max-width: 140px;">
+            </div>
+            <div style="background: white; padding: 40px 36px; border-radius: 0 0 16px 16px;">
+              <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 8px 0;">Registration Confirmed</h2>
+              <p style="color: #64748b; font-size: 15px; margin: 0 0 24px 0;">Hi ${firstName}, you're all set.</p>
+              
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin: 24px 0;">
+                <p style="margin: 0 0 12px 0;"><strong style="color: #475569;">Event:</strong> <span style="color: #1e293b;">${event.title}</span></p>
+                <p style="margin: 0 0 12px 0;"><strong style="color: #475569;">Date:</strong> <span style="color: #1e293b;">${event.event_date || 'To be announced'}</span></p>
+                <p style="margin: 0 0 12px 0;"><strong style="color: #475569;">Venue:</strong> <span style="color: #1e293b;">${event.venue || 'To be announced'}</span></p>
+                <p style="margin: 0;"><strong style="color: #475569;">Registration ID:</strong> <span style="color: #063168; font-family: monospace; font-weight: 600;">${registrationId}</span></p>
+              </div>
+              
+              <p style="color: #64748b; font-size: 14px; margin: 24px 0 0 0; text-align: center;">
+                See you there! 🎉
+              </p>
+              
+              <!-- Beta Notice -->
+              <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 10px; padding: 20px; margin: 28px 0 0 0;">
+                <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.6; text-align: center;">
+                  <strong style="display: block; margin-bottom: 8px;">🚧 Beta Preview</strong>
+                  This is a preview version of SOCIO. We sincerely apologize for any inconvenience caused due to technical glitches. We're working hard to improve your experience every day.
+                </p>
+                <p style="color: #b45309; font-size: 12px; margin: 12px 0 0 0; text-align: center; font-style: italic;">
+                  Thank you for your patience and support! ❤️<br>
+                  — With love, Team SOCIO
+                </p>
+              </div>
+            </div>
+            <div style="text-align: center; padding: 24px; color: #94a3b8; font-size: 12px;">
+              <p style="margin: 0;">SOCIO Team | <a href="https://socio.christuniversity.in" style="color: #64748b; text-decoration: none;">socio.christuniversity.in</a></p>
+            </div>
           </div>
-          <p>See you there!</p>
-          <p>- The SOCIO Team</p>
-        </div>
+        </body>
+        </html>
       `,
+      text: `Registration Confirmed\n\nHi ${firstName}, you're all set for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nSee you there! 🎉\n\n---\n🚧 BETA PREVIEW\nThis is a preview version of SOCIO. We sincerely apologize for any inconvenience caused due to technical glitches. We're working hard to improve your experience every day.\n\nThank you for your patience and support! ❤️\n— With love, Team SOCIO\n---\n\nSOCIO Team\nhttps://socio.christuniversity.in`,
     });
 
     if (error) {
@@ -193,7 +218,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId) 
       return { success: false, error };
     }
 
-    console.log(`✉️ Registration email sent to ${email}`);
+    console.log(`Registration email sent to ${email}`);
     return { success: true, data };
   } catch (error) {
     console.error('Error sending registration email:', error);

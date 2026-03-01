@@ -1,8 +1,9 @@
 // components/Discover/EventCard.tsx
 import React from "react";
 import Link from "next/link";
-import moment from "moment";
+import { formatDate, formatTime } from "@/lib/dateUtils";
 import { useAuth } from "../../../context/AuthContext";
+import EventReminderButton from "../EventReminderButton";
 
 interface EventCardProps {
   title: string;
@@ -13,8 +14,10 @@ interface EventCardProps {
   location: string;
   tags: string[];
   image: string;
+  allowOutsiders?: boolean | null;
   baseUrl?: string;
   idForLink?: string;
+  authToken?: string;
 }
 
 export const EventCard = ({
@@ -26,27 +29,35 @@ export const EventCard = ({
   location,
   tags,
   image,
+  allowOutsiders,
   baseUrl = "event",
   idForLink,
+  authToken,
 }: EventCardProps) => {
   const { userData, isLoading: authLoading } = useAuth();
+
+  const isOutsiderUser = userData?.organization_type === "outsider";
+  const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
 
   const eventSlug = idForLink;
   // No longer generating slugs from title; always use the actual event_id
   const eventPageUrl = `/${baseUrl}/${eventSlug}`;
   const participantsPageUrl = `/event/${eventSlug}/participants`;
 
-  const displayDate = date
-    ? moment(date).format("MMM D, YYYY")
-    : "Date TBD";
-  const displayTime = time
-    ? moment(time, ["HH:mm:ss", "HH:mm"]).format("h:mm A")
-    : "Time TBD";
+  const displayDate = formatDate(date, "Date TBD");
+  const displayTime = formatTime(time, "Time TBD");
 
   return (
     <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transform transition duration-100 ease-in-out hover:scale-101 flex flex-col">
       <Link href={eventPageUrl} className="w-full block">
         <div className="relative h-40 bg-white">
+          {showOutsiderBadge && (
+            <div className="absolute top-2 left-2 z-10">
+              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#F59E0B] text-black shadow-sm">
+                PUBLIC
+              </span>
+            </div>
+          )}
           {tags.length > 0 && (
             <div className="absolute top-2 right-2 flex gap-2 z-10 items-center flex-wrap justify-end">
               {(tags || []).map((tag, index) => {
@@ -186,7 +197,7 @@ export const EventCard = ({
           </div>
         </div>
         {!authLoading && userData?.is_organiser ? (
-          <div className="mt-auto pt-2 border-t border-gray-200 flex gap-4">
+          <div className="mt-auto pt-2 border-t border-gray-200 flex flex-wrap gap-x-4 gap-y-2">
             <Link
               href={participantsPageUrl}
               className="inline-flex items-center gap-1 text-sm text-[#154CB3] font-semibold hover:underline"
@@ -232,6 +243,13 @@ export const EventCard = ({
               </svg>
               Mark Attendance
             </Link>
+            {authToken && baseUrl === "edit/event" && (
+              <EventReminderButton
+                eventId={eventSlug || ""}
+                eventTitle={title}
+                authToken={authToken}
+              />
+            )}
           </div>
         ) : (
           <Link

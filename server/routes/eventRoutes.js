@@ -41,8 +41,13 @@ router.get("/", async (req, res) => {
       prizes: Array.isArray(event.prizes)
         ? event.prizes
         : parseJsonField(event.prizes, []),
+      custom_fields: Array.isArray(event.custom_fields)
+        ? event.custom_fields
+        : parseJsonField(event.custom_fields, []),
     }));
 
+    // OPTIMIZATION: Cache for 5 minutes, allow stale content for 1 hour
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.status(200).json({ events: processedEvents });
   } catch (error) {
     console.error("Server error GET /api/events:", error);
@@ -82,8 +87,13 @@ router.get("/:eventId", async (req, res) => {
       prizes: Array.isArray(event.prizes)
         ? event.prizes
         : parseJsonField(event.prizes, []),
+      custom_fields: Array.isArray(event.custom_fields)
+        ? event.custom_fields
+        : parseJsonField(event.custom_fields, []),
     };
 
+    // OPTIMIZATION: Cache individual events for 5 minutes
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.status(200).json({ event: processedEvent });
   } catch (error) {
     console.error(`Server error GET /api/events/${req.params.eventId}:`, error);
@@ -235,6 +245,10 @@ router.post("/", multerUpload.fields([
         allow_outsiders: eventData.allowOutsiders === "true" || eventData.allow_outsiders === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(eventData.outsiderRegistrationFee || eventData.outsider_registration_fee, null),
         outsider_max_participants: parseOptionalInt(eventData.outsiderMaxParticipants || eventData.outsider_max_participants, null),
+        campus_hosted_at: eventData.campus_hosted_at || eventData.campusHostedAt || null,
+        allowed_campuses: Array.isArray(eventData.allowed_campuses)
+          ? eventData.allowed_campuses
+          : parseJsonField(eventData.allowed_campuses, []),
         schedule: Array.isArray(eventData.scheduleItems)
           ? eventData.scheduleItems
           : parseJsonField(eventData.scheduleItems, []),
@@ -244,6 +258,9 @@ router.post("/", multerUpload.fields([
         prizes: Array.isArray(eventData.prizes)
           ? eventData.prizes
           : parseJsonField(eventData.prizes, []),
+        custom_fields: Array.isArray(eventData.custom_fields)
+          ? eventData.custom_fields
+          : parseJsonField(eventData.custom_fields, []),
         event_image_url: event_image_url,
         banner_url: banner_url,
         pdf_url: pdf_url,
@@ -267,6 +284,9 @@ router.post("/", multerUpload.fields([
         prizes: Array.isArray(createdEvent.prizes)
           ? createdEvent.prizes
           : parseJsonField(createdEvent.prizes, []),
+        custom_fields: Array.isArray(createdEvent.custom_fields)
+          ? createdEvent.custom_fields
+          : parseJsonField(createdEvent.custom_fields, []),
       };
 
       return res.status(201).json({

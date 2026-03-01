@@ -33,14 +33,28 @@ export function generateQRCodeData(registrationId, eventId, participantEmail) {
  */
 export async function generateQRCodeImage(qrData) {
   try {
-    const qrString = JSON.stringify(qrData);
+    // If qrData has a gated_verify_url, use that as the QR content (Gated gate-entry QR)
+    // If qrData has a simple_qr string, use that (Christ member QR)
+    // Otherwise, stringify the full object (legacy SOCIO attendance QR)
+    let qrString;
+    let qrColor = '#154CB3'; // Default brand blue
+
+    if (qrData.gated_verify_url) {
+      qrString = qrData.gated_verify_url;
+      qrColor = '#092987'; // Gated Deep Blue for outsider gate passes
+    } else if (qrData.simple_qr) {
+      qrString = qrData.simple_qr;
+    } else {
+      qrString = JSON.stringify(qrData);
+    }
+
     const qrCodeOptions = {
       errorCorrectionLevel: 'M',
       type: 'image/png',
       quality: 0.92,
       margin: 1,
       color: {
-        dark: '#154CB3', // Brand blue
+        dark: qrColor,
         light: '#FFFFFF'
       },
       width: 256

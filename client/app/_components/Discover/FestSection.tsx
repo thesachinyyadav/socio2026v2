@@ -1,7 +1,7 @@
 import React from "react";
 import { FestCard } from "./FestCard";
 import { SectionHeader } from "./SectionHeader";
-import moment from "moment";
+import { formatDateRange } from "@/lib/dateUtils";
 
 interface Fest {
   fest_id: number;
@@ -31,18 +31,14 @@ export const FestsSection = ({
     <div>
       <SectionHeader title={title} link="fests" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
         {fests.map((fest) => (
           <div key={fest.fest_id}>
             <FestCard
               title={fest.fest_title}
               dept={fest.organizing_dept}
               description={fest.description}
-              dateRange={
-                moment(fest.opening_date).format("MMM DD, YYYY") +
-                " - " +
-                moment(fest.closing_date).format("MMM DD, YYYY")
-              }
+              dateRange={formatDateRange(fest.opening_date, fest.closing_date)}
               image={fest.fest_image_url}
               baseUrl={baseUrl}
             />

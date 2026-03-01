@@ -17,7 +17,7 @@ export default function TermsOfService() {
           <div className="bg-[#063168] py-6 px-8">
             <h1 className="text-3xl font-bold text-white">Terms of Service</h1>
             <p className="mt-2 text-blue-100">
-              Last updated: September 22, 2025
+              Last updated: January 30, 2026
             </p>
           </div>
 
@@ -45,8 +45,8 @@ export default function TermsOfService() {
               </div>
               <p>
                 These Terms of Service ("Terms") govern your access to and use of Socio, a platform designed 
-                for university students to discover and engage with campus events and activities. By accessing 
-                or using Socio, you agree to be bound by these Terms. If you do not agree to these Terms, 
+                for university students to discover and engage with campus events and activities. By logging in, 
+                accessing, or using Socio, you agree to be bound by these Terms. If you do not agree to these Terms, 
                 please do not access or use Socio.
               </p>
             </div>

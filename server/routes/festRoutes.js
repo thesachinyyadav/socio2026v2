@@ -10,6 +10,7 @@ import {
   requireOwnership 
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
+import { pushFestToGated, isGatedEnabled } from "../utils/gatedSync.js";
 
 const router = express.Router();
 
@@ -37,7 +38,11 @@ const mapFestResponse = (fest) => {
     return {
       ...fest,
       department_access: normalizeJsonField(fest.department_access),
-      event_heads: normalizeJsonField(fest.event_heads)
+      event_heads: normalizeJsonField(fest.event_heads),
+      timeline: normalizeJsonField(fest.timeline),
+      sponsors: normalizeJsonField(fest.sponsors),
+      social_links: normalizeJsonField(fest.social_links),
+      faqs: normalizeJsonField(fest.faqs)
     };
   } catch (error) {
     console.error("Error mapping fest response:", error.message, fest);
@@ -56,6 +61,8 @@ router.get("/", async (req, res) => {
     console.log(`Found ${fests?.length || 0} fests`);
     
     const processedFests = (fests || []).map(mapFestResponse);
+    // OPTIMIZATION: Cache for 5 minutes, allow stale content for 1 hour
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.status(200).json({ fests: processedFests });
   } catch (error) {
     console.error("Error fetching fests:", error);
@@ -83,6 +90,8 @@ router.get("/:festId", async (req, res) => {
       return res.status(404).json({ error: `Fest with ID (slug) '${festSlug}' not found.` });
     }
 
+    // OPTIMIZATION: Cache individual fests for 5 minutes
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.status(200).json({ fest: mapFestResponse(fest) });
   } catch (error) {
     console.error("Error fetching fest:", error);
@@ -147,7 +156,18 @@ router.post(
       contact_phone: festData.contactPhone || festData.contact_phone || "",
       event_heads: festData.eventHeads || festData.event_heads || [],
       created_by: festData.createdBy || festData.created_by || req.userInfo?.email || req.userId,
-      auth_uuid: req.userId
+      auth_uuid: req.userId,
+      // New enhanced fest fields
+      venue: festData.venue || null,
+      status: festData.status || "upcoming",
+      registration_deadline: festData.registration_deadline || null,
+      timeline: festData.timeline || [],
+      sponsors: festData.sponsors || [],
+      social_links: festData.social_links || [],
+      faqs: festData.faqs || [],
+      campus_hosted_at: festData.campus_hosted_at || festData.campusHostedAt || null,
+      allowed_campuses: festData.allowed_campuses || festData.allowedCampuses || [],
+      allow_outsiders: festData.allow_outsiders === true || festData.allow_outsiders === 'true' || festData.allowOutsiders === true || festData.allowOutsiders === 'true' ? true : false,
     };
 
   const inserted = await insert("fest", [festPayload]);
@@ -159,16 +179,16 @@ router.post(
       if (head && head.email) {
         try {
           // Find the user by email
-          const user = await queryOne("user", { where: { email: head.email } });
+          const user = await queryOne("users", { where: { email: head.email } });
           if (user) {
             // Update user's organiser status with expiration
-            await update("user", { 
+            await update("users", { 
               is_organiser: true,
               organiser_expires_at: head.expiresAt || null
             }, { email: head.email });
-            console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+            console.log(`Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
           } else {
-            console.log(`⚠ User ${head.email} not found, will be granted access when they sign up`);
+            console.log(`User ${head.email} not found, will be granted access when they sign up`);
           }
         } catch (userError) {
           console.error(`Error updating organiser status for ${head.email}:`, userError);
@@ -178,8 +198,8 @@ router.post(
 
     // Send notifications to all users about the new fest (non-blocking)
     sendBroadcastNotification({
-      title: '🎊 New Fest Announced!',
-      message: `${festPayload.fest_title} - Don't miss this fest!`,
+      title: 'New Fest Announced',
+      message: `${festPayload.fest_title} — Don't miss this fest!`,
       type: 'info',
       event_id: fest_id,
       event_title: festPayload.fest_title,
@@ -189,6 +209,19 @@ router.post(
     }).catch((notifError) => {
       console.error('❌ Failed to send fest notifications:', notifError);
     });
+
+    // Push to UniversityGated if outsiders are enabled (non-blocking)
+    if (isGatedEnabled() && festPayload.allow_outsiders) {
+      pushFestToGated(
+        festPayload,
+        req.userInfo?.email || festPayload.created_by,
+        req.userInfo?.name || 'SOCIO Organiser'
+      ).then(() => {
+        console.log(`✅ Pushed fest "${festPayload.fest_title}" to UniversityGated`);
+      }).catch((gatedError) => {
+        console.error(`❌ Failed to push fest to Gated:`, gatedError.message);
+      });
+    }
 
     return res.status(201).json({
       message: "Fest created successfully",
@@ -261,7 +294,18 @@ router.put(
       ["contact_email", updateData.contact_email ?? updateData.contactEmail],
       ["contact_phone", updateData.contact_phone ?? updateData.contactPhone],
       ["department_access", updateData.department_access ?? updateData.departmentAccess],
-      ["event_heads", updateData.event_heads ?? updateData.eventHeads]
+      ["event_heads", updateData.event_heads ?? updateData.eventHeads],
+      // New enhanced fest fields
+      ["venue", updateData.venue],
+      ["status", updateData.status],
+      ["registration_deadline", updateData.registration_deadline],
+      ["timeline", updateData.timeline],
+      ["sponsors", updateData.sponsors],
+      ["social_links", updateData.social_links],
+      ["faqs", updateData.faqs],
+      ["campus_hosted_at", updateData.campus_hosted_at ?? updateData.campusHostedAt],
+      ["allowed_campuses", updateData.allowed_campuses ?? updateData.allowedCampuses],
+      ["allow_outsiders", updateData.allow_outsiders !== undefined ? (updateData.allow_outsiders === true || updateData.allow_outsiders === 'true') : (updateData.allowOutsiders !== undefined ? (updateData.allowOutsiders === true || updateData.allowOutsiders === 'true') : undefined)],
     ];
 
     for (const [key, value] of mapFields) {
@@ -292,8 +336,13 @@ router.put(
       }
       
       try {
-        // Update notifications that reference this fest (only update event_id)
-        await update("notifications", { event_id: newFestId }, { event_id: festId });
+        // Update notifications: event_id, event_title, and action_url so links stay valid
+        const updatedTitle = newTitle?.trim() || existingFest.fest_title;
+        await update("notifications", { 
+          event_id: newFestId, 
+          event_title: updatedTitle,
+          action_url: `/fest/${newFestId}` 
+        }, { event_id: festId });
         console.log(`Updated notifications from fest_id '${festId}' to '${newFestId}'`);
       } catch (notifError) {
         console.log(`No notifications to update or error: ${notifError.message}`);
@@ -303,22 +352,38 @@ router.put(
     const updated = await update("fest", updatePayload, { fest_id: festId });
     const updatedFest = updated?.[0];
 
+    // Push to UniversityGated if outsiders are now enabled (non-blocking)
+    if (isGatedEnabled() && updatedFest) {
+      const outsidersEnabled = updatedFest.allow_outsiders === true || updatedFest.allow_outsiders === 'true';
+      if (outsidersEnabled) {
+        pushFestToGated(
+          updatedFest,
+          req.userInfo?.email || updatedFest.created_by,
+          req.userInfo?.name || 'SOCIO Organiser'
+        ).then(() => {
+          console.log(`✅ Pushed updated fest "${updatedFest.fest_title}" to UniversityGated`);
+        }).catch((gatedError) => {
+          console.error(`❌ Failed to push updated fest to Gated:`, gatedError.message);
+        });
+      }
+    }
+
     // Grant organiser access to event heads with expiration dates
     const eventHeads = updateData.eventHeads || updateData.event_heads || [];
     for (const head of eventHeads) {
       if (head && head.email) {
         try {
           // Find the user by email
-          const user = await queryOne("user", { where: { email: head.email } });
+          const user = await queryOne("users", { where: { email: head.email } });
           if (user) {
             // Update user's organiser status with expiration
-            await update("user", { 
+            await update("users", { 
               is_organiser: true,
               organiser_expires_at: head.expiresAt || null
             }, { email: head.email });
-            console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+            console.log(`Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
           } else {
-            console.log(`⚠ User ${head.email} not found, will be granted access when they sign up`);
+            console.log(`User ${head.email} not found, will be granted access when they sign up`);
           }
         } catch (userError) {
           console.error(`Error updating organiser status for ${head.email}:`, userError);

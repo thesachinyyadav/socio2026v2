@@ -3,7 +3,7 @@
 import React, { useState, useEffect, memo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
 
 export interface Notification {
   id: string;
@@ -31,6 +31,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const { userData, session } = useAuth();
 
   // OPTIMIZATION: Memoize fetchNotifications with useCallback
@@ -59,8 +60,14 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           setNotifications(newNotifications);
         }
         
-        setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
+        // Use server-provided unread count (accurate across all pages)
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount);
+        } else {
+          setUnreadCount(newNotifications.filter((n: Notification) => !n.read).length);
+        }
         setHasMore(data.pagination?.hasMore || false);
+        setTotalPages(data.pagination?.totalPages || 1);
         setCurrentPage(page);
       }
     } catch (error) {
@@ -87,7 +94,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
   // OPTIMIZATION: Memoize markAsRead with useCallback
   const markAsRead = useCallback(async (notificationId: string) => {
-    if (!session?.access_token) return;
+    if (!session?.access_token || !userData?.email) return;
 
     try {
       const response = await fetch(
@@ -97,7 +104,8 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json"
-          }
+          },
+          body: JSON.stringify({ email: userData.email })
         }
       );
 
@@ -112,7 +120,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, userData?.email]);
 
   // OPTIMIZATION: Memoize markAllAsRead with useCallback
   const markAllAsRead = useCallback(async () => {
@@ -141,12 +149,19 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     }
   }, [session?.access_token, userData?.email]);
 
-  const deleteNotification = async (notificationId: string) => {
-    if (!session?.access_token) return;
+  const clearAllNotifications = useCallback(async () => {
+    if (!session?.access_token || !userData?.email) return;
+
+    // Optimistically clear UI
+    setNotifications([]);
+    setUnreadCount(0);
+    setCurrentPage(1);
+    setTotalPages(1);
+    setHasMore(false);
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/notifications/${notificationId}`,
+      await fetch(
+        `${API_URL}/api/notifications/clear-all?email=${encodeURIComponent(userData.email)}`,
         {
           method: "DELETE",
           headers: {
@@ -154,19 +169,38 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           },
         }
       );
+    } catch (error) {
+      console.error("Error clearing notifications:", error);
+      // Refetch on failure to restore
+      fetchNotifications();
+    }
+  }, [session?.access_token, userData?.email, fetchNotifications]);
 
-      if (response.ok) {
-        setNotifications(prev => {
-          const notification = prev.find(n => n.id === notificationId);
-          const newNotifications = prev.filter(n => n.id !== notificationId);
-          if (notification && !notification.read) {
-            setUnreadCount(count => Math.max(0, count - 1));
-          }
-          return newNotifications;
-        });
-      }
+  const deleteNotification = async (notificationId: string) => {
+    if (!session?.access_token) return;
+
+    // Optimistically remove from UI immediately
+    const removedNotification = notifications.find(n => n.id === notificationId);
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    if (removedNotification && !removedNotification.read) {
+      setUnreadCount(count => Math.max(0, count - 1));
+    }
+
+    try {
+      const emailParam = userData?.email ? `?email=${encodeURIComponent(userData.email)}` : '';
+      await fetch(
+        `${API_URL}/api/notifications/${notificationId}${emailParam}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
     } catch (error) {
       console.error("Error deleting notification:", error);
+      // Refetch on failure to restore
+      fetchNotifications();
     }
   };
 
@@ -175,8 +209,15 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       markAsRead(notification.id);
     }
     
+    setIsOpen(false);
+
     if (notification.actionUrl) {
       window.location.href = notification.actionUrl;
+    } else if (notification.eventId) {
+      // Fallback: navigate using eventId directly
+      // Check if it looks like a fest or event based on notification title
+      const isFest = notification.title?.toLowerCase().includes('fest');
+      window.location.href = isFest ? `/fest/${notification.eventId}` : `/event/${notification.eventId}`;
     }
   };
 
@@ -211,14 +252,18 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
   };
 
   const formatRelativeTime = (dateString: string) => {
+    if (!dateString) return "";
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+    if (diffInSeconds < 0) return "Just now";
     if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hr ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   };
 
   return (
@@ -233,7 +278,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M15 17h5l-5 5v-5zM10.07 14C10.28 14 10.5 14.22 10.5 14.5s-.22.5-.5.5-.5-.22-.5-.5.22-.5.43-.5M12 3a7.5 7.5 0 0 1 7.5 7.5c0 .274-.014.543-.04.81L12 18.5 4.54 11.31c-.026-.267-.04-.536-.04-.81A7.5 7.5 0 0 1 12 3z"
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
           />
         </svg>
         {unreadCount > 0 && (
@@ -253,98 +298,141 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           />
           
           {/* Notification Panel */}
-          <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-20 max-h-96 overflow-hidden flex flex-col">
+          <div className="absolute right-0 top-full mt-3 w-[340px] sm:w-[420px] bg-white rounded-2xl shadow-2xl border border-gray-100/80 z-20 max-h-[34rem] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="text-sm text-[#154CB3] hover:underline"
-                >
-                  Mark all read
-                </button>
-              )}
+            <div className="px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-[15px] font-bold text-gray-900">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <span className="text-[10px] bg-[#154CB3] text-white px-2 py-[3px] rounded-full font-semibold leading-none">
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+                {notifications.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-[11px] text-[#154CB3] hover:text-[#0e3a8a] font-semibold transition-colors"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    <button
+                      onClick={clearAllNotifications}
+                      className="text-[11px] text-gray-400 hover:text-red-500 font-medium transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Notifications List */}
             <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#154CB3]"></div>
+              {loading && notifications.length === 0 ? (
+                <div className="flex justify-center items-center py-16">
+                  <div className="animate-spin rounded-full h-7 w-7 border-2 border-gray-200 border-t-[#154CB3]"></div>
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM10.07 14C10.28 14 10.5 14.22 10.5 14.5s-.22.5-.5.5-.5-.22-.5-.5.22-.5.43-.5M12 3a7.5 7.5 0 0 1 7.5 7.5c0 .274-.014.543-.04.81L12 18.5 4.54 11.31c-.026-.267-.04-.536-.04-.81A7.5 7.5 0 0 1 12 3z" />
-                  </svg>
-                  <p>No notifications</p>
+                <div className="text-center py-16 px-6">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-50 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-400">You&apos;re all caught up</p>
+                  <p className="text-xs text-gray-300 mt-1">New notifications will appear here</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-gray-100/80">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                        !notification.read ? "bg-blue-50" : ""
+                      className={`group relative px-5 py-4 cursor-pointer transition-all duration-150 ${
+                        !notification.read 
+                          ? "bg-blue-50/30 hover:bg-blue-50/60" 
+                          : "hover:bg-gray-50/60"
                       }`}
                       onClick={() => handleNotificationClick(notification)}
                     >
-                      <div className="flex items-start space-x-3">
-                        {getNotificationIcon(notification.type)}
+                      {/* Unread indicator bar */}
+                      {!notification.read && (
+                        <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-[#154CB3] rounded-r-full" />
+                      )}
+                      
+                      <div className="flex items-start gap-3.5">
+                        {/* Icon with background circle */}
+                        <div className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                        
+                        {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className={`text-sm font-medium ${
-                              !notification.read ? "text-gray-900" : "text-gray-600"
+                          <div className="flex items-start justify-between gap-3">
+                            <p className={`text-[13px] leading-snug ${
+                              !notification.read ? "font-semibold text-gray-900" : "font-medium text-gray-700"
                             }`}>
                               {notification.title}
                             </p>
-                            <div className="flex items-center space-x-2 ml-2">
-                              {!notification.read && (
-                                <div className="w-2 h-2 bg-[#154CB3] rounded-full"></div>
-                              )}
-                              <span className="text-xs text-gray-500 whitespace-nowrap">
-                                {formatRelativeTime(notification.createdAt)}
-                              </span>
-                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(notification.id);
+                              }}
+                              className="text-gray-300 hover:text-red-400 transition-all flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5"
+                              title="Dismiss"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                          {notification.eventTitle && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Event: {notification.eventTitle}
-                            </p>
-                          )}
+                          
+                          <p className="text-[12px] text-gray-500 mt-1.5 leading-relaxed line-clamp-2">
+                            {notification.message}
+                          </p>
+                          
+                          <div className="flex items-center flex-wrap gap-2 mt-2.5">
+                            {notification.eventTitle && (
+                              <span className="inline-flex items-center text-[11px] text-[#154CB3] bg-blue-50 px-2.5 py-1 rounded-md font-medium">
+                                {notification.eventTitle}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-gray-400">
+                              {formatRelativeTime(notification.createdAt)}
+                            </span>
+                          </div>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
                   ))}
-                  
-                  {/* Load More Button */}
-                  {hasMore && (
-                    <div className="p-3 text-center border-t border-gray-100">
-                      <button
-                        onClick={loadMore}
-                        disabled={loading}
-                        className="text-sm text-[#154CB3] hover:underline disabled:opacity-50"
-                      >
-                        {loading ? 'Loading...' : 'Load more'}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
+
+            {/* Footer with pagination */}
+            {notifications.length > 0 && (
+              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between">
+                <span className="text-[11px] text-gray-400 font-medium">
+                  Page {currentPage} of {totalPages}
+                </span>
+                {hasMore ? (
+                  <button
+                    onClick={loadMore}
+                    disabled={loading}
+                    className="text-[11px] text-[#154CB3] hover:text-[#0e3a8a] font-semibold disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? 'Loading...' : 'Load more →'}
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-gray-300">End of notifications</span>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -408,3 +496,4 @@ export const createEventNotification = async (
 // OPTIMIZATION: Export memoized component
 export const NotificationSystem = memo(NotificationSystemComponent);
 export default NotificationSystem;
+

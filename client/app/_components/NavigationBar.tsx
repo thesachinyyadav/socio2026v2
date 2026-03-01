@@ -5,21 +5,14 @@ import Image from "next/image";
 import Logo from "@/app/logo.svg";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationSystem } from "./NotificationSystem";
-import { useState, useMemo, useCallback, memo } from "react";
 import TermsConsentModal from "./TermsConsentModal";
-import { useTermsConsent } from "@/context/TermsConsentContext";
-import { createBrowserClient } from "@supabase/ssr";
+import { useState, useEffect, useCallback, memo } from "react";
 
 // OPTIMIZATION: Move static data outside component to prevent recreation on every render
 const navigationLinks = [
   {
     name: "Home",
     href: "/",
-    dropdown: [
-      { name: "Dashboard", href: "/" },
-      { name: "Featured Events", href: "/#featured" },
-      { name: "Announcements", href: "/#announcements" }
-    ]
   },
   {
     name: "Discover",
@@ -54,30 +47,48 @@ function NavigationBar() {
   const { session, userData, isLoading, signInWithGoogle, signOut } = useAuth();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const { hasConsented, setHasConsented, checkConsentStatus } = useTermsConsent();
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const sessionDisplayName =
+    session?.user?.user_metadata?.full_name ||
+    session?.user?.user_metadata?.name ||
+    session?.user?.email?.split("@")[0] ||
+    "User";
+  const displayName = userData?.name || sessionDisplayName;
+  const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
+  const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [displayAvatar]);
+  
 
   // OPTIMIZATION: Memoize callbacks to prevent recreation on every render
-  const handleSignIn = useCallback(async (isSignUpButton = false) => {
-    setIsSignUp(isSignUpButton);
-    
-    if (isSignUpButton && !checkConsentStatus()) {
-      setShowTermsModal(true);
-      return;
+  const handleSignIn = useCallback(async () => {
+    setIsSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Sign in error:', error);
+      setIsSigningIn(false);
     }
-    
-    await signInWithGoogle();
-  }, [checkConsentStatus, signInWithGoogle]);
+  }, [signInWithGoogle]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
   }, [signOut]);
 
+  const handleSignUpClick = useCallback(() => {
+    if (!isSigningIn) {
+      setShowTermsModal(true);
+    }
+  }, [isSigningIn]);
+
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      window.location.href = `/Discover?search=${encodeURIComponent(searchQuery.trim())}`;
+      window.location.href = `/events?search=${encodeURIComponent(searchQuery.trim())}`;
     }
   }, [searchQuery]);
 
@@ -85,43 +96,8 @@ function NavigationBar() {
     setActiveDropdown(linkName);
   }, []);
 
-  // OPTIMIZATION: Memoize loading state JSX
-  const loadingView = useMemo(() => (
-    <>
-      <nav className="w-full flex justify-between items-center pt-8 pb-7 px-12 text-[#154CB3] select-none">
-        <div className="h-10 w-24"></div>
-        <div className="h-10 w-24"></div>
-      </nav>
-      <hr className="border-[#3030304b]" />
-    </>
-  ), []);
-
-  if (isLoading) {
-    return loadingView;
-  }
-
-  const handleTermsAccept = async () => {
-    setHasConsented(true);
-    setShowTermsModal(false);
-    
-    // After accepting terms, trigger the sign in
-    await signInWithGoogle();
-  };
-  
-  const handleTermsDecline = () => {
-    setShowTermsModal(false);
-    // Reset isSignUp state
-    setIsSignUp(false);
-  };
-
   return (
     <>
-      {showTermsModal && (
-        <TermsConsentModal 
-          onAccept={handleTermsAccept}
-          onDecline={handleTermsDecline}
-        />
-      )}
       <nav className="w-full flex items-center pt-8 pb-7 px-6 md:px-12 text-[#154CB3] select-none relative">
         {/* Logo */}
         <div className="flex-shrink-0">
@@ -154,7 +130,7 @@ function NavigationBar() {
                 </Link>
                 
                 {/* Dropdown Menu */}
-                {activeDropdown === link.name && (
+                {activeDropdown === link.name && link.dropdown && (
                   <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
                     {link.dropdown.map((item) => (
                       <Link
@@ -197,8 +173,13 @@ function NavigationBar() {
 
           {/* Auth Buttons */}
           <div className="flex gap-3 items-center">
-            {session && userData ? (
-              userData.is_organiser || (userData as any).is_masteradmin ? (
+            {isLoading && !session ? (
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-20 rounded-full bg-gray-200 animate-pulse" />
+                <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
+              </div>
+            ) : session ? (
+              userData && (userData.is_organiser || (userData as any).is_masteradmin) ? (
                 <div className="flex gap-4 items-center">
                   <NotificationSystem />
                   {(userData as any).is_masteradmin && (
@@ -215,60 +196,46 @@ function NavigationBar() {
                       </button>
                     </Link>
                   )}
-                  {userData.course && (
-                    <Link href="/profile">
-                      <div className="flex items-center gap-4">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                          {userData?.avatar_url ? (
-                            <Image
-                              src={userData.avatar_url}
-                              alt="Profile"
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
-                              {userData?.name
-                                ? userData.name.charAt(0).toUpperCase()
-                                : "U"}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  )}
-                  {!userData.course && (
-                    <button
-                      onClick={handleSignOut}
-                      className="cursor-pointer font-semibold px-4 py-2 border-2 border-[#d6392b] hover:border-[#d6392b] hover:bg-[#d6392bdd] transition-all duration-200 ease-in-out text-sm rounded-full text-white bg-[#d6392b]"
-                    >
-                      Log out
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex gap-4 items-center">
-                  <NotificationSystem />
                   <Link href="/profile">
                     <div className="flex items-center gap-4">
-                      <span className="font-medium">
-                        {userData?.name || "User"}
-                      </span>
                       <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                        {userData?.avatar_url ? (
-                          <Image
-                            src={userData.avatar_url}
+                        {displayAvatar && !avatarLoadError ? (
+                          <img
+                            src={displayAvatar}
                             alt="Profile"
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            className="w-full h-full object-cover"
+                            onError={() => setAvatarLoadError(true)}
+                            referrerPolicy="no-referrer"
                           />
                         ) : (
                           <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
-                            {userData?.name
-                              ? userData.name.charAt(0).toUpperCase()
-                              : "U"}
+                            {avatarInitial}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex gap-4 items-center">
+                  {userData && <NotificationSystem />}
+                  <Link href="/profile">
+                    <div className="flex items-center gap-4">
+                      <span className="font-medium">
+                        {displayName}
+                      </span>
+                      <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
+                        {displayAvatar && !avatarLoadError ? (
+                          <img
+                            src={displayAvatar}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                            onError={() => setAvatarLoadError(true)}
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white text-sm">
+                            {avatarInitial}
                           </div>
                         )}
                       </div>
@@ -277,25 +244,46 @@ function NavigationBar() {
                 </div>
               )
             ) : (
-              <>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleSignIn(false)}
-                  className="cursor-pointer font-semibold px-4 py-2 border-2 rounded-full text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out"
+                  onClick={handleSignIn}
+                  disabled={isSigningIn}
+                  className="cursor-pointer font-medium px-4 py-2 border-2 border-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-200 ease-in-out text-sm rounded-full text-[#154CB3] bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Log in
                 </button>
                 <button
-                  onClick={() => handleSignIn(true)}
-                  className="cursor-pointer font-semibold px-4 py-2 border-2 border-[#154CB3] hover:border-[#154cb3df] hover:bg-[#154cb3df] transition-all duration-200 ease-in-out text-sm rounded-full text-white bg-[#154CB3]"
+                  onClick={handleSignUpClick}
+                  disabled={isSigningIn}
+                  className="cursor-pointer font-semibold px-5 py-2 border-2 border-[#154CB3] bg-[#154CB3] hover:bg-[#0d3a8a] hover:border-[#0d3a8a] transition-all duration-200 ease-in-out text-sm rounded-full text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Sign up
+                  {isSigningIn ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>...</span>
+                    </>
+                  ) : (
+                    "Sign up"
+                  )}
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
       </nav>
       <hr className="border-[#3030304b]" />
+      {showTermsModal && (
+        <TermsConsentModal
+          onAccept={() => {
+            setShowTermsModal(false);
+            handleSignIn();
+          }}
+          onDecline={() => setShowTermsModal(false)}
+        />
+      )}
     </>
   );
 }

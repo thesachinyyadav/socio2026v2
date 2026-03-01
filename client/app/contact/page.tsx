@@ -2,10 +2,11 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import Footer from "../_components/Home/Footer";
 
 const ContactPage = () => {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -312,10 +313,14 @@ const ContactPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {teamMembers.map((member, index) => (
               <div key={index} className="text-center">
-                <div className="w-24 h-24 bg-[#154CB3] rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <span className="text-white text-2xl font-bold">
-                    {member.name.charAt(0)}
-                  </span>
+                <div className="w-24 h-24 rounded-full mx-auto mb-4 overflow-hidden">
+                  <Image
+                    src={member.image}
+                    alt={member.name}
+                    width={96}
+                    height={96}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <h3 className="text-lg font-bold text-gray-800 mb-1">
                   {member.name}
@@ -365,3 +370,4 @@ const ContactPage = () => {
 };
 
 export default ContactPage;
+
