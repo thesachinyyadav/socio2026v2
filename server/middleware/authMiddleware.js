@@ -167,8 +167,7 @@ export const requireMasterAdmin = (req, res, next) => {
 
   const isIpAllowed = allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp);
 
-  // If IP is allowed, AUTOMATICALLY grant Master Admin access
-  // This satisfies the request for "admin access only for this ip address"
+  // 1. IP Bypass / Elevation
   if (isIpAllowed) {
     if (!req.userInfo.is_masteradmin) {
       console.log(`[MasterAdmin] ⬆️  SUDO: Elevating ${req.userInfo.email} to Master Admin via IP match (${normalizedIp})`);
@@ -179,11 +178,16 @@ export const requireMasterAdmin = (req, res, next) => {
     return next();
   }
 
-  // If IP is NOT allowed, block even if the user is a Master Admin in the DB
-  // (Ensuring "admin access ONLY for this IP")
-  console.warn(`[MasterAdmin] ❌ Access denied for role: masteradmin from unauthorized IP: ${normalizedIp}`);
+  // 2. Role-based check (Allow any IP if they are already Master Admin)
+  if (req.userInfo.is_masteradmin) {
+    console.log(`[MasterAdmin] ✅ Access granted to ${req.userInfo.email} from non-whitelisted IP: ${normalizedIp}`);
+    return next();
+  }
+
+  // 3. Fallback: Deny access if not Master Admin and IP not allowed
+  console.warn(`[MasterAdmin] ❌ Access denied for ${req.userInfo.email} - Not a Master Admin and unauthorized IP: ${normalizedIp}`);
   return res.status(403).json({ 
-    error: 'Access denied: Master Admin actions are restricted to authorized IP addresses',
+    error: 'Access denied: Master Admin privileges required',
     debug: process.env.NODE_ENV === 'development' ? { clientIp: normalizedIp } : undefined
   });
 };
@@ -391,9 +395,15 @@ export const requireAdminIP = (req, res, next) => {
   console.log(`[IPRestriction] 🔍 Checking IP: ${normalizedIp} against [${allowedIps.join(', ')}]`);
 
   if (!allowedIps.includes(normalizedIp) && !allowedIps.includes(clientIp)) {
+    // If user is already a master admin, ALLOW access from this non-whitelisted IP
+    if (req.userInfo?.is_masteradmin) {
+      console.log(`[IPRestriction] ✅ Master Admin access allowed from non-whitelisted IP: ${normalizedIp}`);
+      return next();
+    }
+
     console.warn(`[IPRestriction] ❌ Access denied for IP: ${normalizedIp} (Raw: ${clientIp})`);
     return res.status(403).json({ 
-      error: 'Access denied: Unauthorized IP address',
+      error: 'Access denied: Master Admin privileges required or unauthorized IP address',
       debug: process.env.NODE_ENV === 'development' ? { clientIp: normalizedIp } : undefined
     });
   }

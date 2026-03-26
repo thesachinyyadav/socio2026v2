@@ -16,7 +16,7 @@ export const CategoryCard = ({ title, count, icon }: CategoryCardProps) => {
 
   return (
     <div
-      className="bg-[#F6F6F6] rounded-lg p-6 border border-gray-300 cursor-pointer transform transition duration-100 ease-in-out hover:scale-101"
+      className="bg-[#F6F6F6] rounded-lg p-6 border border-gray-300 cursor-pointer transform transition-all duration-300 ease-in-out hover:scale-104 hover:shadow-lg"
       onClick={handleCategoryClick}
     >
       <div className="flex flex-col">

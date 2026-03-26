@@ -16,6 +16,7 @@ const requireOrganiserOrAdmin = (req, res, next) => {
   const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
   const isIpAllowed = allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp);
 
+  // 1. IP Bypass / Elevation
   if (isIpAllowed) {
     if (!req.userInfo.is_masteradmin) {
       console.log(`[ReportAdmin] ⬆️  SUDO: Elevating ${req.userInfo.email} to Master Admin via IP match (${normalizedIp})`);
@@ -24,12 +25,12 @@ const requireOrganiserOrAdmin = (req, res, next) => {
     return next();
   }
 
-  // If not on allowed IP, user MUST be an organiser (and NOT a master admin, as they were handled above)
+  // 2. Role-based check (Allow if already Master Admin - regardless of IP)
   if (req.userInfo.is_masteradmin) {
-    console.warn(`[ReportAdmin] ❌ Master Admin access denied from unauthorized IP: ${normalizedIp}`);
-    return res.status(403).json({ error: "Access denied: Master Admin actions are restricted to authorized IP addresses" });
+    return next();
   }
 
+  // 3. Organiser check (For non-admins)
   if (!req.userInfo.is_organiser) {
     return res.status(403).json({ error: "Access denied: Organiser or Master Admin privileges required" });
   }

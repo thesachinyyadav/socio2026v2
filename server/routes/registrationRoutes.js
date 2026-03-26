@@ -10,11 +10,39 @@ import {
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
 import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled, pushEventToGated } from "../utils/gatedSync.js";
 import { sendRegistrationEmail } from "../utils/emailService.js";
+import { 
+  authenticateUser, 
+  getUserInfo, 
+  checkRoleExpiration, 
+  requireMasterAdmin 
+} from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // Get registrations for an event (or all registrations if no event_id)
-router.get("/registrations", async (req, res) => {
+router.get("/registrations", (req, res, next) => {
+  // If event_id is provided, it's likely a public check for a specific event's participants (less sensitive)
+  if (req.query.event_id) return next();
+
+  // If no event_id, we're fetching ALL registrations (Highly sensitive)
+  // Try IP-based simple auth first for Master Admin bypass
+  const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
+  const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
+
+  if (allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp)) {
+    return next();
+  }
+  
+  // Otherwise standard flow
+  return authenticateUser(req, res, () => {
+    getUserInfo()(req, res, () => {
+      checkRoleExpiration(req, res, () => {
+        requireMasterAdmin(req, res, next);
+      });
+    });
+  });
+}, async (req, res) => {
   try {
     const { event_id } = req.query;
     
