@@ -12,16 +12,6 @@ const ComingSoon = () => {
   useEffect(() => {
     if (!pageRef.current) return;
 
-    const elements = pageRef.current.querySelectorAll('h1, h2, p, .btn');
-    
-    gsap.from(elements, {
-      opacity: 0,
-      y: 30,
-      stagger: 0.2,
-      duration: 0.8,
-      ease: "power3.out",
-    });
-
     // Animation for the badge
     gsap.from('.badge', {
       scale: 0.8,
@@ -63,17 +53,17 @@ const ComingSoon = () => {
           backgroundSize: '200% 200%',
           animation: 'gradient-shift 5s ease infinite'
         }}>
-          SOCIO Mobile App Coming Soon
+          SOCIO Mobile App Launching Soon
         </h1>
         
         <div className="w-20 h-1 bg-[#FFCC00] mx-auto mb-8"></div>
         
         <h2 className="text-xl md:text-2xl text-[#063168] mb-4 font-medium">
-          We're putting the finishing touches on something amazing
+          Our full mobile experience is coming soon 🚀
         </h2>
         
         <p className="text-[#1e1e1eb6] text-base md:text-lg mb-8 max-w-2xl mx-auto">
-          The SOCIO mobile app is currently in beta testing. Our team is working hard to deliver a seamless experience for discovering, registering, and managing Christ University events across all campuses directly from your smartphone.
+          SOCIO mobile is in final preparation and will be available shortly. While we complete the launch, you can use the live demo app experience today.
         </p>
         
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-12">
@@ -92,10 +82,18 @@ const ComingSoon = () => {
           </Link>
           <button 
             onClick={() => router.push('/Discover')}
-            className="btn bg-white border-2 border-[#3D75BD] text-[#063168] hover:bg-[#3D75BD]/10 font-medium py-3 px-6 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
+            className="btn cursor-pointer bg-white border-2 border-[#3D75BD] text-[#063168] hover:bg-[#3D75BD]/10 font-medium py-3 px-6 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
           >
             Explore Events on Web
           </button>
+          <a
+            href={process.env.NEXT_PUBLIC_PWA_URL || '#'}
+            target="_blank"
+            rel="noreferrer"
+            className="btn bg-[#FFCC00] hover:bg-[#f7b500] text-[#063168] font-medium py-3 px-6 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
+          >
+            Open Demo App
+          </a>
         </div>
       </div>
       

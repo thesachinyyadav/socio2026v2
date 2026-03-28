@@ -48,9 +48,9 @@ export const EventCard = ({
   const displayTime = formatTime(time, "Time TBD");
 
   return (
-    <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transform transition duration-100 ease-in-out hover:scale-101 flex flex-col">
+    <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg shadow-md flex flex-col group">
       <Link href={eventPageUrl} className="w-full block">
-        <div className="relative h-40 bg-white">
+        <div className="relative h-40 overflow-hidden bg-white">
           {showOutsiderBadge && (
             <div className="absolute top-2 left-2 z-10">
               <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#F59E0B] text-black shadow-sm">
@@ -101,11 +101,14 @@ export const EventCard = ({
             </div>
           )}
           {image ? (
-            <img
-              src={image}
-              alt={title}
-              className="w-full h-full object-cover object-top relative z-0"
-            />
+            <>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#063168]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+              <img
+                src={image}
+                alt={title}
+                className="w-full h-full object-cover object-top relative z-0 transition-all duration-700 group-hover:scale-110"
+              />
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-white">
               <svg
@@ -131,7 +134,7 @@ export const EventCard = ({
       <div className="p-4 rounded-b-lg flex-grow flex flex-col justify-between">
         <div>
           <Link href={eventPageUrl} className="block">
-            <h3 className="text-lg font-bold mb-1 hover:underline truncate">
+            <h3 className="text-lg font-bold mb-1 hover:underline truncate group-hover:text-[#3D75BD] transition-colors duration-200">
               {title}
             </h3>
           </Link>
@@ -254,9 +257,9 @@ export const EventCard = ({
         ) : (
           <Link
             href={eventPageUrl}
-            className="items-center gap-1 text-sm text-[#154CB3] font-semibold hover:underline"
+            className="items-center gap-1 text-sm text-[#154CB3] font-semibold"
           >
-            <div className="mt-auto pt-2 border-t border-gray-200 flex items-center justify-between">
+            <div className="mt-auto pt-2 border-t border-gray-200 flex items-center justify-between group-hover:underline">
               View event
               <svg
                 xmlns="http://www.w3.org/2000/svg"
