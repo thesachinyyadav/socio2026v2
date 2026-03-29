@@ -165,7 +165,7 @@ const Hero = () => {
                border: '5px solid rgba(255, 255, 255, 0.7)'
              }}>
           <img 
-            src="https://bangalorestudy.com/static/media/Central.85c63a34.jpg"
+            src="/images/christuniversity.jpg"
             alt="Christ University Campus"
             className="w-full h-full object-cover transform transition-transform duration-10000 hover:scale-110"
           />

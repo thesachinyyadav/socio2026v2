@@ -10,15 +10,15 @@ const StoryPage = () => {
     {
       year: "2024",
       quarter: "Early",
-      title: "The Meeting",
-      description: "Sachin Yadav and Surya Vamshi, who had been conducting Python workshops for BBA students, met Meeth Shah. During those sessions, the idea for SOCIO sparked.",
+      title: "The Spark",
+      description: "Sachin Yadav and Surya Vamshi, conducting Python workshops for BBA students, realized students struggled to find and connect with campus events. The idea for SOCIO began taking shape.",
       icon: "meeting"
     },
     {
       year: "2024",
       quarter: "November", 
       title: "Incubation Pitch",
-      description: "The trio pitched their refined idea to Christ Incubation Consultation Foundation, where it was officially accepted and incubated.",
+      description: "Sachin and Surya pitched their refined idea to Christ Incubation Consultation Foundation, where it was officially accepted and incubated.",
       icon: "incubation"
     },
     {
@@ -177,8 +177,8 @@ const StoryPage = () => {
               <span className="text-[#FFCC00]">Campus Innovation</span>
             </h2>
             <p className="text-base sm:text-lg text-blue-100 mb-3 leading-relaxed">
-              SOCIO&apos;s story began in a BBA classroom. Sachin Yadav and Surya Vamshi were conducting
-              Python workshops for students when they met Meeth Shah -- and together, an idea was born.
+              SOCIO&apos;s story began in a BBA classroom where Sachin Yadav and Surya Vamshi were conducting
+              Python workshops for students. They noticed a real problem: students were missing events because information was scattered everywhere.
             </p>
             <p className="text-sm sm:text-base text-blue-200/80">
               What started as casual conversations about campus problems has grown into a platform
@@ -247,7 +247,7 @@ const StoryPage = () => {
                 />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
                   <p className="text-white text-center font-medium">
-                    The founding team: Sachin Yadav, Surya Vamshi, and Meeth Shah
+                    The SOCIO team: Sachin Yadav, Surya Vamshi, and the extended team
                   </p>
                 </div>
               </div>
@@ -260,8 +260,8 @@ const StoryPage = () => {
                   </h3>
                   <p className="text-gray-700 text-sm">
                     &quot;We were conducting Python workshops for BBA students when we noticed them
-                    struggling to find and connect with campus events. That&apos;s when we met Meeth Shah,
-                    and the conversations began.&quot;
+                    struggling to find and connect with campus events. That single observation sparked
+                    the idea for SOCIO – a platform that would solve this problem for students everywhere.&quot;
                   </p>
                   <p className="text-[#154CB3] font-medium text-sm mt-2">
                     — Sachin Yadav & Surya Vamshi

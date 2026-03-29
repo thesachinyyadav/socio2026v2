@@ -1,6 +1,12 @@
 import express from "express";
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, getUserInfo, checkRoleExpiration, requireOrganiser } from "../middleware/authMiddleware.js";
+import {
+  savePushSubscription,
+  disablePushSubscription,
+  sendPushToEmail,
+  sendPushToAll,
+} from "../utils/webPushService.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -8,6 +14,46 @@ const supabase = createClient(
 );
 
 const router = express.Router();
+
+// ─── PUSH SUBSCRIPTIONS ───────────────────────────────────────────────────────
+
+router.post("/notifications/push/subscribe", async (req, res) => {
+  try {
+    const { email, subscription } = req.body || {};
+    if (!email || !subscription) {
+      return res.status(400).json({ error: "email and subscription are required" });
+    }
+
+    const result = await savePushSubscription(email, subscription);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error || "Failed to save push subscription" });
+    }
+
+    return res.status(201).json({ message: "Push subscription saved" });
+  } catch (error) {
+    console.error("Error subscribing push notifications:", error);
+    return res.status(500).json({ error: "Failed to subscribe push notifications" });
+  }
+});
+
+router.delete("/notifications/push/unsubscribe", async (req, res) => {
+  try {
+    const { email, endpoint } = req.body || {};
+    if (!email || !endpoint) {
+      return res.status(400).json({ error: "email and endpoint are required" });
+    }
+
+    const result = await disablePushSubscription(email, endpoint);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error || "Failed to unsubscribe push notifications" });
+    }
+
+    return res.json({ message: "Push subscription removed" });
+  } catch (error) {
+    console.error("Error unsubscribing push notifications:", error);
+    return res.status(500).json({ error: "Failed to unsubscribe push notifications" });
+  }
+});
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +143,13 @@ router.post("/notifications/broadcast", async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    await sendPushToAll({
+      title,
+      body: message,
+      tag: data.id,
+      actionUrl: action_url || "/notifications",
+    });
 
     console.log(`[BROADCAST API] Created broadcast (id: ${data.id}): ${title}`);
     return res.status(201).json({ notification: data });
@@ -192,6 +245,13 @@ router.post(
         .single();
 
       if (error) throw error;
+
+      await sendPushToAll({
+        title: tpl.title,
+        body: tpl.message,
+        tag: data.id,
+        actionUrl: `/event/${event.event_id}`,
+      });
 
       console.log(`[EVENT-REMINDER] Organiser ${req.userInfo.email} sent "${template}" for event "${event.title}" (id: ${data.id})`);
       return res.status(201).json({ notification: data, template: template });
@@ -431,6 +491,14 @@ router.post("/notifications", async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    await sendPushToEmail(targetEmail, {
+      title,
+      body: message,
+      tag: notification.id,
+      actionUrl: action_url || "/notifications",
+    });
+
     return res.status(201).json({ notification });
 
   } catch (error) {
@@ -560,6 +628,13 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
       console.error('[BROADCAST] Insert error:', error);
       throw error;
     }
+
+    await sendPushToAll({
+      title,
+      body: message,
+      tag: data.id,
+      actionUrl: action_url || "/notifications",
+    });
 
     console.log(`[BROADCAST] Created 1 broadcast row (id: ${data.id}) — all users will see it`);
     return { success: true, notificationId: data.id };

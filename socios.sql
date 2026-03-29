@@ -2,7 +2,7 @@
 -- Generated: 2026-01-18
 -- This file concatenates all .sql files in the repository into a single file.
 
--- ===== File: server/supabase-schema.sql =====
+-- ===== File: server/supabase-schema.sql=====
 
 -- Drop existing tables if they exist (careful in production!)
 DROP TABLE IF EXISTS contact_messages CASCADE;

@@ -29,17 +29,6 @@ export default function TeamPage() {
       quote: "Great products solve real problems. We just happened to find ours on campus.",
       image: "/founder-surya-vamshi.jpg",
     },
-    {
-      name: "Meeth Shah",
-      role: "Co-Founder & Design Lead",
-      bio: "The visionary behind SOCIO's original concept. Pitched the idea during a college incubation program, brought Sachin and Surya onboard, and together they turned a classroom conversation into a working product through Christ Incubation Foundation. Now leads brand identity, UI/UX design, and the creative direction of the platform.",
-      skills: ["UI/UX Design", "Brand Identity", "Innovation", "Strategic Planning"],
-      email: "thesocio.blr@gmail.com",
-      linkedin: "https://www.linkedin.com/in/meeth-shah-75b182214/",
-      dribbble: "https://dribbble.com/meethshah",
-      quote: "The right idea, at the right time, with the right people -- that changes everything.",
-      image: "/founder-meeth-shah.jpg",
-    },
   ];
 
   const advisors = [
@@ -173,7 +162,7 @@ export default function TeamPage() {
             <div className="mt-4 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {founders.map((founder, i) => (
               <div
                 key={i}
@@ -273,19 +262,6 @@ export default function TeamPage() {
                       >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z" clipRule="evenodd" />
-                        </svg>
-                      </a>
-                    )}
-                    {founder.dribbble && (
-                      <a
-                        href={founder.dribbble}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-[#154CB3] hover:bg-[#154CB3] hover:text-white transition-all duration-300"
-                        title="Dribbble"
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 0C4.477 0 0 4.477 0 10c0 5.523 4.477 10 10 10 5.523 0 10-4.477 10-10C20 4.477 15.523 0 10 0zm6.231 4.75a8.32 8.32 0 011.562 4.939c-.263-.056-2.902-.574-5.569-.263-.059-.135-.133-.28-.213-.433 1.738-.71 3.118-1.644 4.22-4.243zm-1.44-1.46c-.956 2.345-2.176 3.118-3.684 3.687C9.97 4.222 8.446 2.614 6.197 1.904 7.413.72 9.17 0 11.07.02c1.955.02 3.706.687 4.72 3.27zm-7.19-1.233c2.326.665 3.849 2.154 4.925 4.74-1.686.447-3.482.632-5.949.632-.542 0-.832-.01-1.13-.02-.169-1.336-.169-2.672.154-5.352zm-.4 6.253c.309.01.618.01.96.01 2.406 0 4.15-.174 5.734-.608C12.18 11.388 10.51 14.52 8.11 16.655c-1.854-1.378-3.118-3.506-3.508-5.945zm5.734 7.121c1.995-2.135 3.486-4.907 4.654-8.413 2.096.281 3.994.665 5.425 1.183-.464 3.546-2.359 6.584-5.07 8.553-1.595-.458-3.214-.892-5.009-1.323z" clipRule="evenodd" />
                         </svg>
                       </a>
                     )}
