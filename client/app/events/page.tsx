@@ -215,10 +215,10 @@ const EventsPageContent = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <main className="container mx-auto px-4 pt-3 pb-8 sm:pt-4 sm:pb-10 max-w-7xl">
-        <div className="mb-8 sm:mb-10">
+      <main className="container mx-auto px-4 pt-2 pb-8 sm:pt-3 sm:pb-10 max-w-7xl">
+        <div className="mb-6 sm:mb-7">
           <div className="flex flex-row items-center justify-between gap-3">
-            <h1 className="text-3xl font-black text-[#154CB3] mb-1 mt-1 sm:mt-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#154CB3] mb-0 mt-0 sm:mt-1">
               Explore events
             </h1>
             <Link
@@ -242,11 +242,11 @@ const EventsPageContent = () => {
               Back to Discovery
             </Link>
           </div>
-          <p className="text-gray-500 mb-3 text-sm sm:text-base">
+          <p className="text-gray-500 mb-2 text-sm sm:text-base">
             Browse through all upcoming events happening on campus.
           </p>
 
-          <form onSubmit={handlePageSearchSubmit} className="mb-4 sm:mb-5 max-w-3xl">
+          <form onSubmit={handlePageSearchSubmit} className="mb-3 sm:mb-4 max-w-3xl">
             <label htmlFor="events-page-search" className="sr-only">
               Search events
             </label>
@@ -258,7 +258,7 @@ const EventsPageContent = () => {
                   placeholder="Search by title, venue, department, category, or fest"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-full border border-gray-300 px-4 py-2.5 pr-20 text-sm sm:text-base focus:outline-none focus:ring-1 focus:ring-[#154CB3] focus:border-[#154CB3]"
+                  className="w-full rounded-full border border-gray-300 px-4 py-2 pr-20 text-sm sm:text-base focus:outline-none focus:ring-1 focus:ring-[#154CB3] focus:border-[#154CB3]"
                 />
                 {searchQuery.trim() ? (
                   <button
@@ -289,34 +289,36 @@ const EventsPageContent = () => {
               </div>
               <button
                 type="submit"
-                className="rounded-full bg-[#154CB3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3f95] transition-colors cursor-pointer"
+                className="rounded-full bg-[#154CB3] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f3f95] transition-colors cursor-pointer"
               >
                 Search
               </button>
             </div>
           </form>
 
-          <div className="flex flex-wrap gap-2 mb-4 sm:mb-5">
-            {filterOptions.map((filter, index) => (
-              <button
-                key={index}
-                onClick={() => handleFilterClick(filter.name)}
-                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer touch-manipulation ${
-                  filter.active
-                    ? "bg-[#154CB3] text-white"
-                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
-                }`}
-              >
-                {filter.name}
-              </button>
-            ))}
-          </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3 sm:mb-4">
+          <div className="mb-3 sm:mb-4">
+            <div className="flex flex-wrap gap-1.5 mb-3 sm:mb-3.5">
+              {filterOptions.map((filter, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleFilterClick(filter.name)}
+                  className={`px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer touch-manipulation ${
+                    filter.active
+                      ? "bg-[#154CB3] text-white"
+                      : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+                  }`}
+                >
+                  {filter.name}
+                </button>
+              ))}
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-0">
               {`${
                 activeFilterName === "All" ? "All" : activeFilterName
               } events (${filteredEvents.length})`}
             </h2>
+          </div>
+          <div>
             {paginatedEvents.length > 0 ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
