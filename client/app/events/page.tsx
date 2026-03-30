@@ -216,14 +216,19 @@ const EventsPageContent = () => {
   return (
     <div className="min-h-screen bg-white">
       <main className="container mx-auto px-4 pt-2 pb-8 sm:pt-3 sm:pb-10 max-w-7xl">
-        <div className="mb-6 sm:mb-7">
-          <div className="flex flex-row items-center justify-between gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black text-[#154CB3] mb-0 mt-0 sm:mt-1">
-              Explore events
-            </h1>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-row items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-black text-[#154CB3] leading-tight">
+                Explore events
+              </h1>
+              <p className="text-gray-500 mt-1 text-sm sm:text-base">
+                Browse through all upcoming events happening on campus.
+              </p>
+            </div>
             <Link
               href="/Discover"
-              className="flex items-center text-[#063168] hover:underline cursor-pointer text-xs sm:text-base"
+              className="mt-1 flex items-center text-[#063168] hover:underline cursor-pointer text-xs sm:text-base shrink-0"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -242,67 +247,14 @@ const EventsPageContent = () => {
               Back to Discovery
             </Link>
           </div>
-          <p className="text-gray-500 mb-2 text-sm sm:text-base">
-            Browse through all upcoming events happening on campus.
-          </p>
 
-          <form onSubmit={handlePageSearchSubmit} className="mb-3 sm:mb-4 max-w-3xl">
-            <label htmlFor="events-page-search" className="sr-only">
-              Search events
-            </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <input
-                  id="events-page-search"
-                  type="text"
-                  placeholder="Search by title, venue, department, category, or fest"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-full border border-gray-300 px-4 py-2 pr-20 text-sm sm:text-base focus:outline-none focus:ring-1 focus:ring-[#154CB3] focus:border-[#154CB3]"
-                />
-                {searchQuery.trim() ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-xs font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                ) : (
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      className="h-4 w-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m21 21-4.35-4.35m1.6-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
-                      />
-                    </svg>
-                  </span>
-                )}
-              </div>
-              <button
-                type="submit"
-                className="rounded-full bg-[#154CB3] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f3f95] transition-colors cursor-pointer"
-              >
-                Search
-              </button>
-            </div>
-          </form>
-
-          <div className="mb-3 sm:mb-4">
-            <div className="flex flex-wrap gap-1.5 mb-3 sm:mb-3.5">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
+            <div className="order-2 lg:order-1 flex flex-wrap gap-2">
               {filterOptions.map((filter, index) => (
                 <button
                   key={index}
                   onClick={() => handleFilterClick(filter.name)}
-                  className={`px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer touch-manipulation ${
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer touch-manipulation ${
                     filter.active
                       ? "bg-[#154CB3] text-white"
                       : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
@@ -312,12 +264,66 @@ const EventsPageContent = () => {
                 </button>
               ))}
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-0">
-              {`${
-                activeFilterName === "All" ? "All" : activeFilterName
-              } events (${filteredEvents.length})`}
-            </h2>
+
+            <form
+              onSubmit={handlePageSearchSubmit}
+              className="order-1 lg:order-2 w-full lg:w-[420px] xl:w-[460px] lg:ml-6"
+            >
+              <label htmlFor="events-page-search" className="sr-only">
+                Search events
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    id="events-page-search"
+                    type="text"
+                    placeholder="Search by title, venue, department, category, or fest"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full rounded-full border border-gray-300 px-4 py-2.5 pr-20 text-sm sm:text-base focus:outline-none focus:ring-1 focus:ring-[#154CB3] focus:border-[#154CB3]"
+                  />
+                  {searchQuery.trim() ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-xs font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  ) : (
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        className="h-4 w-4"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="m21 21-4.35-4.35m1.6-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
+                        />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-full bg-[#154CB3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3f95] transition-colors cursor-pointer"
+                >
+                  Search
+                </button>
+              </div>
+            </form>
           </div>
+
+          <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3 sm:mb-4">
+            {`${
+              activeFilterName === "All" ? "All" : activeFilterName
+            } events (${filteredEvents.length})`}
+          </h2>
           <div>
             {paginatedEvents.length > 0 ? (
               <>
