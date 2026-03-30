@@ -36,6 +36,7 @@ type OrganiserRegistration = {
 };
 
 type BacktrackingView = "events" | "registrations";
+type BacktrackingScope = "all-events" | "organiser";
 
 type OrganiserHistoryModalProps = {
   isOpen: boolean;
@@ -155,6 +156,52 @@ const getTeamSize = (registration: OrganiserRegistration) => {
   return 1 + teammates.length;
 };
 
+const ORGANISER_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+type OrganiserTagMeta = {
+  value: string;
+  isValidEmail: boolean;
+  hasValue: boolean;
+};
+
+const getOrganiserTagMeta = (value?: string | null): OrganiserTagMeta => {
+  const normalized = (value || "").trim();
+
+  if (!normalized) {
+    return {
+      value: "Unknown organiser",
+      isValidEmail: false,
+      hasValue: false,
+    };
+  }
+
+  return {
+    value: normalized,
+    isValidEmail: ORGANISER_EMAIL_REGEX.test(normalized),
+    hasValue: true,
+  };
+};
+
+const getOrganiserTagClassName = (meta: OrganiserTagMeta) => {
+  if (meta.isValidEmail) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (meta.hasValue) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  return "border-slate-200 bg-slate-100 text-slate-600";
+};
+
+const getOrganiserTagText = (meta: OrganiserTagMeta) => {
+  if (meta.hasValue && !meta.isValidEmail) {
+    return `${meta.value} (unverified)`;
+  }
+
+  return meta.value;
+};
+
 export default function OrganiserHistoryModal({
   isOpen,
   organiserIdentifier,
@@ -167,6 +214,7 @@ export default function OrganiserHistoryModal({
   const [registrations, setRegistrations] = useState<OrganiserRegistration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<BacktrackingScope>("all-events");
   const [activeIdentifier, setActiveIdentifier] = useState("");
   const [activeView, setActiveView] = useState<BacktrackingView>("events");
   const [selectedEventId, setSelectedEventId] = useState("all");
@@ -210,6 +258,23 @@ export default function OrganiserHistoryModal({
     [applyAuthenticatedSession, supabase]
   );
 
+  const getAllEvents = useCallback(async () => {
+    await applyAuthenticatedSession();
+
+    const { data, error: fetchError } = await supabase
+      .from("events")
+      .select(
+        "event_id, title, event_date, event_time, venue, category, registration_fee, registration_deadline, fest, organizing_dept, created_by, created_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    return (data ?? []) as OrganiserEvent[];
+  }, [applyAuthenticatedSession, supabase]);
+
   const getRegistrationsByEventIds = useCallback(
     async (eventIds: string[]) => {
       if (eventIds.length === 0) {
@@ -239,12 +304,14 @@ export default function OrganiserHistoryModal({
     if (!isOpen) return;
 
     if (organiserIdentifier) {
+      setScope("organiser");
       setActiveIdentifier(organiserIdentifier);
       setSelectedEventId("all");
       setActiveView("events");
       return;
     }
 
+    setScope("all-events");
     setActiveIdentifier("");
     setSelectedEventId("all");
     setActiveView("events");
@@ -253,7 +320,7 @@ export default function OrganiserHistoryModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (!activeIdentifier) {
+    if (scope === "organiser" && !activeIdentifier) {
       setEvents([]);
       setRegistrations([]);
       setError(null);
@@ -267,7 +334,10 @@ export default function OrganiserHistoryModal({
       setError(null);
 
       try {
-        const result = await getEventsByOrganiser(activeIdentifier);
+        const result =
+          scope === "organiser"
+            ? await getEventsByOrganiser(activeIdentifier)
+            : await getAllEvents();
         const eventIds = result.map((event) => event.event_id).filter(Boolean);
         const registrationResult = await getRegistrationsByEventIds(eventIds);
 
@@ -279,7 +349,7 @@ export default function OrganiserHistoryModal({
         if (alive) {
           setEvents([]);
           setRegistrations([]);
-          setError(err?.message || "Failed to fetch organiser history");
+          setError(err?.message || "Failed to fetch event backtracking data");
         }
       } finally {
         if (alive) {
@@ -293,7 +363,14 @@ export default function OrganiserHistoryModal({
     return () => {
       alive = false;
     };
-  }, [isOpen, activeIdentifier, getEventsByOrganiser, getRegistrationsByEventIds]);
+  }, [
+    isOpen,
+    scope,
+    activeIdentifier,
+    getAllEvents,
+    getEventsByOrganiser,
+    getRegistrationsByEventIds,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -319,6 +396,17 @@ export default function OrganiserHistoryModal({
     setSelectedEventId("all");
     setActiveView("events");
     onOrganiserChange(identifier || null);
+  };
+
+  const handleScopeChange = (nextScope: BacktrackingScope) => {
+    setScope(nextScope);
+    setSelectedEventId("all");
+    setActiveView("events");
+
+    if (nextScope === "all-events") {
+      setActiveIdentifier("");
+      onOrganiserChange(null);
+    }
   };
 
   const filteredRegistrations = useMemo(() => {
@@ -368,7 +456,15 @@ export default function OrganiserHistoryModal({
   const registrationsByEvent = useMemo(() => {
     const grouped = new Map<
       string,
-      { eventId: string; title: string; count: number; latestAt: string; team: number; individual: number }
+      {
+        eventId: string;
+        title: string;
+        count: number;
+        latestAt: string;
+        team: number;
+        individual: number;
+        organiserEmail: string | null;
+      }
     >();
 
     filteredRegistrations.forEach((registration) => {
@@ -381,6 +477,7 @@ export default function OrganiserHistoryModal({
         latestAt: registration.created_at,
         team: 0,
         individual: 0,
+        organiserEmail: linkedEvent?.created_by || null,
       };
 
       current.count += 1;
@@ -388,6 +485,10 @@ export default function OrganiserHistoryModal({
         current.team += 1;
       } else {
         current.individual += 1;
+      }
+
+      if (!current.organiserEmail && linkedEvent?.created_by) {
+        current.organiserEmail = linkedEvent.created_by;
       }
 
       if (new Date(registration.created_at).getTime() > new Date(current.latestAt).getTime()) {
@@ -419,10 +520,12 @@ export default function OrganiserHistoryModal({
                 Event Backtracking
               </p>
               <h3 className="mt-1 text-lg font-bold text-slate-900">
-                Organiser Event History
+                {scope === "all-events" ? "All Events Backtracking" : "Organiser Event History"}
               </h3>
               <p className="mt-1 text-sm text-slate-500 break-all">
-                {activeIdentifier || "Select an organiser to view event history"}
+                {scope === "all-events"
+                  ? "Backtracking across all events without organiser filtering"
+                  : activeIdentifier || "Select an organiser to view event history"}
               </p>
             </div>
 
@@ -439,23 +542,67 @@ export default function OrganiserHistoryModal({
 
         <div className="px-6 py-5">
           <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <label htmlFor="organiser-history-select" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Choose organiser
-            </label>
-            <select
-              id="organiser-history-select"
-              value={activeIdentifier}
-              onChange={(event) => handleIdentifierChange(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#154CB3] focus:ring-2 focus:ring-[#154CB3]/20"
-            >
-              <option value="">Select an organiser</option>
-              {organiserOptions.map((identifier) => (
-                <option key={identifier} value={identifier}>
-                  {identifier}
-                </option>
-              ))}
-            </select>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Backtracking scope
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleScopeChange("all-events")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                  scope === "all-events"
+                    ? "bg-[#154CB3] text-white"
+                    : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                All Events
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScopeChange("organiser")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                  scope === "organiser"
+                    ? "bg-[#154CB3] text-white"
+                    : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                By Organiser
+              </button>
+            </div>
           </div>
+
+          {scope === "organiser" && (
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label htmlFor="organiser-history-select" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Choose organiser
+              </label>
+              <select
+                id="organiser-history-select"
+                value={activeIdentifier}
+                onChange={(event) => handleIdentifierChange(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#154CB3] focus:ring-2 focus:ring-[#154CB3]/20"
+              >
+                <option value="">Select an organiser</option>
+                {organiserOptions.map((identifier) => (
+                  <option key={identifier} value={identifier}>
+                    {identifier}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {scope === "organiser" && activeIdentifier && (
+            <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700 break-all">
+              Filtering events by organiser: <span className="font-semibold">{activeIdentifier}</span>
+            </div>
+          )}
+
+          {scope === "all-events" && (
+            <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              Showing platform-wide event history (all organisers).
+            </div>
+          )}
 
           <div className="mb-4 flex gap-2 rounded-xl border border-slate-200 bg-white p-1">
             <button
@@ -486,10 +633,12 @@ export default function OrganiserHistoryModal({
             <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-16">
               <div className="flex items-center gap-2 text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Fetching organiser events and registrations...
+                {scope === "organiser"
+                  ? "Fetching organiser events and registrations..."
+                  : "Fetching all events and registrations..."}
               </div>
             </div>
-          ) : !activeIdentifier ? (
+          ) : scope === "organiser" && !activeIdentifier ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-16 text-center">
               <History className="h-8 w-8 text-slate-300" />
               <p className="mt-3 text-base font-semibold text-slate-700">Choose an organiser</p>
@@ -504,9 +653,11 @@ export default function OrganiserHistoryModal({
           ) : activeView === "events" ? events.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-16 text-center">
               <History className="h-8 w-8 text-slate-300" />
-              <p className="mt-3 text-base font-semibold text-slate-700">No events created yet</p>
+              <p className="mt-3 text-base font-semibold text-slate-700">No events found</p>
               <p className="mt-1 text-sm text-slate-500">
-                This organiser does not have historical event records yet.
+                {scope === "organiser"
+                  ? "This organiser does not have historical event records yet."
+                  : "No event records are available for backtracking yet."}
               </p>
             </div>
           ) : (
@@ -514,6 +665,7 @@ export default function OrganiserHistoryModal({
               {events.map((event) => {
                 const status = getEventStatus(event.event_date);
                 const eventRegistrationCount = registrationCountByEvent.get(event.event_id) || 0;
+                const organiserTagMeta = getOrganiserTagMeta(event.created_by);
                 return (
                   <div
                     key={`${event.event_id}-${event.created_at}`}
@@ -536,6 +688,13 @@ export default function OrganiserHistoryModal({
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <span
+                        title={organiserTagMeta.value}
+                        className={`inline-flex max-w-full items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] ${getOrganiserTagClassName(organiserTagMeta)}`}
+                      >
+                        Organizer:
+                        <span className="max-w-[220px] truncate">{getOrganiserTagText(organiserTagMeta)}</span>
+                      </span>
                       <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
                         <CalendarDays className="h-3 w-3" />
                         {formatDate(event.event_date)}
@@ -603,7 +762,7 @@ export default function OrganiserHistoryModal({
                   onChange={(event) => setSelectedEventId(event.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#154CB3] focus:ring-2 focus:ring-[#154CB3]/20"
                 >
-                  <option value="all">All organiser events</option>
+                    <option value="all">All events in scope</option>
                   {events.map((event) => (
                     <option key={event.event_id} value={event.event_id}>
                       {event.title || "Untitled Event"}
@@ -637,27 +796,38 @@ export default function OrganiserHistoryModal({
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-sm font-semibold text-slate-900">Registrations by Event</p>
                     <div className="mt-3 space-y-2">
-                      {registrationsByEvent.map((grouped) => (
-                        <div key={grouped.eventId} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-900">{grouped.title}</p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {grouped.individual} individual · {grouped.team} team · Latest {formatDate(grouped.latestAt)}
-                              </p>
+                      {registrationsByEvent.map((grouped) => {
+                        const organiserTagMeta = getOrganiserTagMeta(grouped.organiserEmail);
+
+                        return (
+                          <div key={grouped.eventId} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">{grouped.title}</p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {grouped.individual} individual · {grouped.team} team · Latest {formatDate(grouped.latestAt)}
+                                </p>
+                                <span
+                                  title={organiserTagMeta.value}
+                                  className={`mt-1 inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] ${getOrganiserTagClassName(organiserTagMeta)}`}
+                                >
+                                  Organizer:
+                                  <span className="max-w-[220px] truncate">{getOrganiserTagText(organiserTagMeta)}</span>
+                                </span>
+                              </div>
+                              <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                {grouped.count}
+                              </span>
                             </div>
-                            <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-                              {grouped.count}
-                            </span>
+                            <Link
+                              href={`/event/${grouped.eventId}`}
+                              className="mt-2 inline-flex items-center text-xs font-semibold text-[#154CB3] hover:underline"
+                            >
+                              Open event details
+                            </Link>
                           </div>
-                          <Link
-                            href={`/event/${grouped.eventId}`}
-                            className="mt-2 inline-flex items-center text-xs font-semibold text-[#154CB3] hover:underline"
-                          >
-                            Open event details
-                          </Link>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -670,6 +840,7 @@ export default function OrganiserHistoryModal({
                         const registrantName = getRegistrantName(registration);
                         const registrantEmail = getRegistrantEmail(registration);
                         const teamSize = getTeamSize(registration);
+                        const organiserTagMeta = getOrganiserTagMeta(linkedEvent?.created_by);
 
                         return (
                           <div
@@ -683,6 +854,13 @@ export default function OrganiserHistoryModal({
                                 <p className="mt-1 text-[11px] text-slate-500">
                                   {(linkedEvent?.title || "Unknown Event")} · Registered on {formatDate(registration.created_at)}
                                 </p>
+                                <span
+                                  title={organiserTagMeta.value}
+                                  className={`mt-1 inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] ${getOrganiserTagClassName(organiserTagMeta)}`}
+                                >
+                                  Organizer:
+                                  <span className="max-w-[220px] truncate">{getOrganiserTagText(organiserTagMeta)}</span>
+                                </span>
                               </div>
                               <span
                                 className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
