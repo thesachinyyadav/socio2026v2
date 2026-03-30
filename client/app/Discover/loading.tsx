@@ -16,9 +16,9 @@ export default function Loading() {
               <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-gray-50 rounded-lg overflow-hidden border-2 border-gray-200">
+                <div key={i} className="bg-gray-50 rounded-lg overflow-hidden border-2 border-gray-200 min-w-0 h-full">
                   <div className="h-40 bg-gray-200 animate-pulse"></div>
                   <div className="p-4 space-y-3">
                     <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse"></div>

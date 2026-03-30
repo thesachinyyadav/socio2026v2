@@ -16,10 +16,10 @@ export const CategoryCard = ({ title, count, icon }: CategoryCardProps) => {
 
   return (
     <div
-      className="bg-[#F6F6F6] rounded-lg p-6 border border-gray-300 cursor-pointer transform transition-all duration-300 ease-in-out hover:scale-104 hover:shadow-lg"
+      className="bg-[#F6F6F6] rounded-lg p-4 sm:p-5 border border-gray-300 cursor-pointer transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-lg w-full h-full min-w-0"
       onClick={handleCategoryClick}
     >
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-0">
         <div className="w-12 h-12 rounded-lg text-[#154CB3] flex items-center justify-center">
           {icon === "academic" && (
             <svg
@@ -137,7 +137,7 @@ export const CategoryCard = ({ title, count, icon }: CategoryCardProps) => {
           )}
         </div>
         <div>
-          <h3 className="font-semibold text-[#063168] text-xl">{title}</h3>
+          <h3 className="font-semibold text-[#063168] text-lg sm:text-xl break-words">{title}</h3>
           <p className="text-sm text-gray-500">{count}</p>
         </div>
       </div>

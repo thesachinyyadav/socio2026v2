@@ -41,9 +41,9 @@ const UpcomingEvents = () => {
       });
 
       const onMouseEnter = () =>
-        gsap.to(card, { scale: 1.03, duration: 0.3, ease: "power2.out" });
+        gsap.to(card, { y: -4, duration: 0.25, ease: "power2.out" });
       const onMouseLeave = () =>
-        gsap.to(card, { scale: 1, duration: 0.3, ease: "power2.out" });
+        gsap.to(card, { y: 0, duration: 0.25, ease: "power2.out" });
 
       card.addEventListener("mouseenter", onMouseEnter);
       card.addEventListener("mouseleave", onMouseLeave);
@@ -108,7 +108,7 @@ const UpcomingEvents = () => {
       <p className="mt-1 text-[#1e1e1e8e] text-base sm:text-lg font-medium text-center px-4">
         Here's a glimpse of what's next. Don't miss out!
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 md:gap-12 mt-8 sm:mt-12 w-full px-4 sm:px-8 md:px-16 lg:px-28">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 mt-8 sm:mt-12 w-full px-4 sm:px-6 lg:px-8">
         {upcomingEvents.map((event: ContextEventForCard) => {
           const eventCardData = {
             title: event.title,
@@ -123,7 +123,7 @@ const UpcomingEvents = () => {
           };
 
           return (
-            <div className="event-card-wrapper" key={event.event_id}>
+            <div className="event-card-wrapper min-w-0 h-full" key={event.event_id}>
               <EventCard {...eventCardData} />
             </div>
           );
