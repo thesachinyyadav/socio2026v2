@@ -8,6 +8,7 @@ import { OrganizationJsonLd, WebsiteJsonLd } from "./_components/JsonLd";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
 import { unstable_cache } from "next/cache";
+import { Suspense } from "react";
 import ClientInit from "./_components/ClientInit";
 import MobileDetectionRedirect from "./_components/MobileDetectionRedirect";
 
@@ -315,7 +316,9 @@ export default async function RootLayout({
                 }}
               />
               <div className="relative w-full overflow-hidden">
-                <NavigationBar />
+                <Suspense fallback={null}>
+                  <NavigationBar />
+                </Suspense>
                 {children}
               </div>
           </EventsProvider>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ExcelJS from "exceljs";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -21,6 +21,7 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   History,
 } from "lucide-react";
 
@@ -37,6 +38,14 @@ interface Fest {
 }
 
 const ITEMS_PER_PAGE = 12;
+
+type StatusFilter = "all" | "upcoming" | "past";
+
+const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "past", label: "Past" },
+];
 
 const CAMPUSES = [
   "Central Campus (Main)",
@@ -211,6 +220,11 @@ export default function ManageDashboard() {
   const [eventsPage, setEventsPage] = useState(1);
   const [festsPage, setFestsPage] = useState(1);
   const [campusFilter, setCampusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  const statusFilterRef = useRef<HTMLDivElement>(null);
+  const topOfPageRef = useRef<HTMLDivElement>(null);
+  const previousPagesRef = useRef({ eventsPage: 1, festsPage: 1 });
   
   // Auth Context & Session
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -230,6 +244,17 @@ export default function ManageDashboard() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [searchTermReport, setSearchTermReport] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!statusFilterRef.current?.contains(event.target as Node)) {
+        setIsStatusFilterOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Load Auth Token for Reports
   useEffect(() => {
@@ -279,10 +304,24 @@ export default function ManageDashboard() {
 
 
   // Permissions & Campus logic for Events
+  const isPastDate = (date: string | null | undefined) => {
+    if (!date) return false;
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) return false;
+    return parsedDate < new Date();
+  };
+
+  const matchesStatus = (isPast: boolean) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "past") return isPast;
+    return !isPast;
+  };
+
   const userSpecificContextEvents = (contextAllEvents as ContextEvent[]).filter((e) => {
     const isOwnerOrMaster = isMasterAdmin || (userData?.email && e.created_by === userData.email);
     const matchesCampus = campusFilter === "all" || (e as any).campus_hosted_at === campusFilter;
-    return isOwnerOrMaster && matchesCampus;
+    const eventIsPast = isPastDate(e.event_date);
+    return isOwnerOrMaster && matchesCampus && matchesStatus(eventIsPast);
   });
 
   // Filter Grids
@@ -292,8 +331,12 @@ export default function ManageDashboard() {
   const searchedUserFests = fests.filter((fest) => {
     const matchesSearch = fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCampus = campusFilter === "all" || (fest as any).campus_hosted_at === campusFilter;
-    return matchesSearch && matchesCampus;
+    const festIsPast = isPastDate(fest.closing_date);
+    return matchesSearch && matchesCampus && matchesStatus(festIsPast);
   });
+
+  const selectedStatusLabel =
+    STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label || "All";
 
   // Pagination Helper
   const paginateArray = <T,>(array: T[], page: number) => {
@@ -309,6 +352,29 @@ export default function ManageDashboard() {
 
   const paginatedFests = paginateArray(searchedUserFests, festsPage);
   const paginatedEvents = paginateArray(searchedUserEvents, eventsPage);
+
+  const scrollToTop = () => {
+    const performScroll = () => {
+      topOfPageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
+      document.body.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    requestAnimationFrame(performScroll);
+    setTimeout(performScroll, 0);
+  };
+
+  useEffect(() => {
+    const prev = previousPagesRef.current;
+    const pageChanged = prev.eventsPage !== eventsPage || prev.festsPage !== festsPage;
+
+    if (pageChanged) {
+      scrollToTop();
+    }
+
+    previousPagesRef.current = { eventsPage, festsPage };
+  }, [eventsPage, festsPage]);
 
   
   // ─── REPORT GENERATION HANDLER ────────────────────────
@@ -449,6 +515,7 @@ export default function ManageDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
+      <div ref={topOfPageRef} />
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* 1. Page Header & Primary Actions */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
@@ -475,7 +542,7 @@ export default function ManageDashboard() {
           <div className="flex items-center gap-8 overflow-x-auto overflow-y-hidden pb-2 text-sm w-full md:w-auto [&::-webkit-scrollbar]:hidden [-moz-scrollbar-width:none]">
             <button
               onClick={() => setActiveTab("fests")}
-              className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] ${
+              className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "fests"
                   ? "text-[#154cb3] font-bold border-b-[3px] border-[#154cb3]"
                   : "text-slate-500 font-medium hover:text-slate-800 border-b-[3px] border-transparent"
@@ -485,7 +552,7 @@ export default function ManageDashboard() {
             </button>
             <button
               onClick={() => setActiveTab("events")}
-              className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] ${
+              className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "events"
                   ? "text-[#154cb3] font-bold border-b-[3px] border-[#154cb3]"
                   : "text-slate-500 font-medium hover:text-slate-800 border-b-[3px] border-transparent"
@@ -495,7 +562,7 @@ export default function ManageDashboard() {
             </button>
             <button
               onClick={() => setActiveTab("report")}
-              className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] ${
+              className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "report"
                   ? "text-[#154cb3] font-bold border-b-[3px] border-[#154cb3]"
                   : "text-slate-500 font-medium hover:text-slate-800 border-b-[3px] border-transparent"
@@ -517,9 +584,43 @@ export default function ManageDashboard() {
                   className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white rounded-lg border border-slate-200 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#154cb3]/20 focus:border-[#154cb3] transition-all placeholder:text-slate-400 text-slate-800"
                 />
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors shadow-sm text-sm font-semibold">
-                <SlidersHorizontal className="w-4 h-4 text-slate-500" /> Filter
-              </button>
+              <div className="relative" ref={statusFilterRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsStatusFilterOpen((prev) => !prev)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors shadow-sm text-sm font-semibold cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+                  Filter: {selectedStatusLabel}
+                  <ChevronDown
+                    className={`w-4 h-4 text-slate-500 transition-transform ${
+                      isStatusFilterOpen ? "rotate-180" : "rotate-0"
+                    }`}
+                  />
+                </button>
+
+                {isStatusFilterOpen && (
+                  <div className="absolute top-full left-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-30 overflow-hidden">
+                    {STATUS_FILTER_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(option.value);
+                          setIsStatusFilterOpen(false);
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors cursor-pointer ${
+                          statusFilter === option.value
+                            ? "bg-blue-50 text-[#154cb3] font-semibold"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <AnimatedListDropdown
                 value={campusFilter}
                 onChange={setCampusFilter}
@@ -529,7 +630,7 @@ export default function ManageDashboard() {
                 ]}
                 placeholder="All Campuses"
                 className="w-full sm:w-64"
-                triggerClassName="shadow-sm font-semibold border-slate-200"
+                triggerClassName="shadow-sm font-semibold border-slate-200 cursor-pointer"
               />
             </div>
           )}
@@ -772,7 +873,14 @@ export default function ManageDashboard() {
               Page {activeTab === "fests" ? festsPage : eventsPage} of {activeTab === "fests" ? (paginatedFests.totalPages || 1) : (paginatedEvents.totalPages || 1)}
             </div>
             <button
-              onClick={() => activeTab === "fests" ? setFestsPage(p => p + 1) : setEventsPage(p => p + 1)}
+              onClick={() => {
+                if (activeTab === "fests") {
+                  setFestsPage((p) => p + 1);
+                } else {
+                  setEventsPage((p) => p + 1);
+                }
+                scrollToTop();
+              }}
               disabled={activeTab === "fests" ? !paginatedFests.hasNext : !paginatedEvents.hasNext}
               className="flex items-center gap-1 px-3 py-2 rounded-md text-sm font-semibold text-[#154cb3] hover:bg-blue-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

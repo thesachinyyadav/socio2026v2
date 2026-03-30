@@ -31,7 +31,7 @@ export const CentreClubCard = ({
   // Always use internal links for centres/clubs
   const LinkWrapper = ({ children }: { children: React.ReactNode }) => {
     return (
-      <Link href={`/club/${slugTitle}`} className="w-full block">
+      <Link href={`/club/${slugTitle}`} className="w-full block h-full min-w-0">
         {children}
       </Link>
     );
@@ -39,7 +39,7 @@ export const CentreClubCard = ({
 
   return (
     <LinkWrapper>
-      <div className="bg-white rounded-xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg shadow-md h-full border border-blue-100 group">
+      <div className="bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-md h-full border border-blue-100 group w-full min-w-0">
         <div className="relative h-48 overflow-hidden">
           {image && !imageError ? (
             <>
@@ -99,12 +99,12 @@ export const CentreClubCard = ({
           )}
         </div>
 
-        <div className="p-5">
+        <div className="p-5 min-w-0">
           <div className="flex items-start mb-3">
             <div className="flex-1">
-              <h3 className="font-bold text-xl text-[#063168] mb-1 group-hover:text-[#3D75BD] transition-colors duration-200">{title}</h3>
+              <h3 className="font-bold text-xl text-[#063168] mb-1 group-hover:text-[#3D75BD] transition-colors duration-200 break-words line-clamp-2">{title}</h3>
               {subtitle && (
-                <p className="text-sm text-gray-500 font-medium">
+                <p className="text-sm text-gray-500 font-medium break-words line-clamp-2">
                   {subtitle}
                 </p>
               )}

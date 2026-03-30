@@ -12,7 +12,7 @@ export default function Loading() {
         </div>
         
         {/* Info cards skeleton */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {[1, 2, 3].map((i) => (
             <div key={i} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
               <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
@@ -34,9 +34,9 @@ export default function Loading() {
         {/* Events section skeleton */}
         <div className="mt-12">
           <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-gray-50 rounded-lg overflow-hidden border-2 border-gray-200">
+              <div key={i} className="bg-gray-50 rounded-lg overflow-hidden border-2 border-gray-200 min-w-0 h-full">
                 <div className="h-40 bg-gray-200 animate-pulse"></div>
                 <div className="p-4 space-y-3">
                   <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse"></div>

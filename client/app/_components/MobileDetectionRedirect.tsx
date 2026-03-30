@@ -2,121 +2,125 @@
 
 import { useEffect, useState } from "react";
 
+const MOBILE_PROMPT_ACK_KEY = "socio_mobile_prompt_acknowledged";
+
 export default function MobileDetectionRedirect() {
-  // Start with null to avoid hydration mismatch
-  const [showRedirect, setShowRedirect] = useState<boolean | null>(null);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Mobile detection - only redirect on actual mobile devices
     const checkMobile = () => {
-      // Check 1: User agent - primary check
       const userAgent = navigator.userAgent.toLowerCase();
       const mobileKeywords = /android|webos|iphone|ipod|blackberry|iemobile|opera mini|mobile/i;
       const isMobileUA = mobileKeywords.test(userAgent);
-      
-      // Check 2: Screen size - only very small screens (tablets excluded)
+
       const isSmallScreen = window.innerWidth <= 768;
-      
-      // Check 3: Touch support (only relevant with small screen)
       const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      
-      // Only consider it mobile if user agent indicates mobile OR small screen with touch
+
       return isMobileUA || (isSmallScreen && hasTouch);
     };
 
     const updateMobileStatus = () => {
-      const isMobile = checkMobile();
-      console.log("Mobile detection:", isMobile, "Width:", window.innerWidth, "UA mobile:", /android|webos|iphone|ipod|blackberry|iemobile|opera mini|mobile/i.test(navigator.userAgent.toLowerCase()));
-      setShowRedirect(isMobile);
+      const hasAcknowledged = sessionStorage.getItem(MOBILE_PROMPT_ACK_KEY) === "1";
+      setShowPrompt(checkMobile() && !hasAcknowledged);
+      setIsReady(true);
     };
 
-    // Run immediately
     updateMobileStatus();
 
-    // Also listen for resize events
     window.addEventListener('resize', updateMobileStatus);
     window.addEventListener('orientationchange', updateMobileStatus);
-    
+
     return () => {
       window.removeEventListener('resize', updateMobileStatus);
       window.removeEventListener('orientationchange', updateMobileStatus);
     };
   }, []);
 
-  const handleRedirect = () => {
-    const pwaBaseUrl = process.env.NEXT_PUBLIC_PWA_URL || "https://thesocio.vercel.app";
-    window.location.href = `${pwaBaseUrl}${window.location.pathname}${window.location.search}`;
+  useEffect(() => {
+    if (!showPrompt) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showPrompt]);
+
+  const acknowledgePrompt = () => {
+    sessionStorage.setItem(MOBILE_PROMPT_ACK_KEY, "1");
   };
 
-  // During SSR or before check, don't render anything
-  if (showRedirect === null) {
-    return null;
-  }
+  const handleDownloadApp = () => {
+    acknowledgePrompt();
+    const appDownloadUrl = process.env.NEXT_PUBLIC_APP_DOWNLOAD_URL || "/app-download";
+    window.location.assign(appDownloadUrl);
+  };
 
-  // If not mobile, don't show the redirect screen
-  if (!showRedirect) {
+  const handleNotNow = () => {
+    acknowledgePrompt();
+    const pwaBaseUrl = process.env.NEXT_PUBLIC_PWA_URL || "https://thesocio.vercel.app";
+    const targetUrl = `${pwaBaseUrl}${window.location.pathname}${window.location.search}`;
+
+    try {
+      const parsedTarget = new URL(targetUrl, window.location.origin);
+      const sameDestination =
+        parsedTarget.origin === window.location.origin &&
+        parsedTarget.pathname === window.location.pathname &&
+        parsedTarget.search === window.location.search;
+
+      if (sameDestination) {
+        setShowPrompt(false);
+        return;
+      }
+    } catch {
+      setShowPrompt(false);
+      return;
+    }
+
+    window.location.assign(targetUrl);
+  };
+
+  if (!isReady || !showPrompt) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#154CB3] flex items-center justify-center p-6">
-      <div className="text-center max-w-md mx-auto">
-        {/* Desktop Icon */}
-        <div className="mb-8 flex justify-center">
-          <svg 
-            className="w-20 h-20 text-white" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-          >
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-          </svg>
-        </div>
+    <div className="fixed inset-0 z-[9999] bg-[#063168]">
+      <div className="relative flex h-full w-full items-center justify-center px-5 py-10">
+        <div className="w-full max-w-md rounded-3xl border border-white/15 bg-white/95 p-6 text-center shadow-2xl backdrop-blur-sm sm:p-8">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#154CB3]/10 text-[#154CB3] sm:h-16 sm:w-16">
+            <svg className="h-7 w-7 sm:h-8 sm:w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+              <rect x="7" y="2" width="10" height="20" rx="2" ry="2" />
+              <line x1="12" y1="18" x2="12.01" y2="18" />
+            </svg>
+          </div>
 
-        {/* Heading */}
-        <h1 className="text-4xl font-black text-white mb-6">
-          Best on Desktop
-        </h1>
+          <h2 className="text-2xl font-extrabold text-[#063168] sm:text-3xl">
+            Get The Best Mobile Experience
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">
+            Download the SOCIO mobile app for faster access, smoother browsing, and instant updates.
+          </p>
 
-        {/* Description */}
-        <p className="text-white text-lg mb-8 font-medium">
-          For mobile experience:
-        </p>
+          <div className="mt-7 space-y-3">
+            <button
+              type="button"
+              onClick={handleDownloadApp}
+              className="w-full rounded-xl bg-[#154CB3] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0f3d8a] sm:text-base"
+            >
+              Download Mobile App
+            </button>
+            <button
+              type="button"
+              onClick={handleNotNow}
+              className="w-full rounded-xl border border-[#154CB3]/25 bg-white px-5 py-3 text-sm font-semibold text-[#154CB3] transition-colors hover:bg-[#154CB3]/5 sm:text-base"
+            >
+              Not Right Now
+            </button>
+          </div>
 
-        {/* Redirect Button */}
-        <button
-          onClick={handleRedirect}
-          className="bg-[#FFCC00] hover:bg-[#FFD700] text-[#063168] font-bold text-lg px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2 mx-auto mb-12"
-        >
-          <span>Open Mobile App</span>
-          <svg 
-            className="w-5 h-5" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-            strokeWidth={3}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </button>
-
-        {/* Bottom Text */}
-        <div className="flex items-center justify-center gap-2 text-white/90">
-          <svg 
-            className="w-5 h-5" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-          >
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-            <line x1="12" y1="18" x2="12.01" y2="18" />
-          </svg>
-          <p className="text-base font-medium">
-            Use your desktop for best experience
+          <p className="mt-4 text-xs text-gray-500">
+            Not Right Now will continue you to mobile web.
           </p>
         </div>
       </div>

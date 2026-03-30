@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "../_components/UI/LoadingIndicator";
 import CampusDetectionModal from "../_components/CampusDetectionModal";
@@ -57,6 +58,7 @@ interface UserData {
 
 const StudentProfile = () => {
   const { userData, signOut, session, isLoading } = useAuth();
+  const router = useRouter();
 
   const [student, setStudent] = useState<Student>({
     name: "",
@@ -177,7 +179,7 @@ const StudentProfile = () => {
 
   const handleLogout = async () => {
     await signOut();
-    window.location.href = "/";
+    router.replace("/");
   };
 
   // One-time name edit for outsiders
@@ -223,8 +225,8 @@ const StudentProfile = () => {
       // Update local display and reload to refresh auth context
       setStudent(prev => ({ ...prev, name: nameInput.trim() }));
       setIsEditingName(false);
-      // reload so AuthContext picks up updated name and outsider_name_edit_used flag
-      window.location.reload();
+      setIsSubmittingName(false);
+      router.refresh();
     } catch (error) {
       console.error('Error submitting name edit:', error);
       setNameEditError('Network error');
@@ -246,7 +248,7 @@ const StudentProfile = () => {
           <p className="text-gray-600 text-lg">Unable to load your profile.</p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => router.refresh()}
               className="px-5 py-2 bg-[#063168] text-white rounded-lg hover:bg-[#063168]/90 transition"
             >
               Try Again
@@ -299,15 +301,15 @@ const StudentProfile = () => {
             <div className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden">
               <div className="bg-[#063168] p-6 sm:p-8 flex flex-col items-center relative">
                 <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-white mb-4 border-2 border-gray-200">
-                  <div
-                    className="w-full h-full rounded-full bg-gray-200 flex items-center justify-center overflow-hidden"
-                    style={{
-                      backgroundImage: `url(${student.profilePicture})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }}
-                  >
-                    {!student.profilePicture && (
+                  <div className="w-full h-full rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                    {student.profilePicture ? (
+                      <img
+                        src={student.profilePicture}
+                        alt={`${student.name || "Student"} profile`}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
                       <span className="text-3xl text-gray-500">?</span>
                     )}
                   </div>
@@ -697,8 +699,7 @@ const StudentProfile = () => {
           onComplete={(campus) => {
             setShowCampusDetect(false);
             setStudent((prev) => ({ ...prev, campus }));
-            // Force page reload to update userData in AuthContext
-            window.location.reload();
+            router.refresh();
           }}
           onDismiss={() => setShowCampusDetect(false)}
         />

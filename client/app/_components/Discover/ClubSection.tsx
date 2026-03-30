@@ -39,10 +39,10 @@ export const ClubSection = ({
   const displayItems = showAll ? items : items.slice(0, 6);
 
   return (
-    <div>
+    <div className="min-w-0">
       <SectionHeader title={title} link={linkUrl} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
         {displayItems.map((item) => (
           <CentreClubCard
             key={item.id}

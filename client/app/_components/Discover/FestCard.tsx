@@ -30,8 +30,8 @@ export const FestCard = ({
   const slug = id || formattedTitle;
 
   return (
-    <Link href={`/${baseUrl}/${slug}`} className="w-full">
-      <div className="bg-[#F9F9F9] rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg shadow-md flex flex-col group">
+    <Link href={`/${baseUrl}/${slug}`} className="block w-full h-full min-w-0">
+      <div className="bg-[#F9F9F9] rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-md flex flex-col group w-full h-full min-w-0">
         <div className="relative h-40 bg-gray-200 overflow-hidden rounded-t-lg">
           {image ? (
             <>
@@ -64,9 +64,9 @@ export const FestCard = ({
           )}
         </div>
 
-        <div className="p-4 rounded-b-lg">
-          <h3 className="text-lg font-bold mb-1 group-hover:text-[#3D75BD] transition-colors duration-200">{title}</h3>
-          <p className="text-sm text-gray-500 mb-3 font-semibold">{dept}</p>
+        <div className="p-4 rounded-b-lg min-w-0">
+          <h3 className="text-lg font-bold mb-1 group-hover:text-[#3D75BD] transition-colors duration-200 break-words line-clamp-2">{title}</h3>
+          <p className="text-sm text-gray-500 mb-3 font-semibold break-words line-clamp-2">{dept}</p>
 
           <p className="text-sm text-gray-600 mb-4 line-clamp-3">
             {description}

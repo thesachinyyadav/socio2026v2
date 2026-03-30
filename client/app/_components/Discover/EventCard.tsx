@@ -48,7 +48,7 @@ export const EventCard = ({
   const displayTime = formatTime(time, "Time TBD");
 
   return (
-    <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg shadow-md flex flex-col group">
+    <div className="bg-[#f9f9f9] rounded-lg overflow-hidden border-2 border-gray-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-md flex flex-col group w-full h-full min-w-0">
       <Link href={eventPageUrl} className="w-full block">
         <div className="relative h-40 overflow-hidden bg-white">
           {showOutsiderBadge && (
@@ -59,7 +59,7 @@ export const EventCard = ({
             </div>
           )}
           {tags.length > 0 && (
-            <div className="absolute top-2 right-2 flex gap-2 z-10 items-center flex-wrap justify-end">
+            <div className="absolute top-2 right-2 flex gap-1.5 z-10 items-center flex-wrap justify-end max-w-[75%]">
               {(tags || []).map((tag, index) => {
                 if (!tag || typeof tag !== 'string') return null;
 
@@ -93,7 +93,7 @@ export const EventCard = ({
                 if (titleTag === "Claims") bgColor = "bg-[#73ec66] text-black";
 
                 return (
-                  <span key={index} className={`${base} ${bgColor}`}>
+                  <span key={index} className={`${base} ${bgColor} max-w-full truncate`}>
                     {titleTag}
                   </span>
                 );

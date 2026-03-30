@@ -4,9 +4,11 @@ import EventForm from "@/app/_components/Admin/ManageEvent";
 import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
+import { useRouter } from "next/navigation";
 
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -49,7 +51,7 @@ export default function CreateEventPage() {
         alert("Authentication error or no active session. Please log in again.");
         setIsSubmitting(false);
         // Redirect to auth page
-        window.location.href = '/auth';
+        router.replace('/auth');
         return;
       }
       
@@ -65,7 +67,7 @@ export default function CreateEventPage() {
         console.error("CreateEventPage: Token has expired");
         alert("Your session has expired. Please log in again.");
         setIsSubmitting(false);
-        window.location.href = '/auth';
+        router.replace('/auth');
         return;
       }
       
@@ -75,7 +77,7 @@ export default function CreateEventPage() {
         "An unexpected error occurred while verifying your session. Please log in again."
       );
       setIsSubmitting(false);
-      window.location.href = '/auth';
+      router.replace('/auth');
       return;
     }
 

@@ -8,13 +8,13 @@ interface SectionHeaderProps {
 
 export const SectionHeader = ({ title, link }: SectionHeaderProps) => {
   return (
-    <div className="flex justify-between items-center mb-4 md:mb-6">
+    <div className="flex justify-between items-center flex-wrap gap-2 mb-4 md:mb-6 min-w-0">
       <h2 className="text-xl md:text-2xl font-bold text-[#063168]">{title}</h2>
 
       {title != "Browse by category" ? (
         <Link
           href={link}
-          className="text-[#063168] text-sm md:text-base font-semibold flex items-center"
+          className="text-[#063168] text-sm md:text-base font-semibold flex items-center shrink-0 whitespace-nowrap"
         >
           View all
           <svg

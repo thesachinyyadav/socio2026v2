@@ -12,11 +12,11 @@ import DateTimePickerAdmin from "../_components/DateTimePickerAdmin";
 import dynamic from "next/dynamic";
 import {
   LayoutDashboard,
-  Users,
   CalendarDays,
   Trophy,
   Bell,
   BarChart2,
+  LineChart,
   Settings,
   UserCog,
   Eye,
@@ -131,7 +131,9 @@ const ACCREDITATION_BODIES = [
 export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "events" | "fests" | "notifications" | "report" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<
+    "dashboard" | "insights" | "users" | "events" | "fests" | "notifications" | "report" | "settings"
+  >("dashboard");
   const authToken = session?.access_token || null;
 
   // Helper to get a fresh access token (avoids stale token from session state)
@@ -205,7 +207,13 @@ export default function MasterAdminPage() {
   useEffect(() => {
     if (!isMasterAdmin || !authToken) return;
     
-    if (activeTab === "dashboard") {
+    if (activeTab === "users") {
+      fetchUsers();
+    } else if (activeTab === "events") {
+      fetchEvents();
+    } else if (activeTab === "fests") {
+      fetchFests();
+    } else if (activeTab === "dashboard") {
       fetchDashboardData();
     } else if (activeTab === "notifications") {
       // Ensure users/events are loaded for the notification composer
@@ -686,12 +694,11 @@ export default function MasterAdminPage() {
   // ── Sidebar nav config ──
   const sidebarNav = [
     { id: "dashboard" as const, label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: "users" as const, label: "Users", icon: <Users className="w-4 h-4" />, count: userPagination.totalItems },
-    { id: "events" as const, label: "Events", icon: <CalendarDays className="w-4 h-4" />, count: eventPagination.totalItems },
-    { id: "fests" as const, label: "Fests", icon: <Trophy className="w-4 h-4" />, count: festPagination.totalItems },
+    { id: "users" as const, label: "Users", icon: <Users className="w-4 h-4" />, count: users.length },
+    { id: "events" as const, label: "Events", icon: <CalendarDays className="w-4 h-4" />, count: events.length },
+    { id: "fests" as const, label: "Fests", icon: <Trophy className="w-4 h-4" />, count: fests.length },
     { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-4 h-4" /> },
     { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" /> },
-    { id: "settings" as const, label: "Settings", icon: <Settings className="w-4 h-4" /> },
   ];
 
   const managementNav = [
@@ -700,11 +707,11 @@ export default function MasterAdminPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex h-[calc(100dvh-64px)] overflow-hidden">
 
       {/* ── Sidebar ───────────────────────────────────────────────────────── */}
-      <aside className="w-56 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col">
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <aside className="w-56 h-[calc(100dvh-64px)] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+        <nav className="px-3 pt-4 pb-2 space-y-0.5">
           {sidebarNav.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -735,7 +742,7 @@ export default function MasterAdminPage() {
         </nav>
 
         {/* Management section */}
-        <div className="px-3 pb-4">
+        <div className="mt-1 px-3 pb-4">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1.5">Management</p>
           {managementNav.map((item, i) => {
             const content = (
@@ -773,6 +780,7 @@ export default function MasterAdminPage() {
                 events={events}
                 fests={fests}
                 registrations={registrations}
+                onViewPerformanceInsights={() => setActiveTab("insights")}
               />
             )}
           </div>
@@ -781,6 +789,32 @@ export default function MasterAdminPage() {
         {/* Non-dashboard tabs get padding wrapper */}
         {activeTab !== "dashboard" && (
           <div className="p-6 space-y-6">
+        {/* Performance Insights Tab */}
+        {activeTab === "insights" && (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Performance Insights</h2>
+              <p className="text-sm text-gray-500 mb-0">
+                Deep analytics with filters, trends, top performers, role and pricing distributions, and CSV exports.
+              </p>
+            </div>
+
+            {isLoading ? (
+              <div className="p-12 text-center bg-white border border-gray-200 rounded-2xl">
+                <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <div className="text-gray-600">Loading performance insights...</div>
+              </div>
+            ) : (
+              <AnalyticsDashboard
+                users={users}
+                events={events}
+                fests={fests}
+                registrations={registrations}
+              />
+            )}
+          </div>
+        )}
+
         {/* Settings placeholder */}
         {activeTab === "settings" && (
           <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
@@ -824,6 +858,8 @@ export default function MasterAdminPage() {
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
+                    aria-label="Filter users by role"
+                    title="Filter users by role"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
                   >
                     <option value="all">All Users</option>
@@ -1083,6 +1119,8 @@ export default function MasterAdminPage() {
                   <select
                     value={eventStatusFilter}
                     onChange={(e) => setEventStatusFilter(e.target.value as any)}
+                    aria-label="Filter events by status"
+                    title="Filter events by status"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
                   >
                     <option value="all">All Events</option>
@@ -1396,6 +1434,8 @@ export default function MasterAdminPage() {
                   <select
                     value={selectedReportFest}
                     onChange={(e) => { setSelectedReportFest(e.target.value); setSelectedEventIds(new Set()); }}
+                    aria-label="Select fest for report"
+                    title="Select fest for report"
                     className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
                   >
                     <option value="">-- Select a fest --</option>
@@ -1533,6 +1573,8 @@ export default function MasterAdminPage() {
                 <select
                   value={selectedAccreditation}
                   onChange={(e) => setSelectedAccreditation(e.target.value)}
+                  aria-label="Select accreditation body"
+                  title="Select accreditation body"
                   className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all"
                 >
                   <option value="">-- Select accreditation body --</option>

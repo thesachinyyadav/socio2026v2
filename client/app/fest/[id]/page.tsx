@@ -255,8 +255,8 @@ const FestPage = () => {
           </p>
 
           <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 border-2 border-gray-200">
-            <div className="flex justify-evenly items-center gap-4 sm:gap-6">
-              <div className="flex items-start space-x-3 sm:basis-[calc(50%-0.75rem)] md:basis-[calc(25%-1.125rem)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+              <div className="flex items-start space-x-3 min-w-0">
                 <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -276,7 +276,7 @@ const FestPage = () => {
                     <path d="M3 10h18" />
                   </svg>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs sm:text-sm font-medium text-gray-700">
                     Fest Opening Date
                   </h3>
@@ -285,7 +285,7 @@ const FestPage = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3 sm:basis-[calc(50%-0.75rem)] md:basis-[calc(25%-1.125rem)]">
+              <div className="flex items-start space-x-3 min-w-0">
                 <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -305,7 +305,7 @@ const FestPage = () => {
                     <path d="M3 10h18" />
                   </svg>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs sm:text-sm font-medium text-gray-700">
                     Fest Closing Date
                   </h3>
@@ -314,7 +314,7 @@ const FestPage = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
+              <div className="flex items-start space-x-3 min-w-0">
                 <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -332,7 +332,7 @@ const FestPage = () => {
                     <rect x="2" y="4" width="20" height="16" rx="2" />
                   </svg>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs sm:text-sm font-medium text-gray-700">
                     Email
                   </h3>
@@ -348,7 +348,7 @@ const FestPage = () => {
                   )}
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
+              <div className="flex items-start space-x-3 min-w-0">
                 <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -365,7 +365,7 @@ const FestPage = () => {
                     <path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384" />
                   </svg>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs sm:text-sm font-medium text-gray-700">
                     Phone
                   </h3>
@@ -387,30 +387,30 @@ const FestPage = () => {
           {/* Additional Details */}
           {(venue || status || registrationDeadline) && (
             <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 border-2 border-gray-200">
-              <div className="flex flex-wrap gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                 {venue && (
-                  <div className="flex items-start space-x-3">
+                  <div className="flex items-start space-x-3 min-w-0">
                     <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#154CB3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
                         <circle cx="12" cy="10" r="3"/>
                       </svg>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-xs sm:text-sm font-medium text-gray-700">Venue</h3>
-                      <p className="text-xs sm:text-sm text-gray-500">{venue}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 break-words">{venue}</p>
                     </div>
                   </div>
                 )}
                 {status && (
-                  <div className="flex items-start space-x-3">
+                  <div className="flex items-start space-x-3 min-w-0">
                     <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#154CB3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10"/>
                         <path d="M12 6v6l4 2"/>
                       </svg>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-xs sm:text-sm font-medium text-gray-700">Status</h3>
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                         status === 'ongoing' ? 'bg-green-100 text-green-700' :
@@ -423,7 +423,7 @@ const FestPage = () => {
                   </div>
                 )}
                 {registrationDeadline && (
-                  <div className="flex items-start space-x-3">
+                  <div className="flex items-start space-x-3 min-w-0">
                     <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#DBEAFE]">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#154CB3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M8 2v4"/><path d="M16 2v4"/>
@@ -431,9 +431,9 @@ const FestPage = () => {
                         <path d="M3 10h18"/><path d="M16 14h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/>
                       </svg>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-xs sm:text-sm font-medium text-gray-700">Registration Deadline</h3>
-                      <p className="text-xs sm:text-sm text-gray-500">{registrationDeadline}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 break-words">{registrationDeadline}</p>
                     </div>
                   </div>
                 )}
@@ -565,7 +565,7 @@ const FestPage = () => {
                 Error loading events: {errorEventsContext}
               </p>
             ) : festSpecificEvents.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                 {festSpecificEvents.map((event) => {
                   const displayEventDate = formatDateFull(event.event_date, "Date TBD");
                   const displayEventTime = formatTime(event.event_time, "Time TBD");
@@ -584,20 +584,21 @@ const FestPage = () => {
                     tags.push("Paid");
 
                   return (
-                    <EventCard
-                      key={event.id}
-                      idForLink={event.event_id}
-                      title={event.title}
-                      dept={event.organizing_dept || "N/A Dept"}
-                      date={displayEventDate}
-                      time={displayEventTime}
-                      location={event.venue || "Venue TBD"}
-                      tags={tags.slice(0, 3)}
-                      image={
-                        event.event_image_url ||
-                        "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image"
-                      }
-                    />
+                    <div key={event.id} className="min-w-0 h-full">
+                      <EventCard
+                        idForLink={event.event_id}
+                        title={event.title}
+                        dept={event.organizing_dept || "N/A Dept"}
+                        date={displayEventDate}
+                        time={displayEventTime}
+                        location={event.venue || "Venue TBD"}
+                        tags={tags.slice(0, 3)}
+                        image={
+                          event.event_image_url ||
+                          "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image"
+                        }
+                      />
+                    </div>
                   );
                 })}
               </div>

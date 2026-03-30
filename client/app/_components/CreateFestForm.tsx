@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
 import { departments as baseDepartments, christCampuses } from "../lib/eventFormSchema";
 import { createBrowserClient } from "@supabase/ssr";
@@ -199,7 +199,6 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({
               : "border-gray-200 hover:border-gray-400"
           } ${error ? "border-red-500" : ""}`}
           aria-haspopup="dialog"
-          aria-expanded={isOpen}
           aria-controls={id + "-calendar"}
         >
           <span
@@ -339,8 +338,8 @@ function DepartmentAndCategoryInputs({
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const departmentDropdownRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const departmentTriggerRef = useRef<HTMLDivElement>(null);
-  const categoryTriggerRef = useRef<HTMLDivElement>(null);
+  const departmentTriggerRef = useRef<HTMLButtonElement>(null);
+  const categoryTriggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -404,14 +403,14 @@ function DepartmentAndCategoryInputs({
         >
           Department accessibility: <span className="text-red-500">*</span>
         </label>
-        <div
+        <button
+          type="button"
           id="department-trigger"
           ref={departmentTriggerRef}
           onClick={toggleDepartmentDropdown}
-          role="combobox"
-          aria-expanded={isDepartmentDropdownOpen}
           aria-haspopup="listbox"
           aria-controls="department-listbox"
+          title="Select departments"
           className={`bg-white rounded-lg px-4 py-3 border-2 w-full text-left flex items-center justify-between transition-all cursor-pointer ${
             isDepartmentDropdownOpen
               ? "border-[#154CB3] ring-1 ring-[#154CB3]"
@@ -444,74 +443,46 @@ function DepartmentAndCategoryInputs({
               clipRule="evenodd"
             />
           </svg>
-        </div>
+        </button>
         {isDepartmentDropdownOpen && (
           <div
             id="department-listbox"
             ref={departmentDropdownRef}
             className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-y-auto max-h-60 w-full"
-            role="listbox"
           >
-            {departments.map((dept) => (
-              <div
-                key={dept.value}
-                onClick={() => handleDepartmentChange(dept.value)}
-                role="option"
-                aria-selected={formData.department.includes(dept.value)}
-                className="p-1 hover:bg-gray-100 cursor-pointer transition-colors focus:outline-none focus:bg-gray-100"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleDepartmentChange(dept.value);
-                  }
-                }}
-              >
-                <div
-                  onClick={(e) => {
-                    if (
-                      e.target !== e.currentTarget &&
-                      (e.target as HTMLElement).closest(
-                        'input[type="checkbox"]'
-                      )
-                    ) {
-                      return;
-                    }
-                    handleDepartmentChange(dept.value);
-                  }}
-                  role="option"
-                  aria-selected={formData.department.includes(dept.value)}
-                  className="px-4 py-3 hover:bg-gray-100 cursor-pointer transition-colors"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleDepartmentChange(dept.value);
-                    }
-                  }}
+            {departments.map((dept) => {
+              const isSelected = formData.department.includes(dept.value);
+              return (
+                <button
+                  key={dept.value}
+                  type="button"
+                  onClick={() => handleDepartmentChange(dept.value)}
+                  title={`Toggle ${dept.label}`}
+                  className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors ${
+                    isSelected
+                      ? "bg-blue-50 text-[#154CB3]"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
                 >
-                  <div className="flex items-center pointer-events-none">
-                    <input
-                      type="checkbox"
-                      id={`department_checkbox_${dept.value}`}
-                      checked={formData.department.includes(dept.value)}
-                      onChange={() => {
-                        handleDepartmentChange(dept.value);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className="h-4 w-4 text-[#154CB3] border-gray-300 rounded focus:ring-2 focus:ring-offset-1 focus:ring-[#154CB3]"
-                      aria-labelledby={`department_label_${dept.value}`}
-                    />
-                    <label
-                      id={`department_label_${dept.value}`}
-                      className="ml-2 text-sm text-gray-700 select-none"
+                  <span className="flex items-center">
+                    <span
+                      className={`mr-2 inline-flex h-4 w-4 items-center justify-center rounded border ${
+                        isSelected
+                          ? "border-[#154CB3] bg-[#154CB3] text-white"
+                          : "border-gray-300"
+                      }`}
                     >
-                      {dept.label}
-                    </label>
-                  </div>
-                </div>
-              </div>
-            ))}
+                      {isSelected && (
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                    {dept.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
         {errors.department && (
@@ -525,14 +496,14 @@ function DepartmentAndCategoryInputs({
         >
           Category: <span className="text-red-500">*</span>
         </label>
-        <div
+        <button
+          type="button"
           id="category-trigger"
           ref={categoryTriggerRef}
           onClick={toggleCategoryDropdown}
-          role="combobox"
-          aria-expanded={isCategoryDropdownOpen}
           aria-haspopup="listbox"
           aria-controls="category-listbox"
+          title="Select category"
           className={`bg-white rounded-lg px-4 py-3 border-2 w-full text-left flex items-center justify-between transition-all cursor-pointer ${
             isCategoryDropdownOpen
               ? "border-[#154CB3] ring-1 ring-[#154CB3]"
@@ -558,18 +529,16 @@ function DepartmentAndCategoryInputs({
               clipRule="evenodd"
             />
           </svg>
-        </div>
+        </button>
         {isCategoryDropdownOpen && (
           <div
             id="category-listbox"
             ref={categoryDropdownRef}
             className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-y-auto max-h-60 w-full"
-            role="listbox"
           >
-            <div
+            <button
+              type="button"
               onClick={() => handleCategorySelect("")}
-              role="option"
-              aria-selected={!formData.category}
               className={`px-4 py-3 text-sm font-medium hover:bg-gray-100 cursor-pointer transition-colors ${
                 !formData.category
                   ? "bg-blue-50 text-[#154CB3]"
@@ -577,13 +546,12 @@ function DepartmentAndCategoryInputs({
               }`}
             >
               Select category
-            </div>
+            </button>
             {categories.map((cat) => (
-              <div
+              <button
                 key={cat.value}
+                type="button"
                 onClick={() => handleCategorySelect(cat.value)}
-                role="option"
-                aria-selected={formData.category === cat.value}
                 className={`px-4 py-3 text-sm font-medium hover:bg-gray-100 cursor-pointer transition-colors ${
                   formData.category === cat.value
                     ? "bg-blue-50 text-[#154CB3]"
@@ -591,7 +559,7 @@ function DepartmentAndCategoryInputs({
                 }`}
               >
                 {cat.label}
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -724,6 +692,7 @@ function CreateFestForm(props?: CreateFestProps) {
   }, []);
 
   const pathname = usePathname();
+  const router = useRouter();
   const isEditModeFromPath = pathname.startsWith("/edit/fest");
   const festIdFromPath = isEditModeFromPath ? pathname.split("/").pop() : null;
 
@@ -827,7 +796,7 @@ function CreateFestForm(props?: CreateFestProps) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to delete fest");
       }
-      window.location.href = "/manage";
+      router.replace("/manage");
     } catch (error: any) {
       setErrors({ submit: error.message || "Failed to delete fest." });
       setIsNavigating(false);
@@ -1221,8 +1190,8 @@ function CreateFestForm(props?: CreateFestProps) {
           `Fest updated successfully! The fest link has changed from /fest/${oldId} to /fest/${newId}`,
           { duration: 5000 }
         );
-        
-        window.location.href = `/edit/fest/${newId}`;
+
+        router.replace(`/edit/fest/${newId}`);
         return;
       } else if (isEditMode) {
         // Show regular success message for edit
@@ -1356,15 +1325,16 @@ function CreateFestForm(props?: CreateFestProps) {
       />
       {isModalOpen && (
         <div
-          className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-500 ease-out"
-          style={{ opacity: festModalVisible ? 1 : 0 }}
+          className={`fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center px-4 transition-opacity duration-500 ease-out ${
+            festModalVisible ? "opacity-100" : "opacity-0"
+          }`}
         >
           <div
-            className="bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl transform transition-all duration-500 ease-out"
-            style={{
-              opacity: festModalVisible ? 1 : 0,
-              transform: festModalVisible ? "scale(1) translateY(0)" : "scale(0.9) translateY(20px)",
-            }}
+            className={`bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl transform transition-all duration-500 ease-out ${
+              festModalVisible
+                ? "opacity-100 scale-100 translate-y-0"
+                : "opacity-0 scale-90 translate-y-5"
+            }`}
             role="alertdialog"
             aria-labelledby="modal-title"
             aria-describedby="modal-description"
@@ -1411,7 +1381,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     setFestModalVisible(false);
                     setTimeout(() => {
                       setIsModalOpen(false);
-                      window.location.href = "/create/event";
+                      router.replace("/create/event");
                     }, 300);
                   }}
                 >
@@ -1426,7 +1396,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   setFestModalVisible(false);
                   setTimeout(() => {
                     setIsModalOpen(false);
-                    window.location.href = "/manage";
+                    router.replace("/manage");
                   }, 300);
                 }}
               >
@@ -1498,7 +1468,6 @@ function CreateFestForm(props?: CreateFestProps) {
                       onChange={handleInputChange}
                       onBlur={handleInputBlur}
                       required
-                      aria-invalid={!!errors.title}
                       aria-describedby={
                         errors.title ? "title-error" : undefined
                       }
@@ -1567,7 +1536,6 @@ function CreateFestForm(props?: CreateFestProps) {
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     required
-                    aria-invalid={!!errors.detailedDescription}
                     aria-describedby={
                       errors.detailedDescription
                         ? "description-error"
@@ -1618,7 +1586,6 @@ function CreateFestForm(props?: CreateFestProps) {
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     required
-                    aria-invalid={!!errors.organizingDept}
                     aria-describedby={
                       errors.organizingDept ? "organizingDept-error" : undefined
                     }
@@ -1721,7 +1688,6 @@ function CreateFestForm(props?: CreateFestProps) {
                       onChange={handleInputChange}
                       onBlur={handleInputBlur}
                       required
-                      aria-invalid={!!errors.contactEmail}
                       aria-describedby={
                         errors.contactEmail ? "contactEmail-error" : undefined
                       }
@@ -1755,7 +1721,6 @@ function CreateFestForm(props?: CreateFestProps) {
                       onChange={handleInputChange}
                       onBlur={handleInputBlur}
                       required
-                      aria-invalid={!!errors.contactPhone}
                       aria-describedby={
                         errors.contactPhone ? "contactPhone-error" : undefined
                       }
@@ -1801,6 +1766,8 @@ function CreateFestForm(props?: CreateFestProps) {
                       type="button"
                       onClick={addEventHead}
                       disabled={formData.eventHeads.length >= 5}
+                      aria-label="Add event head"
+                      title="Add event head"
                       className="bg-[#063168] p-3 rounded-full text-white cursor-pointer"
                     >
                       <svg
@@ -1831,7 +1798,6 @@ function CreateFestForm(props?: CreateFestProps) {
                               handleEventHeadChange(index, e.target.value)
                             }
                             onBlur={() => handleEventHeadBlur(index)}
-                            aria-invalid={!!errors[`eventHead_${index}`]}
                             aria-describedby={
                               errors[`eventHead_${index}`]
                                 ? `eventHead-error-${index}`
@@ -1871,11 +1837,12 @@ function CreateFestForm(props?: CreateFestProps) {
                       
                       {/* Organiser Access Expiration */}
                       <div className="mt-3 pt-3 border-t border-gray-200">
-                        <label className="block text-xs font-semibold text-gray-600 mb-2">
+                        <label htmlFor={`event-head-expiration-${index}`} className="block text-xs font-semibold text-gray-600 mb-2">
                           Organiser Access Expiration (optional)
                         </label>
                         <div className="flex flex-wrap items-center gap-2">
                           <input
+                            id={`event-head-expiration-${index}`}
                             type="datetime-local"
                             value={eventHead.expiresAt ? new Date(eventHead.expiresAt).toISOString().slice(0, 16) : ""}
                             onChange={(e) =>
@@ -1884,6 +1851,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 e.target.value ? new Date(e.target.value).toISOString() : null
                               )
                             }
+                            aria-label={`Event head ${index + 1} expiration date and time`}
                             className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
                           />
                           <div className="flex gap-1">
@@ -1993,6 +1961,7 @@ function CreateFestForm(props?: CreateFestProps) {
                           type="checkbox"
                           checked={formData.allowOutsiders}
                           onChange={(e) => setFormData(prev => ({ ...prev, allowOutsiders: e.target.checked }))}
+                          aria-label="Allow outsider registrations"
                           className="sr-only peer"
                         />
                         <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#154CB3]"></div>
@@ -2028,8 +1997,10 @@ function CreateFestForm(props?: CreateFestProps) {
                           Which campus is this fest taking place at?
                         </p>
                         <select
+                          id="campusHostedAt"
                           value={formData.campusHostedAt}
                           onChange={(e) => setFormData(prev => ({ ...prev, campusHostedAt: e.target.value }))}
+                          aria-label="Fest hosted campus"
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm bg-white"
                         >
                           <option value="">-- Select campus --</option>
@@ -2096,6 +2067,7 @@ function CreateFestForm(props?: CreateFestProps) {
                             newLinks[index] = { ...newLinks[index], platform: e.target.value };
                             setFormData(prev => ({ ...prev, social_links: newLinks }));
                           }}
+                          aria-label={`Social platform ${index + 1}`}
                           className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                         >
                           <option value="instagram">Instagram</option>
@@ -2114,6 +2086,7 @@ function CreateFestForm(props?: CreateFestProps) {
                             newLinks[index] = { ...newLinks[index], url: e.target.value };
                             setFormData(prev => ({ ...prev, social_links: newLinks }));
                           }}
+                          aria-label={`Social link URL ${index + 1}`}
                           className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                         />
                         <button
@@ -2122,6 +2095,8 @@ function CreateFestForm(props?: CreateFestProps) {
                             const newLinks = formData.social_links.filter((_, i) => i !== index);
                             setFormData(prev => ({ ...prev, social_links: newLinks }));
                           }}
+                          aria-label={`Remove social link ${index + 1}`}
+                          title={`Remove social link ${index + 1}`}
                           className="p-2 text-gray-400 hover:text-red-500"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
@@ -2155,6 +2130,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 newFaqs[index] = { ...newFaqs[index], question: e.target.value };
                                 setFormData(prev => ({ ...prev, faqs: newFaqs }));
                               }}
+                              aria-label={`FAQ question ${index + 1}`}
                               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                             />
                             <textarea
@@ -2166,6 +2142,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 setFormData(prev => ({ ...prev, faqs: newFaqs }));
                               }}
                               rows={2}
+                              aria-label={`FAQ answer ${index + 1}`}
                               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                             />
                           </div>
@@ -2175,6 +2152,8 @@ function CreateFestForm(props?: CreateFestProps) {
                               const newFaqs = formData.faqs.filter((_, i) => i !== index);
                               setFormData(prev => ({ ...prev, faqs: newFaqs }));
                             }}
+                            aria-label={`Remove FAQ ${index + 1}`}
+                            title={`Remove FAQ ${index + 1}`}
                             className="p-2 text-gray-400 hover:text-red-500"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
@@ -2209,6 +2188,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 newSponsors[index] = { ...newSponsors[index], name: e.target.value };
                                 setFormData(prev => ({ ...prev, sponsors: newSponsors }));
                               }}
+                              aria-label={`Sponsor ${index + 1} name`}
                               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                             />
                             <div className="grid grid-cols-2 gap-2">
@@ -2221,6 +2201,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                   newSponsors[index] = { ...newSponsors[index], logo_url: e.target.value };
                                   setFormData(prev => ({ ...prev, sponsors: newSponsors }));
                                 }}
+                                aria-label={`Sponsor ${index + 1} logo URL`}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                               />
                               <input
@@ -2232,6 +2213,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                   newSponsors[index] = { ...newSponsors[index], website: e.target.value };
                                   setFormData(prev => ({ ...prev, sponsors: newSponsors }));
                                 }}
+                                aria-label={`Sponsor ${index + 1} website`}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                               />
                             </div>
@@ -2242,6 +2224,8 @@ function CreateFestForm(props?: CreateFestProps) {
                               const newSponsors = formData.sponsors.filter((_, i) => i !== index);
                               setFormData(prev => ({ ...prev, sponsors: newSponsors }));
                             }}
+                            aria-label={`Remove sponsor ${index + 1}`}
+                            title={`Remove sponsor ${index + 1}`}
                             className="p-2 text-gray-400 hover:text-red-500"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
@@ -2277,6 +2261,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                   newTimeline[index] = { ...newTimeline[index], time: e.target.value };
                                   setFormData(prev => ({ ...prev, timeline: newTimeline }));
                                 }}
+                                aria-label={`Timeline item ${index + 1} time`}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                               />
                               <input
@@ -2288,6 +2273,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                   newTimeline[index] = { ...newTimeline[index], title: e.target.value };
                                   setFormData(prev => ({ ...prev, timeline: newTimeline }));
                                 }}
+                                aria-label={`Timeline item ${index + 1} title`}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                               />
                             </div>
@@ -2300,6 +2286,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 newTimeline[index] = { ...newTimeline[index], description: e.target.value };
                                 setFormData(prev => ({ ...prev, timeline: newTimeline }));
                               }}
+                              aria-label={`Timeline item ${index + 1} description`}
                               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                             />
                           </div>
@@ -2309,6 +2296,8 @@ function CreateFestForm(props?: CreateFestProps) {
                               const newTimeline = formData.timeline.filter((_, i) => i !== index);
                               setFormData(prev => ({ ...prev, timeline: newTimeline }));
                             }}
+                            aria-label={`Remove timeline item ${index + 1}`}
+                            title={`Remove timeline item ${index + 1}`}
                             className="p-2 text-gray-400 hover:text-red-500"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">

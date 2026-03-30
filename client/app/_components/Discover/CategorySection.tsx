@@ -19,10 +19,10 @@ export const CategorySection = ({
   categories,
 }: CategorySectionProps) => {
   return (
-    <div>
+    <div className="min-w-0">
       <SectionHeader title={title} link="/events" />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
         {categories.map((category) => (
           <CategoryCard
             key={category.id}

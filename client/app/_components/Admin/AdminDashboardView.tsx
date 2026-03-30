@@ -41,7 +41,9 @@ import {
   Calendar,
   Zap,
   Plus,
+  History,
 } from "lucide-react";
+import OrganiserHistoryModal from "./OrganiserHistoryModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface User {
@@ -90,12 +92,15 @@ interface Props {
   events: Event[];
   fests: Fest[];
   registrations: Registration[];
+  onViewPerformanceInsights?: () => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PRIMARY = "#154cb3";
 const PRICING_COLORS = ["#154cb3", "#e2e8f0"];
 const ROLE_COLORS = ["#154cb3", "#10b981", "#f59e0b", "#8b5cf6"];
+const PRICING_COLOR_CLASSES = ["bg-[#154cb3]", "bg-[#e2e8f0]"];
+const ROLE_COLOR_CLASSES = ["bg-[#154cb3]", "bg-[#10b981]", "bg-[#f59e0b]", "bg-[#8b5cf6]"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getDateCutoff(range: DateRange): Date {
@@ -147,16 +152,23 @@ const GrowthBadge = ({ value }: { value: number }) => {
 
 // Mini sparkline bar (5-bar preview inside KPI cards)
 const MiniBarChart = ({ data, color = PRIMARY }: { data: number[]; color?: string }) => {
-  const max = Math.max(...data, 1);
+  const chartData = data.map((value, index) => ({
+    index,
+    value,
+    fill: index === data.length - 1 ? color : `${color}4d`,
+  }));
+
   return (
-    <div className="flex items-end gap-0.5 h-7 w-14">
-      {data.map((v, i) => (
-        <div
-          key={i}
-          style={{ height: `${(v / max) * 100}%`, backgroundColor: i === data.length - 1 ? color : `${color}4d` }}
-          className="flex-1 rounded-sm min-h-[2px]"
-        />
-      ))}
+    <div className="h-7 w-14">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+          <Bar dataKey="value" radius={[2, 2, 0, 0]}>
+            {chartData.map((entry) => (
+              <Cell key={entry.index} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 };
@@ -167,7 +179,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2">
       <p className="text-xs font-semibold text-slate-900 mb-1">{label}</p>
       {payload.map((e: any, i: number) => (
-        <p key={i} className="text-xs" style={{ color: e.color ?? PRIMARY }}>
+        <p key={i} className="text-xs text-[#154cb3]">
           {e.name}: <span className="font-bold">{e.value?.toLocaleString()}</span>
         </p>
       ))}
@@ -176,7 +188,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function AdminDashboardView({ users, events, fests, registrations }: Props) {
+export default function AdminDashboardView({
+  users,
+  events,
+  fests,
+  registrations,
+  onViewPerformanceInsights,
+}: Props) {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [chartTab, setChartTab] = useState<ChartTab>("registrations");
   const [campusFilter, setCampusFilter] = useState("all");
@@ -184,6 +202,24 @@ export default function AdminDashboardView({ users, events, fests, registrations
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showExport, setShowExport] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [selectedOrganiser, setSelectedOrganiser] = useState<string | null>(null);
+
+  const openOrganiserHistory = useCallback((email?: string | null) => {
+    if (email) {
+      setSelectedOrganiser(email);
+    }
+    setIsHistoryModalOpen(true);
+  }, []);
+
+  const closeOrganiserHistory = useCallback(() => {
+    setIsHistoryModalOpen(false);
+    setSelectedOrganiser(null);
+  }, []);
+
+  const handleOrganiserSelection = useCallback((email: string | null) => {
+    setSelectedOrganiser(email);
+  }, []);
 
   const today = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
@@ -336,6 +372,10 @@ export default function AdminDashboardView({ users, events, fests, registrations
       .slice(0, 5);
   }, [events]);
 
+  const organiserOptions = useMemo(() => {
+    return Array.from(new Set(events.map((e) => e.created_by).filter(Boolean))).sort();
+  }, [events]);
+
   // Recent activity
   const recentActivity = useMemo(() => {
     type Item = { icon: "user" | "event" | "fest"; text: string; sub: string; time: Date; isNew?: boolean };
@@ -437,6 +477,13 @@ export default function AdminDashboardView({ users, events, fests, registrations
           <p className="text-sm text-slate-500 mt-0.5">{today}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => openOrganiserHistory(null)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold border border-blue-100 bg-blue-50 text-[#154cb3] px-3.5 py-2 rounded-lg hover:bg-blue-100 transition-all"
+          >
+            <History className="w-4 h-4" /> Event Backtracking
+          </button>
           <Link
             href="/create/event"
             className="inline-flex items-center gap-1.5 text-sm font-medium border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg hover:bg-slate-50 transition-all"
@@ -470,9 +517,23 @@ export default function AdminDashboardView({ users, events, fests, registrations
         {/* Date picker */}
         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-2">
           <CalendarRange className="w-3.5 h-3.5 text-slate-400" />
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs text-slate-600 bg-transparent outline-none w-28" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            aria-label="Start date filter"
+            title="Start date filter"
+            className="text-xs text-slate-600 bg-transparent outline-none w-28"
+          />
           <span className="text-slate-300 text-xs">–</span>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs text-slate-600 bg-transparent outline-none w-28" />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            aria-label="End date filter"
+            title="End date filter"
+            className="text-xs text-slate-600 bg-transparent outline-none w-28"
+          />
         </div>
 
         {/* Campus dropdown */}
@@ -481,6 +542,8 @@ export default function AdminDashboardView({ users, events, fests, registrations
           <select
             value={campusFilter}
             onChange={(e) => setCampusFilter(e.target.value)}
+            aria-label="Campus filter"
+            title="Campus filter"
             className="text-[11px] text-slate-600 bg-transparent outline-none appearance-none pr-4"
           >
             <option value="all">All Campuses</option>
@@ -495,6 +558,8 @@ export default function AdminDashboardView({ users, events, fests, registrations
           <select
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
+            aria-label="Department filter"
+            title="Department filter"
             className="text-[11px] text-slate-600 bg-transparent outline-none appearance-none pr-4"
           >
             <option value="all">All Departments</option>
@@ -631,7 +696,7 @@ export default function AdminDashboardView({ users, events, fests, registrations
                 {pricingData.map((d, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PRICING_COLORS[i] }} />
+                      <div className={`w-2.5 h-2.5 rounded-full ${PRICING_COLOR_CLASSES[i % PRICING_COLOR_CLASSES.length]}`} />
                       <span className="text-xs text-slate-600">{d.name}</span>
                     </div>
                     <span className="text-xs font-semibold text-slate-900">{Math.round((d.value / totalPricing) * 100)}%</span>
@@ -656,7 +721,7 @@ export default function AdminDashboardView({ users, events, fests, registrations
                 {roleData.map((d, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ROLE_COLORS[i] }} />
+                      <div className={`w-2.5 h-2.5 rounded-full ${ROLE_COLOR_CLASSES[i % ROLE_COLOR_CLASSES.length]}`} />
                       <span className="text-[11px] text-slate-600">{d.name}</span>
                     </div>
                     <span className="text-[11px] font-semibold text-slate-900">{Math.round((d.value / totalRoles) * 100)}%</span>
@@ -720,18 +785,52 @@ export default function AdminDashboardView({ users, events, fests, registrations
                     <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-slate-500">{org.initials}</span>
                     </div>
-                    <p className="text-xs text-slate-700 flex-1 truncate">{org.email}</p>
+                    <button
+                      type="button"
+                      onClick={() => openOrganiserHistory(org.email)}
+                      className="text-xs text-slate-700 flex-1 truncate text-left hover:text-[#154cb3] hover:underline"
+                      title={`View full event history for ${org.email}`}
+                    >
+                      {org.email}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openOrganiserHistory(org.email)}
+                      className="rounded-md p-1 text-slate-400 hover:bg-blue-50 hover:text-[#154cb3]"
+                      aria-label={`View event history for ${org.email}`}
+                      title="View event history"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </button>
                     <p className={`text-sm font-bold flex-shrink-0 ${org.count > 0 ? "text-slate-900" : "text-slate-300"}`}>{org.count}</p>
                   </div>
                 ))
               )}
             </div>
-            <button className="w-full mt-3 text-xs text-[#154cb3] font-medium hover:underline text-center pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onViewPerformanceInsights}
+              disabled={!onViewPerformanceInsights}
+              className={`w-full mt-3 inline-flex items-center justify-center gap-1.5 text-xs font-medium text-center pt-2 border-t border-slate-100 ${
+                onViewPerformanceInsights
+                  ? "text-[#154cb3] hover:underline"
+                  : "text-slate-400 cursor-not-allowed"
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
               View performance insights
             </button>
           </div>
         </Card>
       </div>
+
+      <OrganiserHistoryModal
+        isOpen={isHistoryModalOpen}
+        organiserIdentifier={selectedOrganiser}
+        organiserOptions={organiserOptions}
+        onOrganiserChange={handleOrganiserSelection}
+        onClose={closeOrganiserHistory}
+      />
     </div>
   );
 }
