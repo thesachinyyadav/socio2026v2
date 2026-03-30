@@ -14,6 +14,8 @@ import { christCampuses } from "../lib/eventFormSchema";
 import {
   useEvents,
   FetchedEvent as ContextFetchedEvent,
+  buildDiscoverCampusDatasets,
+  matchesSelectedCampus,
 } from "../../context/EventContext";
 
 interface Fest {
@@ -25,6 +27,9 @@ interface Fest {
   description: string | null;
   fest_image_url: string | null;
   organizing_dept: string | null;
+  campus_hosted_at?: string | null;
+  allowed_campuses?: string[] | string | null;
+  venue?: string | null;
 }
 
 interface Category {
@@ -36,9 +41,6 @@ interface Category {
 
 const DiscoverPage = () => {
   const {
-    carouselEvents: carouselEventsDataFromContext,
-    trendingEvents: trendingEventsDataFromContext,
-    upcomingEvents: upcomingEventsDataFromContext,
     isLoading: isLoadingEventsFromContext,
     error: errorEventsFromContext,
     allEvents,
@@ -48,7 +50,7 @@ const DiscoverPage = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [upcomingFests, setUpcomingFests] = useState<Fest[]>([]);
+  const [allFests, setAllFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);
   const [errorFests, setErrorFests] = useState<string | null>(null);
 
@@ -69,6 +71,9 @@ const DiscoverPage = () => {
               description: fest.description ?? null,
               fest_image_url: fest.fest_image_url ?? null,
               organizing_dept: fest.organizing_dept ?? null,
+              campus_hosted_at: fest.campus_hosted_at ?? fest.campusHostedAt ?? null,
+              allowed_campuses: fest.allowed_campuses ?? fest.allowedCampuses ?? [],
+              venue: fest.venue ?? null,
             }))
           : [];
 
@@ -77,11 +82,10 @@ const DiscoverPage = () => {
             new Date(b.opening_date ?? 0).getTime() -
             new Date(a.opening_date ?? 0).getTime()
         );
-        const recentFests = sortedFests.slice(0, 3);
-        setUpcomingFests(recentFests);
+        setAllFests(sortedFests);
       } catch (err: any) {
         setErrorFests(err.message || "Failed to load fests.");
-        setUpcomingFests([]);
+        setAllFests([]);
       } finally {
         setIsLoadingFests(false);
       }
@@ -89,6 +93,31 @@ const DiscoverPage = () => {
 
     fetchFests();
   }, []);
+
+  const {
+    filteredEvents,
+    carouselEvents: campusCarouselEvents,
+    trendingEvents: campusTrendingEvents,
+    upcomingEvents: campusUpcomingEvents,
+  } = useMemo(
+    () => buildDiscoverCampusDatasets(allEvents || [], selectedCampus),
+    [allEvents, selectedCampus]
+  );
+
+  const filteredUpcomingFests = useMemo(() => {
+    const filtered = allFests.filter((fest) =>
+      matchesSelectedCampus(
+        {
+          campus_hosted_at: fest.campus_hosted_at,
+          allowed_campuses: fest.allowed_campuses,
+          venue: fest.venue,
+        },
+        selectedCampus
+      )
+    );
+
+    return filtered.slice(0, 3);
+  }, [allFests, selectedCampus]);
 
   const dynamicCategories = useMemo(() => {
     const baseCategories: Omit<Category, "count">[] = [
@@ -100,19 +129,19 @@ const DiscoverPage = () => {
       { id: 6, title: "Innovation", icon: "innovation" },
     ];
 
-    if (isLoadingEventsFromContext || !allEvents || allEvents.length === 0) {
+    if (isLoadingEventsFromContext || !filteredEvents || filteredEvents.length === 0) {
       return baseCategories.map((cat) => ({ ...cat, count: "0 events" }));
     }
 
     return baseCategories.map((cat) => {
-      const count = allEvents.filter(
+      const count = filteredEvents.filter(
         (event: ContextFetchedEvent) =>
           event.category && cat.title && 
           event.category.toLowerCase() === cat.title.toLowerCase()
       ).length;
       return { ...cat, count: `${count} event${count !== 1 ? "s" : ""}` };
     });
-  }, [allEvents, isLoadingEventsFromContext]);
+  }, [filteredEvents, isLoadingEventsFromContext]);
 
   // Use centres from centralized data, show first 3 on Discover page
   const displayCentres = allCentres.slice(0, 3).map(centre => ({
@@ -252,25 +281,23 @@ const DiscoverPage = () => {
 
           {!isLoadingEventsFromContext && !errorEventsFromContext && (
             <>
-              {carouselEventsDataFromContext &&
-              carouselEventsDataFromContext.length > 0 ? (
-                <FullWidthCarousel images={carouselEventsDataFromContext} />
+              {campusCarouselEvents.length > 0 ? (
+                <FullWidthCarousel images={campusCarouselEvents} />
               ) : (
                 <div className="text-center py-8 md:py-12 text-gray-500">
-                  No events available for the carousel.
+                  No carousel events found for {selectedCampus}.
                 </div>
               )}
 
-              {trendingEventsDataFromContext &&
-              trendingEventsDataFromContext.length > 0 ? (
+              {campusTrendingEvents.length > 0 ? (
                 <EventsSection
                   title="Trending events"
-                  events={trendingEventsDataFromContext}
+                  events={campusTrendingEvents}
                   baseUrl="event"
                 />
               ) : (
                 <div className="my-8 p-6 bg-gray-50 rounded-lg text-center text-gray-500">
-                  No trending events at the moment. Check back later!
+                  No trending events found for {selectedCampus}.
                 </div>
               )}
             </>
@@ -289,31 +316,39 @@ const DiscoverPage = () => {
             </div>
           )}
           {!isLoadingFests && !errorFests && (
-            <FestsSection
-              title="Upcoming fests"
-              fests={upcomingFests.map((fest: Fest) => {
-                const festIdNum = Number(fest.fest_id) || Number(fest.id) || 0;
-                const openingDate = fest.opening_date
-                  ? new Date(fest.opening_date)
-                  : new Date();
-                const closingDate = fest.closing_date
-                  ? new Date(fest.closing_date)
-                  : openingDate;
+            <>
+              {filteredUpcomingFests.length > 0 ? (
+                <FestsSection
+                  title="Upcoming fests"
+                  fests={filteredUpcomingFests.map((fest: Fest) => {
+                    const festIdNum = Number(fest.fest_id) || Number(fest.id) || 0;
+                    const openingDate = fest.opening_date
+                      ? new Date(fest.opening_date)
+                      : new Date();
+                    const closingDate = fest.closing_date
+                      ? new Date(fest.closing_date)
+                      : openingDate;
 
-                return {
-                  fest_id: festIdNum,
-                  fest_title: fest.title || "Untitled fest",
-                  organizing_dept: fest.organizing_dept || "",
-                  description: fest.description || "",
-                  dateRange: `${fest.opening_date ?? "TBD"} - ${fest.closing_date ?? "TBD"}`,
-                  fest_image_url: fest.fest_image_url || "",
-                  opening_date: openingDate,
-                  closing_date: closingDate,
-                };
-              })}
-              showAll={true}
-              baseUrl="fest"
-            />
+                    return {
+                      fest_id: festIdNum,
+                      fest_title: fest.title || "Untitled fest",
+                      organizing_dept: fest.organizing_dept || "",
+                      description: fest.description || "",
+                      dateRange: `${fest.opening_date ?? "TBD"} - ${fest.closing_date ?? "TBD"}`,
+                      fest_image_url: fest.fest_image_url || "",
+                      opening_date: openingDate,
+                      closing_date: closingDate,
+                    };
+                  })}
+                  showAll={true}
+                  baseUrl="fest"
+                />
+              ) : (
+                <div className="my-8 p-6 bg-gray-50 rounded-lg text-center text-gray-500">
+                  No upcoming fests found for {selectedCampus}.
+                </div>
+              )}
+            </>
           )}
         </section>
 
@@ -336,17 +371,16 @@ const DiscoverPage = () => {
 
         {!isLoadingEventsFromContext && !errorEventsFromContext && (
           <>
-            {upcomingEventsDataFromContext &&
-            upcomingEventsDataFromContext.length > 0 ? (
+            {campusUpcomingEvents.length > 0 ? (
               <EventsSection
                 title="Upcoming events"
-                events={upcomingEventsDataFromContext}
+                events={campusUpcomingEvents}
                 showAll={false}
                 baseUrl="event"
               />
             ) : (
               <div className="my-8 p-6 bg-gray-50 rounded-lg text-center text-gray-500">
-                No upcoming events scheduled yet. Stay tuned!
+                No upcoming events found for {selectedCampus}.
               </div>
             )}
           </>

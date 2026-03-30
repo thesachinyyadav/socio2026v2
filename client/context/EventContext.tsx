@@ -24,6 +24,13 @@ export interface CarouselDisplayImage {
   department: string;
 }
 
+export interface CampusScopedItem {
+  campus_hosted_at?: string | null;
+  allowed_campuses?: string[] | string | null;
+  venue?: string | null;
+  location?: string | null;
+}
+
 interface EventsContextType {
   allEvents: FetchedEvent[];
   carouselEvents: CarouselDisplayImage[];
@@ -67,7 +74,189 @@ export interface FetchedEvent {
   registration_deadline: string | null;
   total_participants: number | null;
   allow_outsiders?: boolean | null;
+  campus_hosted_at?: string | null;
+  allowed_campuses?: string[] | string | null;
 }
+
+const normalizeCampusText = (value: string | null | undefined): string => {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .replace(/[()]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+};
+
+const CAMPUS_ALIASES: Record<string, string[]> = {
+  "central campus main": ["central campus main", "central campus", "main campus", "central"],
+  "bannerghatta road campus": ["bannerghatta road campus", "bannerghatta", "bg road"],
+  "yeshwanthpur campus": ["yeshwanthpur campus", "yeshwanthpur"],
+  "kengeri campus": ["kengeri campus", "kengeri"],
+  "delhi ncr campus": ["delhi ncr campus", "delhi ncr", "delhi"],
+  "pune lavasa campus": ["pune lavasa campus", "pune lavasa", "lavasa", "pune"],
+};
+
+const getCampusMatchers = (selectedCampus: string): string[] => {
+  const normalizedCampus = normalizeCampusText(selectedCampus);
+  const aliases = CAMPUS_ALIASES[normalizedCampus] || [selectedCampus];
+
+  return Array.from(
+    new Set(aliases.map((entry) => normalizeCampusText(entry)).filter(Boolean))
+  );
+};
+
+const parseCampusField = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((entry): entry is string => typeof entry === "string");
+      }
+    } catch {
+      return [trimmed];
+    }
+
+    return [];
+  }
+
+  return [];
+};
+
+const matchesCampusText = (value: string | null | undefined, matchers: string[]): boolean => {
+  const normalizedValue = normalizeCampusText(value);
+  if (!normalizedValue) return false;
+
+  return matchers.some(
+    (matcher) =>
+      normalizedValue === matcher ||
+      normalizedValue.includes(matcher) ||
+      matcher.includes(normalizedValue)
+  );
+};
+
+export const matchesSelectedCampus = (
+  item: CampusScopedItem,
+  selectedCampus: string
+): boolean => {
+  if (!selectedCampus) return true;
+
+  const campusMatchers = getCampusMatchers(selectedCampus);
+  if (campusMatchers.length === 0) return true;
+
+  if (matchesCampusText(item.campus_hosted_at, campusMatchers)) {
+    return true;
+  }
+
+  const allowedCampuses = parseCampusField(item.allowed_campuses);
+  if (allowedCampuses.some((campus) => matchesCampusText(campus, campusMatchers))) {
+    return true;
+  }
+
+  if (
+    matchesCampusText(item.venue, campusMatchers) ||
+    matchesCampusText(item.location, campusMatchers)
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+const deriveTags = (event: FetchedEvent): string[] => {
+  const tags: string[] = [];
+
+  if (event.category) {
+    tags.push(event.category);
+  }
+  if (event.claims_applicable) {
+    tags.push("Claims");
+  }
+  if (event.registration_fee === 0 || event.registration_fee === null) {
+    tags.push("Free");
+  } else if (event.registration_fee > 0) {
+    tags.push("Paid");
+  }
+
+  return tags.filter((tag) => tag && tag.trim() !== "");
+};
+
+const toEventCard = (event: FetchedEvent): EventForCard => {
+  return {
+    id: event.id,
+    event_id: event.event_id,
+    title: event.title,
+    fest: event.fest,
+    date: event.event_date,
+    time: event.event_time,
+    location: event.venue || "Location TBD",
+    tags: deriveTags(event),
+    image:
+      event.event_image_url ||
+      "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image",
+    organizing_dept: event.organizing_dept || "TBD",
+    allow_outsiders: event.allow_outsiders ?? false,
+  };
+};
+
+const toCarouselImage = (event: FetchedEvent): CarouselDisplayImage => {
+  return {
+    id: event.id,
+    src:
+      event.banner_url ||
+      event.event_image_url ||
+      "https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner",
+    link: `/event/${event.event_id}`,
+    title: event.title,
+    department: event.organizing_dept || "",
+  };
+};
+
+export const buildDiscoverCampusDatasets = (
+  events: FetchedEvent[],
+  selectedCampus: string
+) => {
+  const filteredEvents = (events || []).filter((event) =>
+    matchesSelectedCampus(
+      {
+        campus_hosted_at: event.campus_hosted_at,
+        allowed_campuses: event.allowed_campuses,
+        venue: event.venue,
+      },
+      selectedCampus
+    )
+  );
+
+  const sortedEvents = [...filteredEvents].sort(
+    (a, b) =>
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
+
+  const latestEvents = sortedEvents.slice(0, 3);
+
+  const carouselEvents = sortedEvents.slice(0, 3).map(toCarouselImage);
+  const trendingEvents = latestEvents.map((event) => {
+    const card = toEventCard(event);
+    return {
+      ...card,
+      tags: Array.from(new Set(["Trending", ...card.tags])),
+    };
+  });
+  const upcomingEvents = latestEvents.map(toEventCard);
+
+  return {
+    filteredEvents,
+    carouselEvents,
+    trendingEvents,
+    upcomingEvents,
+  };
+};
 
 interface EventsProviderProps {
   children: ReactNode;
