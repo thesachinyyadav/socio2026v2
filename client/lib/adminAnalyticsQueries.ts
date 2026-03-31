@@ -456,8 +456,10 @@ export async function fetchAdminAnalyticsDataset(signal?: AbortSignal): Promise<
       "events",
       [
         "event_id,title,event_date,created_at,category,event_type,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest_id,fest,created_by",
-        "event_id,title,event_date,created_at,category,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest_id,fest,created_by",
-        "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,fest_id,fest,created_by",
+        "event_id,title,event_date,created_at,category,event_type,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest,created_by",
+        "event_id,title,event_date,created_at,category,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest,created_by",
+        "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,fest,created_by",
+        "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,created_by",
       ],
       signal
     ),
