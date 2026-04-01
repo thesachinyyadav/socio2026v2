@@ -625,19 +625,19 @@ export default function AdminDashboardView({
           <button
             type="button"
             onClick={() => openOrganiserHistory(null)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold border border-blue-100 bg-blue-50 text-[#154cb3] px-3.5 py-2 rounded-lg hover:bg-blue-100 transition-all"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold border-2 border-[#154cb3] bg-white text-[#154cb3] px-3.5 py-2 rounded-full hover:bg-blue-50 transition-all"
           >
             <History className="w-4 h-4" /> Event Backtracking
           </button>
           <Link
             href="/create/event"
-            className="inline-flex items-center gap-1.5 text-sm font-medium border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg hover:bg-slate-50 transition-all"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold border-2 border-[#154cb3] text-[#154cb3] bg-white px-3.5 py-2 rounded-full hover:bg-blue-50 transition-all"
           >
             <Plus className="w-4 h-4" /> Create Event
           </Link>
           <Link
             href="/create/fest"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold bg-[#154cb3] text-white px-3.5 py-2 rounded-lg hover:bg-[#1240a0] transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold bg-[#154cb3] border-2 border-[#154cb3] text-white px-3.5 py-2 rounded-full hover:bg-[#1240a0] transition-all shadow-sm"
           >
             <Plus className="w-4 h-4" /> Create Fest
           </Link>

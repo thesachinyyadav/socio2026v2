@@ -618,12 +618,12 @@ export default function ManageDashboard() {
 
           <div className="flex items-center gap-3">
             <Link href="/create/fest">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border border-[#154cb3] rounded-lg hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
                 <Plus className="w-4 h-4" /> Create Fest
                 </button>
             </Link>
             <Link href="/create/event">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-lg hover:bg-[#124099] transition-colors shadow-sm border border-transparent text-sm">
+                <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                 <Plus className="w-4 h-4" /> Create Event
                 </button>
             </Link>
