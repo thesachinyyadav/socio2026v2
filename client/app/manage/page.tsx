@@ -397,6 +397,44 @@ export default function ManageDashboard() {
       .finally(() => setIsLoadingFests(false));
   }, [userData?.email, isMasterAdmin]);
 
+  // Fetch fresh events from Supabase directly on page load to ensure archive status is current
+  // This bypasses the cached events from EventContext to show real-time archive changes
+  const [liveEvents, setLiveEvents] = useState<ContextEvent[]>([]);
+  const [isLoadingLiveEvents, setIsLoadingLiveEvents] = useState(false);
+
+  useEffect(() => {
+    const fetchLiveEvents = async () => {
+      try {
+        setIsLoadingLiveEvents(true);
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching live events:", error);
+          // Fall back to context events if fetch fails
+          setLiveEvents(contextAllEvents);
+        } else {
+          setLiveEvents(data || []);
+        }
+      } catch (err) {
+        console.error("Error fetching live events:", err);
+        // Fall back to context events if fetch fails
+        setLiveEvents(contextAllEvents);
+      } finally {
+        setIsLoadingLiveEvents(false);
+      }
+    };
+
+    fetchLiveEvents();
+  }, []); // Run once on mount to get initial fresh data
+
 
   // Permissions & Campus logic for Events
   const getValidDate = (date: string | null | undefined) => {
@@ -446,7 +484,7 @@ export default function ManageDashboard() {
     return !isArchived && !isPast;
   };
 
-  const userSpecificContextEvents = (contextAllEvents as ContextEvent[]).filter((e) => {
+  const userSpecificContextEvents = (liveEvents.length > 0 ? liveEvents : contextAllEvents as ContextEvent[]).filter((e) => {
     const isOwnerOrMaster = isMasterAdmin || (userData?.email && e.created_by === userData.email);
     const matchesCampus = campusFilter === "all" || (e as any).campus_hosted_at === campusFilter;
     const eventIsPast = isPastDate(e.event_date);
@@ -510,7 +548,29 @@ export default function ManageDashboard() {
     previousPagesRef.current = { eventsPage, festsPage };
   }, [eventsPage, festsPage]);
 
-  
+  // Helper function to refresh live events from Supabase
+  const refreshLiveEvents = async () => {
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error("Error refreshing live events:", error);
+      } else {
+        setLiveEvents(data || []);
+      }
+    } catch (err) {
+      console.error("Error refreshing live events:", err);
+    }
+  };
+
   // ─── REPORT GENERATION HANDLER ────────────────────────
   const handleGenerateReport = async () => {
     setIsGenerating(true);
@@ -775,6 +835,9 @@ export default function ManageDashboard() {
       }));
 
       toast.success(shouldArchive ? "Event archived successfully." : "Event moved back to active list.");
+      
+      // Refresh live events to reflect the latest archive status
+      await refreshLiveEvents();
     } catch (error: any) {
       console.error("Archive update failed:", error);
       toast.error(error?.message || "Unable to update archive status.");
@@ -830,7 +893,8 @@ export default function ManageDashboard() {
       setArchiveOverrides((prev) => {
         const updated = { ...prev };
         // Find all events with this fest_id and update them
-        contextAllEvents?.forEach((event) => {
+        const eventsToCheck = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+        eventsToCheck?.forEach((event) => {
           if (event.fest === festId) {
             updated[event.event_id] = {
               is_archived: Boolean(shouldArchive),
@@ -847,6 +911,9 @@ export default function ManageDashboard() {
           ? `Fest and ${eventsAffected} events archived successfully.`
           : "Fest and associated events moved back to active list."
       );
+
+      // Refresh live events to reflect the latest archive status for all events under this fest
+      await refreshLiveEvents();
     } catch (error: any) {
       console.error("Fest archive update failed:", error);
       toast.error(error?.message || "Unable to update fest archive status.");
@@ -1091,7 +1158,8 @@ export default function ManageDashboard() {
 
                   {selectedReportFest && (() => {
                     const selectedFestObj = fests.find(f => f.fest_id === selectedReportFest);
-                    const festEvents = contextAllEvents.filter((event) => {
+                    const eventsToFilter = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+                    const festEvents = eventsToFilter.filter((event) => {
                       const matchesByFestId =
                         Boolean(selectedFestObj?.fest_id) &&
                         String((event as any).fest_id || "") === String(selectedFestObj?.fest_id || "");
@@ -1147,7 +1215,8 @@ export default function ManageDashboard() {
 
               {/* Events Mode Logic */}
               {reportMode === "events" && (() => {
-                const userEvents = isMasterAdmin ? contextAllEvents : contextAllEvents.filter(e => e.created_by === userData?.email);
+                const eventsForReport = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+                const userEvents = isMasterAdmin ? eventsForReport : eventsForReport.filter(e => e.created_by === userData?.email);
                 const filteredEvents = userEvents.filter(e => 
                   e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
                   (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())
