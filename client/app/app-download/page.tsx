@@ -8,6 +8,14 @@ import Link from 'next/link';
 const ComingSoon = () => {
   const pageRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const pwaUrl = process.env.NEXT_PUBLIC_PWA_URL || "https://app.withsocio.com";
+  const pwaDisplayHost = (() => {
+    try {
+      return new URL(pwaUrl).host;
+    } catch {
+      return "app.withsocio.com";
+    }
+  })();
 
   useEffect(() => {
     if (!pageRef.current) return;
@@ -66,17 +74,7 @@ const ComingSoon = () => {
           SOCIO mobile is in final preparation and will be available shortly. While we complete the launch, you can use the Pre Beta Version App experience today.
         </p>
         
-        <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-12">
-          <div className="flex items-center justify-center gap-2 bg-white px-6 py-4 rounded-lg shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#063168" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path>
-              <path d="M12 6V12L16 14"></path>
-            </svg>
-            <span className="text-[#063168] font-medium">Estimated launch: March 2026</span>
-          </div>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
           <Link href="/" className="btn bg-[#063168] hover:bg-[#154CB3] text-white font-medium py-3 px-6 rounded-md transition-all duration-300 shadow-md hover:shadow-lg">
             Back to Homepage
           </Link>
@@ -87,13 +85,38 @@ const ComingSoon = () => {
             Explore Events on Web
           </button>
           <a
-            href={process.env.NEXT_PUBLIC_PWA_URL || '#'}
+            href={pwaUrl}
             target="_blank"
             rel="noreferrer"
-            className="btn bg-[#FFCC00] hover:bg-[#f7b500] text-[#063168] font-medium py-3 px-6 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
+            className="btn inline-flex items-center gap-3 bg-[#FFCC00] hover:bg-[#f7b500] text-[#063168] font-semibold py-3 px-6 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
           >
-            Open Pre Beta Version App
+            <span>{pwaDisplayHost}</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14"></path>
+              <path d="m12 5 7 7-7 7"></path>
+            </svg>
           </a>
+        </div>
+
+        <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-12">
+          <div className="flex items-center justify-center gap-2 bg-white px-6 py-4 rounded-lg shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#063168" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path>
+              <path d="M12 6V12L16 14"></path>
+            </svg>
+            <span className="text-[#063168] font-medium">Estimated launch: April 2026</span>
+          </div>
         </div>
       </div>
       
