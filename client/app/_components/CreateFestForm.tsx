@@ -1066,16 +1066,16 @@ function CreateFestForm(props?: CreateFestProps) {
     setIsSubmitting(true);
     let uploadedFestImageUrl: string | null = null;
 
-    if (imageFile && supabase) {
+    if (imageFile) {
       setIsUploadingImage(true);
       try {
-        const formData = new FormData();
-        formData.append("file", imageFile);
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", imageFile);
         
         // Use the server's file upload API instead of Supabase storage
         const uploadResponse = await fetch(`${API_URL}/api/upload/fest-image`, {
           method: 'POST',
-          body: formData,
+          body: uploadFormData,
           headers: {
             // No Content-Type header as it's set automatically for FormData
             'Authorization': `Bearer ${session?.access_token}`
@@ -1094,6 +1094,7 @@ function CreateFestForm(props?: CreateFestProps) {
         
         // Use the URL returned from our server API
         uploadedFestImageUrl = uploadData.url;
+        console.log(`✅ Fest image uploaded successfully: ${uploadedFestImageUrl}`);
       } catch (uploadError: any) {
         const errorMessage = uploadError.message || 'Unknown upload error';
         setErrors((prev) => ({
@@ -1105,8 +1106,7 @@ function CreateFestForm(props?: CreateFestProps) {
         return;
       }
       setIsUploadingImage(false);
-    } else if (isEditMode && existingImageFileUrl && !imageFile) {
-    } else if (!imageFile && !isEditMode) {
+    } else if (!imageFile && !isEditMode && !existingImageFileUrl) {
       setErrors((prev) => ({
         ...prev,
         submit: "Fest image is required for new fests.",
@@ -1117,6 +1117,14 @@ function CreateFestForm(props?: CreateFestProps) {
 
     try {
       if (!session) throw new Error("You must be logged in.");
+
+      // Determine the final image URL:
+      // - If a new file was uploaded, use the new URL
+      // - If in edit mode with no new file, keep the existing URL
+      // - Otherwise null (new fest with no image - already caught above)
+      const finalImageUrl = uploadedFestImageUrl ?? (isEditMode ? existingImageFileUrl : null);
+
+      console.log(`[Fest Submit] isEditMode=${isEditMode}, uploadedFestImageUrl=${uploadedFestImageUrl}, existingImageFileUrl=${existingImageFileUrl}, finalImageUrl=${finalImageUrl}`);
 
       const payload: any = {
         festTitle: formData.title,
@@ -1140,11 +1148,9 @@ function CreateFestForm(props?: CreateFestProps) {
         campus_hosted_at: formData.campusHostedAt || null,
         allowed_campuses: formData.allowedCampuses || [],
         allow_outsiders: formData.allowOutsiders,
+        // Always include festImageUrl so backend always updates the DB column
+        festImageUrl: finalImageUrl,
       };
-
-      if (uploadedFestImageUrl || existingImageFileUrl) {
-        payload.festImageUrl = uploadedFestImageUrl || existingImageFileUrl;
-      }
 
       let response;
       if (isEditMode && festIdFromPath) {

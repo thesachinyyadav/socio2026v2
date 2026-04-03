@@ -393,12 +393,22 @@ router.put(
 
       const updatePayload = {};
 
+      // Determine the image URL to save:
+      // - If festImageUrl key exists in body (even as null), use that value explicitly
+      // - This allows clearing the image by sending festImageUrl: null
+      const incomingImageUrl = 'festImageUrl' in updateData
+        ? updateData.festImageUrl
+        : ('fest_image_url' in updateData ? updateData.fest_image_url : undefined);
+
+      console.log(`[Fest Update] Image URL received: ${JSON.stringify(incomingImageUrl)} (type: ${typeof incomingImageUrl})`);
+      console.log(`[Fest Update] 'festImageUrl' in body: ${'festImageUrl' in updateData}`);
+
       const mapFields = [
         ["fest_title", newTitle],
         ["description", updateData.description ?? updateData.detailed_description ?? updateData.detailedDescription],
         ["opening_date", updateData.opening_date ?? updateData.openingDate],
         ["closing_date", updateData.closing_date ?? updateData.closingDate],
-        ["fest_image_url", updateData.fest_image_url ?? updateData.festImageUrl],
+        ["fest_image_url", incomingImageUrl],
         ["organizing_dept", updateData.organizing_dept ?? updateData.organizingDept],
         ["category", updateData.category],
         ["contact_email", updateData.contact_email ?? updateData.contactEmail],
@@ -419,10 +429,13 @@ router.put(
       ];
 
       for (const [key, value] of mapFields) {
+        // Include the field if value is not undefined (null IS included to allow clearing fields)
         if (value !== undefined) {
           updatePayload[key] = value;
         }
       }
+
+      console.log(`[Fest Update] fest_image_url in updatePayload: ${JSON.stringify(updatePayload.fest_image_url)}`);
 
       if (Object.keys(updatePayload).length === 0) {
         return res.status(400).json({ error: "No valid fields to update" });

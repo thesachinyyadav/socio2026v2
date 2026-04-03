@@ -344,7 +344,10 @@ export default function EditEventPage() {
     payload.append("description", formData.detailedDescription);
     payload.append("category", formData.category);
     payload.append("organizing_dept", formData.organizingDept || "");
-    payload.append("fest_id", formData.festEvent || "none");
+    // Only append fest_id if it's not "none"
+    if (formData.festEvent && formData.festEvent !== "none") {
+      payload.append("fest_id", formData.festEvent);
+    }
     payload.append("registration_deadline", formData.registrationDeadline || "");
     payload.append("venue", formData.location);
     payload.append("registration_fee", formData.registrationFee || "0");

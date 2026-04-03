@@ -193,12 +193,8 @@ const FestPage = () => {
         return false;
       }
 
-      const eventFestSlug = event.fest
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
-
-      return eventFestSlug === festIdSlug;
+      // Direct comparison: both event.fest and festIdSlug are fest_ids
+      return event.fest === festIdSlug;
     });
     setFestSpecificEvents(filtered);
   }, [isLoadingEventsContext, allEvents, festIdSlug]);
