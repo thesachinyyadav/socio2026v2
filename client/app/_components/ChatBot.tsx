@@ -98,6 +98,7 @@ function findAnswer(input: string, qaList: QA[]): string | null {
 }
 
 const WELCOME_MESSAGE = "Hi! I'm SocioAssist - your campus event guide. Pick a question below and I'll help.";
+const UNKNOWN_ANSWER_MESSAGE = "Sorry, I cannot help you with that.";
 
 const HELP_MESSAGE = [
   "I can help in live mode.",
@@ -245,7 +246,7 @@ export default function ChatBot() {
     const answer = findAnswer(trimmed, allQA);
     if (answer) return answer;
 
-    return "I understood your request but I need more detail. You can ask direct questions, give navigation commands like 'open events', or paste a URL and I'll fetch and summarize it live.";
+    return UNKNOWN_ANSWER_MESSAGE;
   }, [allQA, fetchWebSummary, pathname, router]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, displayedLen, isThinking]);
@@ -289,7 +290,7 @@ export default function ChatBot() {
     setInput("");
     setIsThinking(true);
 
-    let reply = "I ran into an unexpected issue while processing that command. Please try again.";
+    let reply = UNKNOWN_ANSWER_MESSAGE;
     try {
       reply = await generateReply(trimmed);
     } catch {
@@ -321,9 +322,9 @@ export default function ChatBot() {
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => setIsOpen(false)} />
       )}
 
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed inset-x-2 bottom-2 pb-[env(safe-area-inset-bottom)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:pb-0 z-50 flex justify-end">
         {isOpen && (
-          <div className="mb-4 w-[380px] max-w-[calc(100vw-1rem)] h-[580px] max-h-[calc(100dvh-1.5rem)] rounded-3xl border border-blue-200/20 ring-1 ring-white/10 bg-gradient-to-b from-[#08163a] via-[#091a45] to-[#07132d] text-white shadow-[0_22px_70px_-24px_rgba(21,76,179,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 relative">
+          <div className="mb-3 w-full sm:w-[380px] h-[min(calc(100dvh-1rem),44rem)] sm:h-[580px] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-3rem)] rounded-2xl sm:rounded-3xl border border-blue-200/20 ring-1 ring-white/10 bg-gradient-to-b from-[#08163a] via-[#091a45] to-[#07132d] text-white shadow-[0_22px_70px_-24px_rgba(21,76,179,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 relative">
             <div className="pointer-events-none absolute -top-14 -left-12 h-36 w-36 rounded-full bg-blue-400/20 blur-3xl" />
             <div className="pointer-events-none absolute bottom-8 -right-10 h-28 w-28 rounded-full bg-cyan-300/20 blur-3xl" />
 
