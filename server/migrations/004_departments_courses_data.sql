@@ -4,7 +4,7 @@
 -- 
 -- This migration:
 -- 1. Creates the departments_courses table to store department info with courses in JSON
--- 2. Populates it with data extracted from "Classes and Location Details as on 12-02-2026.xlsx"
+-- 2. Populates it with pre-generated department/course/class seed data
 -- 3. Adds a foreign key reference in the users table to link users.course to departments_courses
 
 -- ===========================================================================

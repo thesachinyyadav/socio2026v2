@@ -1,7 +1,5 @@
 import express from "express";
 import dotenv from "dotenv";
-import helmet from "helmet";
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from 'url';
 import { initializeDatabase } from "./config/database.js";
@@ -15,7 +13,6 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
-import debugRoutes from "./routes/debugRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 
@@ -23,13 +20,6 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const isProduction = process.env.NODE_ENV === "production";
-const debugRoutesEnabled = !isProduction;
-
-const parsePositiveInt = (value, fallback) => {
-  const parsed = Number.parseInt(String(value), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
 
 // Initialize Supabase database connection (don't block startup)
 initializeDatabase().catch(err => {
@@ -37,16 +27,7 @@ initializeDatabase().catch(err => {
 });
 
 const app = express();
-
-app.disable("x-powered-by");
-app.set("trust proxy", 1);
-app.use(express.json({ limit: "1mb" }));
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
-);
+app.use(express.json());
 
 // Prevent stale API payloads from being cached by browsers or intermediary caches.
 app.use('/api', (req, res, next) => {
@@ -57,17 +38,50 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// CORS - restrict to allowed origins in production
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://socio.christuniversity.in',
+  'https://sociodev.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
 
-const ALLOWED_ORIGIN_PATTERNS = (process.env.ALLOWED_ORIGIN_PATTERNS || '^https://.*\\.vercel\\.app$,^https://.*\\.christuniversity\\.in$')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean)
-  .map(pattern => new RegExp(pattern));
+const DEFAULT_ALLOWED_ORIGIN_PATTERNS = [
+  '^https://.*\\.vercel\\.app$',
+  '^https://.*\\.christuniversity\\.in$'
+];
+
+const parseCsvEnv = (value) =>
+  (value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const compileOriginPatterns = (patterns) => {
+  const compiled = [];
+
+  for (const pattern of patterns) {
+    try {
+      compiled.push(new RegExp(pattern));
+    } catch (error) {
+      console.error(`Invalid ALLOWED_ORIGIN_PATTERNS entry skipped: ${pattern}`);
+    }
+  }
+
+  return compiled;
+};
+
+// CORS - allow explicit origins plus vetted wildcard patterns
+const ALLOWED_ORIGINS = Array.from(
+  new Set([
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...parseCsvEnv(process.env.ALLOWED_ORIGINS)
+  ])
+);
+
+const ALLOWED_ORIGIN_PATTERNS = compileOriginPatterns([
+  ...DEFAULT_ALLOWED_ORIGIN_PATTERNS,
+  ...parseCsvEnv(process.env.ALLOWED_ORIGIN_PATTERNS)
+]);
 
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
@@ -85,7 +99,7 @@ const setCorsHeaders = (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email, Accept, Origin');
 };
 
 app.use((req, res, next) => {
@@ -99,19 +113,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-const apiRateLimiter = rateLimit({
-  windowMs: parsePositiveInt(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
-  max: parsePositiveInt(process.env.RATE_LIMIT_MAX, isProduction ? 300 : 1200),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || "127.0.0.1"),
-  message: {
-    error: "Too many requests. Please try again shortly.",
-  },
-});
-
-app.use("/api", apiRateLimiter);
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -149,9 +150,6 @@ app.use("/api", attendanceRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", contactRoutes);
-if (debugRoutesEnabled) {
-  app.use("/api/debug", debugRoutes);
-}
 app.use("/api/chat", chatRoutes);
 app.use("/api", reportRoutes);
 
@@ -159,25 +157,17 @@ app.use("/api", reportRoutes);
 app.use((err, req, res, next) => {
   console.error('Global error:', err);
   setCorsHeaders(req, res);
-
-  const payload = {
-    error: 'Internal server error',
-  };
-
-  if (!isProduction) {
-    payload.message = err.message;
-  }
-
-  res.status(500).json(payload);
+  res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
 const PORT = process.env.PORT || 8000;
+const isVercelRuntime = process.env.VERCEL === '1';
 
-if (!process.env.VERCEL) {
+if (!isVercelRuntime) {
   app.listen(PORT, () => {
     console.log(`✅ Server is running on port ${PORT}`);
     console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
-    console.log(`🗄️  Database: Supabase (${process.env.SUPABASE_URL || 'not configured'})`);
+    console.log(`🗄️  Database: Supabase (${process.env.SUPABASE_URL || 'https://vkappuaapscvteexogtp.supabase.co'})`);
   });
 }
 
