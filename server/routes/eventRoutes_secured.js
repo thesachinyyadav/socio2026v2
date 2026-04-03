@@ -96,6 +96,19 @@ const normalizeJsonField = (value) => {
   return [];
 };
 
+const normalizeFestReference = (value) => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+
+  const lowered = normalized.toLowerCase();
+  if (lowered === "none" || lowered === "null" || lowered === "undefined") {
+    return null;
+  }
+
+  return normalized;
+};
+
 const AUTO_ARCHIVE_DAYS = (() => {
   const parsedDays = Number.parseInt(process.env.EVENT_AUTO_ARCHIVE_DAYS || "15", 10);
   return Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 15;
@@ -349,6 +362,7 @@ router.post(
         registration_fee,
         organizing_dept,
         fest,
+        fest_id,
         department_access,
         rules,
         schedule,
@@ -477,7 +491,7 @@ router.post(
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,
-        fest_id: fest || null,
+        fest_id: normalizeFestReference(fest_id ?? fest),
         created_by: req.userInfo?.email,
         auth_uuid: req.userId,
         registration_deadline: req.body.registration_deadline || null,
@@ -754,6 +768,7 @@ router.put(
         registration_fee,
         organizing_dept,
         fest,
+        fest_id,
         department_access,
         rules,
         schedule,
@@ -827,7 +842,7 @@ router.put(
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,
-        fest_id: fest || null,
+        fest_id: normalizeFestReference(fest_id ?? fest),
         registration_deadline: req.body.registration_deadline || null,
         // Preserve existing total_participants unless there is a specific admin action to modify it.
         // Include outsider-related settings so toggles persist from the client.
