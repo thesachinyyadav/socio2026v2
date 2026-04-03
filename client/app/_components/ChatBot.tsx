@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 /* ─── Types ─────────────────────────────────────────── */
 interface QA { q: string; a: string }
 interface Message { role: "user" | "assistant"; content: string }
+interface WebFetchResponse {
+  ok: boolean;
+  url: string;
+  title: string;
+  description?: string;
+  summary: string;
+  error?: string;
+}
 
 /* ─── Preset Q&A databases ──────────────────────────── */
 const GLOBAL_QA: QA[] = [
@@ -89,27 +97,176 @@ function findAnswer(input: string, qaList: QA[]): string | null {
   return null;
 }
 
+const WELCOME_MESSAGE = "Hi! I'm SocioAssist - your campus event guide. Pick a question below and I'll help.";
+
+const HELP_MESSAGE = [
+  "I can help in live mode.",
+  "- Ask normal questions about Socio events, fests, profile, and sign-in.",
+  "- Paste any URL to fetch and summarize the webpage.",
+  "- Use commands like: summarize this page, analyze current page, open events, go to profile.",
+].join("\n");
+
+function detectNavigationCommand(input: string): { path: string; label: string } | null {
+  const lower = input.toLowerCase();
+  if (!/(go to|open|take me to|navigate|show me|visit)/.test(lower)) return null;
+
+  if (/(^|\s)events?(\s|$)/.test(lower)) return { path: "/events", label: "Events" };
+  if (/(^|\s)fests?(\s|$)|festival/.test(lower)) return { path: "/fests", label: "Fests" };
+  if (/(^|\s)discover(\s|$)/.test(lower)) return { path: "/Discover", label: "Discover" };
+  if (/profile|account/.test(lower)) return { path: "/profile", label: "Profile" };
+  if (/manage|organi[sz]er/.test(lower)) return { path: "/manage", label: "Manage" };
+  if (/master\s*admin|admin/.test(lower)) return { path: "/masteradmin", label: "Master Admin" };
+  if (/auth|sign\s?in|login/.test(lower)) return { path: "/auth", label: "Sign In" };
+  if (/home|dashboard/.test(lower)) return { path: "/", label: "Home" };
+
+  return null;
+}
+
+function extractUrl(input: string): string | null {
+  const directUrl = input.match(/https?:\/\/[^\s]+/i)?.[0];
+  if (directUrl) return directUrl.replace(/[),.!?]+$/, "");
+
+  const wwwUrl = input.match(/\bwww\.[^\s]+\.[a-z]{2,}(?:\/[^\s]*)?/i)?.[0];
+  if (!wwwUrl) return null;
+
+  return `https://${wwwUrl.replace(/[),.!?]+$/, "")}`;
+}
+
+function shouldFetchCurrentPage(input: string): boolean {
+  const lower = input.toLowerCase();
+  return /(this page|current page|page here|here)/.test(lower)
+    && /(summari[sz]e|analy[sz]e|read|fetch|scan|what is on)/.test(lower);
+}
+
+function extractFocusQuery(input: string, url?: string): string {
+  let query = input;
+  if (url) query = query.replace(url, " ");
+  query = query
+    .replace(/\b(fetch|read|analy[sz]e|summari[sz]e|scan|explain|tell me about|what is on|from|website|webpage|page|this|current|here)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return query;
+}
+
+function buildWebReply(data: WebFetchResponse): string {
+  const lines = [
+    `Live fetch complete from: ${data.title}`,
+    data.summary,
+  ];
+
+  if (data.description && !data.summary.toLowerCase().includes(data.description.toLowerCase())) {
+    lines.splice(1, 0, `Overview: ${data.description}`);
+  }
+
+  lines.push(`Source: ${data.url}`);
+  return lines.join("\n\n");
+}
+
 /* ─── Component ─────────────────────────────────────── */
 export default function ChatBot() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm SocioAssist — your campus event guide. Pick a question below and I’ll help." },
+    { role: "assistant", content: WELCOME_MESSAGE },
   ]);
+  const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [typingIdx, setTypingIdx] = useState<number | null>(null);
   const [displayedLen, setDisplayedLen] = useState(0);
+  const [isThinking, setIsThinking] = useState(false);
+  const [showFabPulse, setShowFabPulse] = useState(true);
 
   const pageQA = getPageQA(pathname);
   const allQA = [...pageQA, ...GLOBAL_QA];
   const quickQuestions = [...pageQA.slice(0, 4), ...GLOBAL_QA.slice(0, Math.max(0, 4 - pageQA.length))].map((qa) => qa.q);
+  const isTyping = typingIdx !== null;
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, displayedLen]);
-  useEffect(() => {
-    setMessages([{ role: "assistant", content: "Hi! I'm SocioAssist \u2014 your campus event guide. Pick a question below and I'll help." }]);
+  const asked = messages.filter((m) => m.role === "user").map((m) => m.content);
+  const suggestionPool = Array.from(new Set([...quickQuestions, ...allQA.map((qa) => qa.q)])).filter((q) => !asked.includes(q));
+  const visibleSuggestions = suggestionPool.slice(0, 4);
+
+  const resetChat = useCallback(() => {
+    setMessages([{ role: "assistant", content: WELCOME_MESSAGE }]);
     setTypingIdx(null);
     setDisplayedLen(0);
-  }, [pathname]);
+    setInput("");
+    setIsThinking(false);
+  }, []);
+
+  const fetchWebSummary = useCallback(async (url: string, query: string) => {
+    const response = await fetch("/api/chatbot/fetch-content", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, query }),
+    });
+
+    const data = await response.json() as WebFetchResponse;
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "Unable to fetch webpage content.");
+    }
+
+    return data;
+  }, []);
+
+  const generateReply = useCallback(async (trimmed: string) => {
+    const lower = trimmed.toLowerCase();
+
+    if (/^\/?help$|what can you do|commands?|capabilities/.test(lower)) {
+      return HELP_MESSAGE;
+    }
+
+    const navTarget = detectNavigationCommand(trimmed);
+    if (navTarget) {
+      if (navTarget.path === pathname) {
+        return `You're already on the ${navTarget.label} page.`;
+      }
+      router.push(navTarget.path);
+      return `Opening ${navTarget.label} now. Tell me what you want to do next on that page.`;
+    }
+
+    const externalUrl = extractUrl(trimmed);
+    const wantsCurrentPage = shouldFetchCurrentPage(trimmed);
+    if (externalUrl || wantsCurrentPage) {
+      const targetUrl = externalUrl || `${window.location.origin}${pathname}`;
+      const focusQuery = extractFocusQuery(trimmed, externalUrl || undefined);
+
+      try {
+        const data = await fetchWebSummary(targetUrl, focusQuery);
+        return buildWebReply(data);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not fetch webpage content right now.";
+        return `I tried to fetch that page but hit an issue: ${message} Please verify the URL and try again.`;
+      }
+    }
+
+    const answer = findAnswer(trimmed, allQA);
+    if (answer) return answer;
+
+    return "I understood your request but I need more detail. You can ask direct questions, give navigation commands like 'open events', or paste a URL and I'll fetch and summarize it live.";
+  }, [allQA, fetchWebSummary, pathname, router]);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, displayedLen, isThinking]);
+  useEffect(() => {
+    resetChat();
+  }, [pathname, resetChat]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = setTimeout(() => inputRef.current?.focus(), 180);
+    return () => clearTimeout(id);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen]);
 
   /* Typewriter effect */
   useEffect(() => {
@@ -118,28 +275,45 @@ export default function ChatBot() {
     if (!msg) return;
     const fullLen = msg.content.length;
     if (displayedLen >= fullLen) { setTypingIdx(null); return; }
-    const id = setTimeout(() => setDisplayedLen((l: number) => Math.min(l + 1, fullLen)), 12);
+    const chunkSize = fullLen > 600 ? 4 : fullLen > 280 ? 2 : 1;
+    const speed = fullLen > 600 ? 4 : fullLen > 280 ? 7 : 10;
+    const id = setTimeout(() => setDisplayedLen((l: number) => Math.min(l + chunkSize, fullLen)), speed);
     return () => clearTimeout(id);
   }, [typingIdx, displayedLen, messages]);
 
-  const handleQuestion = (text: string) => {
-    if (!text.trim() || typingIdx !== null) return;
-    setMessages((prev) => [...prev, { role: "user", content: text.trim() }]);
-    const answer = findAnswer(text, allQA);
-    const reply = answer || "I'm not sure about that one yet. Try another question below, or visit the FAQ or Contact page for more help.";
-    setTimeout(() => {
-      setMessages((prev) => {
-        const next = [...prev, { role: "assistant" as const, content: reply }];
-        setTypingIdx(next.length - 1);
-        setDisplayedLen(0);
-        return next;
-      });
-    }, 400);
+  const handleQuestion = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || typingIdx !== null || isThinking) return;
+
+    setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
+    setInput("");
+    setIsThinking(true);
+
+    let reply = "I ran into an unexpected issue while processing that command. Please try again.";
+    try {
+      reply = await generateReply(trimmed);
+    } catch {
+      // Fallback message above keeps chat responsive if command parsing fails unexpectedly.
+    }
+
+    setMessages((prev) => {
+      const next = [...prev, { role: "assistant" as const, content: reply }];
+      setTypingIdx(next.length - 1);
+      setDisplayedLen(0);
+      return next;
+    });
+    setIsThinking(false);
   };
 
-  const asked = messages.filter((m) => m.role === "user").map((m) => m.content);
-  const remaining = quickQuestions.filter((q) => !asked.includes(q));
-  const isTyping = typingIdx !== null;
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    handleQuestion(input);
+  };
+
+  const handleToggleChat = () => {
+    setShowFabPulse(false);
+    setIsOpen(true);
+  };
 
   return (
     <>
@@ -149,11 +323,14 @@ export default function ChatBot() {
 
       <div className="fixed bottom-6 right-6 z-50">
         {isOpen && (
-          <div className="mb-4 w-[360px] max-w-[calc(100vw-3rem)] h-[520px] max-h-[calc(100dvh-6rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+          <div className="mb-4 w-[380px] max-w-[calc(100vw-1rem)] h-[580px] max-h-[calc(100dvh-1.5rem)] rounded-3xl border border-blue-200/20 ring-1 ring-white/10 bg-gradient-to-b from-[#08163a] via-[#091a45] to-[#07132d] text-white shadow-[0_22px_70px_-24px_rgba(21,76,179,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 relative">
+            <div className="pointer-events-none absolute -top-14 -left-12 h-36 w-36 rounded-full bg-blue-400/20 blur-3xl" />
+            <div className="pointer-events-none absolute bottom-8 -right-10 h-28 w-28 rounded-full bg-cyan-300/20 blur-3xl" />
+
             {/* Header */}
-            <div className="bg-[#154CB3] text-white px-4 py-3 flex items-center justify-between shrink-0">
+            <div className="relative z-10 bg-gradient-to-r from-[#1B57C8] via-[#154CB3] to-[#0F3D97] text-white px-4 py-3.5 flex items-center justify-between shrink-0 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                <div className="w-9 h-9 bg-white/15 rounded-full flex items-center justify-center ring-1 ring-white/20">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
                     <circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/>
@@ -161,10 +338,13 @@ export default function ChatBot() {
                 </div>
                 <div>
                   <p className="font-semibold text-sm">SocioAssist</p>
-                  <p className="text-xs text-blue-100">Quick Help</p>
+                  <p className="text-[11px] text-blue-100 flex items-center gap-1.5">
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${isTyping || isThinking ? "bg-amber-300 animate-pulse" : "bg-emerald-300"}`} />
+                    {isThinking ? "Thinking..." : isTyping ? "Typing..." : "Quick Help Online"}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors cursor-pointer">
+              <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors cursor-pointer rounded-md p-1 hover:bg-white/10" aria-label="Close chatbot">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -172,13 +352,13 @@ export default function ChatBot() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3">
+            <div className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden ${
+                  <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden backdrop-blur-sm ${
                     msg.role === "user"
-                      ? "bg-[#154CB3] text-white rounded-br-md"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-md"
+                      ? "bg-gradient-to-r from-[#1f63de] to-[#154CB3] text-white rounded-br-md shadow-[0_8px_20px_-8px_rgba(31,99,222,0.8)]"
+                      : "bg-white/10 border border-white/10 text-blue-50 rounded-bl-md"
                   }`}>
                     {i === typingIdx ? msg.content.slice(0, displayedLen) : msg.content}
                     {i === typingIdx && <span className="inline-block w-[2px] h-[14px] bg-gray-400 ml-0.5 align-middle animate-pulse" />}
@@ -187,46 +367,85 @@ export default function ChatBot() {
               ))}
 
               {/* Typing indicator (before message arrives) */}
-              {messages.length > 0 && messages[messages.length - 1].role === "user" && typingIdx === null && (
+              {isThinking && (
                 <div className="flex justify-start">
-                  <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-100 dark:bg-gray-800 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-white/10 border border-white/10 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-blue-200 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 bg-blue-200 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 bg-blue-200 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
                 </div>
               )}
 
-              {remaining.length > 0 && !isTyping && (
-                <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                  {remaining.map((q) => (
-                    <button key={q} onClick={() => handleQuestion(q)}
-                      className="text-xs px-3 py-1.5 rounded-full border border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors cursor-pointer break-words max-w-full">
-                      {q}
-                    </button>
-                  ))}
+              {visibleSuggestions.length > 0 && !isTyping && !isThinking && !input.trim() && (
+                <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2">
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.12em] text-blue-100/80 text-center">Tap a quick prompt</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {visibleSuggestions.map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => handleQuestion(q)}
+                        className="text-xs px-3 py-1.5 rounded-full border border-blue-200/30 bg-[#0e2a6d]/40 text-blue-100 hover:bg-[#1a4db4]/45 hover:text-white transition-colors cursor-pointer break-words max-w-full"
+                        type="button"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
-
+            {/* Composer */}
+            <div className="relative z-10 border-t border-white/10 bg-[#061335]/80 backdrop-blur-sm px-3 py-3">
+              <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  placeholder={isTyping || isThinking ? "SocioAssist is replying..." : "Ask anything, paste a URL, or type: summarize this page"}
+                  disabled={isTyping || isThinking}
+                  className="flex-1 min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-blue-100/65 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-300/30 transition"
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isTyping || isThinking}
+                  className="h-10 w-10 rounded-xl bg-[#1d63de] text-white flex items-center justify-center transition-all hover:bg-[#3477e9] hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Send message"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </form>
+              <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-blue-100/75">
+                <span>{isTyping || isThinking ? "Assistant is crafting your reply" : "Press Enter to send"}</span>
+                <button type="button" onClick={resetChat} className="hover:text-white transition-colors underline underline-offset-2">
+                  Reset chat
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* FAB */}
-        <button onClick={() => setIsOpen(!isOpen)}
-          className="w-14 h-14 bg-[#154CB3] hover:bg-[#0d3580] text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all hover:shadow-xl hover:scale-105">
-          {isOpen ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-            </svg>
-          )}
-        </button>
+        {!isOpen && (
+          <div className="relative">
+            {showFabPulse && (
+              <span className="absolute inset-0 rounded-full bg-[#154CB3]/40 animate-ping" style={{ animationIterationCount: 2 }} />
+            )}
+            <button
+              onClick={handleToggleChat}
+              className="relative w-14 h-14 bg-gradient-to-br from-[#1f63de] to-[#154CB3] hover:from-[#255ec0] hover:to-[#0d3580] text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+              aria-label="Open chatbot"
+            >
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
