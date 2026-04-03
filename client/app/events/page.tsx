@@ -58,7 +58,7 @@ const EventsPageContent = () => {
   const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
 
   const { allEvents, isLoading, error } = useEvents();
-  const { userData, authToken } = useAuth();
+  const { userData, session } = useAuth();
 
   const [filterOptions, setFilterOptions] = useState<FilterOption[]>([
     { name: "All", active: true },
@@ -130,7 +130,7 @@ const EventsPageContent = () => {
   const eventsToFilter = Array.isArray(allEvents) ? allEvents : [];
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
-    if (!authToken) {
+    if (!session?.access_token) {
       toast.error("Please sign in again to update archive status.");
       return;
     }
@@ -147,7 +147,7 @@ const EventsPageContent = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ archive: shouldArchive }),
       });

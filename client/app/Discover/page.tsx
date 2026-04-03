@@ -67,7 +67,7 @@ const DiscoverPageContent = () => {
     error: errorEventsFromContext,
     allEvents,
   } = useEvents();
-  const { authToken } = useAuth();
+  const { session } = useAuth();
 
   const [selectedCampus, setSelectedCampus] = useState(DEFAULT_DISCOVER_CAMPUS);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -178,7 +178,7 @@ const DiscoverPageContent = () => {
   }));
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
-    if (!authToken) {
+    if (!session?.access_token) {
       toast.error("Please sign in again to update archive status.");
       return;
     }
@@ -195,7 +195,7 @@ const DiscoverPageContent = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ archive: shouldArchive }),
       });

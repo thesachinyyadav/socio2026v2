@@ -20,10 +20,10 @@ const UpcomingEvents = () => {
     isLoading: isLoadingContext,
     error: errorContext,
   } = useEvents();
-  const { authToken } = useAuth();
+  const { session } = useAuth();
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
-    if (!authToken) {
+    if (!session?.access_token) {
       toast.error("Please sign in again to update archive status.");
       return;
     }
@@ -40,7 +40,7 @@ const UpcomingEvents = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ archive: shouldArchive }),
       });
