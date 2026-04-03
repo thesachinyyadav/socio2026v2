@@ -70,11 +70,11 @@ function buildEmailShell({ preheader, eyebrow, title, intro, sections = [], ctaL
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px; border-collapse:separate; border-spacing:0;">
               <tr>
                 <td style="padding:0 8px 16px 8px;">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate; border-spacing:0; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #2563eb 100%); border-radius:24px 24px 0 0;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate; border-spacing:0; background:#0f3a7a; border-radius:24px 24px 0 0;">
                     <tr>
-                      <td align="center" style="padding:28px 24px;">
-                        <div style="display:inline-block; border:1px solid rgba(255,255,255,0.18); color:#fff; background: rgba(255,255,255,0.08); border-radius:999px; padding:6px 12px; font-size:12px; letter-spacing:0.08em; text-transform:uppercase; font-weight:700;">${escapeHtml(eyebrow || PLATFORM_NAME)}</div>
-                        <h1 style="margin:14px 0 0 0; color:#ffffff; font-size:34px; line-height:1.15; font-weight:800; letter-spacing:-0.03em;">${escapeHtml(title)}</h1>
+                      <td align="center" style="padding:30px 24px 26px 24px;">
+                        <p style="margin:0 0 6px 0; color:rgba(255,255,255,0.72); font-size:12px; letter-spacing:0.12em; text-transform:uppercase; font-weight:700;">${escapeHtml(eyebrow || PLATFORM_NAME)}</p>
+                        <h1 style="margin:0; color:#ffffff; font-size:30px; line-height:1.2; font-weight:800; letter-spacing:-0.03em;">${escapeHtml(title)}</h1>
                       </td>
                     </tr>
                   </table>
@@ -85,7 +85,7 @@ function buildEmailShell({ preheader, eyebrow, title, intro, sections = [], ctaL
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate; border-spacing:0; background:#ffffff; border-radius:0 0 24px 24px; box-shadow:0 18px 50px rgba(15, 23, 42, 0.12);">
                     <tr>
                       <td style="padding:36px 28px 28px 28px; font-family:Arial, Helvetica, sans-serif;">
-                        <p style="margin:0 0 12px 0; color:#334155; font-size:18px; line-height:1.7;">${intro}</p>
+                        <p style="margin:0 0 12px 0; color:#334155; font-size:17px; line-height:1.7;">${intro}</p>
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin-top:24px;">
                           <tbody>
                             ${sectionHtml}
@@ -167,57 +167,60 @@ function buildTextShell({ title, intro, sections = [], ctaLabel, ctaUrl, footerN
  * @param {string} visitorId - Visitor ID (for outsiders only)
  */
 export async function sendWelcomeEmail(email, name, isOutsider = false, visitorId = null) {
-  if (!resend) { console.warn('⚠️ Resend not configured — skipping welcome email'); return { success: true }; }
+  if (!resend) { console.warn('Resend not configured — skipping welcome email'); return { success: true }; }
   try {
     const firstName = getFirstName(name);
-    const intro = `Welcome to ${PLATFORM_NAME}, ${firstName}. Your account is ready, and you can start discovering campus events right away.`;
+    const intro = `Your ${PLATFORM_NAME} account has been created. You can now browse events, register for activities, and manage your profile.`;
     const sections = isOutsider && visitorId
       ? [
           {
-            heading: 'Your Visitor ID',
+            heading: 'Account information',
             body: `
-              <p style="margin:0; color:#334155; font-size:15px; line-height:1.7;">Keep this ID safe. You may need it when registering for events.</p>
-              <p style="margin:14px 0 0 0; color:#1d4ed8; font-size:24px; font-weight:800; letter-spacing:0.12em; font-family:Arial, Helvetica, sans-serif;">${escapeHtml(visitorId)}</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                <tr>
+                  <td style="padding:0 0 8px 0; color:#64748b; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Visitor ID</td>
+                </tr>
+                <tr>
+                  <td style="color:#0f172a; font-size:18px; font-weight:700; letter-spacing:0.08em; font-family:Arial, Helvetica, sans-serif;">${escapeHtml(visitorId)}</td>
+                </tr>
+                <tr>
+                  <td style="padding-top:10px; color:#334155; font-size:15px; line-height:1.7;">Keep this ID available when registering for events.</td>
+                </tr>
+              </table>
             `,
-            text: `Your Visitor ID: ${visitorId}\nKeep this ID safe. You may need it when registering for events.`,
+            text: `Visitor ID: ${visitorId}\nKeep this ID available when registering for events.`,
           },
           {
-            heading: 'Next step',
-            background: '#fff7ed',
-            border: '#fed7aa',
+            heading: 'Recommended next step',
+            background: '#f8fafc',
+            border: '#dbe4f0',
             body: `
-              <p style="margin:0; color:#9a3412; font-size:15px; line-height:1.7;">Visit your profile to set your display name. This can only be changed once.</p>
+              <p style="margin:0; color:#334155; font-size:15px; line-height:1.7;">Visit your profile to set your display name. This can be changed once only.</p>
             `,
-            text: 'Visit your profile to set your display name. This can only be changed once.',
+            text: 'Visit your profile to set your display name. This can be changed once only.',
           },
         ]
       : [
           {
             heading: 'What you can do now',
             body: `
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                <tr>
-                  <td style="padding:0 0 10px 0; color:#334155; font-size:15px; line-height:1.7;">Discover events across campus</td>
-                </tr>
-                <tr>
-                  <td style="padding:0 0 10px 0; color:#334155; font-size:15px; line-height:1.7;">Register in a few steps</td>
-                </tr>
-                <tr>
-                  <td style="padding:0; color:#334155; font-size:15px; line-height:1.7;">Receive updates and reminders</td>
-                </tr>
-              </table>
+              <ul style="margin:0; padding:0 0 0 18px; color:#334155; font-size:15px; line-height:1.8;">
+                <li>Discover events across campus</li>
+                <li>Register for activities from your account</li>
+                <li>Receive updates and reminders</li>
+              </ul>
             `,
-            text: 'Discover events across campus. Register in a few steps. Receive updates and reminders.',
+            text: 'Discover events across campus. Register for activities from your account. Receive updates and reminders.',
           },
         ];
 
     const htmlContent = buildEmailShell({
-      preheader: `Your ${PLATFORM_NAME} account is ready. Start exploring events now.`,
-      eyebrow: 'Account ready',
+      preheader: `Your ${PLATFORM_NAME} account is ready.`,
+      eyebrow: PLATFORM_NAME,
       title: `Welcome, ${firstName}`,
       intro,
       sections,
-      ctaLabel: 'Browse events',
+      ctaLabel: 'View events',
       ctaUrl: `${PLATFORM_URL}/Discover`,
       footerNote: `If you need help, reply to this email or contact ${SUPPORT_EMAIL}.`,
     });
@@ -226,7 +229,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
       title: `Welcome, ${firstName}`,
       intro,
       sections,
-      ctaLabel: 'Browse events',
+      ctaLabel: 'View events',
       ctaUrl: `${PLATFORM_URL}/Discover`,
       footerNote: `If you need help, reply to this email or contact ${SUPPORT_EMAIL}.`,
     });
@@ -265,7 +268,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
  * @param {string|null} qrImageBase64 - Optional base64 data URL of QR code image
  */
 export async function sendRegistrationEmail(email, name, event, registrationId, qrImageBase64 = null) {
-  if (!resend) { console.warn('⚠️ Resend not configured — skipping registration email'); return { success: true }; }
+  if (!resend) { console.warn('Resend not configured — skipping registration email'); return { success: true }; }
   try {
     const firstName = getFirstName(name);
     const eventTitle = escapeHtml(event?.title || 'your event');
@@ -299,7 +302,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId, 
           </div>
         </div>
         <div style="text-align:center;">
-          <a href="${escapeHtml(ticketUrl)}" style="display:inline-block; color:#1d4ed8; font-size:13px; text-decoration:none; font-weight:700;">View full ticket on SOCIO →</a>
+          <a href="${escapeHtml(ticketUrl)}" style="display:inline-block; color:#1d4ed8; font-size:13px; text-decoration:none; font-weight:700;">View full ticket on SOCIO</a>
         </div>
       `;
       qrSectionText = `Show this QR code at the event entrance. View full ticket: ${ticketUrl}`;
