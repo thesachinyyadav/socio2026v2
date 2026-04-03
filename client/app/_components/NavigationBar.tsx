@@ -351,14 +351,14 @@ function NavigationBar() {
                   {!isDesktopCompact && isMasterAdmin && (
                     <Link href="/masteradmin">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-red-50 border-red-600 text-red-600 transition-all duration-200 ease-in-out">
-                        Admin Panel
+                        Admin
                       </button>
                     </Link>
                   )}
                   {!isDesktopCompact && isOrganiser && (
                     <Link href="/manage">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out">
-                        Manage events
+                        Organiser
                       </button>
                     </Link>
                   )}
@@ -606,7 +606,7 @@ function NavigationBar() {
                       onClick={closeDesktopMenu}
                       className="block rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors duration-200"
                     >
-                      Admin Panel
+                      Admin
                     </Link>
                   )}
 
@@ -616,7 +616,7 @@ function NavigationBar() {
                       onClick={closeDesktopMenu}
                       className="block rounded-lg border border-[#154CB3]/30 px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
                     >
-                      Manage events
+                      Organiser
                     </Link>
                   )}
                 </div>
