@@ -689,22 +689,34 @@ router.put(
         if (files?.eventImage && files.eventImage[0]) {
           console.log(`📤 Uploading new event image: ${files.eventImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.eventImage[0], "event-images", eventId);
-          console.log(`✅ Event image uploaded successfully: ${result?.publicUrl}`);
-          uploadedFilePaths.image = result?.publicUrl || null;
+          if (result?.publicUrl) {
+            console.log(`✅ Event image uploaded successfully: ${result.publicUrl}`);
+            uploadedFilePaths.image = result.publicUrl;
+          } else {
+            console.warn(`⚠️ Event image upload returned no URL - keeping existing image`);
+          }
         }
 
         if (files?.bannerImage && files.bannerImage[0]) {
           console.log(`📤 Uploading new banner image: ${files.bannerImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", eventId);
-          console.log(`✅ Banner image uploaded successfully: ${result?.publicUrl}`);
-          uploadedFilePaths.banner = result?.publicUrl || null;
+          if (result?.publicUrl) {
+            console.log(`✅ Banner image uploaded successfully: ${result.publicUrl}`);
+            uploadedFilePaths.banner = result.publicUrl;
+          } else {
+            console.warn(`⚠️ Banner image upload returned no URL - keeping existing banner`);
+          }
         }
         
         if (files?.pdfFile && files.pdfFile[0]) {
           console.log(`📤 Uploading new PDF: ${files.pdfFile[0].originalname}`);
           const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", eventId);
-          console.log(`✅ PDF uploaded successfully: ${result?.publicUrl}`);
-          uploadedFilePaths.pdf = result?.publicUrl || null;
+          if (result?.publicUrl) {
+            console.log(`✅ PDF uploaded successfully: ${result.publicUrl}`);
+            uploadedFilePaths.pdf = result.publicUrl;
+          } else {
+            console.warn(`⚠️ PDF upload returned no URL - keeping existing PDF`);
+          }
         }
       } catch (fileError) {
         console.error("❌ File upload error during event update:", fileError.message);
@@ -852,6 +864,14 @@ router.put(
       }
 
       const updated = await update("events", updateData, { event_id: eventId });
+
+      console.log("💾 Database update result:");
+      if (updated && updated.length > 0) {
+        console.log(`✅ Event updated successfully`);
+        console.log(`  Saved image URL: ${updated[0].event_image_url}`);
+        console.log(`  Saved banner URL: ${updated[0].banner_url}`);
+        console.log(`  Saved PDF URL: ${updated[0].pdf_url}`);
+      }
 
       if (!updated || updated.length === 0) {
         console.warn("⚠️ Update query returned no data, fetching event from database...");
