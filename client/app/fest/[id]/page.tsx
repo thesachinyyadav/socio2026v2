@@ -184,18 +184,27 @@ const FestPage = () => {
       return;
     }
 
+    const normalizedFestIdSlug = String(festIdSlug).trim().toLowerCase();
+
     const filtered = allEvents.filter((event) => {
-      if (
-        !event ||
-        typeof event.fest !== "string" ||
-        event.fest.trim() === ""
-      ) {
+      if (!event) {
         return false;
       }
 
-      // Direct comparison: both event.fest and festIdSlug are fest_ids
-      return event.fest === festIdSlug;
+      const eventFestRefRaw =
+        (event as ContextFetchedEvent & { fest_id?: string | null }).fest_id ??
+        event.fest ??
+        "";
+
+      const eventFestRef = String(eventFestRefRaw).trim().toLowerCase();
+
+      if (!eventFestRef || eventFestRef === "none" || eventFestRef === "null") {
+        return false;
+      }
+
+      return eventFestRef === normalizedFestIdSlug;
     });
+
     setFestSpecificEvents(filtered);
   }, [isLoadingEventsContext, allEvents, festIdSlug]);
 
