@@ -48,7 +48,7 @@ export default function Page() {
     isLoading: contextIsLoading,
     error: contextError,
   } = useEvents();
-  const { userData, isLoading: authIsLoading } = useAuth();
+  const { session, userData, isLoading: authIsLoading } = useAuth();
 
   const detailsRef = useRef<HTMLDivElement>(null);
   const rulesRef = useRef<HTMLDivElement>(null);
@@ -308,7 +308,13 @@ export default function Page() {
       setPageLoading(true);
       
       // Make direct API call to fetch the event
-      fetch(`${API_URL}/api/events/${currentEventIdString}`)
+      fetch(`${API_URL}/api/events/${currentEventIdString}`, {
+        headers: session?.access_token
+          ? {
+              Authorization: `Bearer ${session.access_token}`,
+            }
+          : undefined,
+      })
         .then(response => {
           if (!response.ok) {
             throw new Error(`Event with ID "${currentEventIdString}" not found.`);
@@ -319,9 +325,14 @@ export default function Page() {
           if (data.event) {
             // 🔒 CHECK IF EVENT IS ARCHIVED
             const isEventArchived = data.event.is_archived === true;
-            const isUserOrganizerOrAdmin = userData?.is_organiser || (userData as any)?.is_admin;
+            const isUserOrganizerOrAdmin = Boolean(userData?.is_organiser || userData?.is_masteradmin);
+
+            if (isEventArchived && authIsLoading) {
+              setPageLoading(true);
+              return;
+            }
             
-            if (isEventArchived && !isUserOrganizerOrAdmin && !authIsLoading) {
+            if (isEventArchived && !isUserOrganizerOrAdmin) {
               setPageError("This event is archived and not available for viewing.");
               setEventData(null);
               setPageLoading(false);
@@ -346,9 +357,14 @@ export default function Page() {
     if (foundEvent) {
       // 🔒 CHECK IF EVENT IS ARCHIVED
       const isEventArchived = foundEvent.is_archived === true;
-      const isUserOrganizerOrAdmin = userData?.is_organiser || (userData as any)?.is_admin;
+      const isUserOrganizerOrAdmin = Boolean(userData?.is_organiser || userData?.is_masteradmin);
+
+      if (isEventArchived && authIsLoading) {
+        setPageLoading(true);
+        return;
+      }
       
-      if (isEventArchived && !isUserOrganizerOrAdmin && !authIsLoading) {
+      if (isEventArchived && !isUserOrganizerOrAdmin) {
         setPageError("This event is archived and not available for viewing.");
         setEventData(null);
         setPageLoading(false);
@@ -364,7 +380,7 @@ export default function Page() {
       setEventData(null);
       setPageLoading(false);
     }
-  }, [eventIdSlug, allEvents, contextIsLoading, contextError]);
+  }, [eventIdSlug, allEvents, contextIsLoading, contextError, authIsLoading, userData, session?.access_token]);
 
   useEffect(() => {
     if (userData && userData.register_number && !authIsLoading) {

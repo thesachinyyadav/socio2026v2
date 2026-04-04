@@ -44,7 +44,7 @@ export const EventCard = ({
 
   const isOutsiderUser = userData?.organization_type === "outsider";
   const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
-  const isAdminOrOrganizer = !authLoading && (userData?.is_organiser || (userData as any)?.is_admin);
+  const isAdminOrOrganizer = !authLoading && (userData?.is_organiser || userData?.is_masteradmin);
 
   const eventSlug = idForLink;
   // No longer generating slugs from title; always use the actual event_id

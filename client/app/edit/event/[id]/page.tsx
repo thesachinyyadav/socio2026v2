@@ -44,7 +44,7 @@ export default function EditEventPage() {
       return;
     }
 
-    if (!userData || !(userData.is_organiser || (userData as any).is_admin)) {
+    if (!userData || !(userData.is_organiser || (userData as any).is_masteradmin)) {
       setIsLoading(false);
       setErrorMessage("You are not authorized to edit this event.");
       return;
@@ -325,7 +325,7 @@ export default function EditEventPage() {
       setIsSubmitting(false);
       throw new Error("Authentication session expired or not found."); // Ensure EventForm knows
     }
-    if (!userData || !(userData.is_organiser || (userData as any).is_admin)) {
+    if (!userData || !(userData.is_organiser || (userData as any).is_masteradmin)) {
       setErrorMessage("You are not authorized to perform this action.");
       setIsSubmitting(false);
       throw new Error("Not authorized."); // Ensure EventForm knows
@@ -580,7 +580,7 @@ export default function EditEventPage() {
   return initialData &&
     session &&
     userData &&
-    (userData.is_organiser || (userData as any).is_admin) ? (
+    (userData.is_organiser || (userData as any).is_masteradmin) ? (
     <>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-12 pt-4">
         <div className="mb-3 p-3 border border-slate-200 rounded-lg bg-white flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">

@@ -8,7 +8,6 @@ import { FestsSection } from "../_components/Discover/FestSection";
 import { CategorySection } from "../_components/Discover/CategorySection";
 import { ClubSection } from "../_components/Discover/ClubSection";
 import Footer from "../_components/Home/Footer";
-import { getUpcomingFests } from "@/lib/api";
 import { allCentres } from "../lib/centresData";
 import { christCampuses } from "../lib/eventFormSchema";
 import { useAuth } from "@/context/AuthContext";
@@ -33,6 +32,8 @@ interface Fest {
   campus_hosted_at?: string | null;
   allowed_campuses?: string[] | string | null;
   venue?: string | null;
+  is_archived?: boolean;
+  archived_at?: string | null;
 }
 
 interface Category {
@@ -62,6 +63,7 @@ const DiscoverPageContent = () => {
   const campusParam = searchParams.get("campus");
   const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
   const [localArchivedIds, setLocalArchivedIds] = useState<Set<string>>(new Set());
+  const [localFestArchivedIds, setLocalFestArchivedIds] = useState<Set<string>>(new Set());
 
   const {
     isLoading: isLoadingEventsFromContext,
@@ -69,12 +71,13 @@ const DiscoverPageContent = () => {
     allEvents,
   } = useEvents();
   const { session, userData } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
   const [selectedCampus, setSelectedCampus] = useState(DEFAULT_DISCOVER_CAMPUS);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isAdminOrOrganizer = userData?.is_organiser || (userData as any)?.is_admin;
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
   const [allFests, setAllFests] = useState<Fest[]>([]);
   const [isLoadingFests, setIsLoadingFests] = useState(true);
@@ -85,7 +88,21 @@ const DiscoverPageContent = () => {
       setIsLoadingFests(true);
       setErrorFests(null);
       try {
-        const data = await getUpcomingFests();
+        const response = await fetch(`${API_URL}/api/fests?status=upcoming&sortBy=opening_date&sortOrder=asc`, {
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load fests (status: ${response.status})`);
+        }
+
+        const payload = await response.json();
+        const data = Array.isArray(payload?.fests) ? payload.fests : [];
 
         const mappedFests: Fest[] = Array.isArray(data)
           ? data.map((fest: any) => ({
@@ -100,6 +117,8 @@ const DiscoverPageContent = () => {
               campus_hosted_at: fest.campus_hosted_at ?? fest.campusHostedAt ?? null,
               allowed_campuses: fest.allowed_campuses ?? fest.allowedCampuses ?? [],
               venue: fest.venue ?? null,
+              is_archived: Boolean(fest.is_archived),
+              archived_at: fest.archived_at ?? null,
             }))
           : [];
 
@@ -118,7 +137,7 @@ const DiscoverPageContent = () => {
     };
 
     fetchFests();
-  }, []);
+  }, [API_URL, session?.access_token]);
 
   const {
     filteredEvents: allFilteredEvents,
@@ -143,21 +162,42 @@ const DiscoverPageContent = () => {
   const filteredEvents = filterArchivedForNormalUsers(allFilteredEvents);
   const campusTrendingEventsFiltered = filterArchivedForNormalUsers(campusTrendingEvents);
   const campusUpcomingEventsFiltered = filterArchivedForNormalUsers(campusUpcomingEvents);
+  const visibleEventIds = useMemo(
+    () => new Set(filteredEvents.map((event) => String(event.event_id))),
+    [filteredEvents]
+  );
+  const campusCarouselEventsFiltered = useMemo(() => {
+    if (isAdminOrOrganizer) {
+      return campusCarouselEvents;
+    }
+
+    return campusCarouselEvents.filter((image) => {
+      const eventId = image.link?.split("/").filter(Boolean).pop();
+      return eventId ? visibleEventIds.has(eventId) : true;
+    });
+  }, [campusCarouselEvents, isAdminOrOrganizer, visibleEventIds]);
 
   const filteredUpcomingFests = useMemo(() => {
-    const filtered = allFests.filter((fest) =>
-      matchesSelectedCampus(
+    const filtered = allFests.filter((fest) => {
+      // Filter by campus
+      const matchesCampus = matchesSelectedCampus(
         {
           campus_hosted_at: fest.campus_hosted_at,
           allowed_campuses: fest.allowed_campuses,
           venue: fest.venue,
         },
         selectedCampus
-      )
-    );
+      );
+      
+      // Filter archived fests for normal users (including locally archived)
+      if (!matchesCampus) return false;
+      if (localFestArchivedIds?.has(String(fest.fest_id))) return false;
+      if (isAdminOrOrganizer) return true;
+      return !fest.is_archived;
+    });
 
     return filtered.slice(0, 3);
-  }, [allFests, selectedCampus]);
+  }, [allFests, selectedCampus, isAdminOrOrganizer, localFestArchivedIds]);
 
   const dynamicCategories = useMemo(() => {
     const baseCategories: Omit<Category, "count">[] = [
@@ -405,8 +445,8 @@ const DiscoverPageContent = () => {
 
           {!isLoadingEventsFromContext && !errorEventsFromContext && (
             <>
-              {campusCarouselEvents.length > 0 ? (
-                <FullWidthCarousel images={campusCarouselEvents} />
+              {campusCarouselEventsFiltered.length > 0 ? (
+                <FullWidthCarousel images={campusCarouselEventsFiltered} />
               ) : (
                 <div className="text-center py-8 md:py-12 text-gray-500">
                   No carousel events found for {selectedCampus}.

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { formatDateFull, formatTime, dayjs } from "@/lib/dateUtils";
 import { EventCard } from "@/app/_components/Discover/EventCard";
 import { useParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
   useEvents,
   FetchedEvent as ContextFetchedEvent,
@@ -111,6 +112,8 @@ const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventT
 const FestPage = () => {
   const params = useParams();
   const festIdSlug = params.id as string;
+  const { session, userData, isLoading: authIsLoading } = useAuth();
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
   const {
     allEvents,
@@ -163,6 +166,10 @@ const FestPage = () => {
   );
 
   useEffect(() => {
+    if (authIsLoading) {
+      return;
+    }
+
     if (!festIdSlug) {
       setErrorFestDetails("Fest ID is missing from URL.");
       setLoadingFestDetails(false);
@@ -174,7 +181,14 @@ const FestPage = () => {
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
-    fetch(`${API_URL}/api/fests/${festIdSlug}`)
+    fetch(`${API_URL}/api/fests/${festIdSlug}`, {
+      headers: session?.access_token
+        ? {
+            Authorization: `Bearer ${session.access_token}`,
+          }
+        : undefined,
+      cache: "no-store",
+    })
       .then((res) => {
         if (!res.ok) {
           if (res.status === 403) {
@@ -190,6 +204,11 @@ const FestPage = () => {
       .then((data: { fest: FestDataFromAPI }) => {
         if (data.fest) {
           const apiFest = data.fest;
+
+          if (apiFest.is_archived && !isAdminOrOrganizer) {
+            throw new Error("This fest is archived and not available");
+          }
+
           setFestDetails({
             id: apiFest.fest_id,
             title: apiFest.fest_title,
@@ -220,7 +239,7 @@ const FestPage = () => {
         );
         setLoadingFestDetails(false);
       });
-  }, [festIdSlug]);
+  }, [festIdSlug, authIsLoading, isAdminOrOrganizer, session?.access_token]);
 
   useEffect(() => {
     if (!festIdSlug || !festDetails) return;

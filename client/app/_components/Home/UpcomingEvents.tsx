@@ -20,7 +20,7 @@ const UpcomingEvents = () => {
     error: errorContext,
   } = useEvents();
   const { session, userData } = useAuth();
-  const isAdminOrOrganizer = userData?.is_organiser || (userData as any)?.is_admin;
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
   // Filter out archived events for normal users (including locally archived)
   const filteredUpcomingEvents = useMemo(() =>

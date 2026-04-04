@@ -365,6 +365,16 @@ export const optionalAuth = async (req, res, next) => {
       if (!error && user) {
         req.user = user;
         req.userId = user.id;
+
+        // Best-effort user profile hydration for role-aware optional routes.
+        try {
+          const localUser = await queryOne('users', { where: { auth_uuid: user.id } });
+          if (localUser) {
+            req.userInfo = localUser;
+          }
+        } catch (dbError) {
+          console.warn('[optionalAuth] Failed to hydrate req.userInfo:', dbError?.message || dbError);
+        }
       }
     }
     

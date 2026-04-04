@@ -99,7 +99,7 @@ const mapFestResponse = (fest) => {
 };
 
 // GET all fests
-router.get("/", optionalAuth, async (req, res) => {
+router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
   try {
     const { page, pageSize, search, status, sortBy, sortOrder } = req.query;
     const festTable = await getFestTableForDatabase(queryAll);
@@ -294,7 +294,7 @@ router.get("/", optionalAuth, async (req, res) => {
 });
 
 // GET specific fest by ID
-router.get("/:festId", optionalAuth, async (req, res) => {
+router.get("/:festId", optionalAuth, checkRoleExpiration, async (req, res) => {
   try {
     const { festId: festSlug } = req.params;
     console.log(`[Fest GET] Fetching fest: ${festSlug}`);

@@ -55,6 +55,7 @@ const FEST_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> 
   { value: "all", label: "All" },
   { value: "upcoming", label: "Upcoming" },
   { value: "past", label: "Past" },
+  { value: "archived", label: "Archived" },
 ];
 
 const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
@@ -346,12 +347,6 @@ export default function ManageDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (activeTab === "fests" && statusFilter === "archived") {
-      setStatusFilter("all");
-    }
-  }, [activeTab, statusFilter]);
-
   // Load Auth Token for Reports
   useEffect(() => {
     const getToken = async () => {
@@ -378,15 +373,17 @@ export default function ManageDashboard() {
     getFests()
       .then((data) => {
         const mappedFests: Fest[] = Array.isArray(data) ? data.map((fest: any) => ({
-              fest_id: String(fest.fest_id || fest.id || fest.festId || fest.fest_title || fest.title || ""),
-              fest_title: fest.fest_title || fest.title || "Untitled",
-              description: fest.description || "",
-              opening_date: fest.opening_date || null,
-              closing_date: fest.closing_date || null,
-              fest_image_url: fest.fest_image_url || "",
-              organizing_dept: fest.organizing_dept || "",
-              created_by: fest.created_by || fest.createdBy || fest.user_email || fest.organiser_email || null,
-              campus_hosted_at: fest.campus_hosted_at || fest.campus || null,
+          fest_id: String(fest.fest_id || fest.id || fest.festId || fest.fest_title || fest.title || ""),
+          fest_title: fest.fest_title || fest.title || "Untitled",
+          description: fest.description || "",
+          opening_date: fest.opening_date || null,
+          closing_date: fest.closing_date || null,
+          fest_image_url: fest.fest_image_url || "",
+          organizing_dept: fest.organizing_dept || "",
+          created_by: fest.created_by || fest.createdBy || fest.user_email || fest.organiser_email || null,
+          campus_hosted_at: fest.campus_hosted_at || fest.campus || null,
+          is_archived: fest.is_archived === true,
+          archived_at: fest.archived_at || null,
         })) : [];
 
         const userSpecificFests = isMasterAdmin 
@@ -479,6 +476,19 @@ export default function ManageDashboard() {
     return { isArchived: false, archiveSource: null };
   };
 
+  const getEffectiveFestArchiveState = (fest: Fest) => {
+    const override = festArchiveOverrides[fest.fest_id];
+    if (override) {
+      return override.is_archived;
+    }
+
+    if (localFestArchivedIds.has(fest.fest_id)) {
+      return true;
+    }
+
+    return toBoolean(fest.is_archived);
+  };
+
   const matchesStatus = (isPast: boolean, isArchived: boolean) => {
     if (statusFilter === "all") return !isArchived;
     if (statusFilter === "archived") return isArchived;
@@ -499,11 +509,11 @@ export default function ManageDashboard() {
     event.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
   const searchedUserFests = fests.filter((fest) => {
-    if (statusFilter === "archived") return false;
     const matchesSearch = fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCampus = campusFilter === "all" || (fest as any).campus_hosted_at === campusFilter;
     const festIsPast = isPastDate(fest.closing_date);
-    return matchesSearch && matchesCampus && matchesStatus(festIsPast, false);
+    const festIsArchived = getEffectiveFestArchiveState(fest);
+    return matchesSearch && matchesCampus && matchesStatus(festIsPast, festIsArchived);
   });
 
   const activeStatusFilterOptions =

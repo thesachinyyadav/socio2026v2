@@ -144,7 +144,6 @@ const getUpcomingEventsFromDataset = (events: FetchedEvent[]): FetchedEvent[] =>
 
   return [...(events || [])]
     .filter((event) => {
-      if (Boolean((event as any).is_archived)) return false;
       const eventDate = parseComparableDate(event.event_date);
       if (!eventDate) return false;
       return eventDate.getTime() >= today.getTime();
@@ -222,7 +221,6 @@ async function fetchEventsFromSupabase() {
   const { data, error: supabaseError } = await supabase
     .from("events")
     .select("*")
-    .eq("is_archived", false)
     .order("created_at", { ascending: false });
 
   if (supabaseError) {
@@ -240,7 +238,6 @@ async function fetchUpcomingEventsFromSupabase() {
     .from("events")
     .select("*")
     .gte("event_date", todayIso)
-    .eq("is_archived", false)
     .order("event_date", { ascending: true })
     .limit(12);
 

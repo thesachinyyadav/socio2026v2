@@ -128,7 +128,7 @@ const EventsPageContent = () => {
     return () => window.clearTimeout(timeoutId);
   }, [categoryParam, router, searchParam, searchQuery]);
 
-  const isAdminOrOrganizer = userData?.is_organiser || (userData as any)?.is_admin;
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
   
   const eventsToFilter = Array.isArray(allEvents) ? allEvents : [];
 
