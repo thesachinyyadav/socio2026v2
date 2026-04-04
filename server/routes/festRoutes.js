@@ -238,7 +238,7 @@ const mapFestResponse = (fest) => {
 // GET all fests
 router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
   try {
-    const { page, pageSize, search, status, sortBy, sortOrder } = req.query;
+    const { page, pageSize, search, status, archive, sortBy, sortOrder } = req.query;
     const today = new Date().toISOString().split('T')[0];
 
     let queryOptions = {
@@ -377,6 +377,8 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
       });
     }
 
+    const normalizedArchive = typeof archive === "string" ? archive.toLowerCase() : "all";
+
     // Filter out archived fests for non-organizers/admins
     const userInfo = req.userInfo;
     const isAdminOrOrganizer = userInfo && (userInfo.is_masteradmin || userInfo.is_organiser);
@@ -387,6 +389,12 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
       console.log(`[Archive Filter] Non-organizer viewing ${processedFests.length} non-archived fests`);
     } else {
       console.log(`[Archive Filter] Organizer/Admin viewing all ${processedFests.length} fests (incl. archived)`);
+    }
+
+    if (normalizedArchive === "archived") {
+      processedFests = processedFests.filter((fest) => Boolean(fest.is_archived));
+    } else if (normalizedArchive === "active") {
+      processedFests = processedFests.filter((fest) => !fest.is_archived);
     }
 
     const hasExplicitSortBy = typeof sortBy === "string" && sortBy.trim() !== "";
@@ -463,6 +471,7 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
       filters: {
         search: normalizedSearch,
         status: normalizedStatus,
+        archive: normalizedArchive,
       },
       sort: {
         by: normalizedSortBy,
