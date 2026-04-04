@@ -4,8 +4,14 @@ let cachedDatabaseFestTable = null;
 let cachedSupabaseFestTable = null;
 
 const isMissingRelationError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
   const message = String(error?.message || "").toLowerCase();
-  return error?.code === "42P01" || message.includes("relation") && message.includes("does not exist");
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
 };
 
 export async function getFestTableForDatabase(queryAllFn) {

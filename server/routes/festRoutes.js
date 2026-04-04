@@ -80,8 +80,14 @@ const parseComparableDate = (value) => {
 
 const isMissingColumnError = (error) => String(error?.code || "") === "42703";
 const isMissingRelationError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
   const message = String(error?.message || "").toLowerCase();
-  return String(error?.code || "") === "42P01" || (message.includes("relation") && message.includes("does not exist"));
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
 };
 const FEST_TABLE_CANDIDATES = ["fests", "fest"];
 const resolveFestTableCandidates = (primaryTable) =>
