@@ -1381,7 +1381,7 @@ export default function EventForm({
                             />
                           </div>
                           <p className="text-xs text-gray-500 italic">
-                            💡 Leave blank to use the standard event settings for non-members
+                            Leave blank to use the standard event settings for non-members
                           </p>
                         </div>
                       )}
@@ -1407,7 +1407,7 @@ export default function EventForm({
                         {/* Hosted At */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-2">
-                            📍 Where is this event?
+                            Where is this event?
                           </label>
                           <Controller
                             name="campusHostedAt"
@@ -1431,7 +1431,7 @@ export default function EventForm({
                         {/* Who Can Register */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-2">
-                            👥 Who can register?
+                            Who can register?
                           </label>
                           <Controller
                             name="allowedCampuses"
@@ -1463,7 +1463,7 @@ export default function EventForm({
                             )}
                           />
                           <p className="text-xs text-gray-500 mt-2">
-                            💡 Leave all unchecked to allow all campuses
+                            Leave all unchecked to allow all campuses
                           </p>
                         </div>
                       </div>

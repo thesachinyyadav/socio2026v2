@@ -1602,7 +1602,7 @@ function CreateFestForm(props?: CreateFestProps) {
                       {formData.allowOutsiders && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <strong>💡 Note:</strong> Events under this fest will not need individual CSO approval — the fest-level approval covers all child events.
+                            <strong>Note:</strong> Events under this fest will not need individual CSO approval — the fest-level approval covers all child events.
                           </p>
                         </div>
                       )}
@@ -1628,7 +1628,7 @@ function CreateFestForm(props?: CreateFestProps) {
                         {/* Hosted At */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-2">
-                            📍 Where is this fest?
+                            Where is this fest?
                           </label>
                           <select
                             id="campusHostedAt"
@@ -1647,7 +1647,7 @@ function CreateFestForm(props?: CreateFestProps) {
                         {/* Who Can Register */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-2">
-                            👥 Who can register?
+                            Who can register?
                           </label>
                           <div className="space-y-1.5 h-[102px] overflow-y-auto pr-2">
                             {christCampuses.map((campus) => (
@@ -1673,7 +1673,7 @@ function CreateFestForm(props?: CreateFestProps) {
                             ))}
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
-                            💡 Leave all unchecked to allow all campuses
+                            Leave all unchecked to allow all campuses
                           </p>
                         </div>
                       </div>
