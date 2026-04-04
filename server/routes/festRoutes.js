@@ -196,8 +196,37 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
     console.log(`Fetching fests with status: ${status || 'all'}...`);
     const fests = await getMergedFestsFromCandidates(queryOptions, festTable);
 
-    const events = await queryAll("events", { select: "event_id, fest" });
-    const registrations = await queryAll("registrations", { select: "event_id" });
+    let events = [];
+    try {
+      events = await queryAll("events", { select: "event_id, fest, fest_id" });
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        events = [];
+      } else if (isMissingColumnError(error)) {
+        try {
+          events = await queryAll("events", { select: "event_id, fest_id" });
+        } catch (fallbackError) {
+          if (isMissingRelationError(fallbackError) || isMissingColumnError(fallbackError)) {
+            events = [];
+          } else {
+            throw fallbackError;
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
+
+    let registrations = [];
+    try {
+      registrations = await queryAll("registrations", { select: "event_id" });
+    } catch (error) {
+      if (isMissingRelationError(error) || isMissingColumnError(error)) {
+        registrations = [];
+      } else {
+        throw error;
+      }
+    }
 
     const eventRegistrationCounts = {};
     (registrations || []).forEach((reg) => {
@@ -211,8 +240,9 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
     const festTitleToId = new Map((fests || []).map((fest) => [fest.fest_title, fest.fest_id]));
     const festRegistrationCounts = {};
     (events || []).forEach((event) => {
-      if (!event.fest) return;
-      const matchedFestId = festTitleToId.get(event.fest) || event.fest;
+      const linkedFestKey = event.fest || event.fest_id;
+      if (!linkedFestKey) return;
+      const matchedFestId = festTitleToId.get(linkedFestKey) || linkedFestKey;
       const eventCount = eventRegistrationCounts[event.event_id] || 0;
       festRegistrationCounts[matchedFestId] = (festRegistrationCounts[matchedFestId] || 0) + eventCount;
     });
