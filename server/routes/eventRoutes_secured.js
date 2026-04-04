@@ -644,17 +644,30 @@ router.patch(
 
       const archiveValue = shouldArchive;
       const nowIso = new Date().toISOString();
-      const updatedRows = await update(
-        "events",
-        {
-          is_archived: archiveValue,
-          archived_at: archiveValue ? nowIso : null,
-          archived_by: archiveValue ? req.userInfo?.email || req.userId || null : null,
-          updated_at: nowIso,
-          updated_by: req.userInfo?.email || null,
-        },
-        { event_id: eventId }
-      );
+      const buildArchivePayload = (includeArchivedBy = true) => ({
+        is_archived: archiveValue,
+        archived_at: archiveValue ? nowIso : null,
+        ...(includeArchivedBy
+          ? { archived_by: archiveValue ? req.userInfo?.email || req.userId || null : null }
+          : {}),
+        updated_at: nowIso,
+      });
+
+      let updatedRows;
+      try {
+        updatedRows = await update("events", buildArchivePayload(true), { event_id: eventId });
+      } catch (error) {
+        const code = String(error?.code || "");
+        const message = String(error?.message || "").toLowerCase();
+        const missingArchivedByColumn = code === "42703" && message.includes("archived_by");
+
+        if (!missingArchivedByColumn) {
+          throw error;
+        }
+
+        console.warn("[Archive] 'archived_by' column missing; retrying archive update without it.");
+        updatedRows = await update("events", buildArchivePayload(false), { event_id: eventId });
+      }
 
       if (!updatedRows || updatedRows.length === 0) {
         return res.status(404).json({ error: "Event not found." });
