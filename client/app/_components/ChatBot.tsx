@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import supabase from "@/lib/supabaseClient";
 
 /* ─── Types ─────────────────────────────────────────── */
 interface QA { q: string; a: string }
@@ -13,6 +14,11 @@ interface WebFetchResponse {
   description?: string;
   summary: string;
   error?: string;
+}
+interface ChatApiResponse {
+  reply?: string;
+  error?: string;
+  details?: string;
 }
 
 /* ─── Preset Q&A databases ──────────────────────────── */
@@ -99,6 +105,8 @@ function findAnswer(input: string, qaList: QA[]): string | null {
 
 const WELCOME_MESSAGE = "Hi! I'm SocioAssist - your campus event guide. Pick a question below and I'll help.";
 const UNKNOWN_ANSWER_MESSAGE = "Sorry, I cannot help you with that.";
+const CHAT_API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+const CHAT_API_ENDPOINT = CHAT_API_BASE_URL ? `${CHAT_API_BASE_URL}/api/chat` : "/api/chat";
 
 const HELP_MESSAGE = [
   "I can help in live mode.",
@@ -174,26 +182,29 @@ export default function ChatBot() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [typingIdx, setTypingIdx] = useState<number | null>(null);
-  const [displayedLen, setDisplayedLen] = useState(0);
+  const streamAbortRef = useRef<AbortController | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [showFabPulse, setShowFabPulse] = useState(true);
 
   const pageQA = getPageQA(pathname);
   const allQA = [...pageQA, ...GLOBAL_QA];
   const quickQuestions = [...pageQA.slice(0, 4), ...GLOBAL_QA.slice(0, Math.max(0, 4 - pageQA.length))].map((qa) => qa.q);
-  const isTyping = typingIdx !== null;
+  const isTyping = isStreaming;
 
   const asked = messages.filter((m) => m.role === "user").map((m) => m.content);
   const suggestionPool = Array.from(new Set([...quickQuestions, ...allQA.map((qa) => qa.q)])).filter((q) => !asked.includes(q));
   const visibleSuggestions = suggestionPool.slice(0, 4);
 
   const resetChat = useCallback(() => {
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+      streamAbortRef.current = null;
+    }
     setMessages([{ role: "assistant", content: WELCOME_MESSAGE }]);
-    setTypingIdx(null);
-    setDisplayedLen(0);
     setInput("");
     setIsThinking(false);
+    setIsStreaming(false);
   }, []);
 
   const fetchWebSummary = useCallback(async (url: string, query: string) => {
@@ -212,7 +223,7 @@ export default function ChatBot() {
     return data;
   }, []);
 
-  const generateReply = useCallback(async (trimmed: string) => {
+  const generateLocalReply = useCallback(async (trimmed: string): Promise<string | null> => {
     const lower = trimmed.toLowerCase();
 
     if (/^\/?help$|what can you do|commands?|capabilities/.test(lower)) {
@@ -246,13 +257,181 @@ export default function ChatBot() {
     const answer = findAnswer(trimmed, allQA);
     if (answer) return answer;
 
-    return UNKNOWN_ANSWER_MESSAGE;
+    return null;
   }, [allQA, fetchWebSummary, pathname, router]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, displayedLen, isThinking]);
+  const requestChatReply = useCallback(async (trimmed: string, history: Message[]): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    if (!token) {
+      throw new Error("Please sign in to use live AI responses.");
+    }
+
+    const response = await fetch(CHAT_API_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message: trimmed,
+        history,
+        context: {
+          page: pathname,
+          userId: session.user?.id || session.user?.email,
+        },
+      }),
+    });
+
+    const data = await response.json() as ChatApiResponse;
+    if (!response.ok || !data.reply) {
+      throw new Error(data.error || data.details || "Unable to get assistant response right now.");
+    }
+
+    return data.reply;
+  }, [pathname]);
+
+  const streamChatReply = useCallback(async (trimmed: string, history: Message[]): Promise<void> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    if (!token) {
+      throw new Error("Please sign in to use live AI responses.");
+    }
+
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+
+    const response = await fetch(CHAT_API_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message: trimmed,
+        history,
+        context: {
+          page: pathname,
+          userId: session.user?.id || session.user?.email,
+        },
+        stream: true,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const data = await response.json() as ChatApiResponse;
+      throw new Error(data.error || data.details || "Unable to start live response.");
+    }
+
+    if (!response.body) {
+      throw new Error("Streaming is unavailable on this connection.");
+    }
+
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    setIsThinking(false);
+    setIsStreaming(true);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
+
+        accumulated += chunk;
+        setMessages((prev) => {
+          if (prev.length === 0) return prev;
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (next[lastIndex].role === "assistant") {
+            next[lastIndex] = {
+              ...next[lastIndex],
+              content: accumulated,
+            };
+          } else {
+            next.push({ role: "assistant", content: accumulated });
+          }
+          return next;
+        });
+      }
+
+      const finalChunk = decoder.decode();
+      if (finalChunk) {
+        accumulated += finalChunk;
+        setMessages((prev) => {
+          if (prev.length === 0) return prev;
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (next[lastIndex].role === "assistant") {
+            next[lastIndex] = {
+              ...next[lastIndex],
+              content: accumulated,
+            };
+          }
+          return next;
+        });
+      }
+
+      if (!accumulated.trim()) {
+        setMessages((prev) => {
+          if (prev.length === 0) return prev;
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last.role === "assistant" && !last.content.trim()) {
+            next.pop();
+          }
+          return next;
+        });
+        throw new Error("Received an empty assistant response.");
+      }
+    } catch (error) {
+      if (accumulated.trim()) {
+        return;
+      }
+
+      setMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last.role === "assistant" && !last.content.trim()) {
+          next.pop();
+        }
+        return next;
+      });
+
+      throw error;
+    } finally {
+      reader.releaseLock();
+      streamAbortRef.current = null;
+      setIsStreaming(false);
+    }
+  }, [pathname]);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isThinking, isStreaming]);
   useEffect(() => {
     resetChat();
   }, [pathname, resetChat]);
+
+  useEffect(() => {
+    return () => {
+      if (streamAbortRef.current) {
+        streamAbortRef.current.abort();
+        streamAbortRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -269,41 +448,50 @@ export default function ChatBot() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen]);
 
-  /* Typewriter effect */
-  useEffect(() => {
-    if (typingIdx === null) return;
-    const msg = messages[typingIdx];
-    if (!msg) return;
-    const fullLen = msg.content.length;
-    if (displayedLen >= fullLen) { setTypingIdx(null); return; }
-    const chunkSize = fullLen > 600 ? 4 : fullLen > 280 ? 2 : 1;
-    const speed = fullLen > 600 ? 4 : fullLen > 280 ? 7 : 10;
-    const id = setTimeout(() => setDisplayedLen((l: number) => Math.min(l + chunkSize, fullLen)), speed);
-    return () => clearTimeout(id);
-  }, [typingIdx, displayedLen, messages]);
-
   const handleQuestion = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || typingIdx !== null || isThinking) return;
+    if (!trimmed || isThinking) return;
+
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+      streamAbortRef.current = null;
+      setIsStreaming(false);
+    }
+
+    const history = messages
+      .filter((msg, index) => !(index === 0 && msg.role === "assistant" && msg.content === WELCOME_MESSAGE))
+      .slice(-24);
 
     setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
     setInput("");
     setIsThinking(true);
 
-    let reply = UNKNOWN_ANSWER_MESSAGE;
     try {
-      reply = await generateReply(trimmed);
-    } catch {
-      // Fallback message above keeps chat responsive if command parsing fails unexpectedly.
-    }
+      const localReply = await generateLocalReply(trimmed);
+      if (localReply) {
+        setMessages((prev) => [...prev, { role: "assistant", content: localReply }]);
+        return;
+      }
 
-    setMessages((prev) => {
-      const next = [...prev, { role: "assistant" as const, content: reply }];
-      setTypingIdx(next.length - 1);
-      setDisplayedLen(0);
-      return next;
-    });
-    setIsThinking(false);
+      try {
+        await streamChatReply(trimmed, history);
+      } catch (streamError) {
+        if (streamError instanceof Error && streamError.name === "AbortError") {
+          return;
+        }
+
+        const fallbackReply = await requestChatReply(trimmed, history);
+        setMessages((prev) => [...prev, { role: "assistant", content: fallbackReply }]);
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : UNKNOWN_ANSWER_MESSAGE;
+      setMessages((prev) => [...prev, { role: "assistant", content: message }]);
+    } finally {
+      setIsThinking(false);
+      setIsStreaming(false);
+    }
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -346,7 +534,7 @@ export default function ChatBot() {
                   <p className="font-semibold text-sm">SocioAssist</p>
                   <p className="text-[11px] text-blue-100 flex items-center gap-1.5">
                     <span className={`inline-block h-1.5 w-1.5 rounded-full ${isTyping || isThinking ? "bg-amber-300 animate-pulse" : "bg-emerald-300"}`} />
-                    {isThinking ? "Thinking..." : isTyping ? "Typing..." : "Quick Help Online"}
+                    {isThinking ? "Thinking..." : isTyping ? "Streaming..." : "Quick Help Online"}
                   </p>
                 </div>
               </div>
@@ -366,8 +554,7 @@ export default function ChatBot() {
                       ? "bg-gradient-to-r from-[#1f63de] to-[#154CB3] text-white rounded-br-md shadow-[0_8px_20px_-8px_rgba(31,99,222,0.8)]"
                       : "bg-white/10 border border-white/10 text-blue-50 rounded-bl-md"
                   }`}>
-                    {i === typingIdx ? msg.content.slice(0, displayedLen) : msg.content}
-                    {i === typingIdx && <span className="inline-block w-[2px] h-[14px] bg-gray-400 ml-0.5 align-middle animate-pulse" />}
+                    {msg.content}
                   </div>
                 </div>
               ))}
@@ -410,13 +597,13 @@ export default function ChatBot() {
                   ref={inputRef}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder={isTyping || isThinking ? "SocioAssist is replying..." : "Ask anything, paste a URL, or type: summarize this page"}
-                  disabled={isTyping || isThinking}
+                  placeholder={isThinking ? "SocioAssist is thinking..." : isTyping ? "SocioAssist is replying... (send to interrupt)" : "Ask anything, paste a URL, or type: summarize this page"}
+                  disabled={isThinking}
                   className="flex-1 min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-blue-100/65 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-300/30 transition"
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || isTyping || isThinking}
+                  disabled={!input.trim() || isThinking}
                   className="h-10 w-10 rounded-xl bg-[#1d63de] text-white flex items-center justify-center transition-all hover:bg-[#3477e9] hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label="Send message"
                 >
@@ -426,7 +613,7 @@ export default function ChatBot() {
                 </button>
               </form>
               <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-blue-100/75">
-                <span>{isTyping || isThinking ? "Assistant is crafting your reply" : "Press Enter to send"}</span>
+                <span>{isThinking ? "Assistant is thinking" : isTyping ? "Assistant is streaming (send to interrupt)" : "Press Enter to send"}</span>
                 <button type="button" onClick={resetChat} className="hover:text-white transition-colors underline underline-offset-2">
                   Reset chat
                 </button>
