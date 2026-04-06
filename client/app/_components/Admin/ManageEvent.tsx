@@ -1350,6 +1350,14 @@ export default function EventForm({
                       />
                     )}
                   />
+                  <CustomDropdown
+                    name="festEvent"
+                    control={control}
+                    options={fetchedFests.length > 0 ? fetchedFests : [{ value: "none", label: "None" }]}
+                    placeholder="Select fest event (if any)"
+                    label="Is this event under any fest? (optional)"
+                    error={errors.festEvent}
+                  />
                 </div>
                 <InputField
                   label="Detailed description:"
@@ -1556,17 +1564,6 @@ export default function EventForm({
                   required
                   placeholder="e.g., Department of Computer Science /  Student Welfare Organization"
                 />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-                  <CustomDropdown
-                    name="festEvent"
-                    control={control}
-                    options={fetchedFests.length > 0 ? fetchedFests : [{ value: "none", label: "None" }]}
-                    placeholder="Select fest event (if any)"
-                    label="Fest event: (optional)"
-                    error={errors.festEvent}
-                  />
-                </div>
 
                 <div>
                   <div className="flex items-center justify-between sm:justify-start">
