@@ -25,8 +25,6 @@ import {
   BarChart2,
   LineChart,
   Settings,
-  UserCog,
-  Eye,
   ChevronRight,
 } from "lucide-react";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
@@ -746,11 +744,6 @@ export default function MasterAdminPage() {
     { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" /> },
   ];
 
-  const managementNav = [
-    { id: "users" as const, label: "Manage Users", icon: <UserCog className="w-4 h-4" />, href: undefined },
-    { label: "Organiser View", icon: <Eye className="w-4 h-4" />, href: "/manage" },
-  ];
-
   return (
     <div className="flex h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-7.75rem)] bg-slate-50 overflow-hidden">
 
@@ -785,27 +778,6 @@ export default function MasterAdminPage() {
             );
           })}
         </nav>
-
-        {/* Management section */}
-        <div className="mt-1 px-3 pb-4">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1.5">Management</p>
-          {managementNav.map((item, i) => {
-            const content = (
-              <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
-                <span className="text-slate-400">{item.icon}</span>
-                {item.label}
-              </span>
-            );
-            if (item.href) {
-              return <Link key={i} href={item.href}>{content}</Link>;
-            }
-            return (
-              <button key={i} onClick={() => item.id && setActiveTab(item.id as any)} className="w-full text-left">
-                {content}
-              </button>
-            );
-          })}
-        </div>
       </aside>
 
       {/* ── Main Content ──────────────────────────────────────────────────── */}
