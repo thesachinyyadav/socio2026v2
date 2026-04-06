@@ -10,6 +10,7 @@ import {
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
 import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled, pushEventToGated } from "../utils/gatedSync.js";
 import { sendRegistrationEmail } from "../utils/emailService.js";
+import { createOrUpdateTeammateUsers } from "../utils/teammateService.js";
 import { 
   authenticateUser, 
   getUserInfo, 
@@ -505,6 +506,19 @@ router.post("/register", async (req, res) => {
     });
 
     console.log('✅ Registration saved:', registration);
+
+    // ===== AUTO-CREATE USER RECORDS FOR TEAMMATES (NEW) =====
+    // Ensure teammates have their own user records in the users table
+    const result = await createOrUpdateTeammateUsers(
+      processedTeammates || teammates || [], 
+      participantOrganization
+    );
+    
+    if (result.failed > 0) {
+      console.warn(`⚠️ ${result.failed} teammate(s) failed to create user records:`, result.errors);
+    } else if (result.success > 0) {
+      console.log(`✅ Created/updated user records for ${result.success} teammate(s)`);
+    }
 
     // Auto-create Gated visitor pass for outsiders (non-blocking)
     if (participantOrganization === 'outsider' && isGatedEnabled()) {
