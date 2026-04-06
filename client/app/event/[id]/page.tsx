@@ -30,6 +30,7 @@ interface EventData {
   organizers?: Array<{ name: string; email: string; phone: string }>;
   whatsappLink?: string;
   registrationDeadlineISO?: string | null;
+  on_spot?: boolean;
   allow_outsiders?: boolean;
   custom_fields?: any[]; // Custom fields created by organizer
   is_archived?: boolean; // Add archive status to event data
@@ -88,7 +89,7 @@ export default function Page() {
   // null daysLeft means no deadline (open registration)
   // Negative or 0 daysLeft means deadline has passed
   const isDeadlineOverForThisEvent = eventData
-    ? eventData.daysLeft !== null && eventData.daysLeft < 0
+    ? eventData.daysLeft !== null && eventData.daysLeft < 0 && !eventData.on_spot
     : false;
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
@@ -238,6 +239,11 @@ export default function Page() {
         transformedOrganizers.length > 0 ? transformedOrganizers : undefined,
       whatsappLink: foundEvent.whatsapp_invite_link || undefined,
       registrationDeadlineISO: foundEvent.registration_deadline,
+      on_spot:
+        (foundEvent as any).on_spot === true ||
+        (foundEvent as any).on_spot === 1 ||
+        (foundEvent as any).on_spot === "1" ||
+        (foundEvent as any).on_spot === "true",
       allow_outsiders: !!foundEvent.allow_outsiders,
       custom_fields: (() => {
         // Handle custom_fields - could be array, JSON string, or null

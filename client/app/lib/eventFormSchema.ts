@@ -124,6 +124,7 @@ export const eventFormSchema = z
     whatsappLink: z.string().url("Invalid URL").optional().or(z.literal("")),
     provideClaims: z.boolean().default(false),
     sendNotifications: z.boolean().default(false),
+    onSpot: z.boolean().default(false),
     
     // Outsider registration fields
     allowOutsiders: z.boolean().default(false),

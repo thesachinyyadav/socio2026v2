@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import { useAuth } from "@/context/AuthContext";
 import {
   addThemedChartsSheet,
   addStructuredTableSheet,
@@ -35,6 +36,7 @@ interface Student {
 const ITEMS_PER_PAGE = 20;
 
 export default function StudentsPage() {
+  const { session, userData } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,9 +45,29 @@ export default function StudentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [eventTitle, setEventTitle] = useState<string>("");
   const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({});
+  const [eventOnSpotEnabled, setEventOnSpotEnabled] = useState(false);
+  const [eventCreatedBy, setEventCreatedBy] = useState<string>("");
+  const [showOnSpotForm, setShowOnSpotForm] = useState(false);
+  const [onSpotName, setOnSpotName] = useState("");
+  const [onSpotRegisterId, setOnSpotRegisterId] = useState("");
+  const [onSpotEmail, setOnSpotEmail] = useState("");
+  const [onSpotError, setOnSpotError] = useState<string | null>(null);
+  const [onSpotSuccess, setOnSpotSuccess] = useState<string | null>(null);
+  const [isOnSpotSubmitting, setIsOnSpotSubmitting] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const params = useParams();
   const event_id = params?.id as string;
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+
+  const currentUserEmail = String(session?.user?.email || "").toLowerCase();
+  const isMasterAdmin = Boolean(userData?.is_masteradmin);
+  const isOrganiser = Boolean(userData?.is_organiser);
+  const isEventOwner =
+    Boolean(eventCreatedBy) &&
+    Boolean(currentUserEmail) &&
+    String(eventCreatedBy).toLowerCase() === currentUserEmail;
+  const canUseOnSpot = eventOnSpotEnabled && (isMasterAdmin || (isOrganiser && isEventOwner));
 
   // Debounce search for better performance
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -61,8 +83,6 @@ export default function StudentsPage() {
       setIsDataLoading(true);
       setError(null);
       try {
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
-        
         // Fetch event details, registrations, and attendance status in parallel
         const [eventResponse, registrationsResponse, attendanceResponse] = await Promise.all([
           fetch(`${apiBaseUrl}/api/events/${event_id}`),
@@ -75,6 +95,13 @@ export default function StudentsPage() {
           const eventData = await eventResponse.json();
           const event = eventData.event || eventData;
           setEventTitle(event.title || "");
+          setEventOnSpotEnabled(
+            event.on_spot === true ||
+              event.on_spot === 1 ||
+              event.on_spot === "1" ||
+              event.on_spot === "true"
+          );
+          setEventCreatedBy(event.created_by || "");
           let fields: CustomField[] = [];
           if (event.custom_fields) {
             if (typeof event.custom_fields === 'string') {
@@ -142,7 +169,62 @@ export default function StudentsPage() {
       }
     };
     if (event_id) fetchData();
-  }, [event_id]);
+  }, [event_id, apiBaseUrl, refreshNonce]);
+
+  const handleOnSpotRegistration = async () => {
+    setOnSpotError(null);
+    setOnSpotSuccess(null);
+
+    if (!session?.access_token) {
+      setOnSpotError("Please sign in again to add on-spot participants.");
+      return;
+    }
+
+    const attendeeName = onSpotName.trim();
+    const registerIdentifier = onSpotRegisterId.trim();
+    const attendeeEmail = onSpotEmail.trim();
+
+    if (!attendeeName) {
+      setOnSpotError("Participant name is required.");
+      return;
+    }
+
+    if (!registerIdentifier) {
+      setOnSpotError("Register number or visitor ID is required.");
+      return;
+    }
+
+    setIsOnSpotSubmitting(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/events/${event_id}/on-spot-register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          name: attendeeName,
+          register_number: registerIdentifier,
+          email: attendeeEmail || undefined,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || `Failed with status ${response.status}`);
+      }
+
+      setOnSpotSuccess("On-spot participant added successfully.");
+      setOnSpotName("");
+      setOnSpotRegisterId("");
+      setOnSpotEmail("");
+      setRefreshNonce((prev) => prev + 1);
+    } catch (submitError: any) {
+      setOnSpotError(submitError?.message || "Unable to add on-spot participant.");
+    } finally {
+      setIsOnSpotSubmitting(false);
+    }
+  };
 
   const handleGenerateExcel = async () => {
     if (students.length === 0) {
@@ -316,6 +398,18 @@ export default function StudentsPage() {
             Participants ({students.length})
           </h1>
           <div className="flex flex-wrap items-center gap-3">
+            {canUseOnSpot && (
+              <button
+                onClick={() => {
+                  setShowOnSpotForm((prev) => !prev);
+                  setOnSpotError(null);
+                  setOnSpotSuccess(null);
+                }}
+                className="bg-white text-[#154CB3] border border-[#154CB3] text-sm px-4 py-2 rounded-full font-medium hover:bg-[#154CB3] hover:text-white transition-colors"
+              >
+                {showOnSpotForm ? "Hide on-spot" : "On Spot Registration"}
+              </button>
+            )}
             <Link
               href={`/attendance?eventId=${event_id}&eventTitle=${encodeURIComponent(eventTitle || "Event")}`}
               className="bg-white text-[#154CB3] border border-[#154CB3] text-sm px-4 py-2 rounded-full font-medium hover:bg-[#154CB3] hover:text-white transition-colors"
@@ -331,6 +425,49 @@ export default function StudentsPage() {
             </button>
           </div>
         </div>
+
+        {showOnSpotForm && canUseOnSpot && (
+          <div className="mb-6 border border-blue-200 bg-blue-50 rounded-xl p-4">
+            <h2 className="text-sm font-semibold text-[#063168] mb-3">Add On-Spot Participant</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                type="text"
+                value={onSpotName}
+                onChange={(e) => setOnSpotName(e.target.value)}
+                placeholder="Participant name *"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+              />
+              <input
+                type="text"
+                value={onSpotRegisterId}
+                onChange={(e) => setOnSpotRegisterId(e.target.value)}
+                placeholder="Register no. or Visitor ID (VIS...) *"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+              />
+              <input
+                type="email"
+                value={onSpotEmail}
+                onChange={(e) => setOnSpotEmail(e.target.value)}
+                placeholder="Email (optional)"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+              />
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              If the attendee does not have a register number or visitor ID, ask them to log in on SOCIO and get one first.
+            </p>
+            {onSpotError && <p className="text-xs text-red-600 mt-2">{onSpotError}</p>}
+            {onSpotSuccess && <p className="text-xs text-emerald-700 mt-2">{onSpotSuccess}</p>}
+            <div className="mt-3">
+              <button
+                onClick={handleOnSpotRegistration}
+                disabled={isOnSpotSubmitting}
+                className="bg-[#154CB3] text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-[#063168] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isOnSpotSubmitting ? "Adding..." : "Add Participant"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Custom Fields Info Banner */}
         {customFields.length > 0 && !isDataLoading && (

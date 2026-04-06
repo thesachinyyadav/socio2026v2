@@ -150,6 +150,7 @@ export default function CreateEventPage() {
       "send_notifications",
       String(dataFromHookForm.sendNotifications)
     );
+    formData.append("on_spot", String(dataFromHookForm.onSpot));
     
     // Outsider registration fields
     formData.append("allow_outsiders", String(dataFromHookForm.allowOutsiders));

@@ -14,10 +14,35 @@ import {
   authenticateUser, 
   getUserInfo, 
   checkRoleExpiration, 
-  requireMasterAdmin 
+  requireMasterAdmin,
+  requireOrganiser,
+  requireOwnership,
 } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+
+const asBoolean = (value) => {
+  return value === true || value === 1 || value === "1" || value === "true";
+};
+
+const normalizeRegisterIdentifier = (value) => {
+  return String(value || "").trim().toUpperCase();
+};
+
+const countParticipantsInRegistration = (registration) => {
+  if (registration?.registration_type === "team" && registration?.teammates) {
+    try {
+      const teammates = Array.isArray(registration.teammates)
+        ? registration.teammates
+        : JSON.parse(registration.teammates || "[]");
+      return teammates.length;
+    } catch (_error) {
+      return 1;
+    }
+  }
+
+  return 1;
+};
 
 // Get registrations for an event (or all registrations if no event_id)
 router.get(
@@ -194,35 +219,15 @@ router.post("/register", async (req, res) => {
     if (event.registration_deadline) {
       const deadlineDate = new Date(event.registration_deadline);
       if (currentDate > deadlineDate) {
+        if (asBoolean(event.on_spot)) {
+          console.log(`ℹ️ Registration deadline passed for ${normalizedEventId}, but on_spot is enabled. Allowing online registration.`);
+        } else {
         return res.status(403).json({
           error: "Registration deadline has passed",
           details: `This event's registration deadline was ${event.registration_deadline}. You cannot register now.`,
           code: "DEADLINE_PASSED"
         });
-      }
-    }
-    
-    // 2. CHECK IF EVENT HAS ALREADY STARTED
-    if (event.event_date) {
-      const eventStartDate = new Date(event.event_date);
-      if (currentDate > eventStartDate) {
-        return res.status(403).json({
-          error: "Event has already started",
-          details: `The event started on ${event.event_date}. Registration is closed.`,
-          code: "EVENT_STARTED"
-        });
-      }
-    }
-    
-    // 3. CHECK IF EVENT HAS ALREADY ENDED
-    if (event.end_date) {
-      const eventEndDate = new Date(event.end_date);
-      if (currentDate > eventEndDate) {
-        return res.status(403).json({
-          error: "Event has already ended",
-          details: `The event ended on ${event.end_date}. You cannot register for past events.`,
-          code: "EVENT_ENDED"
-        });
+        }
       }
     }
     
@@ -617,6 +622,182 @@ router.post("/register", async (req, res) => {
     });
   }
 });
+
+// Organiser-owned on-spot registration
+router.post(
+  "/events/:eventId/on-spot-register",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireOrganiser,
+  requireOwnership("events", "eventId", "auth_uuid"),
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const event = req.resource || (await queryOne("events", { where: { event_id: eventId } }));
+
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      if (!asBoolean(event.on_spot)) {
+        return res.status(403).json({
+          error: "On-spot registration is disabled for this event",
+          code: "ON_SPOT_DISABLED",
+        });
+      }
+
+      if (event.is_archived) {
+        return res.status(403).json({
+          error: "Event is archived",
+          details: "This event has been archived and is no longer accepting registrations.",
+          code: "EVENT_ARCHIVED",
+        });
+      }
+
+      const attendeeName = String(req.body?.name || "").trim();
+      const registerNumberRaw = String(req.body?.register_number || req.body?.registerNumber || "").trim();
+      const visitorIdRaw = String(req.body?.visitor_id || req.body?.visitorId || "").trim();
+      const attendeeEmail = String(req.body?.email || "").trim() || null;
+
+      if (!attendeeName) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+
+      const registerIdentifier = registerNumberRaw || visitorIdRaw;
+      if (!registerIdentifier) {
+        return res.status(400).json({
+          error: "Register number or visitor ID is required",
+          code: "REGISTER_ID_REQUIRED",
+        });
+      }
+
+      const normalizedIdentifier = normalizeRegisterIdentifier(registerIdentifier);
+      const participantOrganization = normalizedIdentifier.startsWith("VIS") ? "outsider" : "christ_member";
+
+      if (participantOrganization === "outsider") {
+        const allowsOutsiders = asBoolean(event.allow_outsiders);
+        if (!allowsOutsiders) {
+          return res.status(403).json({
+            error: "This event does not allow outsider registrations",
+            details: "Only Christ University members can register for this event",
+          });
+        }
+      }
+
+      const existingRegistrations = await queryAll("registrations", {
+        where: { event_id: eventId },
+      });
+
+      const existingRegisterNumbers = new Set();
+      existingRegistrations.forEach((registration) => {
+        if (registration?.individual_register_number) {
+          existingRegisterNumbers.add(normalizeRegisterIdentifier(registration.individual_register_number));
+        }
+        if (registration?.team_leader_register_number) {
+          existingRegisterNumbers.add(normalizeRegisterIdentifier(registration.team_leader_register_number));
+        }
+
+        if (registration?.teammates) {
+          try {
+            const teammatesList = Array.isArray(registration.teammates)
+              ? registration.teammates
+              : JSON.parse(registration.teammates || "[]");
+            teammatesList.forEach((teammate) => {
+              if (teammate?.registerNumber) {
+                existingRegisterNumbers.add(normalizeRegisterIdentifier(teammate.registerNumber));
+              }
+            });
+          } catch (_error) {
+            // ignore malformed teammate payloads
+          }
+        }
+      });
+
+      if (existingRegisterNumbers.has(normalizedIdentifier)) {
+        return res.status(409).json({
+          error: "Participant is already registered for this event",
+          code: "ALREADY_REGISTERED",
+        });
+      }
+
+      if (event.max_participants) {
+        const totalParticipants = (existingRegistrations || []).reduce(
+          (count, registration) => count + countParticipantsInRegistration(registration),
+          0
+        );
+
+        if (totalParticipants + 1 > event.max_participants) {
+          return res.status(400).json({
+            error: "Event registration capacity exceeded",
+            details: `This event can accept maximum ${event.max_participants} participants. Currently ${totalParticipants} are registered.`,
+            code: "CAPACITY_FULL",
+            availableSpots: Math.max(0, event.max_participants - totalParticipants),
+          });
+        }
+      }
+
+      if (participantOrganization === "outsider" && event.outsider_max_participants) {
+        const outsiderCount = (existingRegistrations || []).reduce((count, registration) => {
+          if (registration?.participant_organization !== "outsider") return count;
+          return count + countParticipantsInRegistration(registration);
+        }, 0);
+
+        if (outsiderCount + 1 > event.outsider_max_participants) {
+          return res.status(400).json({
+            error: "Outsider registration quota reached",
+            details: `This event can accept maximum ${event.outsider_max_participants} outsider participants. Currently ${outsiderCount} are registered.`,
+            code: "OUTSIDER_QUOTA_FULL",
+            availableSpots: Math.max(0, event.outsider_max_participants - outsiderCount),
+          });
+        }
+      }
+
+      const registration_id = uuidv4().replace(/-/g, "");
+      const qrEmail = attendeeEmail || `${normalizedIdentifier.toLowerCase()}@onspot.socio`;
+      const qrCodeData = generateQRCodeData(registration_id, eventId, qrEmail);
+      if (participantOrganization === "christ_member") {
+        qrCodeData.simple_qr = `${normalizedIdentifier}/${eventId}`;
+      }
+
+      const [registration] = await insert("registrations", {
+        registration_id,
+        event_id: eventId,
+        user_email: attendeeEmail,
+        registration_type: "individual",
+        individual_name: attendeeName,
+        individual_email: attendeeEmail,
+        individual_register_number: normalizedIdentifier,
+        team_name: null,
+        team_leader_name: attendeeName,
+        team_leader_email: attendeeEmail,
+        team_leader_register_number: normalizedIdentifier,
+        teammates: [],
+        participant_organization: participantOrganization,
+        qr_code_data: qrCodeData,
+        qr_code_generated_at: new Date().toISOString(),
+        custom_field_responses: null,
+      });
+
+      const newTotalParticipants = Math.max(0, (event.total_participants || 0) + 1);
+      await update("events", { total_participants: newTotalParticipants }, { event_id: eventId });
+
+      return res.status(201).json({
+        message: "On-spot registration added successfully",
+        registration: {
+          ...registration,
+          teammates: [],
+        },
+      });
+    } catch (error) {
+      console.error("Error creating on-spot registration:", error);
+      return res.status(500).json({
+        error: "Failed to create on-spot registration",
+        details: error.message,
+      });
+    }
+  }
+);
 
 // Get registration by ID
 router.get("/registrations/:registrationId", async (req, res) => {

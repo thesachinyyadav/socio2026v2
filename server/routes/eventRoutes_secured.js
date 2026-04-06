@@ -132,7 +132,10 @@ const shouldAutoArchiveEvent = (event) => {
   if (!parsedEndDate) return false;
 
   parsedEndDate.setHours(0, 0, 0, 0);
-  return parsedEndDate.getTime() <= getTodayStart().getTime();
+  const archiveThreshold = new Date(parsedEndDate);
+  archiveThreshold.setDate(archiveThreshold.getDate() + 2);
+
+  return getTodayStart().getTime() >= archiveThreshold.getTime();
 };
 
 const asBoolean = (value) => {
@@ -601,6 +604,7 @@ router.post(
         total_participants: 0,
         // Outsider & campus fields
         allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        on_spot: req.body.on_spot === "true" || req.body.on_spot === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
         campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
@@ -980,6 +984,7 @@ router.put(
         // Preserve existing total_participants unless there is a specific admin action to modify it.
         // Include outsider-related settings so toggles persist from the client.
         allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        on_spot: req.body.on_spot === "true" || req.body.on_spot === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
         campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,

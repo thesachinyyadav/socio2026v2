@@ -74,6 +74,7 @@ export interface FetchedEvent {
   updated_at: string | null;
   registration_deadline: string | null;
   total_participants: number | null;
+  on_spot?: boolean | null;
   allow_outsiders?: boolean | null;
   campus_hosted_at?: string | null;
   allowed_campuses?: string[] | string | null;

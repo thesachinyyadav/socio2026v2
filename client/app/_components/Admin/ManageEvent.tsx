@@ -791,6 +791,7 @@ export default function EventForm({
       scheduleItems: [],
       prizes: [],
       provideClaims: false,
+      onSpot: false,
       allowOutsiders: false,
       outsiderRegistrationFee: "",
       outsiderMaxParticipants: "",
@@ -1254,7 +1255,7 @@ export default function EventForm({
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <Controller
                     name="eventDate"
                     control={control}
@@ -1289,6 +1290,52 @@ export default function EventForm({
                       />
                     )}
                   />
+                  <Controller
+                    name="registrationDeadline"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <CustomDatePicker
+                        id="registrationDeadline"
+                        field={field}
+                        label="Registration deadline:"
+                        error={fieldState.error}
+                        required
+                        placeholder="YYYY-MM-DD"
+                        maxDate={
+                          watchedEndDate && parseYYYYMMDD(watchedEndDate)
+                            ? parseYYYYMMDD(watchedEndDate) || undefined
+                            : undefined
+                        }
+                      />
+                    )}
+                  />
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between h-[46px] sm:h-[48px] mt-0 sm:mt-7">
+                    <label
+                      htmlFor="onSpot"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      On-spot registration
+                    </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <Controller
+                        name="onSpot"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="onSpot"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Controller
                     name="eventTime"
                     control={control}
@@ -1518,25 +1565,6 @@ export default function EventForm({
                     placeholder="Select fest event (if any)"
                     label="Fest event: (optional)"
                     error={errors.festEvent}
-                  />
-                  <Controller
-                    name="registrationDeadline"
-                    control={control}
-                    render={({ field, fieldState }) => (
-                      <CustomDatePicker
-                        id="registrationDeadline"
-                        field={field}
-                        label="Registration deadline:"
-                        error={fieldState.error}
-                        required
-                        placeholder="YYYY-MM-DD"
-                        maxDate={
-                          watchedEndDate && parseYYYYMMDD(watchedEndDate)
-                            ? parseYYYYMMDD(watchedEndDate) || undefined
-                            : undefined
-                        }
-                      />
-                    )}
                   />
                 </div>
 

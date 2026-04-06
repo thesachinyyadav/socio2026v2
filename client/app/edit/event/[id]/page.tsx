@@ -222,6 +222,7 @@ export default function EditEventPage() {
             contactPhone: data.organizer_phone?.toString() ?? "",
             whatsappLink: data.whatsapp_invite_link || "",
             provideClaims: data.claims_applicable || false,
+            onSpot: data.on_spot === true || data.on_spot === 1 || data.on_spot === "1" || data.on_spot === "true",
             allowOutsiders: data.allow_outsiders || false,
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
             outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
@@ -356,6 +357,7 @@ export default function EditEventPage() {
     payload.append("organizer_phone", formData.contactPhone || "");
     payload.append("whatsapp_invite_link", formData.whatsappLink || "");
     payload.append("claims_applicable", String(formData.provideClaims));
+    payload.append("on_spot", String(formData.onSpot || false));
 
     payload.append("department_access", JSON.stringify(formData.department || []));
     payload.append(
