@@ -57,6 +57,19 @@ const unregisterServiceWorkers = async () => {
 
 export default function ClientInit() {
   useEffect(() => {
+    // BFCACHE: Detect when page is restored from bfcache and validate build fingerprint
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        const currentFingerprint = getCurrentBuildFingerprint();
+        const storedFingerprint = localStorage.getItem(BUILD_FINGERPRINT_STORAGE_KEY);
+        
+        if (currentFingerprint && storedFingerprint && currentFingerprint !== storedFingerprint) {
+          localStorage.setItem(BUILD_FINGERPRINT_STORAGE_KEY, currentFingerprint);
+          window.location.replace(window.location.href);
+        }
+      }
+    };
+
     const hasChunkLoadFailure = (message: string) => {
       if (!message) {
         return false;
@@ -75,7 +88,8 @@ export default function ClientInit() {
       await clearRuntimeCaches();
       await unregisterServiceWorkers();
 
-      window.location.reload();
+      // BFCACHE: Use location.replace instead of reload - more bfcache-friendly
+      window.location.replace(window.location.href);
     };
 
     const syncBuildFingerprint = async () => {
@@ -92,7 +106,8 @@ export default function ClientInit() {
         localStorage.setItem(BUILD_FINGERPRINT_STORAGE_KEY, currentFingerprint);
         await clearRuntimeCaches();
         await unregisterServiceWorkers();
-        window.location.reload();
+        // BFCACHE: Use location.replace for navigation without adding history entry
+        window.location.replace(window.location.href);
         return;
       }
 
@@ -123,11 +138,14 @@ export default function ClientInit() {
       }
     };
 
+    // BFCACHE: Listen for pageshow to handle bfcache restoration
+    window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("error", handleError);
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
     void syncBuildFingerprint();
 
     return () => {
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("error", handleError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };

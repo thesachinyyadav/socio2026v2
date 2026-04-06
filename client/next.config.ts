@@ -1,11 +1,26 @@
 import type { NextConfig } from "next";
 
+// Bundle analyzer configuration (use ANALYZE=true npm run build to analyze)
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   eslint: {
     // Temporary unblock: lint is still available via separate lint command.
     ignoreDuringBuilds: true,
+  },
+  // OPTIMIZATION: Enable experimental package import optimization
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'recharts',
+      '@supabase/supabase-js',
+      'react-hook-form',
+      'dayjs',
+    ],
   },
   images: {
     remotePatterns: [
@@ -99,4 +114,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
