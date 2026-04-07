@@ -9,12 +9,10 @@ import {
   useWatch,
   Control,
 } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 
 import {
   EventFormData,
-  eventFormSchema,
   departments as departmentOptions,
   categories as categoryOptions,
   festEvents as festEventOptions,
@@ -717,14 +715,139 @@ interface EventFormProps {
   existingImageFileUrl?: string | null;
   existingBannerFileUrl?: string | null;
   existingPdfFileUrl?: string | null;
+  isArchived?: boolean;
+  isArchiveUpdating?: boolean;
+  onToggleArchive?: () => void;
 }
 
 const baseButtonClasses =
   "inline-flex items-center justify-center text-sm sm:text-base font-medium rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-opacity-50";
-const primaryButtonClasses = `${baseButtonClasses} bg-[#154CB3] text-white hover:bg-[#154cb3eb] focus:ring-[#154CB3] px-4 sm:px-6 py-2 sm:py-2.5 disabled:opacity-60 disabled:cursor-not-allowed`;
-const secondaryButtonClasses = `${baseButtonClasses} border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-[#154CB3] px-4 sm:px-5 py-2 sm:py-2.5 disabled:opacity-60 disabled:cursor-not-allowed`;
+const primaryButtonClasses = `${baseButtonClasses} bg-[#154CB3] text-white hover:bg-[#0f3a7a] focus:ring-[#154CB3] px-4 sm:px-6 py-2 sm:py-2.5 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg`;
+const secondaryButtonClasses = `${baseButtonClasses} border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-[#154CB3] px-4 sm:px-5 py-2 sm:py-2.5 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg`;
 const toggleTrackClass =
   "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3]/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#154CB3]";
+
+interface FestOption {
+  value: string;
+  label: string;
+  departmentAccess: string[];
+  organizingDept: string;
+  category: string;
+  campusHostedAt: string;
+  allowedCampuses: string[];
+}
+
+const toCanonical = (value: string): string =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const normalizeStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return normalizeStringArray(parsed);
+      } catch {
+        // Fall through to plain string handling.
+      }
+    }
+
+    if (trimmed.includes(",")) {
+      return Array.from(
+        new Set(
+          trimmed
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+        )
+      );
+    }
+
+    return [trimmed];
+  }
+
+  return [];
+};
+
+const normalizeDepartmentAccess = (value: unknown): string[] =>
+  Array.from(
+    new Set(
+      normalizeStringArray(value).map((entry) => {
+        const directValueMatch = departmentOptions.find((dept) => dept.value === entry);
+        if (directValueMatch) return directValueMatch.value;
+
+        const canonicalEntry = toCanonical(entry);
+        const mapped = departmentOptions.find(
+          (dept) =>
+            toCanonical(dept.value) === canonicalEntry ||
+            toCanonical(dept.label) === canonicalEntry
+        );
+
+        return mapped?.value || entry;
+      })
+    )
+  );
+
+const normalizeCategoryValue = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const directValueMatch = categoryOptions.find((category) => category.value === trimmed);
+  if (directValueMatch) return directValueMatch.value;
+
+  const canonicalEntry = toCanonical(trimmed);
+  const mapped = categoryOptions.find(
+    (category) =>
+      toCanonical(category.value) === canonicalEntry ||
+      toCanonical(category.label) === canonicalEntry
+  );
+
+  return mapped?.value || "";
+};
+
+const normalizeCampusEntry = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const directMatch = christCampuses.find((campus) => campus === trimmed);
+  if (directMatch) return directMatch;
+
+  const canonicalEntry = toCanonical(trimmed);
+  const mapped = christCampuses.find(
+    (campus) => toCanonical(campus) === canonicalEntry
+  );
+
+  return mapped || null;
+};
+
+const normalizeCampusHostedAt = (value: unknown): string => {
+  const first = normalizeStringArray(value)[0];
+  if (!first) return "";
+  return normalizeCampusEntry(first) || "";
+};
+
+const normalizeAllowedCampuses = (value: unknown): string[] =>
+  Array.from(
+    new Set(
+      normalizeStringArray(value)
+        .map((entry) => normalizeCampusEntry(entry))
+        .filter((entry): entry is string => Boolean(entry))
+    )
+  );
 
 export default function EventForm({
   onSubmit,
@@ -734,19 +857,39 @@ export default function EventForm({
   existingImageFileUrl,
   existingBannerFileUrl,
   existingPdfFileUrl,
+  isArchived,
+  isArchiveUpdating,
+  onToggleArchive,
 }: EventFormProps) {
-  const [fetchedFests, setFetchedFests] = useState<{ value: string; label: string }[]>([]);
+  const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
 
   useEffect(() => {
     async function fetchFests() {
       try {
         const fests = await getFests();
         if (fests) {
-          const options = fests.map((f: any) => ({
-            value: f.fest_id || f.title || "Untitled Fest",
-            label: f.fest_title || f.title || "Untitled Fest"
+          const options: FestOption[] = fests.map((f: any) => ({
+            value: f.fest_id || f.id || f.fest_title || f.title || "Untitled Fest",
+            label: f.fest_title || f.title || "Untitled Fest",
+            departmentAccess: normalizeDepartmentAccess(f.department_access),
+            organizingDept:
+              typeof f.organizing_dept === "string" ? f.organizing_dept.trim() : "",
+            category: normalizeCategoryValue(f.category),
+            campusHostedAt: normalizeCampusHostedAt(f.campus_hosted_at),
+            allowedCampuses: normalizeAllowedCampuses(f.allowed_campuses),
           }));
-          setFetchedFests([{ value: "none", label: "None" }, ...options]);
+          setFetchedFests([
+            {
+              value: "none",
+              label: "None",
+              departmentAccess: [],
+              organizingDept: "",
+              category: "",
+              campusHostedAt: "",
+              allowedCampuses: [],
+            },
+            ...options,
+          ]);
         }
       } catch (error) {
         console.error("Failed to fetch fests:", error);
@@ -764,8 +907,9 @@ export default function EventForm({
     setValue,
     watch,
     reset,
+    trigger,
   } = useForm<EventFormData>({
-    // resolver: zodResolver(eventFormSchema), // Temporarily disabled for build
+    // Schema resolver can be re-enabled later if validation is restored here.
     defaultValues: {
       eventTitle: "",
       eventDate: "",
@@ -779,7 +923,9 @@ export default function EventForm({
       registrationDeadline: "",
       location: "",
       registrationFee: "",
+      isTeamEvent: false,
       maxParticipants: "",
+      minParticipants: "",
       contactEmail: "",
       contactPhone: "",
       whatsappLink: "",
@@ -787,6 +933,7 @@ export default function EventForm({
       scheduleItems: [],
       prizes: [],
       provideClaims: false,
+      onSpot: false,
       allowOutsiders: false,
       outsiderRegistrationFee: "",
       outsiderMaxParticipants: "",
@@ -815,6 +962,16 @@ export default function EventForm({
     ) {
       const transformedDefaults = {
         ...defaultValues,
+        isTeamEvent:
+          typeof defaultValues.isTeamEvent === "boolean"
+            ? defaultValues.isTeamEvent
+            : Number(defaultValues.maxParticipants || 1) > 1,
+        minParticipants:
+          typeof defaultValues.minParticipants === "string"
+            ? defaultValues.minParticipants
+            : Number(defaultValues.maxParticipants || 1) > 1
+            ? "2"
+            : "1",
         department: Array.isArray(defaultValues.department)
           ? defaultValues.department
           : [],
@@ -830,6 +987,29 @@ export default function EventForm({
 
   const watchedEventDate = useWatch({ control, name: "eventDate" });
   const watchedEndDate = useWatch({ control, name: "endDate" });
+  const watchedIsTeamEvent = useWatch({ control, name: "isTeamEvent" });
+  const watchedMaxParticipants = useWatch({ control, name: "maxParticipants" });
+  const watchedMinParticipants = useWatch({ control, name: "minParticipants" });
+  const watchedFestEvent = useWatch({ control, name: "festEvent" });
+
+  useEffect(() => {
+    if (!watchedIsTeamEvent) {
+      setValue("maxParticipants", "1", { shouldValidate: false });
+      setValue("minParticipants", "1", { shouldValidate: false });
+    } else {
+      if (!watch("maxParticipants")) {
+        setValue("maxParticipants", "2", { shouldValidate: false });
+      }
+      if (!watch("minParticipants")) {
+        setValue("minParticipants", "2", { shouldValidate: false });
+      }
+    }
+  }, [watchedIsTeamEvent, setValue, watch]);
+
+  useEffect(() => {
+    if (!watchedIsTeamEvent) return;
+    void trigger(["minParticipants", "maxParticipants"]);
+  }, [watchedIsTeamEvent, watchedMaxParticipants, watchedMinParticipants, trigger]);
 
   useEffect(() => {
     if (watchedEventDate && !isEditMode && watch("eventDate")) {
@@ -843,6 +1023,58 @@ export default function EventForm({
         setValue("endDate", watchedEventDate, { shouldValidate: false });
     }
   }, [watchedEventDate, setValue, isEditMode, watch]);
+
+  useEffect(() => {
+    if (isEditMode) return;
+
+    if (!watchedFestEvent || watchedFestEvent === "none") {
+      setValue("department", [], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue("organizingDept", "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue("category", "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue("campusHostedAt", "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue("allowedCampuses", [], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      return;
+    }
+
+    const selectedFest = fetchedFests.find((fest) => fest.value === watchedFestEvent);
+    if (!selectedFest) return;
+
+    setValue("department", selectedFest.departmentAccess, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("organizingDept", selectedFest.organizingDept, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("category", selectedFest.category, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("campusHostedAt", selectedFest.campusHostedAt, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("allowedCampuses", selectedFest.allowedCampuses, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [isEditMode, watchedFestEvent, fetchedFests, setValue]);
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
@@ -910,7 +1142,7 @@ export default function EventForm({
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
 
-      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+      const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}`,
         {
@@ -993,7 +1225,7 @@ export default function EventForm({
         .toLowerCase()
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
-      const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+      const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}/close`,
         {
@@ -1250,7 +1482,7 @@ export default function EventForm({
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <Controller
                     name="eventDate"
                     control={control}
@@ -1286,6 +1518,52 @@ export default function EventForm({
                     )}
                   />
                   <Controller
+                    name="registrationDeadline"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <CustomDatePicker
+                        id="registrationDeadline"
+                        field={field}
+                        label="Registration deadline:"
+                        error={fieldState.error}
+                        required
+                        placeholder="YYYY-MM-DD"
+                        maxDate={
+                          watchedEndDate && parseYYYYMMDD(watchedEndDate)
+                            ? parseYYYYMMDD(watchedEndDate) || undefined
+                            : undefined
+                        }
+                      />
+                    )}
+                  />
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between h-[46px] sm:h-[48px] mt-0 sm:mt-7">
+                    <label
+                      htmlFor="onSpot"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      On-spot registration
+                    </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <Controller
+                        name="onSpot"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="onSpot"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Controller
                     name="eventTime"
                     control={control}
                     render={({ field, fieldState }) => (
@@ -1299,7 +1577,105 @@ export default function EventForm({
                       />
                     )}
                   />
+                  <CustomDropdown
+                    name="festEvent"
+                    control={control}
+                    options={fetchedFests.length > 0 ? fetchedFests : [{ value: "none", label: "None" }]}
+                    placeholder="Select fest event (if any)"
+                    label="Is this event under any fest? (optional)"
+                    error={errors.festEvent}
+                  />
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between h-[46px] sm:h-[48px] mt-0 sm:mt-7">
+                    <label
+                      htmlFor="isTeamEvent"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Team event
+                    </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <Controller
+                        name="isTeamEvent"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="isTeamEvent"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
+                  </div>
+                  {watchedIsTeamEvent && (
+                    <div className="space-y-3">
+                      <InputField
+                        label="Max participants per team:"
+                        name="maxParticipants"
+                        type="text"
+                        inputMode="numeric"
+                        register={register}
+                        registerOptions={{
+                          validate: (value) => {
+                            if (!watchedIsTeamEvent) return true;
+
+                            const maxRaw = String(value || "").trim();
+                            if (!maxRaw) return "Max participants per team is required";
+                            if (!/^\d+$/.test(maxRaw)) return "Enter a whole number";
+
+                            const maxValue = Number(maxRaw);
+                            if (maxValue < 2) return "Must be at least 2 for team events";
+
+                            const minRaw = String(watch("minParticipants") || "").trim();
+                            if (minRaw && /^\d+$/.test(minRaw) && maxValue < Number(minRaw)) {
+                              return "Max participants must be greater than or equal to min participants";
+                            }
+
+                            return true;
+                          },
+                        }}
+                        error={errors.maxParticipants}
+                        required
+                        placeholder="e.g., 2, 3, 5"
+                      />
+                      <InputField
+                        label="Min participants per team:"
+                        name="minParticipants"
+                        type="text"
+                        inputMode="numeric"
+                        register={register}
+                        registerOptions={{
+                          validate: (value) => {
+                            if (!watchedIsTeamEvent) return true;
+
+                            const minRaw = String(value || "").trim();
+                            if (!minRaw) return "Min participants per team is required";
+                            if (!/^\d+$/.test(minRaw)) return "Enter a whole number";
+
+                            const minValue = Number(minRaw);
+                            if (minValue < 2) return "Must be at least 2 for team events";
+
+                            const maxRaw = String(watch("maxParticipants") || "").trim();
+                            if (maxRaw && /^\d+$/.test(maxRaw) && minValue > Number(maxRaw)) {
+                              return "Min participants cannot exceed max participants";
+                            }
+
+                            return true;
+                          },
+                        }}
+                        error={errors.minParticipants}
+                        required
+                        placeholder="e.g., 2"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <InputField
                   label="Detailed description:"
                   name="detailedDescription"
@@ -1310,6 +1686,185 @@ export default function EventForm({
                   required
                   placeholder="Provide a detailed description of the event"
                 />
+
+                {/* Audience & Access Control Section - Google Style */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 sm:p-7 shadow-sm">
+                  <div className="mb-6">
+                    <h3 className="text-base font-bold text-[#063168] flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zm-2-7a6 6 0 11-12 0 6 6 0 0112 0zM7 9a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                      </svg>
+                      Audience & Access
+                    </h3>
+                    <p className="text-xs text-gray-600 mt-1 ml-7">Control who can register for your event</p>
+                  </div>
+
+                  <div className="space-y-5">
+                    {/* Allow Outsiders Toggle */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 transition-all hover:border-blue-300 hover:shadow-md">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <label htmlFor="allowOutsiders" className="text-sm font-semibold text-gray-900 block cursor-pointer">
+                            Allow Non-Members to Register
+                          </label>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Permit registration from outside Christ University
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer ml-4">
+                          <Controller
+                            name="allowOutsiders"
+                            control={control}
+                            render={({ field }) => (
+                              <input
+                                type="checkbox"
+                                id="allowOutsiders"
+                                checked={!!field.value}
+                                onChange={(e) => field.onChange(e.target.checked)}
+                                className="sr-only peer"
+                              />
+                            )}
+                          />
+                          <div className={toggleTrackClass}></div>
+                        </label>
+                      </div>
+
+                      {/* Conditional outsider fields */}
+                      {watch("allowOutsiders") && (
+                        <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <InputField
+                              label="Registration Fee (Optional)"
+                              name="outsiderRegistrationFee"
+                              type="text"
+                              register={register}
+                              error={errors.outsiderRegistrationFee}
+                              placeholder="e.g., 500"
+                            />
+                            <InputField
+                              label="Max Participants (Optional)"
+                              name="outsiderMaxParticipants"
+                              type="text"
+                              register={register}
+                              error={errors.outsiderMaxParticipants}
+                              placeholder="e.g., 50"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 italic">
+                            Leave blank to use the standard event settings for non-members
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Campus Restrictions - Always Visible */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <label className="text-sm font-semibold text-gray-900 block">
+                            Campus Availability
+                          </label>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Specify where the event takes place and who can attend
+                          </p>
+                        </div>
+                        <span className="text-xs bg-red-100 text-red-800 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap">
+                          Required
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Hosted At */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-2">
+                            Where is the event Hosted at? <span className="text-red-500">*</span>
+                          </label>
+                          <Controller
+                            name="campusHostedAt"
+                            control={control}
+                            rules={{ required: "Hosted campus is required" }}
+                            render={({ field }) => (
+                              <>
+                                <select
+                                  {...field}
+                                  className={`w-full px-3.5 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-0 focus:border-transparent bg-white transition-all ${
+                                    errors.campusHostedAt ? "border-red-500" : "border-gray-300"
+                                  }`}
+                                >
+                                  <option value="">Select campus</option>
+                                  {christCampuses.map((campus) => (
+                                    <option key={campus} value={campus}>
+                                      {campus}
+                                    </option>
+                                  ))}
+                                </select>
+                                {errors.campusHostedAt && (
+                                  <p className="text-red-500 text-xs mt-2">
+                                    {errors.campusHostedAt.message}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          />
+                        </div>
+
+                        {/* Who Can Register */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-2">
+                            Who can register? <span className="text-red-500">*</span>
+                          </label>
+                          <Controller
+                            name="allowedCampuses"
+                            control={control}
+                            rules={{
+                              validate: (value) =>
+                                (Array.isArray(value) && value.length > 0) ||
+                                "Select at least one campus",
+                            }}
+                            render={({ field }) => (
+                              <div
+                                className={`space-y-1.5 h-[102px] overflow-y-auto pr-2 rounded-md ${
+                                  errors.allowedCampuses ? "border border-red-500 p-2" : ""
+                                }`}
+                              >
+                                {christCampuses.map((campus) => (
+                                  <label
+                                    key={campus}
+                                    className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5 transition-colors"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={field.value?.includes(campus) || false}
+                                      onChange={(e) => {
+                                        const current = field.value || [];
+                                        if (e.target.checked) {
+                                          field.onChange([...current, campus]);
+                                        } else {
+                                          field.onChange(current.filter((c: string) => c !== campus));
+                                        }
+                                      }}
+                                      className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3] cursor-pointer"
+                                    />
+                                    <span>{campus}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          />
+                          <p className="text-xs text-gray-500 mt-2">
+                            Select at least one campus that can register for this event.
+                          </p>
+                          {errors.allowedCampuses && (
+                            <p className="text-red-500 text-xs mt-2">
+                              {errors.allowedCampuses.message as string}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
                   <MultiSelectDropdown
                     name="department"
@@ -1349,60 +1904,42 @@ export default function EventForm({
                   placeholder="e.g., Department of Computer Science /  Student Welfare Organization"
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-                  <CustomDropdown
-                    name="festEvent"
-                    control={control}
-                    options={fetchedFests.length > 0 ? fetchedFests : [{ value: "none", label: "None" }]}
-                    placeholder="Select fest event (if any)"
-                    label="Fest event: (optional)"
-                    error={errors.festEvent}
-                  />
-                  <Controller
-                    name="registrationDeadline"
-                    control={control}
-                    render={({ field, fieldState }) => (
-                      <CustomDatePicker
-                        id="registrationDeadline"
-                        field={field}
-                        label="Registration deadline:"
-                        error={fieldState.error}
-                        required
-                        placeholder="YYYY-MM-DD"
-                        maxDate={
-                          watchedEndDate && parseYYYYMMDD(watchedEndDate)
-                            ? parseYYYYMMDD(watchedEndDate) || undefined
-                            : undefined
-                        }
-                      />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between sm:justify-start">
-                    <label
-                      htmlFor="provideClaims"
-                      className="text-sm font-medium text-gray-700 mr-4"
-                    >
-                      Provide claims for periods missed
+                <div className="my-2">
+                  <div className="inline-flex bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 items-center gap-2 flex-wrap">
+                    <label className="text-sm font-medium text-gray-700">
+                      Are claims provided for this fest?
                     </label>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <Controller
-                        name="provideClaims"
-                        control={control}
-                        render={({ field }) => (
-                          <input
-                            type="checkbox"
-                            id="provideClaims"
-                            checked={!!field.value}
-                            onChange={(e) => field.onChange(e.target.checked)}
-                            className="sr-only peer"
+                    <Controller
+                      name="provideClaims"
+                      control={control}
+                      render={({ field }) => (
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={!!field.value}
+                          aria-label="Are claims provided for this fest"
+                          onClick={() => field.onChange(!field.value)}
+                          className={`relative h-5 w-14 shrink-0 rounded-full border-2 shadow-inner transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-[1.01] hover:brightness-105 hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            field.value
+                              ? "bg-green-500 border-green-600 focus:ring-green-500"
+                              : "bg-red-500 border-red-600 focus:ring-red-500"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none absolute inset-0 flex items-center text-[10px] font-extrabold tracking-wide text-white transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              field.value ? "justify-start pl-2" : "justify-end pr-2"
+                            }`}
+                          >
+                            {field.value ? "YES" : "NO"}
+                          </span>
+                          <span
+                            className={`pointer-events-none absolute left-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border border-white/90 bg-white shadow-sm transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              field.value ? "translate-x-8" : "translate-x-0"
+                            }`}
                           />
-                        )}
-                      />
-                      <div className={toggleTrackClass}></div>
-                    </label>
+                        </button>
+                      )}
+                    />
                   </div>
                   {errors.provideClaims && (
                     <p className="text-red-500 text-xs mt-1">
@@ -1410,144 +1947,6 @@ export default function EventForm({
                     </p>
                   )}
                 </div>
-
-                {/* Outsider Registration Section */}
-                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <div className="flex items-center justify-between sm:justify-start mb-4">
-                    <label
-                      htmlFor="allowOutsiders"
-                      className="text-sm font-medium text-gray-700 mr-4"
-                    >
-                      Allow outsider registrations
-                      <span className="block text-xs text-gray-500 font-normal mt-1">
-                        Permit non-Christ University members to register
-                      </span>
-                    </label>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <Controller
-                        name="allowOutsiders"
-                        control={control}
-                        render={({ field }) => (
-                          <input
-                            type="checkbox"
-                            id="allowOutsiders"
-                            checked={!!field.value}
-                            onChange={(e) => field.onChange(e.target.checked)}
-                            className="sr-only peer"
-                          />
-                        )}
-                      />
-                      <div className={toggleTrackClass}></div>
-                    </label>
-                  </div>
-
-                  {/* Conditional outsider fields - only show when allowOutsiders is true */}
-                  {watch("allowOutsiders") && (
-                    <div className="space-y-4 pl-4 border-l-2 border-[#154CB3]">
-                      <InputField
-                        label="Outsider Registration Fee: (optional)"
-                        name="outsiderRegistrationFee"
-                        type="text"
-                        register={register}
-                        error={errors.outsiderRegistrationFee}
-                        placeholder="e.g., 500"
-                      />
-                      <InputField
-                        label="Maximum Outsider Participants: (optional)"
-                        name="outsiderMaxParticipants"
-                        type="text"
-                        register={register}
-                        error={errors.outsiderMaxParticipants}
-                        placeholder="e.g., 50"
-                      />
-                      <p className="text-xs text-gray-600 italic">
-                        Leave blank to use standard event settings for outsiders
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Campus Section - only visible when outsiders NOT allowed */}
-                {!watch("allowOutsiders") && (
-                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50">
-                    <div className="flex items-center gap-3 mb-5">
-                      <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
-                        Campus Restrictions
-                      </h4>
-                      <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded-full font-medium">
-                        Optional — single-campus deployment
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* Left: Hosted At */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <label className="block text-sm font-semibold text-gray-800 mb-1">
-                          Hosted At
-                        </label>
-                        <p className="text-xs text-gray-500 mb-3">
-                          Which campus is this event taking place at?
-                        </p>
-                        <Controller
-                          name="campusHostedAt"
-                          control={control}
-                          render={({ field }) => (
-                            <select
-                              {...field}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
-                            >
-                              <option value="">-- Select campus --</option>
-                              {christCampuses.map((campus) => (
-                                <option key={campus} value={campus}>
-                                  {campus}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        />
-                      </div>
-
-                      {/* Right: Who Can Register */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <label className="block text-sm font-semibold text-gray-800 mb-1">
-                          Who Can Register?
-                        </label>
-                        <p className="text-xs text-gray-500 mb-3">
-                          Tick the campuses whose students are allowed to apply. Leave all unchecked to allow everyone.
-                        </p>
-                        <Controller
-                          name="allowedCampuses"
-                          control={control}
-                          render={({ field }) => (
-                            <div className="space-y-2">
-                              {christCampuses.map((campus) => (
-                                <label
-                                  key={campus}
-                                  className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={field.value?.includes(campus) || false}
-                                    onChange={(e) => {
-                                      const current = field.value || [];
-                                      if (e.target.checked) {
-                                        field.onChange([...current, campus]);
-                                      } else {
-                                        field.onChange(current.filter((c: string) => c !== campus));
-                                      }
-                                    }}
-                                    className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
-                                  />
-                                  {campus}
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <FileInput<EventFormData>
                   label="Event image:"
@@ -1585,7 +1984,7 @@ export default function EventForm({
                   error={errors.whatsappLink}
                   placeholder="https://chat.whatsapp.com/your-group-invite"
                 />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
                   <InputField
                     label="Location / Venue:"
                     name="location"
@@ -1602,15 +2001,6 @@ export default function EventForm({
                     register={register}
                     error={errors.registrationFee}
                     placeholder="0 for free event"
-                  />
-                  <InputField
-                    label="Max participants / team:"
-                    name="maxParticipants"
-                    type="text"
-                    inputMode="numeric"
-                    register={register}
-                    error={errors.maxParticipants}
-                    placeholder="e.g., 1 (individual), 5 (team)"
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
@@ -1635,6 +2025,22 @@ export default function EventForm({
                     placeholder="10-digit mobile number"
                   />
                 </div>
+
+                {/* Custom Fields Section - Moved Up */}
+                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl p-6 sm:p-7 shadow-sm">
+                  <Controller
+                    name="customFields"
+                    control={control}
+                    render={({ field }) => (
+                      <DynamicCustomFieldBuilder
+                        fields={(field.value as CustomField[]) || []}
+                        onChange={(newFields) => field.onChange(newFields)}
+                        maxFields={10}
+                      />
+                    )}
+                  />
+                </div>
+
                 <DynamicTextList
                   listName="rules"
                   itemNoun="rule"
@@ -1659,66 +2065,65 @@ export default function EventForm({
                   errors={errors}
                 />
 
-                {/* Custom Fields Section */}
-                <div className="mt-6 p-4 sm:p-6 bg-[#f5f8fe] rounded-xl border border-[#e0e7f1]">
-                  <Controller
-                    name="customFields"
-                    control={control}
-                    render={({ field }) => (
-                      <DynamicCustomFieldBuilder
-                        fields={(field.value as CustomField[]) || []}
-                        onChange={(newFields) => field.onChange(newFields)}
-                        maxFields={10}
-                      />
-                    )}
-                  />
-                </div>
-
-                <div className="flex flex-col-reverse sm:flex-row items-center justify-end space-y-3 space-y-reverse sm:space-y-0 sm:space-x-4 mt-8 sm:mt-10">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-8 sm:mt-10 pt-6 border-t border-gray-200">
                   <button
                     type="button"
                     onClick={handleNavigationToDashboard}
                     disabled={isSubmittingProp || rhfIsSubmitting || isDeleting}
-                    className={`${secondaryButtonClasses} w-full sm:w-auto cursor-pointer`}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     Cancel
                   </button>
+                  
                   {isEditMode && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={openDeleteConfirmation}
-                        disabled={
-                          isDeleting || isSubmittingProp || rhfIsSubmitting
-                        }
-                        className="cursor-pointer px-4 sm:px-5 py-2 sm:py-3 rounded-full border bg-red-600 border-red-700 font-medium text-white hover:bg-red-700 transition-colors text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
-                      >
-                        {isDeleting ? "Deleting..." : "Delete event"}
-                      </button>
+                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                      {onToggleArchive && (
+                        <button
+                          type="button"
+                          onClick={onToggleArchive}
+                          disabled={isArchiveUpdating || isSubmittingProp || rhfIsSubmitting || isDeleting}
+                          className={`w-full sm:w-auto px-4 py-2.5 text-sm font-medium rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+                            isArchiveUpdating || isSubmittingProp || rhfIsSubmitting || isDeleting
+                              ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+                              : isArchived
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 focus:ring-emerald-500"
+                                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 focus:ring-amber-500"
+                          }`}
+                        >
+                          {isArchiveUpdating ? "Saving..." : isArchived ? "Unarchive" : "Archive"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={closeRegistration}
-                        disabled={
-                          isSubmittingProp || rhfIsSubmitting || isDeleting
-                        }
-                        className="cursor-pointer px-4 sm:px-5 py-2 sm:py-3 rounded-full border bg-white border-red-400 font-medium text-red-500 hover:bg-red-50 transition-colors text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
+                        disabled={isSubmittingProp || rhfIsSubmitting || isDeleting}
+                        className="w-full sm:w-auto px-4 py-2.5 border border-red-200 bg-red-50 text-red-700 text-sm font-medium rounded-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        Close registrations
+                        Close Registrations
                       </button>
-                    </>
+                      <button
+                        type="button"
+                        onClick={openDeleteConfirmation}
+                        disabled={isDeleting || isSubmittingProp || rhfIsSubmitting}
+                        className="w-full sm:w-auto px-4 py-2.5 border border-red-300 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isDeleting ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   )}
+                  
                   <button
                     type="submit"
                     disabled={isSubmittingProp || rhfIsSubmitting || isDeleting}
-                    className={`${primaryButtonClasses} w-full sm:w-auto cursor-pointer`}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isSubmittingProp || rhfIsSubmitting
                       ? isEditMode
                         ? "Updating..."
                         : "Publishing..."
                       : isEditMode
-                      ? "Update event"
-                      : "Publish event"}
+                      ? "Update Event"
+                      : "Publish Event"}
                   </button>
                 </div>
               </form>

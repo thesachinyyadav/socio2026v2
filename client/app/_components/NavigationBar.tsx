@@ -88,6 +88,8 @@ function NavigationBar() {
   const displayName = userData?.name || sessionDisplayName;
   const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
   const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
+  const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
+  const isOrganiser = Boolean(userData?.is_organiser);
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -343,20 +345,20 @@ function NavigationBar() {
                 <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
               </div>
             ) : session ? (
-              userData && (userData.is_organiser || (userData as any).is_masteradmin) ? (
+              userData && (isOrganiser || isMasterAdmin) ? (
                 <div className="flex gap-2 sm:gap-4 items-center md:flex-nowrap justify-end">
                   <NotificationSystem />
-                  {!isDesktopCompact && (userData as any).is_masteradmin && (
+                  {!isDesktopCompact && isMasterAdmin && (
                     <Link href="/masteradmin">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-red-50 border-red-600 text-red-600 transition-all duration-200 ease-in-out">
-                        Admin Panel
+                        Admin
                       </button>
                     </Link>
                   )}
-                  {!isDesktopCompact && userData.is_organiser && (
+                  {!isDesktopCompact && isOrganiser && (
                     <Link href="/manage">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out">
-                        Manage events
+                        Organiser
                       </button>
                     </Link>
                   )}
@@ -466,11 +468,11 @@ function NavigationBar() {
             type="button"
             aria-label="Close navigation overlay"
             onClick={closeDesktopMenu}
-            className="hidden md:block fixed inset-0 bg-black/35 z-40"
+            className="hidden md:block fixed inset-0 bg-black/35 backdrop-blur-[1px] z-40"
           />
 
           <aside
-            className="hidden md:flex fixed top-0 right-0 h-full w-[340px] max-w-[92vw] bg-white border-l border-gray-200 shadow-2xl z-50 flex-col"
+            className="hidden md:flex fixed inset-y-0 right-0 h-full w-[min(360px,94vw)] bg-white border-l border-gray-200 shadow-2xl z-50 flex-col"
             role="dialog"
             aria-label="Desktop navigation menu"
           >
@@ -488,7 +490,7 @@ function NavigationBar() {
               </button>
             </div>
 
-            <div className="px-4 py-3 overflow-y-auto">
+            <div className="px-4 py-3 overflow-y-auto flex-1">
               {navigationLinks.map((link) => {
                 const isExpanded = expandedDesktopSection === link.name;
 
@@ -590,33 +592,85 @@ function NavigationBar() {
                 );
               })}
             </div>
+
+            {session && userData && (isMasterAdmin || isOrganiser) && (
+              <div className="px-4 pb-4 border-t border-gray-200">
+                <p className="pt-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Quick actions
+                </p>
+
+                <div className="mt-2 space-y-2">
+                  {isMasterAdmin && (
+                    <Link
+                      href="/masteradmin"
+                      onClick={closeDesktopMenu}
+                      className="block rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors duration-200"
+                    >
+                      Admin
+                    </Link>
+                  )}
+
+                  {isOrganiser && (
+                    <Link
+                      href="/manage"
+                      onClick={closeDesktopMenu}
+                      className="block rounded-lg border border-[#154CB3]/30 px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
+                    >
+                      Organiser
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
           </aside>
         </>
       )}
 
       <div className="md:hidden px-4 pb-4 space-y-3">
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {navigationLinks.map((link) => (
+        <div className="rounded-2xl border border-[#154CB3]/15 bg-white/90 shadow-sm p-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            {navigationLinks.map((link) => (
+              <Link
+                key={`mobile-${link.name}`}
+                href={link.href}
+                className="inline-flex items-center justify-center rounded-full border border-[#154CB3]/20 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/5 transition-colors duration-200"
+              >
+                {link.name}
+              </Link>
+            ))}
+
             <Link
-              key={`mobile-${link.name}`}
-              href={link.href}
-              className="whitespace-nowrap rounded-full border border-[#154CB3]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#154CB3] hover:bg-[#154CB3]/5"
+              href="/events"
+              className="inline-flex items-center justify-center rounded-full border border-[#154CB3]/20 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/5 transition-colors duration-200"
             >
-              {link.name}
+              Events
             </Link>
-          ))}
-          <Link
-            href="/events"
-            className="whitespace-nowrap rounded-full border border-[#154CB3]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#154CB3] hover:bg-[#154CB3]/5"
-          >
-            Events
-          </Link>
-          <Link
-            href="/fests"
-            className="whitespace-nowrap rounded-full border border-[#154CB3]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#154CB3] hover:bg-[#154CB3]/5"
-          >
-            Fests
-          </Link>
+
+            <Link
+              href="/fests"
+              className="inline-flex items-center justify-center rounded-full border border-[#154CB3]/20 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/5 transition-colors duration-200"
+            >
+              Fests
+            </Link>
+
+            {isMasterAdmin && (
+              <Link
+                href="/masteradmin"
+                className="inline-flex items-center justify-center rounded-full border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors duration-200"
+              >
+                Admin
+              </Link>
+            )}
+
+            {isOrganiser && (
+              <Link
+                href="/manage"
+                className="inline-flex items-center justify-center rounded-full border border-[#154CB3]/30 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
+              >
+                Organiser
+              </Link>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSearchSubmit} className="sm:hidden">

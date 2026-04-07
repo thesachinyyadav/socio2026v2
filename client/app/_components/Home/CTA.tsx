@@ -3,9 +3,11 @@
 import React, { useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import gsap from "gsap";
+import { useAuth } from "../../../context/AuthContext";
 
 const CTA = () => {
   const ctaRef = useRef<HTMLDivElement>(null);
+  const { session, isLoading } = useAuth();
   
 
   const signInWithGoogle = async () => {
@@ -83,12 +85,14 @@ const CTA = () => {
         sharing campus events through SOCIO.
       </p>
       <div className="mt-6 sm:mt-8 flex flex-row sm:flex-row gap-4 px-4">
-        <button
-          onClick={signInWithGoogle}
-          className="cursor-pointer font-semibold px-4 py-1.5 sm:px-4 sm:py-2 border-2 border-[#fff] hover:bg-[#ffffff1a] transition-all ease-in-out text-xs sm:text-sm rounded-full text-white whitespace-nowrap"
-        >
-          Get started
-        </button>
+        {!session && !isLoading && (
+          <button
+            onClick={signInWithGoogle}
+            className="cursor-pointer font-semibold px-4 py-1.5 sm:px-4 sm:py-2 border-2 border-[#fff] hover:bg-[#ffffff1a] transition-all ease-in-out text-xs sm:text-sm rounded-full text-white whitespace-nowrap"
+          >
+            Get started
+          </button>
+        )}
         <a href="/app-download">
           <button className="cursor-pointer font-semibold px-4 py-1.5 sm:px-4 sm:py-2 border-2 border-[#FFCC00] hover:bg-[#ffcc00f0] transition-all ease-in-out text-xs sm:text-sm rounded-full text-[#1e1e1e] bg-[#ffcc00] whitespace-nowrap">
             Download the app

@@ -10,28 +10,11 @@ const requireOrganiserOrAdmin = (req, res, next) => {
   if (!req.userInfo) {
     return res.status(401).json({ error: "User info not available" });
   }
-  
-  // If master admin OR authorized IP, elevate to master admin and grant access
-  const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
-  const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
-  const isIpAllowed = allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp);
 
-  // 1. IP Bypass / Elevation
-  if (isIpAllowed) {
-    if (!req.userInfo.is_masteradmin) {
-      console.log(`[ReportAdmin] ⬆️  SUDO: Elevating ${req.userInfo.email} to Master Admin via IP match (${normalizedIp})`);
-      req.userInfo.is_masteradmin = true;
-    }
-    return next();
-  }
-
-  // 2. Role-based check (Allow if already Master Admin - regardless of IP)
   if (req.userInfo.is_masteradmin) {
     return next();
   }
 
-  // 3. Organiser check (For non-admins)
   if (!req.userInfo.is_organiser) {
     return res.status(403).json({ error: "Access denied: Organiser or Master Admin privileges required" });
   }
@@ -43,28 +26,13 @@ const requireOrganiserOrAdmin = (req, res, next) => {
 // Returns event details, registration counts, attendance stats, and participant list
 // Get comprehensive report data for selected events
 // Returns event details, registration counts, attendance stats, and participant list
-router.post("/report/data", (req, res, next) => {
-  // Try IP-based simple auth first
-  const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
-  const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
-
-  if (allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp)) {
-    console.log(`[Reports] ✅ IP Bypass granted for ${normalizedIp}`);
-    if (!req.userId) req.userId = 'admin-ip-bypass';
-    if (!req.userInfo) req.userInfo = { is_masteradmin: true, email: 'admin@local' };
-    return next();
-  }
-  
-  // Otherwise standard flow
-  return authenticateUser(req, res, () => {
-    getUserInfo()(req, res, () => {
-      checkRoleExpiration(req, res, () => {
-        requireOrganiserOrAdmin(req, res, next);
-      });
-    });
-  });
-}, async (req, res) => {
+router.post(
+  "/report/data",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireOrganiserOrAdmin,
+  async (req, res) => {
   try {
     const { eventIds, festId } = req.body;
     const festTable = await getFestTableForSupabase(supabase);

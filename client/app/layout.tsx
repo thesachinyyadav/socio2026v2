@@ -11,6 +11,7 @@ import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import ClientInit from "./_components/ClientInit";
 import MobileDetectionRedirect from "./_components/MobileDetectionRedirect";
+import { DM_Sans } from "next/font/google";
 
 import {
   EventsProvider,
@@ -22,6 +23,12 @@ import {
 // OPTIMIZATION: Use Incremental Static Regeneration instead of force-dynamic
 // This caches the initial data and revalidates every 5 minutes
 export const revalidate = 300; // Revalidate every 5 minutes
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-dm-sans",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -90,6 +97,11 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   category: "education",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
 };
 
 const deriveTags = (event: FetchedEvent): string[] => {
@@ -106,6 +118,46 @@ const deriveTags = (event: FetchedEvent): string[] => {
     tags.push("Paid");
   }
   return tags.filter((tag) => tag && tag.trim() !== "");
+};
+
+const parseComparableDate = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    parsed.setHours(0, 0, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getTodayBoundary = (): Date => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+const getUpcomingEventsFromDataset = (events: FetchedEvent[]): FetchedEvent[] => {
+  const today = getTodayBoundary();
+
+  return [...(events || [])]
+    .filter((event) => {
+      const eventDate = parseComparableDate(event.event_date);
+      if (!eventDate) return false;
+      return eventDate.getTime() >= today.getTime();
+    })
+    .sort((a, b) => {
+      const aDate = parseComparableDate(a.event_date)?.getTime() || 0;
+      const bDate = parseComparableDate(b.event_date)?.getTime() || 0;
+      return aDate - bDate;
+    });
 };
 
 const getRandomEvents = (
@@ -129,9 +181,10 @@ const transformToEventCardData = (event: FetchedEvent): EventForCard => {
     tags: deriveTags(event),
     image:
       event.event_image_url ||
-      "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image",
+      process.env.NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL!,
     organizing_dept: event.organizing_dept || "TBD",
     allow_outsiders: event.allow_outsiders ?? false,
+    is_archived: (event as any).is_archived ?? false,
   };
 };
 
@@ -143,7 +196,7 @@ const transformToCarouselImage = (
     src:
       event.banner_url ||
       event.event_image_url ||
-      "https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner",
+      process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!,
     link: `/event/${event.event_id}`,
     title: event.title,
     department: event.organizing_dept || "",
@@ -152,15 +205,20 @@ const transformToCarouselImage = (
 
 // Create a singleton Supabase client for server-side operations
 let serverSupabase: SupabaseClient | null = null;
+let missingSupabaseConfigWarned = false;
 
-function getServerSupabase(): SupabaseClient {
+function getServerSupabase(): SupabaseClient | null {
   if (serverSupabase) return serverSupabase;
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Supabase configuration missing");
+    if (!missingSupabaseConfigWarned) {
+      console.warn("Supabase configuration missing during build/runtime; event prefetch will be skipped.");
+      missingSupabaseConfigWarned = true;
+    }
+    return null;
   }
   
   serverSupabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -169,6 +227,9 @@ function getServerSupabase(): SupabaseClient {
 
 async function fetchEventsFromSupabase() {
   const supabase = getServerSupabase();
+  if (!supabase) {
+    return [] as FetchedEvent[];
+  }
   
   const { data, error: supabaseError } = await supabase
     .from("events")
@@ -182,12 +243,42 @@ async function fetchEventsFromSupabase() {
   return data as FetchedEvent[];
 }
 
+async function fetchUpcomingEventsFromSupabase() {
+  const supabase = getServerSupabase();
+  if (!supabase) {
+    return [] as FetchedEvent[];
+  }
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const { data, error: supabaseError } = await supabase
+    .from("events")
+    .select("*")
+    .gte("event_date", todayIso)
+    .order("event_date", { ascending: true })
+    .limit(12);
+
+  if (supabaseError) {
+    throw new Error(supabaseError.message);
+  }
+
+  return (data as FetchedEvent[]) || [];
+}
+
 // OPTIMIZATION: Cache the Supabase query with unstable_cache
 const getCachedEvents = unstable_cache(
   fetchEventsFromSupabase,
   ['events-list'],
   { 
     revalidate: 60, // 1 minute - reduced for faster updates when events are modified
+    tags: ['events']
+  }
+);
+
+const getCachedUpcomingEvents = unstable_cache(
+  fetchUpcomingEventsFromSupabase,
+  ['events-upcoming-list'],
+  {
+    revalidate: 60,
     tags: ['events']
   }
 );
@@ -201,8 +292,11 @@ async function getInitialEventsData() {
   let error: string | null = null;
 
   try {
-    // Use cached Supabase query
-    const data = await getCachedEvents();
+    // Use cached Supabase queries
+    const [data, upcomingData] = await Promise.all([
+      getCachedEvents(),
+      getCachedUpcomingEvents().catch(() => [] as FetchedEvent[]),
+    ]);
 
     if (data && Array.isArray(data)) {
       allEvents = data;
@@ -225,7 +319,14 @@ async function getInitialEventsData() {
           return { ...baseCardData, tags: uniqueTags };
         });
 
-        upcomingEvents = latestEventsForSections.map(transformToEventCardData);
+        const normalizedUpcoming =
+          Array.isArray(upcomingData) && upcomingData.length > 0
+            ? getUpcomingEventsFromDataset(upcomingData)
+            : getUpcomingEventsFromDataset(allEvents);
+
+        upcomingEvents = normalizedUpcoming
+          .slice(0, 3)
+          .map(transformToEventCardData);
       } else {
         console.log("No events found from Supabase.");
       }
@@ -273,12 +374,9 @@ export default async function RootLayout({
       <head>
         <OrganizationJsonLd />
         <WebsiteJsonLd />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" rel="stylesheet" />
       </head>
       <body
-        className="font-sans antialiased bg-[#FFFFFF] text-[#101010] font-[DM_Sans] overflow-x-hidden"
+        className={`${dmSans.className} font-sans antialiased bg-[#FFFFFF] text-[#101010] overflow-x-hidden`}
       >
         <ClientInit />
         <MobileDetectionRedirect />

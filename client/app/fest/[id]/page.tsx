@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { formatDateFull, formatTime, dayjs } from "@/lib/dateUtils";
 import { EventCard } from "@/app/_components/Discover/EventCard";
 import { useParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
   useEvents,
   FetchedEvent as ContextFetchedEvent,
@@ -22,11 +23,18 @@ interface FestDataFromAPI {
   venue?: string;
   status?: string;
   registration_deadline?: string;
+  is_archived?: boolean;
+  archived_at?: string;
   timeline?: { time: string; title: string; description: string }[];
   sponsors?: { name: string; logo_url: string; website?: string }[];
   social_links?: { platform: string; url: string }[];
   faqs?: { question: string; answer: string }[];
 }
+
+type EventWithFlexibleFest = ContextFetchedEvent & {
+  fest_id?: string | null;
+  fest_title?: string | null;
+};
 
 interface FestDetails {
   id: string;
@@ -87,7 +95,7 @@ const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventT
     }
     
     // Build Google Calendar URL
-    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    const baseUrl = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_BASE_URL!;
     const params = new URLSearchParams({
       text: eventTitle,
       dates: `${startDateTime}/${endDateTime}`,
@@ -104,6 +112,8 @@ const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventT
 const FestPage = () => {
   const params = useParams();
   const festIdSlug = params.id as string;
+  const { session, userData, isLoading: authIsLoading } = useAuth();
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
   const {
     allEvents,
@@ -118,7 +128,48 @@ const FestPage = () => {
     ContextFetchedEvent[]
   >([]);
 
+  const normalizeFestRef = (value: unknown): string => {
+    if (value === undefined || value === null) return "";
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized || normalized === "none" || normalized === "null" || normalized === "undefined") {
+      return "";
+    }
+    return normalized;
+  };
+
+  const filterEventsForFest = React.useCallback(
+    (events: EventWithFlexibleFest[], festId: string, festTitle?: string) => {
+      const normalizedFestId = normalizeFestRef(festId);
+      const normalizedFestTitle = normalizeFestRef(festTitle);
+
+      return (events || []).filter((event) => {
+        if (!event) return false;
+
+        const eventFestId = normalizeFestRef(event.fest_id);
+        const eventFest = normalizeFestRef(event.fest);
+        const eventFestTitle = normalizeFestRef(event.fest_title);
+
+        if (normalizedFestId) {
+          if (eventFestId === normalizedFestId || eventFest === normalizedFestId) {
+            return true;
+          }
+        }
+
+        if (normalizedFestTitle) {
+          return eventFestTitle === normalizedFestTitle || eventFest === normalizedFestTitle;
+        }
+
+        return false;
+      });
+    },
+    []
+  );
+
   useEffect(() => {
+    if (authIsLoading) {
+      return;
+    }
+
     if (!festIdSlug) {
       setErrorFestDetails("Fest ID is missing from URL.");
       setLoadingFestDetails(false);
@@ -128,11 +179,21 @@ const FestPage = () => {
     setLoadingFestDetails(true);
     setErrorFestDetails(null);
 
-    const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
-    fetch(`${API_URL}/api/fests/${festIdSlug}`)
+    fetch(`${API_URL}/api/fests/${festIdSlug}`, {
+      headers: session?.access_token
+        ? {
+            Authorization: `Bearer ${session.access_token}`,
+          }
+        : undefined,
+      cache: "no-store",
+    })
       .then((res) => {
         if (!res.ok) {
+          if (res.status === 403) {
+            throw new Error("This fest is archived and not available");
+          }
           if (res.status === 404) {
             throw new Error(`Fest with ID '${festIdSlug}' not found.`);
           }
@@ -143,6 +204,11 @@ const FestPage = () => {
       .then((data: { fest: FestDataFromAPI }) => {
         if (data.fest) {
           const apiFest = data.fest;
+
+          if (apiFest.is_archived && !isAdminOrOrganizer) {
+            throw new Error("This fest is archived and not available");
+          }
+
           setFestDetails({
             id: apiFest.fest_id,
             title: apiFest.fest_title,
@@ -173,35 +239,40 @@ const FestPage = () => {
         );
         setLoadingFestDetails(false);
       });
-  }, [festIdSlug]);
+  }, [festIdSlug, authIsLoading, isAdminOrOrganizer, session?.access_token]);
 
   useEffect(() => {
-    if (isLoadingEventsContext) {
-      return;
+    if (!festIdSlug || !festDetails) return;
+
+    const festTitle = festDetails.title;
+    let cancelled = false;
+
+    if (!isLoadingEventsContext) {
+      const contextMatches = filterEventsForFest(allEvents as EventWithFlexibleFest[], festIdSlug, festTitle);
+      setFestSpecificEvents(contextMatches);
     }
-    if (!festIdSlug || allEvents.length === 0) {
-      setFestSpecificEvents([]);
-      return;
-    }
 
-    const filtered = allEvents.filter((event) => {
-      if (
-        !event ||
-        typeof event.fest !== "string" ||
-        event.fest.trim() === ""
-      ) {
-        return false;
-      }
+    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
-      const eventFestSlug = event.fest
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
+    fetch(`${API_URL}/api/events`, { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to fetch events (status: ${res.status})`);
+        return res.json();
+      })
+      .then((payload: { events?: EventWithFlexibleFest[] }) => {
+        if (cancelled) return;
+        const latestEvents = Array.isArray(payload?.events) ? payload.events : [];
+        const freshMatches = filterEventsForFest(latestEvents, festIdSlug, festTitle);
+        setFestSpecificEvents(freshMatches);
+      })
+      .catch((error) => {
+        console.error("Failed to refresh fest events:", error);
+      });
 
-      return eventFestSlug === festIdSlug;
-    });
-    setFestSpecificEvents(filtered);
-  }, [isLoadingEventsContext, allEvents, festIdSlug]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoadingEventsContext, allEvents, festIdSlug, festDetails, filterEventsForFest]);
 
   if (loadingFestDetails) {
     return (
@@ -595,7 +666,7 @@ const FestPage = () => {
                         tags={tags.slice(0, 3)}
                         image={
                           event.event_image_url ||
-                          "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image"
+                          process.env.NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL!
                         }
                       />
                     </div>

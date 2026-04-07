@@ -6,7 +6,6 @@ import {
   getUserInfo, 
   checkRoleExpiration,
   requireMasterAdmin,
-  requireAdminIP,
   optionalAuth
 } from "../middleware/authMiddleware.js";
 import { sendWelcomeEmail } from "../utils/emailService.js";
@@ -20,29 +19,13 @@ const supabase = createClient(
 const router = express.Router();
 
 // Get all users with optional search and role filter (master admin only)
-router.get("/", (req, res, next) => {
-  // Try IP-based simple auth first
-  const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
-  const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
-
-  if (allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp)) {
-    console.log(`[UsersList] ✅ IP Bypass granted for ${normalizedIp}`);
-    // Manually set a dummy user if not authenticated yet to satisfy downstream
-    if (!req.userId) req.userId = 'admin-ip-bypass';
-    if (!req.userInfo) req.userInfo = { is_masteradmin: true, email: 'admin@local' };
-    return next();
-  }
-  
-  // Otherwise proceed with standard auth
-  return authenticateUser(req, res, () => {
-    getUserInfo()(req, res, () => {
-      checkRoleExpiration(req, res, () => {
-        requireMasterAdmin(req, res, next);
-      });
-    });
-  });
-}, async (req, res) => {
+router.get(
+  "/",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireMasterAdmin,
+  async (req, res) => {
   try {
     const { search, role, page, pageSize, sortBy, sortOrder } = req.query;
     
@@ -140,17 +123,6 @@ router.get("/:email", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // IP-based elevation: if the request comes from the admin IP, mark them as masteradmin
-    // this ensures the frontend (Next.js) allows access to the admin dashboard
-    const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
-    const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
-
-    if (allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp)) {
-      user.is_masteradmin = true;
-      console.log(`[ProfileElevation] ⬆️ Elevating ${email} to Master Admin in profile response (IP: ${normalizedIp})`);
-    }
-    
     return res.status(200).json({ user });
   } catch (error) {
     console.error("Error fetching user:", error);
@@ -537,7 +509,7 @@ router.post("/", async (req, res) => {
 });
 
 // Update user roles (master admin only)
-router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration, requireAdminIP, requireMasterAdmin, async (req, res) => {
+router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration, requireMasterAdmin, async (req, res) => {
   try {
     const { email } = req.params;
     const { 
@@ -608,7 +580,7 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
 });
 
 // Delete user (master admin only)
-router.delete("/:email", authenticateUser, getUserInfo(), checkRoleExpiration, requireAdminIP, requireMasterAdmin, async (req, res) => {
+router.delete("/:email", authenticateUser, getUserInfo(), checkRoleExpiration, requireMasterAdmin, async (req, res) => {
   try {
     const { email } = req.params;
 

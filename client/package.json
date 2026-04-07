@@ -7,7 +7,8 @@
     "build": "next build",
     "build:analyze": "ANALYZE=true next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint --max-warnings 0",
+    "test": "echo \"No client tests specified yet\" && exit 0"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -21,7 +22,7 @@
     "gsap": "^3.13.0",
     "lucide-react": "^0.562.0",
     "motion": "^12.38.0",
-    "next": "^15.1.6",
+    "next": "^15.5.14",
     "qr-scanner": "^1.4.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -43,8 +44,9 @@
     "@types/react-dom": "^19",
     "@types/uuid": "^11.0.0",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.1",
+    "eslint-config-next": "15.5.14",
     "tailwindcss": "^4.1.4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

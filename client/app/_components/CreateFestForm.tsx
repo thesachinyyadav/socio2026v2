@@ -5,14 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
 import { departments as baseDepartments, christCampuses } from "../lib/eventFormSchema";
-import { createBrowserClient } from "@supabase/ssr";
 import toast from "react-hot-toast";
 import PublishingOverlay from "./UI/PublishingOverlay";
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const ALLOWED_FEST_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
 
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -324,6 +325,8 @@ interface CreateFestState {
   faqs: { question: string; answer: string }[];
   campusHostedAt: string;
   allowedCampuses: string[];
+  departmentHostedAt: string;
+  allowedDepartments: string[];
   allowOutsiders: boolean;
 }
 
@@ -403,6 +406,9 @@ function DepartmentAndCategoryInputs({
         >
           Department accessibility: <span className="text-red-500">*</span>
         </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Departments allowed to access this fest
+        </p>
         <button
           type="button"
           id="department-trigger"
@@ -674,6 +680,8 @@ function CreateFestForm(props?: CreateFestProps) {
     faqs,
     campusHostedAt: "",
     allowedCampuses: [],
+    departmentHostedAt: "",
+    allowedDepartments: [],
     allowOutsiders: false,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -755,6 +763,8 @@ function CreateFestForm(props?: CreateFestProps) {
               faqs: data.fest.faqs || [],
               campusHostedAt: data.fest.campus_hosted_at || "",
               allowedCampuses: data.fest.allowed_campuses || [],
+              departmentHostedAt: data.fest.department_hosted_at || "",
+              allowedDepartments: data.fest.department_access || [],
               allowOutsiders: data.fest.allow_outsiders === true || data.fest.allow_outsiders === 'true' || false,
             });
           } else {
@@ -931,6 +941,16 @@ function CreateFestForm(props?: CreateFestProps) {
               newErrors.organizingDept = "Max 100 characters";
             else delete newErrors.organizingDept;
             break;
+          case "campusHostedAt":
+            if (!(value as string).trim())
+              newErrors.campusHostedAt = "Hosted campus is required";
+            else delete newErrors.campusHostedAt;
+            break;
+          case "allowedCampuses":
+            if (!Array.isArray(value) || value.length === 0)
+              newErrors.allowedCampuses = "Select at least one campus";
+            else delete newErrors.allowedCampuses;
+            break;
         }
       }
       setErrors(newErrors);
@@ -953,6 +973,8 @@ function CreateFestForm(props?: CreateFestProps) {
       "contactEmail",
       "contactPhone",
       "organizingDept",
+      "campusHostedAt",
+      "allowedCampuses",
     ];
 
     const validateSync = (name: string, value: any) => {
@@ -1028,6 +1050,13 @@ function CreateFestForm(props?: CreateFestProps) {
             errorMsg = "Organizing department is required";
           else if (String(value).length > 100) errorMsg = "Max 100 characters";
           break;
+        case "campusHostedAt":
+          if (!String(value).trim()) errorMsg = "Hosted campus is required";
+          break;
+        case "allowedCampuses":
+          if (!Array.isArray(value) || value.length === 0)
+            errorMsg = "Select at least one campus";
+          break;
       }
       if (errorMsg) currentValidationErrors[name] = errorMsg;
     };
@@ -1046,8 +1075,8 @@ function CreateFestForm(props?: CreateFestProps) {
     } else if (imageFile) {
       if (imageFile.size > 3 * 1024 * 1024)
         currentValidationErrors.imageFile = "Image file must be less than 3MB";
-      else if (!["image/jpeg", "image/png"].includes(imageFile.type))
-        currentValidationErrors.imageFile = "Invalid file type. JPG/PNG only.";
+      else if (!ALLOWED_FEST_IMAGE_TYPES.includes(imageFile.type))
+        currentValidationErrors.imageFile = "Invalid file type. JPG/PNG/WEBP/GIF only.";
     }
 
     if (
@@ -1066,16 +1095,16 @@ function CreateFestForm(props?: CreateFestProps) {
     setIsSubmitting(true);
     let uploadedFestImageUrl: string | null = null;
 
-    if (imageFile && supabase) {
+    if (imageFile) {
       setIsUploadingImage(true);
       try {
-        const formData = new FormData();
-        formData.append("file", imageFile);
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", imageFile);
         
         // Use the server's file upload API instead of Supabase storage
         const uploadResponse = await fetch(`${API_URL}/api/upload/fest-image`, {
           method: 'POST',
-          body: formData,
+          body: uploadFormData,
           headers: {
             // No Content-Type header as it's set automatically for FormData
             'Authorization': `Bearer ${session?.access_token}`
@@ -1094,6 +1123,7 @@ function CreateFestForm(props?: CreateFestProps) {
         
         // Use the URL returned from our server API
         uploadedFestImageUrl = uploadData.url;
+        console.log(`✅ Fest image uploaded successfully: ${uploadedFestImageUrl}`);
       } catch (uploadError: any) {
         const errorMessage = uploadError.message || 'Unknown upload error';
         setErrors((prev) => ({
@@ -1105,8 +1135,7 @@ function CreateFestForm(props?: CreateFestProps) {
         return;
       }
       setIsUploadingImage(false);
-    } else if (isEditMode && existingImageFileUrl && !imageFile) {
-    } else if (!imageFile && !isEditMode) {
+    } else if (!imageFile && !isEditMode && !existingImageFileUrl) {
       setErrors((prev) => ({
         ...prev,
         submit: "Fest image is required for new fests.",
@@ -1118,12 +1147,23 @@ function CreateFestForm(props?: CreateFestProps) {
     try {
       if (!session) throw new Error("You must be logged in.");
 
+      // Determine the final image URL:
+      // - If a new file was uploaded, use the new URL
+      // - If in edit mode with no new file, keep the existing URL
+      // - Otherwise null (new fest with no image - already caught above)
+      const finalImageUrl = uploadedFestImageUrl ?? (isEditMode ? existingImageFileUrl : null);
+
+      console.log(`[Fest Submit] isEditMode=${isEditMode}, uploadedFestImageUrl=${uploadedFestImageUrl}, existingImageFileUrl=${existingImageFileUrl}, finalImageUrl=${finalImageUrl}`);
+
       const payload: any = {
         festTitle: formData.title,
         openingDate: formData.openingDate,
         closingDate: formData.closingDate,
         detailedDescription: formData.detailedDescription,
-        departmentAccess: formData.department,
+        departmentAccess:
+          formData.allowedDepartments.length > 0
+            ? formData.allowedDepartments
+            : formData.department,
         category: formData.category,
         contactEmail: formData.contactEmail,
         contactPhone: formData.contactPhone,
@@ -1139,12 +1179,11 @@ function CreateFestForm(props?: CreateFestProps) {
         faqs: formData.faqs,
         campus_hosted_at: formData.campusHostedAt || null,
         allowed_campuses: formData.allowedCampuses || [],
+        department_hosted_at: formData.departmentHostedAt || null,
         allow_outsiders: formData.allowOutsiders,
+        // Always include festImageUrl so backend always updates the DB column
+        festImageUrl: finalImageUrl,
       };
-
-      if (uploadedFestImageUrl || existingImageFileUrl) {
-        payload.festImageUrl = uploadedFestImageUrl || existingImageFileUrl;
-      }
 
       let response;
       if (isEditMode && festIdFromPath) {
@@ -1214,8 +1253,8 @@ function CreateFestForm(props?: CreateFestProps) {
       setImageFile(file);
       if (file.size > 3 * 1024 * 1024)
         setErrors((prev) => ({ ...prev, imageFile: "Max 3MB" }));
-      else if (!["image/jpeg", "image/png"].includes(file.type))
-        setErrors((prev) => ({ ...prev, imageFile: "JPG/PNG only" }));
+      else if (!ALLOWED_FEST_IMAGE_TYPES.includes(file.type))
+        setErrors((prev) => ({ ...prev, imageFile: "JPG/PNG/WEBP/GIF only" }));
       else
         setErrors((prev) => {
           const newE = { ...prev };
@@ -1557,6 +1596,145 @@ function CreateFestForm(props?: CreateFestProps) {
                     </p>
                   )}
                 </div>
+
+                {/* Audience & Access Control Section - Google Style */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 sm:p-7 shadow-sm">
+                  <div className="mb-6">
+                    <h3 className="text-base font-bold text-[#063168] flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zm-2-7a6 6 0 11-12 0 6 6 0 0112 0zM7 9a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                      </svg>
+                      Audience & Access
+                    </h3>
+                    <p className="text-xs text-gray-600 mt-1 ml-7">Control who can register for your fest</p>
+                  </div>
+
+                  <div className="space-y-5">
+                    {/* Allow Outsiders Toggle */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 transition-all hover:border-blue-300 hover:shadow-md">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <label className="text-sm font-semibold text-gray-900 block cursor-pointer">
+                            Allow Non-Members to Register
+                          </label>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Permit registration from outside Christ University
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer ml-4">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowOutsiders}
+                            onChange={(e) => setFormData(prev => ({ ...prev, allowOutsiders: e.target.checked }))}
+                            aria-label="Allow outsider registrations"
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#154CB3]"></div>
+                        </label>
+                      </div>
+                      {formData.allowOutsiders && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <strong>Note:</strong> Events under this fest will not need individual CSO approval — the fest-level approval covers all child events.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Campus Restrictions - Always Visible */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <label className="text-sm font-semibold text-gray-900 block">
+                            Campus Availability
+                          </label>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Specify where the fest takes place and who can attend
+                          </p>
+                        </div>
+                        <span className="text-xs bg-red-100 text-red-800 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap">
+                          Required
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Hosted At */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-2">
+                            Where is the fest Hosted at? <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            id="campusHostedAt"
+                            value={formData.campusHostedAt}
+                            onChange={(e) => {
+                              const selectedCampus = e.target.value;
+                              setFormData(prev => ({ ...prev, campusHostedAt: selectedCampus }));
+                              validateField("campusHostedAt", selectedCampus);
+                            }}
+                            onBlur={(e) => validateField("campusHostedAt", e.target.value)}
+                            aria-label="Fest hosted campus"
+                            className={`w-full px-3.5 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-0 focus:border-transparent bg-white transition-all ${
+                              errors.campusHostedAt ? "border-red-500" : "border-gray-300"
+                            }`}
+                          >
+                            <option value="">Select campus</option>
+                            {christCampuses.map((campus) => (
+                              <option key={campus} value={campus}>{campus}</option>
+                            ))}
+                          </select>
+                          {errors.campusHostedAt && (
+                            <p className="text-red-500 text-xs mt-2">{errors.campusHostedAt}</p>
+                          )}
+                        </div>
+
+                        {/* Who Can Register */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-2">
+                            Who can register? <span className="text-red-500">*</span>
+                          </label>
+                          <div
+                            className={`space-y-1.5 h-[102px] overflow-y-auto pr-2 rounded-md ${
+                              errors.allowedCampuses ? "border border-red-500 p-2" : ""
+                            }`}
+                          >
+                            {christCampuses.map((campus) => (
+                              <label
+                                key={campus}
+                                className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5 transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={formData.allowedCampuses.includes(campus)}
+                                  onChange={(e) => {
+                                    const current = formData.allowedCampuses;
+                                    let updatedCampuses: string[];
+                                    if (e.target.checked) {
+                                      updatedCampuses = [...current, campus];
+                                    } else {
+                                      updatedCampuses = current.filter(c => c !== campus);
+                                    }
+                                    setFormData(prev => ({ ...prev, allowedCampuses: updatedCampuses }));
+                                    validateField("allowedCampuses", updatedCampuses);
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3] cursor-pointer"
+                                />
+                                <span>{campus}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Select at least one campus that can register for this fest.
+                          </p>
+                          {errors.allowedCampuses && (
+                            <p className="text-red-500 text-xs mt-2">{errors.allowedCampuses}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
                 <DepartmentAndCategoryInputs
                   formData={formData}
                   errors={errors}
@@ -1608,7 +1786,7 @@ function CreateFestForm(props?: CreateFestProps) {
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">
                     Fest image: <span className="text-red-500">*</span> (max
-                    3MB, JPG/PNG)
+                    3MB, JPG/PNG/WEBP/GIF)
                   </label>
                   <div className="border border-dashed border-gray-400 rounded-xl p-6 sm:p-8 text-center hover:border-gray-500 transition-colors">
                     {/* Display existing file info if in edit mode, an existing image URL is provided, and no new file has been selected yet */}
@@ -1646,7 +1824,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     <input
                       type="file"
                       id="image-upload-input"
-                      accept="image/jpeg,image/png"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       onChange={handleFileChange}
                       className="hidden"
                       required={!finalIsEditMode && !existingImageFileUrl}
@@ -1759,7 +1937,7 @@ function CreateFestForm(props?: CreateFestProps) {
                           Event heads: (optional, max 5)
                         </h3>
                         <p className="text-xs sm:text-sm text-gray-500">
-                          Add event head emails
+                          Assign organiser access to event heads
                         </p>
                       </div>
                     </div>
@@ -1769,22 +1947,9 @@ function CreateFestForm(props?: CreateFestProps) {
                       disabled={formData.eventHeads.length >= 5}
                       aria-label="Add event head"
                       title="Add event head"
-                      className="bg-[#063168] p-3 rounded-full text-white cursor-pointer"
+                      className="bg-[#063168] px-4 py-2.5 rounded-full text-white cursor-pointer text-sm font-medium"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
+                      Add heads +
                     </button>
                   </div>
                   {formData.eventHeads.map((eventHead, index) => (
@@ -1943,106 +2108,6 @@ function CreateFestForm(props?: CreateFestProps) {
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
-                    </div>
-                  </div>
-
-                  {/* Allow Outsiders Toggle */}
-                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
-                          Allow Outsider Registrations
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Permit non-Christ University members to register for events under this fest. This will notify the CSO for gate access approval.
-                        </p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer ml-4">
-                        <input
-                          type="checkbox"
-                          checked={formData.allowOutsiders}
-                          onChange={(e) => setFormData(prev => ({ ...prev, allowOutsiders: e.target.checked }))}
-                          aria-label="Allow outsider registrations"
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#154CB3]"></div>
-                      </label>
-                    </div>
-                    {formData.allowOutsiders && (
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-xs text-blue-700">
-                          <strong>Note:</strong> Events under this fest will not need individual CSO approval for outsiders — the fest-level approval covers all child events.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Campus Settings */}
-                  <div className="border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
-                    <div className="flex items-center gap-3 mb-5">
-                      <h4 className="text-sm font-bold text-[#063168] uppercase tracking-wide">
-                        Campus Restrictions
-                      </h4>
-                      <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded-full font-medium">
-                        Optional — single-campus deployment
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* Left: Hosted At */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <label className="block text-sm font-semibold text-gray-800 mb-1">
-                          Hosted At
-                        </label>
-                        <p className="text-xs text-gray-500 mb-3">
-                          Which campus is this fest taking place at?
-                        </p>
-                        <select
-                          id="campusHostedAt"
-                          value={formData.campusHostedAt}
-                          onChange={(e) => setFormData(prev => ({ ...prev, campusHostedAt: e.target.value }))}
-                          aria-label="Fest hosted campus"
-                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm bg-white"
-                        >
-                          <option value="">-- Select campus --</option>
-                          {christCampuses.map((campus) => (
-                            <option key={campus} value={campus}>{campus}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Right: Who Can Register */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <label className="block text-sm font-semibold text-gray-800 mb-1">
-                          Who Can Register?
-                        </label>
-                        <p className="text-xs text-gray-500 mb-3">
-                          Tick the campuses whose students are allowed to apply. Leave all unchecked to allow everyone.
-                        </p>
-                        <div className="space-y-2">
-                          {christCampuses.map((campus) => (
-                            <label
-                              key={campus}
-                              className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-700 hover:text-gray-900 py-0.5"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={formData.allowedCampuses.includes(campus)}
-                                onChange={(e) => {
-                                  const current = formData.allowedCampuses;
-                                  if (e.target.checked) {
-                                    setFormData(prev => ({ ...prev, allowedCampuses: [...current, campus] }));
-                                  } else {
-                                    setFormData(prev => ({ ...prev, allowedCampuses: current.filter(c => c !== campus) }));
-                                  }
-                                }}
-                                className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
-                              />
-                              {campus}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -2323,10 +2388,10 @@ function CreateFestForm(props?: CreateFestProps) {
                     {errors.submit}
                   </p>
                 )}
-                <div className="flex items-center justify-end space-x-3 mt-8 sm:mt-10 pt-6 border-t border-gray-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-8 sm:mt-10 pt-6 border-t border-gray-200">
                   <Link
                     href="/manage"
-                    className="px-4 sm:px-5 py-2 sm:py-3 rounded-full border border-gray-300 font-medium text-gray-700 hover:bg-gray-50 transition-colors text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors cursor-pointer text-center inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2"
                   >
                     Cancel
                   </Link>
@@ -2335,11 +2400,11 @@ function CreateFestForm(props?: CreateFestProps) {
                       type="button"
                       onClick={deleteFest}
                       disabled={isNavigating || isSubmitting}
-                      className="cursor-pointer px-4 sm:px-5 py-2 sm:py-3 rounded-full border bg-[#f93232] border-red-400 font-medium text-white hover:bg-[#f93232de] transition-colors text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      className="w-full sm:w-auto px-4 py-2.5 border border-red-300 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                     >
                       {isNavigating && (
                         <svg
-                          className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                          className="animate-spin h-4 w-4 text-white"
                           xmlns="http://www.w3.org/2000/svg"
                           fill="none"
                           viewBox="0 0 24 24"
@@ -2359,28 +2424,17 @@ function CreateFestForm(props?: CreateFestProps) {
                           ></path>
                         </svg>
                       )}
-                      {isNavigating ? "Deleting..." : "Delete fest"}
+                      <span>{isNavigating ? "Deleting..." : "Delete"}</span>
                     </button>
                   )}
                   <button
                     type="submit"
-                    disabled={
-                      isSubmitting ||
-                      isNavigating ||
-                      (imageFile && !supabase && !finalIsEditMode) ||
-                      false
-                    }
-                    className={`cursor-pointer px-4 sm:px-6 py-2 sm:py-3 bg-[#154CB3] text-white rounded-full font-medium hover:bg-[#154cb3eb] transition-colors text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${
-                      isSubmitting ||
-                      isNavigating ||
-                      (imageFile && !supabase && !finalIsEditMode)
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
+                    disabled={isSubmitting || isNavigating}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                   >
                     {(isSubmitting || isUploadingImage) && (
                       <svg
-                        className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                        className="animate-spin h-4 w-4 text-white"
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -2400,15 +2454,17 @@ function CreateFestForm(props?: CreateFestProps) {
                         ></path>
                       </svg>
                     )}
-                    {isUploadingImage
-                      ? "Uploading image..."
-                      : isSubmitting
-                      ? finalIsEditMode
-                        ? "Updating..."
-                        : "Publishing..."
-                      : finalIsEditMode
-                      ? "Update fest"
-                      : "Publish fest"}
+                    <span>
+                      {isUploadingImage
+                        ? "Uploading image..."
+                        : isSubmitting
+                        ? finalIsEditMode
+                          ? "Updating..."
+                          : "Publishing..."
+                        : finalIsEditMode
+                        ? "Update Fest"
+                        : "Publish Fest"}
+                    </span>
                   </button>
                 </div>
               </form>

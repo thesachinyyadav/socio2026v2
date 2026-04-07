@@ -5,15 +5,19 @@ import { createBrowserClient } from '@supabase/ssr';
  * Uses @supabase/ssr for better Next.js integration.
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder.key';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Validate that we have proper Supabase configuration
-if (supabaseUrl.includes('placeholder') || supabaseAnonKey.includes('placeholder')) {
-  console.warn('⚠️ Warning: Using placeholder Supabase configuration. Please update your environment variables with actual Supabase project values.');
+const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!hasSupabaseConfig) {
+  console.warn('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Using a placeholder Supabase client until env vars are configured.');
 }
 
+const resolvedSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const resolvedSupabaseAnonKey = supabaseAnonKey || 'placeholder-anon-key';
+
 // Create Supabase client for browser
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createBrowserClient(resolvedSupabaseUrl, resolvedSupabaseAnonKey);
 
 export default supabase;

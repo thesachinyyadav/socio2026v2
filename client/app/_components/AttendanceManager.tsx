@@ -40,7 +40,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     
     setLoading(true);
     setError(null);
-    const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
     
     try {
       const response = await fetch(
@@ -82,7 +82,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const markAttendance = async (participantId: string, status: "attended" | "absent") => {
     if (!session?.access_token) return;
 
-    const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
     try {
       const response = await fetch(

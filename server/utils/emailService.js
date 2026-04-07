@@ -4,6 +4,18 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const appUrl =
+  process.env.APP_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.FRONTEND_URL ||
+  "https://sociodev.vercel.app";
+
+if (!process.env.APP_URL && !process.env.NEXT_PUBLIC_APP_URL && !process.env.FRONTEND_URL) {
+  console.warn('APP_URL/NEXT_PUBLIC_APP_URL not set. Falling back to https://sociodev.vercel.app for email links.');
+}
+
+const appOrigin = appUrl.replace(/\/$/, '');
+const appLink = (pathname) => new URL(pathname, `${appOrigin}/`).toString();
 
 /**
  * Send a welcome email to new users
@@ -77,7 +89,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           
           <!-- CTA Button -->
           <div style="text-align: center; margin: 32px 0;">
-            <a href="https://socio.christuniversity.in/Discover" 
+            <a href="${appLink('/Discover')}" 
                style="display: inline-block; background: #154CB3; 
                       color: white; text-decoration: none; padding: 14px 36px; border-radius: 8px; 
                       font-weight: 600; font-size: 15px;">
@@ -88,7 +100,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
           
           <p style="color: #94a3b8; font-size: 13px; margin: 0; text-align: center; line-height: 1.6;">
-            Need help? <a href="https://socio.christuniversity.in/support" style="color: #154CB3; text-decoration: none;">Contact our support</a>
+            Need help? <a href="${appLink('/support')}" style="color: #154CB3; text-decoration: none;">Contact our support</a>
           </p>
         </div>
         
@@ -98,7 +110,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
             SOCIO Team
           </p>
           <p style="margin: 0;">
-            <a href="https://socio.christuniversity.in" style="color: #64748b; text-decoration: none;">socio.christuniversity.in</a>
+            <a href="${appLink('/')}" style="color: #64748b; text-decoration: none;">${appOrigin}</a>
           </p>
         </div>
       </div>
@@ -116,12 +128,12 @@ SOCIO is your gateway to campus events, club activities, and community experienc
 
 ${isOutsider && visitorId ? `Your Visitor ID: ${visitorId}\nKeep this safe — you'll need it for event registrations.\n\nTip: Visit your profile to set your display name. This can only be done once.` : `You're all set! Discover events, register instantly, and get updates directly — no middlemen, no hassle.`}
 
-Browse events: https://socio.christuniversity.in/Discover
+Browse events: ${appLink('/Discover')}
 
-Need help? Contact our support: https://socio.christuniversity.in/support
+Need help? Contact our support: ${appLink('/support')}
 
 SOCIO Team
-https://socio.christuniversity.in
+${appOrigin}
     `.trim();
 
     const { data, error } = await resend.emails.send({
@@ -160,7 +172,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId, 
   if (!resend) { console.warn('⚠️ Resend not configured — skipping registration email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
-    const ticketUrl = `https://socio.christuniversity.in/profile`;
+    const ticketUrl = appLink('/profile');
 
     // Build inline QR attachment if image provided
     let qrAttachments = [];
@@ -211,7 +223,7 @@ export async function sendRegistrationEmail(email, name, event, registrationId, 
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0;">
           <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
             <div style="background: linear-gradient(135deg, #063168 0%, #154CB3 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
-              <img src="https://socio.christuniversity.in/images/withsocio.png" alt="SOCIO" width="140" height="auto" style="display: block; margin: 0 auto; max-width: 140px;">
+              <img src="${appLink('/images/withsocio.png')}" alt="SOCIO" width="140" height="auto" style="display: block; margin: 0 auto; max-width: 140px;">
             </div>
             <div style="background: white; padding: 40px 36px; border-radius: 0 0 16px 16px;">
               <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 8px 0;">Registration Confirmed</h2>
@@ -239,13 +251,13 @@ export async function sendRegistrationEmail(email, name, event, registrationId, 
               </div>
             </div>
             <div style="text-align: center; padding: 24px; color: #94a3b8; font-size: 12px;">
-              <p style="margin: 0;">SOCIO Team | <a href="https://socio.christuniversity.in" style="color: #64748b; text-decoration: none;">socio.christuniversity.in</a></p>
+              <p style="margin: 0;">SOCIO Team | <a href="${appLink('/')}" style="color: #64748b; text-decoration: none;">${appOrigin}</a></p>
             </div>
           </div>
         </body>
         </html>
       `,
-      text: `Registration Confirmed\n\nHi ${firstName}, you're registered for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nView your ticket: ${ticketUrl}\n\nSOCIO Team\nhttps://socio.christuniversity.in`,
+      text: `Registration Confirmed\n\nHi ${firstName}, you're registered for ${event.title}.\n\nEvent: ${event.title}\nDate: ${event.event_date || 'To be announced'}\nVenue: ${event.venue || 'To be announced'}\nRegistration ID: ${registrationId}\n\nView your ticket: ${ticketUrl}\n\nSOCIO Team\n${appOrigin}`,
     };
 
     if (qrAttachments.length > 0) {

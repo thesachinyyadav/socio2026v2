@@ -18,6 +18,9 @@ interface EventCardProps {
   baseUrl?: string;
   idForLink?: string;
   authToken?: string;
+  isArchived?: boolean;
+  onArchiveToggle?: (eventId: string, shouldArchive: boolean) => Promise<void>;
+  isArchiveLoading?: boolean;
 }
 
 export const EventCard = ({
@@ -33,11 +36,16 @@ export const EventCard = ({
   baseUrl = "event",
   idForLink,
   authToken,
+  isArchived = false,
+  onArchiveToggle,
+  isArchiveLoading = false,
 }: EventCardProps) => {
-  const { userData, isLoading: authLoading } = useAuth();
+  const { userData, session, isLoading: authLoading } = useAuth();
 
   const isOutsiderUser = userData?.organization_type === "outsider";
   const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
+  const isAdminOrOrganizer = !authLoading && (userData?.is_organiser || userData?.is_masteradmin);
+  const reminderAuthToken = authToken || session?.access_token || "";
 
   const eventSlug = idForLink;
   // No longer generating slugs from title; always use the actual event_id
@@ -54,12 +62,17 @@ export const EventCard = ({
           {showOutsiderBadge && (
             <div className="absolute top-2 left-2 z-10">
               <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#F59E0B] text-black shadow-sm">
-                PUBLIC
+                Public
               </span>
             </div>
           )}
           {tags.length > 0 && (
             <div className="absolute top-2 right-2 flex gap-1.5 z-10 items-center flex-wrap justify-end max-w-[75%]">
+              {isArchived && isAdminOrOrganizer && (
+                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800 shadow-sm">
+                  ARCHIVED
+                </span>
+              )}
               {(tags || []).map((tag, index) => {
                 if (!tag || typeof tag !== 'string') return null;
 
@@ -201,7 +214,7 @@ export const EventCard = ({
             <span className="truncate">{location}</span>
           </div>
         </div>
-        {!authLoading && userData?.is_organiser ? (
+        {!authLoading && isAdminOrOrganizer ? (
           <div className="mt-auto pt-2 border-t border-gray-200 flex flex-wrap gap-x-4 gap-y-2">
             <Link
               href={participantsPageUrl}
@@ -248,11 +261,42 @@ export const EventCard = ({
               </svg>
               Mark Attendance
             </Link>
-            {authToken && baseUrl === "edit/event" && (
+            {onArchiveToggle && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onArchiveToggle(idForLink || "", !isArchived);
+                }}
+                disabled={isArchiveLoading}
+                className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors cursor-pointer ${
+                  isArchiveLoading
+                    ? "text-slate-400 cursor-not-allowed"
+                    : isArchived
+                      ? "text-emerald-700 hover:text-emerald-800"
+                      : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-history">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                {isArchiveLoading ? "Saving..." : isArchived ? "Unarchive" : "Archive"}
+              </button>
+            )}
+            {eventSlug && (
+              <Link
+                href={`/edit/event/${eventSlug}`}
+                className="inline-flex items-center gap-1 text-sm text-[#154CB3] font-semibold hover:underline"
+              >
+                Edit
+              </Link>
+            )}
+            {reminderAuthToken && (
               <EventReminderButton
                 eventId={eventSlug || ""}
                 eventTitle={title}
-                authToken={authToken}
+                authToken={reminderAuthToken}
               />
             )}
           </div>

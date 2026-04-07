@@ -17,7 +17,7 @@ export default function EditEventPage() {
   const eventIdSlug = params?.id as string;
   const router = useRouter();
   const { session, userData, isLoading: authIsLoading } = useAuth();
-  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
   const [initialData, setInitialData] = useState<Partial<EventFormData>>();
   const [existingImageFileUrl, setExistingImageFileUrl] = useState<
@@ -32,6 +32,8 @@ export default function EditEventPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isArchived, setIsArchived] = useState(false);
+  const [isArchiveUpdating, setIsArchiveUpdating] = useState(false);
 
   useEffect(() => {
     if (authIsLoading) return;
@@ -42,7 +44,7 @@ export default function EditEventPage() {
       return;
     }
 
-    if (!userData || !(userData.is_organiser || (userData as any).is_admin)) {
+    if (!userData || !(userData.is_organiser || (userData as any).is_masteradmin)) {
       setIsLoading(false);
       setErrorMessage("You are not authorized to edit this event.");
       return;
@@ -215,11 +217,16 @@ export default function EditEventPage() {
               : "",
             location: data.venue || "",
             registrationFee: data.registration_fee?.toString() ?? "0",
+            isTeamEvent: Number(data.participants_per_team ?? 1) > 1,
             maxParticipants: data.participants_per_team?.toString() ?? "1",
+            minParticipants:
+              data.min_participants?.toString() ??
+              (Number(data.participants_per_team ?? 1) > 1 ? "2" : "1"),
             contactEmail: data.organizer_email || "",
             contactPhone: data.organizer_phone?.toString() ?? "",
             whatsappLink: data.whatsapp_invite_link || "",
             provideClaims: data.claims_applicable || false,
+            onSpot: data.on_spot === true || data.on_spot === 1 || data.on_spot === "1" || data.on_spot === "true",
             allowOutsiders: data.allow_outsiders || false,
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
             outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
@@ -235,6 +242,17 @@ export default function EditEventPage() {
           };
 
           setInitialData(transformedData);
+          const manualArchived =
+            data.is_archived === true ||
+            data.is_archived === 1 ||
+            data.is_archived === "1" ||
+            data.is_archived === "true";
+          const effectiveArchived =
+            data.archived_effective === true ||
+            data.archived_effective === 1 ||
+            data.archived_effective === "1" ||
+            data.archived_effective === "true";
+          setIsArchived(Boolean(manualArchived || effectiveArchived));
           setExistingImageFileUrl(data.event_image_url || null);
           setExistingBannerFileUrl(data.banner_url || null);
           setExistingPdfFileUrl(data.pdf_url || null);
@@ -266,6 +284,44 @@ export default function EditEventPage() {
     fetchEventData();
   }, [eventIdSlug, session, userData, authIsLoading, router]); // Added router to dependencies if used inside
 
+  const handleToggleArchive = async () => {
+    if (!session?.access_token) {
+      toast.error("Please log in again to update archive status.");
+      return;
+    }
+
+    setIsArchiveUpdating(true);
+    try {
+      const response = await fetch(`${API_URL}/api/events/${eventIdSlug}/archive`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ archive: !isArchived }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to update archive status.");
+      }
+
+      const archivedValue =
+        payload?.event?.is_archived === true ||
+        payload?.event?.is_archived === 1 ||
+        payload?.event?.is_archived === "1" ||
+        payload?.event?.is_archived === "true";
+
+      setIsArchived(archivedValue);
+      toast.success(archivedValue ? "Event archived successfully." : "Event moved back to active list.");
+    } catch (error: any) {
+      console.error("Archive toggle failed:", error);
+      toast.error(error?.message || "Unable to update archive status.");
+    } finally {
+      setIsArchiveUpdating(false);
+    }
+  };
+
   const handleUpdateEvent: SubmitHandler<EventFormData> = async (formData) => {
     if (!session) {
       setErrorMessage(
@@ -274,7 +330,7 @@ export default function EditEventPage() {
       setIsSubmitting(false);
       throw new Error("Authentication session expired or not found."); // Ensure EventForm knows
     }
-    if (!userData || !(userData.is_organiser || (userData as any).is_admin)) {
+    if (!userData || !(userData.is_organiser || (userData as any).is_masteradmin)) {
       setErrorMessage("You are not authorized to perform this action.");
       setIsSubmitting(false);
       throw new Error("Not authorized."); // Ensure EventForm knows
@@ -293,15 +349,26 @@ export default function EditEventPage() {
     payload.append("description", formData.detailedDescription);
     payload.append("category", formData.category);
     payload.append("organizing_dept", formData.organizingDept || "");
-    payload.append("fest_id", formData.festEvent || "none");
+    // Only append fest_id if it's not "none"
+    if (formData.festEvent && formData.festEvent !== "none") {
+      payload.append("fest_id", formData.festEvent);
+    }
     payload.append("registration_deadline", formData.registrationDeadline || "");
     payload.append("venue", formData.location);
     payload.append("registration_fee", formData.registrationFee || "0");
-    payload.append("max_participants", formData.maxParticipants || "1");
+    payload.append(
+      "max_participants",
+      formData.isTeamEvent ? (formData.maxParticipants || "2") : "1"
+    );
+    payload.append(
+      "min_participants",
+      formData.isTeamEvent ? (formData.minParticipants || "2") : "1"
+    );
     payload.append("organizer_email", formData.contactEmail);
     payload.append("organizer_phone", formData.contactPhone || "");
     payload.append("whatsapp_invite_link", formData.whatsappLink || "");
     payload.append("claims_applicable", String(formData.provideClaims));
+    payload.append("on_spot", String(formData.onSpot || false));
 
     payload.append("department_access", JSON.stringify(formData.department || []));
     payload.append(
@@ -329,26 +396,40 @@ export default function EditEventPage() {
     // Custom fields
     payload.append("custom_fields", JSON.stringify(formData.customFields || []));
 
-    if (formData.imageFile instanceof File)
-      payload.append("eventImage", formData.imageFile);
-    if (formData.bannerFile instanceof File)
-      payload.append("bannerImage", formData.bannerFile);
-    if (formData.pdfFile instanceof File)
-      payload.append("pdfFile", formData.pdfFile);
+    const appendFile = (key: string, file: any) => {
+      if (!file) return false;
+      
+      if (file instanceof FileList) {
+        if (file.length > 0) {
+          payload.append(key, file[0]);
+          return true;
+        }
+        return false;
+      }
+      
+      if (file instanceof File) {
+        payload.append(key, file);
+        return true;
+      }
+      return false;
+    };
 
-    if (!(formData.imageFile instanceof File) && existingImageFileUrl) {
+    const hasNewImage = appendFile("eventImage", formData.imageFile);
+    if (!hasNewImage && existingImageFileUrl) {
       payload.append("existingImageFileUrl", existingImageFileUrl);
     } else if (formData.imageFile === null && existingImageFileUrl) {
       payload.append("removeImageFile", "true");
     }
 
-    if (!(formData.bannerFile instanceof File) && existingBannerFileUrl) {
+    const hasNewBanner = appendFile("bannerImage", formData.bannerFile);
+    if (!hasNewBanner && existingBannerFileUrl) {
       payload.append("existingBannerFileUrl", existingBannerFileUrl);
     } else if (formData.bannerFile === null && existingBannerFileUrl) {
       payload.append("removeBannerFile", "true");
     }
 
-    if (!(formData.pdfFile instanceof File) && existingPdfFileUrl) {
+    const hasNewPdf = appendFile("pdfFile", formData.pdfFile);
+    if (!hasNewPdf && existingPdfFileUrl) {
       payload.append("existingPdfFileUrl", existingPdfFileUrl);
     } else if (formData.pdfFile === null && existingPdfFileUrl) {
       payload.append("removePdfFile", "true");
@@ -357,10 +438,14 @@ export default function EditEventPage() {
     // DEBUG: Log what we're sending
     console.log("=== EDIT EVENT FORM DATA ===");
     console.log("formData.eventTitle:", formData.eventTitle);
+    console.log("📁 FILE HANDLING:");
+    console.log(`  formData.imageFile instanceof File: ${formData.imageFile instanceof File}`);
+    console.log(`  formData.imageFile: ${formData.imageFile}`);
+    console.log(`  existingImageFileUrl: ${existingImageFileUrl}`);
     for (let [key, value] of payload.entries()) {
       if (value instanceof File) {
-        console.log(`${key}: [FILE] ${value.name}`);
-      } else {
+        console.log(`${key}: [FILE] ${value.name} (${value.size} bytes)`);
+      } else if (key.toLowerCase().includes('image') || key.toLowerCase().includes('file')) {
         console.log(`${key}: ${value}`);
       }
     }
@@ -508,7 +593,7 @@ export default function EditEventPage() {
   return initialData &&
     session &&
     userData &&
-    (userData.is_organiser || (userData as any).is_admin) ? (
+    (userData.is_organiser || (userData as any).is_masteradmin) ? (
     <>
       {errorMessage && !isSubmitting && (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-12 pt-4">
@@ -525,6 +610,9 @@ export default function EditEventPage() {
         existingImageFileUrl={existingImageFileUrl}
         existingBannerFileUrl={existingBannerFileUrl}
         existingPdfFileUrl={existingPdfFileUrl}
+        isArchived={isArchived}
+        isArchiveUpdating={isArchiveUpdating}
+        onToggleArchive={handleToggleArchive}
       />
     </>
   ) : (

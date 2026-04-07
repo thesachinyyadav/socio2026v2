@@ -20,7 +20,7 @@ import {
 // Re-export isGatedEnabled so route files can import it from here
 export { isGatedEnabled };
 
-const GATED_APP_URL = process.env.GATED_APP_URL || 'https://universitygated.vercel.app';
+const GATED_APP_URL = process.env.GATED_APP_URL;
 
 // ─── Organiser Management ──────────────────────────────────────────────────────
 

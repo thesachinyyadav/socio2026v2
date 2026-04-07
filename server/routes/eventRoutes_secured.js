@@ -22,41 +22,64 @@ import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
 
 const router = express.Router();
+const debugRoutesEnabled = process.env.NODE_ENV !== "production";
+const MANUAL_UNARCHIVE_OVERRIDE = "system:manual_unarchive_override";
+
+// HEALTH CHECK - Verify Supabase connection
+router.get("/debug/health", async (req, res) => {
+  try {
+    const result = await queryOne("events", { where: { event_id: "test" } });
+    return res.json({
+      status: "ok",
+      supabase: "connected",
+      message: "✅ Supabase connection is working"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      supabase: "disconnected",
+      message: "❌ Supabase connection failed",
+      error: error.message
+    });
+  }
+});
 
 // DIAGNOSTIC ENDPOINT - Check authentication and organiser status
-router.get("/debug/status", 
-  authenticateUser,
-  getUserInfo(),
-  checkRoleExpiration,
-  async (req, res) => {
-    try {
-      console.log("[DEBUG] User status request from:", req.userInfo.email);
-      
-      return res.json({
-        authenticated: true,
-        userId: req.userInfo.auth_uuid,
-        email: req.userInfo.email,
-        isOrganiser: req.userInfo.is_organiser,
-        organiserExpiresAt: req.userInfo.organiser_expires_at,
-        isMasterAdmin: req.userInfo.is_masteradmin,
-        isSupport: req.userInfo.is_support,
-        message: req.userInfo.is_organiser 
-          ? "✅ You have organiser privileges" 
-          : "❌ You do NOT have organiser privileges. Contact admin to enable.",
-        roles: {
-          organiser: req.userInfo.is_organiser,
-          masteradmin: req.userInfo.is_masteradmin,
-          support: req.userInfo.is_support
-        }
-      });
-    } catch (error) {
-      console.error("[DEBUG] Error checking status:", error);
-      return res.status(500).json({ 
-        error: error.message,
-        message: "Error checking authentication status"
-      });
-    }
-});
+if (debugRoutesEnabled) {
+  router.get("/debug/status", 
+    authenticateUser,
+    getUserInfo(),
+    checkRoleExpiration,
+    async (req, res) => {
+      try {
+        console.log("[DEBUG] User status request from:", req.userInfo.email);
+        
+        return res.json({
+          authenticated: true,
+          userId: req.userInfo.auth_uuid,
+          email: req.userInfo.email,
+          isOrganiser: req.userInfo.is_organiser,
+          organiserExpiresAt: req.userInfo.organiser_expires_at,
+          isMasterAdmin: req.userInfo.is_masteradmin,
+          isSupport: req.userInfo.is_support,
+          message: req.userInfo.is_organiser 
+            ? "✅ You have organiser privileges" 
+            : "❌ You do NOT have organiser privileges. Contact admin to enable.",
+          roles: {
+            organiser: req.userInfo.is_organiser,
+            masteradmin: req.userInfo.is_masteradmin,
+            support: req.userInfo.is_support
+          }
+        });
+      } catch (error) {
+        console.error("[DEBUG] Error checking status:", error);
+        return res.status(500).json({ 
+          error: error.message,
+          message: "Error checking authentication status"
+        });
+      }
+  });
+}
 
 const normalizeJsonField = (value) => {
   if (!value) return [];
@@ -74,12 +97,18 @@ const normalizeJsonField = (value) => {
   return [];
 };
 
-const AUTO_ARCHIVE_DAYS = (() => {
-  const parsedDays = Number.parseInt(process.env.EVENT_AUTO_ARCHIVE_DAYS || "15", 10);
-  return Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 15;
-})();
+const normalizeFestReference = (value) => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
 
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
+  const lowered = normalized.toLowerCase();
+  if (lowered === "none" || lowered === "null" || lowered === "undefined") {
+    return null;
+  }
+
+  return normalized;
+};
 
 const getValidDate = (value) => {
   if (!value) return null;
@@ -87,10 +116,26 @@ const getValidDate = (value) => {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 };
 
-const isAutoArchivedByDate = (eventDate) => {
-  const parsedEventDate = getValidDate(eventDate);
-  if (!parsedEventDate) return false;
-  return Date.now() - parsedEventDate.getTime() >= AUTO_ARCHIVE_DAYS * DAY_IN_MS;
+const getTodayStart = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+const shouldAutoArchiveEvent = (event) => {
+  const archivedBy = String(event?.archived_by || "").trim().toLowerCase();
+  if (archivedBy === MANUAL_UNARCHIVE_OVERRIDE) {
+    return false;
+  }
+
+  const parsedEndDate = getValidDate(event?.end_date || event?.event_date);
+  if (!parsedEndDate) return false;
+
+  parsedEndDate.setHours(0, 0, 0, 0);
+  const archiveThreshold = new Date(parsedEndDate);
+  archiveThreshold.setDate(archiveThreshold.getDate() + 2);
+
+  return getTodayStart().getTime() >= archiveThreshold.getTime();
 };
 
 const asBoolean = (value) => {
@@ -99,7 +144,7 @@ const asBoolean = (value) => {
 
 const deriveArchiveState = (event) => {
   const manualArchived = asBoolean(event?.is_archived);
-  const autoArchived = isAutoArchivedByDate(event?.event_date);
+  const autoArchived = shouldAutoArchiveEvent(event);
 
   return {
     is_archived: manualArchived,
@@ -119,12 +164,103 @@ const isMissingArchiveColumnsError = (error) => {
   );
 };
 
+const persistAutoArchivedEvents = async (events) => {
+  const eventList = Array.isArray(events) ? events : [];
+  const nowIso = new Date().toISOString();
+
+  const candidates = eventList.filter((event) => {
+    if (asBoolean(event?.is_archived)) return false;
+    return shouldAutoArchiveEvent(event);
+  });
+
+  if (candidates.length === 0) {
+    return eventList;
+  }
+
+  const archivedEventIds = new Set();
+
+  for (const event of candidates) {
+    const eventId = event?.event_id;
+    if (!eventId) continue;
+
+    try {
+      await update(
+        "events",
+        {
+          is_archived: true,
+          archived_at: nowIso,
+          archived_by: event?.archived_by || "system:auto_end_date",
+          updated_at: nowIso,
+        },
+        { event_id: eventId }
+      );
+      archivedEventIds.add(eventId);
+      continue;
+    } catch (error) {
+      const code = String(error?.code || "");
+      const message = String(error?.message || "").toLowerCase();
+      const missingArchivedByColumn = code === "42703" && message.includes("archived_by");
+
+      if (!missingArchivedByColumn) {
+        console.warn(`[AutoArchive] Failed to auto-archive ${eventId}:`, error?.message || error);
+        continue;
+      }
+    }
+
+    try {
+      await update(
+        "events",
+        {
+          is_archived: true,
+          archived_at: nowIso,
+          updated_at: nowIso,
+        },
+        { event_id: eventId }
+      );
+      archivedEventIds.add(eventId);
+    } catch (fallbackError) {
+      console.warn(`[AutoArchive] Fallback auto-archive failed for ${eventId}:`, fallbackError?.message || fallbackError);
+    }
+  }
+
+  if (archivedEventIds.size === 0) {
+    return eventList;
+  }
+
+  return eventList.map((event) => {
+    if (!archivedEventIds.has(event?.event_id)) {
+      return event;
+    }
+
+    return {
+      ...event,
+      is_archived: true,
+      archived_at: event?.archived_at || nowIso,
+      archived_by: event?.archived_by || "system:auto_end_date",
+    };
+  });
+};
+
 
 // GET all events - PUBLIC ACCESS (no auth required)
 router.get("/", async (req, res) => {
   try {
     const { page, pageSize, search, status, sortBy, sortOrder, archive } = req.query;
-    const events = await queryAll("events", { order: { column: "created_at", ascending: false } });
+    const today = new Date().toISOString().split('T')[0];
+    
+    let queryOptions = { 
+      order: { column: "created_at", ascending: false } 
+    };
+
+    // Push basic status filtering to database
+    if (status === "upcoming" || status === "active") {
+      queryOptions.filters = [{ column: "event_date", operator: "gte", value: today }];
+    } else if (status === "past") {
+      queryOptions.filters = [{ column: "event_date", operator: "lt", value: today }];
+    }
+
+    const events = await queryAll("events", queryOptions);
+    const eventsWithAutoArchive = await persistAutoArchivedEvents(events);
 
     // Build registration counts once so both sorting and UI display use the same value.
     const registrations = await queryAll("registrations", { select: "event_id" });
@@ -136,10 +272,11 @@ router.get("/", async (req, res) => {
     });
 
     // Parse JSON fields for each event
-    let processedEvents = events.map((event) => {
+    let processedEvents = eventsWithAutoArchive.map((event) => {
       const archiveState = deriveArchiveState(event);
       return {
         ...event,
+        fest: event.fest_id || null, // Map fest_id to fest for frontend compatibility
         department_access: normalizeJsonField(event.department_access),
         rules: normalizeJsonField(event.rules),
         schedule: normalizeJsonField(event.schedule),
@@ -159,15 +296,20 @@ router.get("/", async (req, res) => {
     }
 
     const normalizedStatus = typeof status === "string" ? status.toLowerCase() : "all";
-    if (normalizedStatus !== "all") {
+    if (normalizedStatus !== "all" && normalizedStatus !== "active") {
       const now = new Date();
+      now.setHours(0, 0, 0, 0); // Normalize to start of day
+      
       processedEvents = processedEvents.filter((event) => {
         const eventDate = new Date(event.event_date);
+        eventDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        
         const diffDays = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        if (normalizedStatus === "past") return diffDays < -1;
-        if (normalizedStatus === "live") return Math.abs(diffDays) <= 1;
-        if (normalizedStatus === "thisweek") return diffDays > 1 && diffDays <= 7;
-        if (normalizedStatus === "upcoming") return diffDays > 7;
+        
+        if (normalizedStatus === "past") return diffDays < 0;
+        if (normalizedStatus === "live") return Math.abs(diffDays) < 1;
+        if (normalizedStatus === "thisweek") return diffDays >= 0 && diffDays <= 7;
+        if (normalizedStatus === "upcoming") return diffDays >= 0;
         return true;
       });
     }
@@ -269,6 +411,7 @@ router.get("/:eventId", async (req, res) => {
     const archiveState = deriveArchiveState(event);
     const processedEvent = {
       ...event,
+      fest: event.fest_id || null, // Map fest_id to fest for frontend compatibility
       department_access: normalizeJsonField(event.department_access),
       rules: normalizeJsonField(event.rules),
       schedule: normalizeJsonField(event.schedule),
@@ -325,6 +468,7 @@ router.post(
         registration_fee,
         organizing_dept,
         fest,
+        fest_id,
         department_access,
         rules,
         schedule,
@@ -418,6 +562,23 @@ router.post(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const campusHostedAt =
+        String(req.body.campus_hosted_at || req.body.campusHostedAt || "").trim();
+      const parsedAllowedCampuses = Array.isArray(req.body.allowed_campuses)
+        ? req.body.allowed_campuses
+        : parseJsonField(req.body.allowed_campuses, []);
+
+      if (!campusHostedAt) {
+        return res.status(400).json({
+          error: "Campus hosted at is required.",
+        });
+      }
+
+      if (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) {
+        return res.status(400).json({
+          error: "At least one allowed campus is required.",
+        });
+      }
 
       console.log("✅ JSON fields parsed successfully");
       console.log("About to insert event into database with:", {
@@ -453,19 +614,18 @@ router.post(
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,
-        fest_id: fest || null,
-        created_by: req.body.created_by || req.userInfo?.email || req.userId,
+        fest_id: normalizeFestReference(fest_id ?? fest),
+        created_by: req.userInfo?.email,
         auth_uuid: req.userId,
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
         // Outsider & campus fields
         allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        on_spot: req.body.on_spot === "true" || req.body.on_spot === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
-        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
-        allowed_campuses: Array.isArray(req.body.allowed_campuses)
-          ? req.body.allowed_campuses
-          : parseJsonField(req.body.allowed_campuses, []),
+        campus_hosted_at: campusHostedAt,
+        allowed_campuses: parsedAllowedCampuses,
       }]);
 
       if (!created || created.length === 0) {
@@ -588,17 +748,34 @@ router.patch(
 
       const archiveValue = shouldArchive;
       const nowIso = new Date().toISOString();
-      const updatedRows = await update(
-        "events",
-        {
-          is_archived: archiveValue,
-          archived_at: archiveValue ? nowIso : null,
-          archived_by: archiveValue ? req.userInfo?.email || req.userId || null : null,
-          updated_at: nowIso,
-          updated_by: req.userInfo?.email || null,
-        },
-        { event_id: eventId }
-      );
+      const buildArchivePayload = (includeArchivedBy = true) => ({
+        is_archived: archiveValue,
+        archived_at: archiveValue ? nowIso : null,
+        ...(includeArchivedBy
+          ? {
+              archived_by: archiveValue
+                ? req.userInfo?.email || req.userId || null
+                : MANUAL_UNARCHIVE_OVERRIDE,
+            }
+          : {}),
+        updated_at: nowIso,
+      });
+
+      let updatedRows;
+      try {
+        updatedRows = await update("events", buildArchivePayload(true), { event_id: eventId });
+      } catch (error) {
+        const code = String(error?.code || "");
+        const message = String(error?.message || "").toLowerCase();
+        const missingArchivedByColumn = code === "42703" && message.includes("archived_by");
+
+        if (!missingArchivedByColumn) {
+          throw error;
+        }
+
+        console.warn("[Archive] 'archived_by' column missing; retrying archive update without it.");
+        updatedRows = await update("events", buildArchivePayload(false), { event_id: eventId });
+      }
 
       if (!updatedRows || updatedRows.length === 0) {
         return res.status(404).json({ error: "Event not found." });
@@ -611,6 +788,7 @@ router.patch(
         message: archiveValue ? "Event archived successfully." : "Event moved back to active list.",
         event: {
           ...updatedEvent,
+          fest: updatedEvent.fest_id || null, // Map fest_id to fest for frontend compatibility
           ...archiveState,
         },
       });
@@ -660,23 +838,63 @@ router.put(
         pdf: event.pdf_url,
       };
 
+      console.log("📁 Initial file paths from existing event:");
+      console.log(`  image: ${uploadedFilePaths.image}`);
+      console.log(`  banner: ${uploadedFilePaths.banner}`);
+      console.log(`  pdf: ${uploadedFilePaths.pdf}`);
+
       // Handle file uploads if new files are provided
-      if (files?.eventImage && files.eventImage[0]) {
-        // Delete old image if exists (optional extended feature: strictly clean up old files)
-        // Here we just overwrite the reference
-        const result = await uploadFileToSupabase(files.eventImage[0], "event-images", eventId);
-        uploadedFilePaths.image = result?.publicUrl || null;
+      try {
+        if (files?.eventImage && files.eventImage[0]) {
+          console.log(`📤 Uploading new event image: ${files.eventImage[0].originalname}`);
+          const result = await uploadFileToSupabase(files.eventImage[0], "event-images", eventId);
+          if (result?.publicUrl) {
+            console.log(`✅ Event image uploaded successfully: ${result.publicUrl}`);
+            uploadedFilePaths.image = result.publicUrl;
+          } else {
+            console.warn(`⚠️ Event image upload returned no URL - keeping existing image`);
+          }
+        } else if (req.body.removeImageFile === "true") {
+          console.log(`🗑️ Event image removal requested.`);
+          uploadedFilePaths.image = null;
+        }
+
+        if (files?.bannerImage && files.bannerImage[0]) {
+          console.log(`📤 Uploading new banner image: ${files.bannerImage[0].originalname}`);
+          const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", eventId);
+          if (result?.publicUrl) {
+            console.log(`✅ Banner image uploaded successfully: ${result.publicUrl}`);
+            uploadedFilePaths.banner = result.publicUrl;
+          } else {
+            console.warn(`⚠️ Banner image upload returned no URL - keeping existing banner`);
+          }
+        } else if (req.body.removeBannerFile === "true") {
+          console.log(`🗑️ Banner image removal requested.`);
+          uploadedFilePaths.banner = null;
+        }
+        
+        if (files?.pdfFile && files.pdfFile[0]) {
+          console.log(`📤 Uploading new PDF: ${files.pdfFile[0].originalname}`);
+          const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", eventId);
+          if (result?.publicUrl) {
+            console.log(`✅ PDF uploaded successfully: ${result.publicUrl}`);
+            uploadedFilePaths.pdf = result.publicUrl;
+          } else {
+            console.warn(`⚠️ PDF upload returned no URL - keeping existing PDF`);
+          }
+        } else if (req.body.removePdfFile === "true") {
+          console.log(`🗑️ PDF removal requested.`);
+          uploadedFilePaths.pdf = null;
+        }
+      } catch (fileError) {
+        console.error("❌ File upload error during event update:", fileError.message);
+        throw fileError; // Re-throw to be caught by main try-catch
       }
 
-      if (files?.bannerImage && files.bannerImage[0]) {
-        const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", eventId);
-        uploadedFilePaths.banner = result?.publicUrl || null;
-      }
-      
-      if (files?.pdfFile && files.pdfFile[0]) {
-        const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", eventId);
-        uploadedFilePaths.pdf = result?.publicUrl || null;
-      }
+      console.log("📁 Updated file paths after upload:");
+      console.log(`  image: ${uploadedFilePaths.image}`);
+      console.log(`  banner: ${uploadedFilePaths.banner}`);
+      console.log(`  pdf: ${uploadedFilePaths.pdf}`);
 
       const {
         title,
@@ -689,12 +907,26 @@ router.put(
         registration_fee,
         organizing_dept,
         fest,
+        fest_id,
         department_access,
         rules,
         schedule,
         prizes,
         max_participants
       } = req.body;
+
+      // ─── AUTO-UNARCHIVE LOGIC ───────────────────────────────────────────
+      // If an event was auto-archived (date passed) but then the date is changed
+      // to a future date, automatically unarchive it
+      const newEventDate = getValidDate(event_date || req.body.end_date);
+      const isDateChangedToFuture = newEventDate && newEventDate > getTodayStart();
+      const wasAutoArchivedBySystem = asBoolean(event?.is_archived) && 
+        (event?.archived_by?.includes("system:auto_end_date") || !event?.archived_by);
+      const shouldAutoUnarchive = isDateChangedToFuture && wasAutoArchivedBySystem && asBoolean(event?.is_archived);
+      
+      if (shouldAutoUnarchive) {
+        console.log(`[AutoUnarchive] Event ${eventId} date changed to future (${event_date}). Auto-unarchiving.`);
+      }
 
       if (!title || typeof title !== "string" || title.trim() === "") {
         return res.status(400).json({ error: "Title is required and must be a non-empty string." });
@@ -736,10 +968,27 @@ router.put(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const campusHostedAt =
+        String(req.body.campus_hosted_at || req.body.campusHostedAt || "").trim();
+      const parsedAllowedCampuses = Array.isArray(req.body.allowed_campuses)
+        ? req.body.allowed_campuses
+        : parseJsonField(req.body.allowed_campuses, []);
+
+      if (!campusHostedAt) {
+        return res.status(400).json({
+          error: "Campus hosted at is required.",
+        });
+      }
+
+      if (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) {
+        return res.status(400).json({
+          error: "At least one allowed campus is required.",
+        });
+      }
 
       // Prepare update payload
+      // Note: Only include event_id if it's NOT changing (to avoid primary key update issues)
       const updateData = {
-        event_id: newEventId, // Include new event_id (will be same as old if title didn't change)
         title: title.trim(),
         description: description || null,
         event_date: event_date || null,
@@ -762,20 +1011,25 @@ router.put(
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,
-        fest_id: fest || null,
+        fest_id: normalizeFestReference(fest_id ?? fest),
         registration_deadline: req.body.registration_deadline || null,
         // Preserve existing total_participants unless there is a specific admin action to modify it.
         // Include outsider-related settings so toggles persist from the client.
         allow_outsiders: req.body.allow_outsiders === "true" || req.body.allow_outsiders === true ? 1 : 0,
+        on_spot: req.body.on_spot === "true" || req.body.on_spot === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
-        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
-        allowed_campuses: Array.isArray(req.body.allowed_campuses)
-          ? req.body.allowed_campuses
-          : parseJsonField(req.body.allowed_campuses, []),
+        campus_hosted_at: campusHostedAt,
+        allowed_campuses: parsedAllowedCampuses,
         updated_at: new Date().toISOString(),
-        updated_by: req.userInfo.email
+        // Auto-unarchive if date changed to future
+        ...(shouldAutoUnarchive ? { is_archived: false, archived_at: null, archived_by: null } : {})
       };
+
+      console.log("🔄 UPDATE DATA - File URLs being saved to database:");
+      console.log(`  event_image_url: ${updateData.event_image_url}`);
+      console.log(`  banner_url: ${updateData.banner_url}`);
+      console.log(`  pdf_url: ${updateData.pdf_url}`);
 
       // If event_id changed, update related records first
       if (newEventId !== eventId) {
@@ -809,6 +1063,14 @@ router.put(
       }
 
       const updated = await update("events", updateData, { event_id: eventId });
+
+      console.log("💾 Database update result:");
+      if (updated && updated.length > 0) {
+        console.log(`✅ Event updated successfully`);
+        console.log(`  Saved image URL: ${updated[0].event_image_url}`);
+        console.log(`  Saved banner URL: ${updated[0].banner_url}`);
+        console.log(`  Saved PDF URL: ${updated[0].pdf_url}`);
+      }
 
       if (!updated || updated.length === 0) {
         console.warn("⚠️ Update query returned no data, fetching event from database...");
@@ -891,8 +1153,16 @@ router.put(
         userId: req.userId,
         userEmail: req.userInfo?.email,
         isOrganiser: req.userInfo?.is_organiser,
-        eventId: req.params.eventId
+        eventId: req.params.eventId,
+        supabaseError: error.status || error.statusCode || "N/A",
+        errorType: error.constructor.name
       });
+      
+      // More detailed logging for debugging
+      if (error.message && error.message.includes('Supabase')) {
+        console.error("🔴 Supabase-specific error detected - checking connectivity...");
+      }
+      
       return res.status(500).json({ 
         error: "Internal server error while updating event.",
         details: error.message,

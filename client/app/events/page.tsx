@@ -4,8 +4,10 @@ import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEvents } from "../../context/EventContext";
+import { useAuth } from "@/context/AuthContext";
 import { EventCard } from "../_components/Discover/EventCard";
 import Footer from "../_components/Home/Footer";
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 12;
 
@@ -23,6 +25,7 @@ interface FetchedEvent {
   event_image_url: string | null;
   organizing_dept: string | null;
   allow_outsiders?: boolean | null;
+  is_archived?: boolean | null;
 }
 
 interface FilterOption {
@@ -52,8 +55,11 @@ const EventsPageContent = () => {
   const searchParam = searchParams.get("search") || "";
   const [searchQuery, setSearchQuery] = useState(searchParam);
   const [currentPage, setCurrentPage] = useState(1);
+  const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
+  const [localArchivedIds, setLocalArchivedIds] = useState<Set<string>>(new Set());
 
   const { allEvents, isLoading, error } = useEvents();
+  const { userData, session } = useAuth();
 
   const [filterOptions, setFilterOptions] = useState<FilterOption[]>([
     { name: "All", active: true },
@@ -122,8 +128,80 @@ const EventsPageContent = () => {
     return () => window.clearTimeout(timeoutId);
   }, [categoryParam, router, searchParam, searchQuery]);
 
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
+  
   const eventsToFilter = Array.isArray(allEvents) ? allEvents : [];
+
+  const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
+    console.log(`🔄 Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
+    
+    if (!session?.access_token) {
+      toast.error("Please sign in again to update archive status.");
+      console.error("❌ No access token available");
+      return;
+    }
+
+    setArchiveUpdatingIds((prev) => {
+      const next = new Set(prev);
+      next.add(eventId);
+      return next;
+    });
+
+    try {
+      const endpoint = `/api/events/${eventId}/archive`;
+      console.log(`📤 Sending PATCH request to: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ archive: shouldArchive }),
+      });
+
+      console.log(`📨 Response status: ${response.status}`);
+      const payload = await response.json().catch(() => null);
+      console.log(`📋 Response payload:`, payload);
+
+      if (!response.ok) {
+        const errorMsg = payload?.error || `HTTP ${response.status}: Failed to update archive status.`;
+        throw new Error(errorMsg);
+      }
+
+      // Immediately update local state to reflect change in UI
+      if (shouldArchive) {
+        setLocalArchivedIds((prev) => new Set(prev).add(eventId));
+      } else {
+        setLocalArchivedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(eventId);
+          return next;
+        });
+      }
+
+      toast.success(shouldArchive ? "✅ Event archived successfully." : "✅ Event moved back to active list.");
+      console.log(`✅ Archive update successful`);
+    } catch (error: any) {
+      console.error("❌ Archive update failed:", error);
+      toast.error(`❌ ${error?.message || "Unable to update archive status."}`);
+    } finally {
+      setArchiveUpdatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
+    }
+  };
   const filteredEvents = (eventsToFilter as FetchedEvent[]).filter((event) => {
+    // Archive filter - hide archived events from normal users (including locally archived)
+    if (localArchivedIds.has(event.event_id)) {
+      return false;
+    }
+    if (!isAdminOrOrganizer && event.is_archived) {
+      return false;
+    }
+    
     // Category filter
     if (activeFilterName !== "All") {
       const eventTagsForFiltering: string[] = [];
@@ -341,8 +419,11 @@ const EventsPageContent = () => {
                         tags={event.category ? [event.category] : []}
                         image={
                           event.event_image_url ||
-                          "https://placehold.co/400x250/e2e8f0/64748b?text=No+Image"
+                          process.env.NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL!
                         }
+                        isArchived={Boolean(event.is_archived)}
+                        onArchiveToggle={handleToggleArchive}
+                        isArchiveLoading={archiveUpdatingIds.has(event.event_id)}
                       />
                     </div>
                   ))}

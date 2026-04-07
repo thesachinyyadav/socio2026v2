@@ -6,7 +6,7 @@ import Image from "next/image";
 import Footer from "../_components/Home/Footer";
 
 const ContactPage = () => {
-  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
   const [formData, setFormData] = useState({
     name: "",
     email: "",

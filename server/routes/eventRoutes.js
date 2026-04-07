@@ -24,12 +24,25 @@ const router = express.Router();
 // GET all events
 router.get("/", async (req, res) => {
   try {
-    const events = await queryAll("events", {
+    const { status } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+    
+    let queryOptions = {
       order: { column: "created_at", ascending: false },
-    });
+    };
+
+    if (status === "upcoming") {
+      queryOptions.filters = [
+        { column: "event_date", operator: "gte", value: today }
+      ];
+      queryOptions.order = { column: "event_date", ascending: true };
+    }
+
+    const events = await queryAll("events", queryOptions);
 
     const processedEvents = (events || []).map((event) => ({
       ...event,
+      fest: event.fest_id || null, // Map fest_id to fest for frontend compatibility
       department_access: Array.isArray(event.department_access)
         ? event.department_access
         : parseJsonField(event.department_access, []),
@@ -75,6 +88,7 @@ router.get("/:eventId", async (req, res) => {
     // Parse JSON fields
     const processedEvent = {
       ...event,
+      fest: event.fest_id || null, // Map fest_id to fest for frontend compatibility
       department_access: Array.isArray(event.department_access)
         ? event.department_access
         : parseJsonField(event.department_access, []),

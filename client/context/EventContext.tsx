@@ -14,6 +14,7 @@ export interface EventForCard {
   image: string;
   organizing_dept: string;
   allow_outsiders?: boolean | null;
+  is_archived?: boolean | null;
 }
 
 export interface CarouselDisplayImage {
@@ -73,6 +74,7 @@ export interface FetchedEvent {
   updated_at: string | null;
   registration_deadline: string | null;
   total_participants: number | null;
+  on_spot?: boolean | null;
   allow_outsiders?: boolean | null;
   campus_hosted_at?: string | null;
   allowed_campuses?: string[] | string | null;
@@ -172,6 +174,36 @@ export const matchesSelectedCampus = (
   return false;
 };
 
+const parseComparableDate = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    parsed.setHours(0, 0, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getTodayBoundary = (): Date => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+const isUpcomingEventDate = (eventDate: string | null | undefined): boolean => {
+  const parsedDate = parseComparableDate(eventDate);
+  if (!parsedDate) return false;
+  return parsedDate.getTime() >= getTodayBoundary().getTime();
+};
+
 const deriveTags = (event: FetchedEvent): string[] => {
   const tags: string[] = [];
 
@@ -202,9 +234,10 @@ export const toEventCard = (event: FetchedEvent): EventForCard => {
     tags: deriveTags(event),
     image:
       event.event_image_url ||
-      "https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image",
+      process.env.NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL!,
     organizing_dept: event.organizing_dept || "TBD",
     allow_outsiders: event.allow_outsiders ?? false,
+    is_archived: event.is_archived,
   };
 };
 
@@ -214,7 +247,7 @@ const toCarouselImage = (event: FetchedEvent): CarouselDisplayImage => {
     src:
       event.banner_url ||
       event.event_image_url ||
-      "https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner",
+      process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!,
     link: `/event/${event.event_id}`,
     title: event.title,
     department: event.organizing_dept || "",
@@ -251,7 +284,16 @@ export const buildDiscoverCampusDatasets = (
       tags: Array.from(new Set(["Trending", ...card.tags])),
     };
   });
-  const upcomingEvents = latestEvents.map(toEventCard);
+
+  const upcomingEvents = [...filteredEvents]
+    .filter((event) => isUpcomingEventDate(event.event_date))
+    .sort((a, b) => {
+      const aDate = parseComparableDate(a.event_date)?.getTime() || 0;
+      const bDate = parseComparableDate(b.event_date)?.getTime() || 0;
+      return aDate - bDate;
+    })
+    .slice(0, 3)
+    .map(toEventCard);
 
   return {
     filteredEvents,

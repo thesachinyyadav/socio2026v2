@@ -1,6 +1,6 @@
 import express from "express";
 import { createClient } from '@supabase/supabase-js';
-import { authenticateUser, getUserInfo, checkRoleExpiration, requireOrganiser } from "../middleware/authMiddleware.js";
+import { authenticateUser, getUserInfo, checkRoleExpiration, requireMasterAdmin, requireOrganiser } from "../middleware/authMiddleware.js";
 import {
   savePushSubscription,
   disablePushSubscription,
@@ -84,24 +84,13 @@ function mapNotification(n, userStatus = null) {
 // Returns ALL notifications (broadcasts + individual) for the admin panel.
 // Sorted by created_at desc. No per-user filtering.
 
-router.get("/notifications/admin/history", (req, res, next) => {
-  const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
-  const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
-
-  if (allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp)) {
-    return next();
-  }
-  
-  return authenticateUser(req, res, () => {
-    getUserInfo()(req, res, () => {
-      checkRoleExpiration(req, res, () => {
-        if (req.userInfo?.is_masteradmin) return next();
-        return res.status(403).json({ error: "Master Admin privileges required" });
-      });
-    });
-  });
-}, async (req, res) => {
+router.get(
+  "/notifications/admin/history",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireMasterAdmin,
+  async (req, res) => {
   try {
     const { data: notifications, error } = await supabase
       .from('notifications')
@@ -135,24 +124,13 @@ router.get("/notifications/admin/history", (req, res, next) => {
 // ─── ADMIN: BROADCAST NOTIFICATION (via API) ─────────────────────────────────────
 // POST endpoint to let the admin panel send broadcasts without importing the function.
 
-router.post("/notifications/broadcast", (req, res, next) => {
-  const allowedIps = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || req.ip;
-  const normalizedIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
-
-  if (allowedIps.includes(normalizedIp) || allowedIps.includes(clientIp)) {
-    return next();
-  }
-  
-  return authenticateUser(req, res, () => {
-    getUserInfo()(req, res, () => {
-      checkRoleExpiration(req, res, () => {
-        if (req.userInfo?.is_masteradmin) return next();
-        return res.status(403).json({ error: "Master Admin privileges required" });
-      });
-    });
-  });
-}, async (req, res) => {
+router.post(
+  "/notifications/broadcast",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireMasterAdmin,
+  async (req, res) => {
   try {
     const { title, message, type = 'info', event_id, event_title, action_url } = req.body;
 
@@ -300,6 +278,7 @@ router.post(
 // Merges:
 //   1. Individual notifications (user_email = this user, not broadcast)
 //   2. Broadcast notifications NOT dismissed by this user
+// ONLY shows notifications from when the user joined (created_at onwards)
 // Returns them combined, sorted by created_at desc, paginated.
 
 router.get("/notifications", async (req, res) => {
@@ -316,12 +295,40 @@ router.get("/notifications", async (req, res) => {
     const limitNum = Math.min(parseInt(limit) || 20, 50);
     const offset = (pageNum - 1) * limitNum;
 
-    // 1. Individual notifications for this user (not broadcasts)
+    // 0. Get user's created_at timestamp to filter notifications
+    console.log(`[Notifications] Fetching user creation date for ${email}...`);
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('created_at')
+      .eq('email', email)
+      .single();
+
+    if (userError || !user) {
+      console.warn(`[Notifications] ⚠️ User not found or error fetching user:`, userError?.message || 'unknown');
+      // If user not found, don't show any notifications
+      return res.json({
+        notifications: [],
+        unreadCount: 0,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: 0,
+          totalPages: 0,
+          hasMore: false
+        }
+      });
+    }
+
+    const userCreatedAt = user.created_at;
+    console.log(`[Notifications] User created at: ${userCreatedAt}`);
+
+    // 1. Individual notifications for this user (not broadcasts) - only from when user joined
     console.log(`[Notifications] Fetching individual notifications for ${email}...`);
     const { data: individual, error: indError } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_email', email)
+      .gte('created_at', userCreatedAt)
       .order('created_at', { ascending: false });
 
     if (indError) {
@@ -330,12 +337,13 @@ router.get("/notifications", async (req, res) => {
     }
     console.log(`[Notifications] ✅ Found ${individual?.length || 0} individual notifications`);
 
-    // 2. All broadcast notifications
-    console.log(`[Notifications] Fetching broadcast notifications...`);
+    // 2. Broadcast notifications only from when user joined
+    console.log(`[Notifications] Fetching broadcast notifications from user join date...`);
     const { data: broadcasts, error: bcError } = await supabase
       .from('notifications')
       .select('*')
       .eq('is_broadcast', true)
+      .gte('created_at', userCreatedAt)
       .order('created_at', { ascending: false });
 
     if (bcError) {

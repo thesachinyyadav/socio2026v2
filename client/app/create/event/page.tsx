@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import EventForm from "@/app/_components/Admin/ManageEvent";
 import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
@@ -9,12 +9,17 @@ import { useRouter } from "next/navigation";
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabase = useMemo(() => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return null;
+    }
 
-  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }, [supabaseAnonKey, supabaseUrl]);
+
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
   const handleCreateEvent: SubmitHandler<EventFormData> = async (
     dataFromHookForm
@@ -25,6 +30,13 @@ export default function CreateEventPage() {
     );
 
     setIsSubmitting(true);
+
+    if (!supabase) {
+      alert("Supabase configuration is missing. Please contact support.");
+      setIsSubmitting(false);
+      router.replace('/auth');
+      return;
+    }
 
     let token;
     let userEmail: string | undefined;
@@ -116,7 +128,10 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("department_access", dataFromHookForm.department);
 
     appendIfExists("category", dataFromHookForm.category);
-    appendIfExists("fest_id", dataFromHookForm.festEvent);
+    // Only append fest_id if it's not "none"
+    if (dataFromHookForm.festEvent && dataFromHookForm.festEvent !== "none") {
+      appendIfExists("fest_id", dataFromHookForm.festEvent);
+    }
     appendIfExists(
       "registration_deadline",
       dataFromHookForm.registrationDeadline
@@ -124,7 +139,18 @@ export default function CreateEventPage() {
     appendIfExists("venue", dataFromHookForm.location);
 
     appendIfExists("registration_fee", dataFromHookForm.registrationFee);
-    appendIfExists("max_participants", dataFromHookForm.maxParticipants);
+    appendIfExists(
+      "max_participants",
+      dataFromHookForm.isTeamEvent
+        ? dataFromHookForm.maxParticipants
+        : "1"
+    );
+    appendIfExists(
+      "min_participants",
+      dataFromHookForm.isTeamEvent
+        ? dataFromHookForm.minParticipants
+        : "1"
+    );
 
     appendIfExists("organizer_email", dataFromHookForm.contactEmail);
     appendIfExists("organizer_phone", dataFromHookForm.contactPhone);
@@ -135,6 +161,7 @@ export default function CreateEventPage() {
       "send_notifications",
       String(dataFromHookForm.sendNotifications)
     );
+    formData.append("on_spot", String(dataFromHookForm.onSpot));
     
     // Outsider registration fields
     formData.append("allow_outsiders", String(dataFromHookForm.allowOutsiders));

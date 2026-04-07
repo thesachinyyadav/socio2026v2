@@ -12,6 +12,7 @@ const CentreDetailsPage = () => {
   const [centre, setCentre] = useState<Centre | null>(null);
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showJoinMessage, setShowJoinMessage] = useState(false);
 
   useEffect(() => {
     if (slug) {
@@ -161,6 +162,20 @@ const CentreDetailsPage = () => {
               >
                 <span>Browse All Centres</span>
               </Link>
+
+              <button
+                type="button"
+                onClick={() => setShowJoinMessage(true)}
+                className="mt-4 flex items-center justify-center gap-2 w-full border-2 border-[#063168] text-[#063168] py-3 px-4 rounded-lg hover:bg-[#063168] hover:text-white transition duration-200"
+              >
+                <span>Join {centre.title}</span>
+              </button>
+
+              {showJoinMessage && (
+                <p className="mt-3 text-sm text-[#063168] bg-white border border-[#d6e4fb] rounded-lg px-3 py-2">
+                  Registrations opening soon.
+                </p>
+              )}
             </div>
 
             <div className="bg-[#f5f8fe] rounded-lg p-6">

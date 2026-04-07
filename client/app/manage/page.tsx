@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   useEvents,
@@ -8,7 +8,6 @@ import {
 } from "../../context/EventContext";
 import { formatDateFull, formatTime } from "@/lib/dateUtils";
 import Link from "next/link";
-import { getFests } from "@/lib/api";
 import { createBrowserClient } from "@supabase/ssr";
 import { toast } from "sonner";
 import {
@@ -19,6 +18,7 @@ import {
   downloadWorkbook,
 } from "@/lib/xlsxTheme";
 import AnimatedListDropdown from "@/app/_components/UI/AnimatedListDropdown";
+import EventReminderButton from "@/app/_components/EventReminderButton";
 import {
   Search,
   SlidersHorizontal,
@@ -29,6 +29,7 @@ import {
   ChevronRight,
   ChevronDown,
   History,
+  Pencil,
 } from "lucide-react";
 
 // ─── TYPES & CONSTANTS ──────────────────────────────────────────────────────
@@ -41,7 +42,11 @@ interface Fest {
   fest_image_url: string;
   organizing_dept: string;
   created_by?: string;
+  contact_email?: string | null;
+  event_heads?: Array<{ email?: string | null } | string>;
   campus_hosted_at?: string | null;
+  is_archived?: boolean;
+  archived_at?: string | null;
 }
 
 const ITEMS_PER_PAGE = 12;
@@ -52,6 +57,7 @@ const FEST_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> 
   { value: "all", label: "All" },
   { value: "upcoming", label: "Upcoming" },
   { value: "past", label: "Past" },
+  { value: "archived", label: "Archived" },
 ];
 
 const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
@@ -61,8 +67,8 @@ const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }>
   { value: "archived", label: "Archived" },
 ];
 
-const AUTO_ARCHIVE_DAYS = 15;
-const AUTO_ARCHIVE_MS = AUTO_ARCHIVE_DAYS * 24 * 60 * 60 * 1000;
+const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const MANUAL_UNARCHIVE_OVERRIDE = "system:manual_unarchive_override";
 
 const CAMPUSES = [
   "Central Campus (Main)",
@@ -127,24 +133,34 @@ const ACCREDITATION_BODIES = [
 
 
 // ─── UI COMPONENTS ────────────────────────────────────────────────────────
-const MappedFestCard = ({ fest, baseUrl }: { fest: Fest, baseUrl: string }) => {
+interface MappedFestCardProps {
+  fest: Fest;
+  baseUrl: string;
+  isArchiveUpdating?: boolean;
+  onArchiveToggle?: (festId: string, shouldArchive: boolean) => void;
+}
+
+const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveToggle }: MappedFestCardProps) => {
   const isPast = fest.closing_date ? new Date(fest.closing_date) < new Date() : false;
+  const isArchived = fest.is_archived ?? false;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300">
+    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 ${
+      isArchived ? "opacity-60 grayscale" : ""
+    }`}>
       <div className="h-48 relative bg-slate-100">
         <img
-          src={fest.fest_image_url || "https://placehold.co/600x400/171f2e/ffffff?text=" + encodeURIComponent(fest.fest_title || "Fest")}
+          src={fest.fest_image_url || process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!}
           alt={fest.fest_title}
           className="w-full h-full object-cover"
         />
         <div className="absolute top-3 right-3">
           <span
             className={`px-3 py-1.5 text-[10px] font-bold rounded-full tracking-wider shadow-sm flex items-center ${
-              isPast ? "bg-[#333333] text-white" : "bg-white text-emerald-600"
+              isArchived ? "bg-purple-600 text-white" : isPast ? "bg-[#333333] text-white" : "bg-white text-emerald-600"
             }`}
           >
-            {isPast ? "PAST" : "UPCOMING"}
+            {isArchived ? "ARCHIVED" : isPast ? "PAST" : "UPCOMING"}
           </span>
         </div>
       </div>
@@ -164,14 +180,33 @@ const MappedFestCard = ({ fest, baseUrl }: { fest: Fest, baseUrl: string }) => {
           <Calendar className="w-4 h-4 text-slate-400" />
           {formatDateFull(fest.opening_date, "TBD")}
         </div>
-        {isPast ? (
-          <Link href={`/${baseUrl}/${fest.fest_id}`} className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-semibold text-sm transition-colors">
-            Archive <History className="w-4 h-4" />
-          </Link>
+        {isArchived ? (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onArchiveToggle?.(fest.fest_id, false);
+            }}
+            disabled={isArchiveUpdating}
+            className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isArchiveUpdating ? "Restoring..." : "Restore"} <History className="w-4 h-4" />
+          </button>
         ) : (
-          <Link href={`/${baseUrl}/${fest.fest_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
-            Manage <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onArchiveToggle?.(fest.fest_id, true);
+              }}
+              disabled={isArchiveUpdating}
+              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isArchiveUpdating ? "Archiving..." : "Archive"} <History className="w-4 h-4" />
+            </button>
+            <Link href={`/${baseUrl}/${fest.fest_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
+              Manage <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         )}
       </div>
     </div>
@@ -187,6 +222,7 @@ const MappedEventCard = ({
   archiveSource,
   onToggleArchive,
   isArchiveActionLoading,
+  authToken,
 }: {
   event: ContextEvent;
   baseUrl: string;
@@ -194,6 +230,7 @@ const MappedEventCard = ({
   archiveSource: EventArchiveSource;
   onToggleArchive: (eventId: string, shouldArchive: boolean) => void;
   isArchiveActionLoading: boolean;
+  authToken?: string | null;
 }) => {
   const isPast = event.event_date ? new Date(event.event_date) < new Date() : false;
   const statusLabel = isArchived ? "ARCHIVED" : isPast ? "PAST" : "UPCOMING";
@@ -204,10 +241,12 @@ const MappedEventCard = ({
       : "bg-white text-emerald-600";
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300">
+    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 ${
+      isArchived ? "opacity-60 grayscale" : ""
+    }`}>
       <div className="h-48 relative bg-slate-100">
         <img
-          src={event.event_image_url || "https://placehold.co/600x400/171f2e/ffffff?text=" + encodeURIComponent(event.title || "Event")}
+          src={event.event_image_url || process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!}
           alt={event.title}
           className="w-full h-full object-cover"
         />
@@ -227,18 +266,25 @@ const MappedEventCard = ({
         <p className="text-sm text-slate-500 line-clamp-2">
           {(event as any).short_description || (event as any).description || "No description provided."}
         </p>
-        {isArchived && archiveSource === "auto" && (
-          <p className="text-xs font-semibold text-amber-700 mt-2">
-            Auto-archived after {AUTO_ARCHIVE_DAYS} days.
-          </p>
-        )}
       </div>
-      <div className="px-5 py-3.5 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+      <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 space-y-2">
         <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
           <Calendar className="w-4 h-4 text-slate-400" />
           {formatDateFull(event.event_date, "TBD")}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/event/${event.event_id}/participants`}
+            className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline"
+          >
+            View Participants
+          </Link>
+          <Link
+            href={`/attendance?eventId=${encodeURIComponent(event.event_id)}&eventTitle=${encodeURIComponent(event.title)}`}
+            className="flex items-center gap-1.5 text-emerald-700 font-semibold text-sm hover:underline"
+          >
+            Mark Attendance
+          </Link>
           <button
             type="button"
             disabled={isArchiveActionLoading}
@@ -254,8 +300,13 @@ const MappedEventCard = ({
             {isArchiveActionLoading ? "Saving..." : isArchived ? "Unarchive" : "Archive"} <History className="w-4 h-4" />
           </button>
           <Link href={`/${baseUrl}/${event.event_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
-            Manage <ArrowRight className="w-4 h-4" />
+            Edit <Pencil className="w-4 h-4" />
           </Link>
+          <EventReminderButton
+            eventId={event.event_id}
+            eventTitle={event.title}
+            authToken={authToken || ""}
+          />
         </div>
       </div>
     </div>
@@ -294,8 +345,143 @@ export default function ManageDashboard() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [searchTermReport, setSearchTermReport] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [archiveOverrides, setArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null }>>({});
+  const [archiveOverrides, setArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null; archived_by?: string | null }>>({});
   const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
+  const [localArchivedIds, setLocalArchivedIds] = useState<Set<string>>(new Set());
+  const [festArchiveOverrides, setFestArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null }>>({});
+  const [festArchiveUpdatingIds, setFestArchiveUpdatingIds] = useState<Set<string>>(new Set());
+  const [localFestArchivedIds, setLocalFestArchivedIds] = useState<Set<string>>(new Set());
+
+  const normalizeEmail = (value: string | null | undefined) =>
+    String(value || "").trim().toLowerCase();
+  const currentUserEmail = normalizeEmail(userData?.email);
+  const isCurrentUserFestHead = (fest: Fest) => {
+    if (!currentUserEmail) return false;
+    const heads = Array.isArray(fest.event_heads) ? fest.event_heads : [];
+
+    return heads.some((head) => {
+      if (!head) return false;
+      if (typeof head === "string") {
+        return normalizeEmail(head) === currentUserEmail;
+      }
+
+      return normalizeEmail((head as { email?: string | null }).email) === currentUserEmail;
+    });
+  };
+  const isOwnedByCurrentUser = (...ownerCandidates: Array<string | null | undefined>) => {
+    if (isMasterAdmin) return true;
+    if (!currentUserEmail) return false;
+
+    const normalizedOwners = ownerCandidates
+      .map((owner) => normalizeEmail(owner))
+      .filter(Boolean);
+
+    // Legacy records may not have ownership metadata populated.
+    if (normalizedOwners.length === 0) return true;
+    return normalizedOwners.includes(currentUserEmail);
+  };
+
+  const festsCacheKey = currentUserEmail ? `manage:fests:${currentUserEmail}` : null;
+
+  useEffect(() => {
+    if (!festsCacheKey) return;
+    if (typeof window === "undefined") return;
+
+    try {
+      const cachedRaw = window.sessionStorage.getItem(festsCacheKey);
+      if (!cachedRaw) return;
+
+      const cachedPayload = JSON.parse(cachedRaw);
+      if (Array.isArray(cachedPayload?.fests)) {
+        setFests(cachedPayload.fests);
+        setIsLoadingFests(false);
+      }
+    } catch (error) {
+      console.warn("Failed to hydrate fest cache:", error);
+    }
+  }, [festsCacheKey]);
+
+  const refreshFests = useCallback(async () => {
+    if (!userData?.email) {
+      setFests([]);
+      setIsLoadingFests(false);
+      return;
+    }
+
+    if (!authToken) {
+      return;
+    }
+
+    const hasWarmData = fests.length > 0;
+    if (!hasWarmData) {
+      setIsLoadingFests(true);
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/fests?sortBy=created_at&sortOrder=desc`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch fests (status: ${response.status})`);
+      }
+
+      const payload = await response.json();
+      const rawFests = Array.isArray(payload?.fests)
+        ? payload.fests
+        : Array.isArray(payload)
+          ? payload
+          : [];
+
+      const mappedFests: Fest[] = rawFests.map((fest: any) => ({
+        fest_id: String(fest.fest_id || fest.id || fest.festId || fest.fest_title || fest.title || ""),
+        fest_title: fest.fest_title || fest.title || "Untitled",
+        description: fest.description || "",
+        opening_date: fest.opening_date || null,
+        closing_date: fest.closing_date || null,
+        fest_image_url: fest.fest_image_url || "",
+        organizing_dept: fest.organizing_dept || "",
+        created_by: fest.created_by || fest.createdBy || fest.user_email || fest.organiser_email || null,
+        contact_email: fest.contact_email || fest.contactEmail || null,
+        event_heads: Array.isArray(fest.event_heads)
+          ? fest.event_heads
+          : Array.isArray(fest.eventHeads)
+            ? fest.eventHeads
+            : [],
+        campus_hosted_at: fest.campus_hosted_at || fest.campus || null,
+        is_archived: fest.is_archived === true,
+        archived_at: fest.archived_at || null,
+      }));
+
+      const userSpecificFests = mappedFests.filter(
+        (fest) =>
+          isOwnedByCurrentUser(fest.created_by, fest.contact_email) ||
+          isCurrentUserFestHead(fest)
+      );
+
+      setFests(userSpecificFests);
+
+      if (festsCacheKey && typeof window !== "undefined") {
+        window.sessionStorage.setItem(
+          festsCacheKey,
+          JSON.stringify({
+            fests: userSpecificFests,
+            cachedAt: Date.now(),
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching fests:", error);
+      if (!hasWarmData) {
+        setFests([]);
+      }
+    } finally {
+      setIsLoadingFests(false);
+    }
+  }, [API_URL, authToken, userData?.email, currentUserEmail, isMasterAdmin, fests.length, festsCacheKey]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -307,12 +493,6 @@ export default function ManageDashboard() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (activeTab === "fests" && statusFilter === "archived") {
-      setStatusFilter("all");
-    }
-  }, [activeTab, statusFilter]);
 
   // Load Auth Token for Reports
   useEffect(() => {
@@ -331,35 +511,47 @@ export default function ManageDashboard() {
 
   // Fetch Fests secure logic
   useEffect(() => {
-    if (!userData?.email) {
-      setIsLoadingFests(false);
-      setFests([]);
-      return;
-    }
-    setIsLoadingFests(true);
-    getFests()
-      .then((data) => {
-        const mappedFests: Fest[] = Array.isArray(data) ? data.map((fest: any) => ({
-              fest_id: String(fest.fest_id || fest.id || fest.festId || fest.fest_title || fest.title || ""),
-              fest_title: fest.fest_title || fest.title || "Untitled",
-              description: fest.description || "",
-              opening_date: fest.opening_date || null,
-              closing_date: fest.closing_date || null,
-              fest_image_url: fest.fest_image_url || "",
-              organizing_dept: fest.organizing_dept || "",
-              created_by: fest.created_by || fest.createdBy || fest.user_email || fest.organiser_email || null,
-              campus_hosted_at: fest.campus_hosted_at || fest.campus || null,
-        })) : [];
+    refreshFests();
+  }, [refreshFests]);
 
-        const userSpecificFests = isMasterAdmin 
-          ? mappedFests 
-          : mappedFests.filter((fest) => !fest.created_by || fest.created_by === userData.email);
+  // Fetch fresh events from Supabase directly on page load to ensure archive status is current
+  // This bypasses the cached events from EventContext to show real-time archive changes
+  const [liveEvents, setLiveEvents] = useState<ContextEvent[]>([]);
+  const [isLoadingLiveEvents, setIsLoadingLiveEvents] = useState(false);
 
-        setFests(userSpecificFests);
-      })
-      .catch((error) => console.error("Error fetching fests:", error))
-      .finally(() => setIsLoadingFests(false));
-  }, [userData?.email, isMasterAdmin]);
+  useEffect(() => {
+    const fetchLiveEvents = async () => {
+      try {
+        setIsLoadingLiveEvents(true);
+        if (!authToken) {
+          setLiveEvents(contextAllEvents);
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/api/events?sortBy=created_at&sortOrder=desc`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch events (status: ${response.status})`);
+        }
+
+        const payload = await response.json();
+        setLiveEvents(Array.isArray(payload?.events) ? payload.events : []);
+      } catch (err) {
+        console.error("Error fetching live events:", err);
+        // Fall back to context events if fetch fails
+        setLiveEvents(contextAllEvents);
+      } finally {
+        setIsLoadingLiveEvents(false);
+      }
+    };
+
+    fetchLiveEvents();
+  }, [authToken, contextAllEvents]);
 
 
   // Permissions & Campus logic for Events
@@ -377,9 +569,25 @@ export default function ManageDashboard() {
   };
 
   const isAutoArchivedEvent = (event: ContextEvent) => {
+    const archivedBy = String((event as any).archived_by || "").trim().toLowerCase();
+    if (!toBoolean((event as any).is_archived) && archivedBy === MANUAL_UNARCHIVE_OVERRIDE) {
+      return false;
+    }
+
+    // Match backend auto-archive logic: archive when event_date is in the past
+    // (not after 15 days). If event is manually archived, this won't be called
+    // due to getEffectiveArchiveState logic ordering.
     const eventDate = getValidDate(event.event_date);
     if (!eventDate) return false;
-    return Date.now() - eventDate.getTime() >= AUTO_ARCHIVE_MS;
+    
+    // Set to midnight to match backend comparison
+    const eventDateMidnight = new Date(eventDate);
+    eventDateMidnight.setHours(0, 0, 0, 0);
+    
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    
+    return eventDateMidnight.getTime() < todayMidnight.getTime();
   };
 
   const toBoolean = (value: unknown) =>
@@ -387,9 +595,14 @@ export default function ManageDashboard() {
 
   const getEffectiveArchiveState = (event: ContextEvent): { isArchived: boolean; archiveSource: EventArchiveSource } => {
     const override = archiveOverrides[event.event_id];
-    const manualArchived = override
-      ? override.is_archived
-      : toBoolean(event.is_archived);
+    if (override) {
+      return {
+        isArchived: override.is_archived,
+        archiveSource: override.is_archived ? "manual" : null,
+      };
+    }
+
+    const manualArchived = toBoolean(event.is_archived);
     const autoArchived = isAutoArchivedEvent(event);
 
     if (manualArchived) {
@@ -403,6 +616,19 @@ export default function ManageDashboard() {
     return { isArchived: false, archiveSource: null };
   };
 
+  const getEffectiveFestArchiveState = (fest: Fest) => {
+    const override = festArchiveOverrides[fest.fest_id];
+    if (override) {
+      return override.is_archived;
+    }
+
+    if (localFestArchivedIds.has(fest.fest_id)) {
+      return true;
+    }
+
+    return toBoolean(fest.is_archived);
+  };
+
   const matchesStatus = (isPast: boolean, isArchived: boolean) => {
     if (statusFilter === "all") return !isArchived;
     if (statusFilter === "archived") return isArchived;
@@ -410,12 +636,30 @@ export default function ManageDashboard() {
     return !isArchived && !isPast;
   };
 
-  const userSpecificContextEvents = (contextAllEvents as ContextEvent[]).filter((e) => {
-    const isOwnerOrMaster = isMasterAdmin || (userData?.email && e.created_by === userData.email);
+  const matchesEventStatus = (isPast: boolean, isArchived: boolean) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "archived") return isArchived;
+    if (statusFilter === "past") return !isArchived && isPast;
+    return !isArchived && !isPast;
+  };
+
+  const matchesFestStatus = (isPast: boolean, isArchived: boolean) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "archived") return isArchived;
+    if (statusFilter === "past") return !isArchived && isPast;
+    return !isArchived && !isPast;
+  };
+
+  const userSpecificContextEvents = (liveEvents.length > 0 ? liveEvents : contextAllEvents as ContextEvent[]).filter((e) => {
+    const isOwnerOrMaster = isOwnedByCurrentUser(
+      e.created_by,
+      (e as any).organizer_email,
+      (e as any).organiser_email
+    );
     const matchesCampus = campusFilter === "all" || (e as any).campus_hosted_at === campusFilter;
     const eventIsPast = isPastDate(e.event_date);
     const archiveState = getEffectiveArchiveState(e);
-    return isOwnerOrMaster && matchesCampus && matchesStatus(eventIsPast, archiveState.isArchived);
+    return isOwnerOrMaster && matchesCampus && matchesEventStatus(eventIsPast, archiveState.isArchived);
   });
 
   // Filter Grids
@@ -423,11 +667,11 @@ export default function ManageDashboard() {
     event.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
   const searchedUserFests = fests.filter((fest) => {
-    if (statusFilter === "archived") return false;
     const matchesSearch = fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCampus = campusFilter === "all" || (fest as any).campus_hosted_at === campusFilter;
     const festIsPast = isPastDate(fest.closing_date);
-    return matchesSearch && matchesCampus && matchesStatus(festIsPast, false);
+    const festIsArchived = getEffectiveFestArchiveState(fest);
+    return matchesSearch && matchesCampus && matchesFestStatus(festIsPast, festIsArchived);
   });
 
   const activeStatusFilterOptions =
@@ -474,12 +718,38 @@ export default function ManageDashboard() {
     previousPagesRef.current = { eventsPage, festsPage };
   }, [eventsPage, festsPage]);
 
-  
+  // Helper function to refresh live events from Supabase
+  const refreshLiveEvents = async () => {
+    try {
+      if (!authToken) {
+        setLiveEvents(contextAllEvents);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/events?sortBy=created_at&sortOrder=desc`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to refresh events (status: ${response.status})`);
+      }
+
+      const payload = await response.json();
+      setLiveEvents(Array.isArray(payload?.events) ? payload.events : []);
+    } catch (err) {
+      console.error("Error refreshing live events:", err);
+      setLiveEvents(contextAllEvents);
+    }
+  };
+
   // ─── REPORT GENERATION HANDLER ────────────────────────
   const handleGenerateReport = async () => {
     setIsGenerating(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL!;
       const response = await fetch(`${API_URL}/api/report/data`, {
         method: "POST",
         headers: {
@@ -696,8 +966,11 @@ export default function ManageDashboard() {
   };
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
+    console.log(`🔄 Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
+    
     if (!authToken) {
       toast.error("Please sign in again to update archive status.");
+      console.error("❌ No access token available");
       return;
     }
 
@@ -708,8 +981,10 @@ export default function ManageDashboard() {
     });
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/events/${eventId}/archive`, {
+      const endpoint = `/api/events/${eventId}/archive`;
+      console.log(`📤 Sending PATCH request to: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -718,10 +993,13 @@ export default function ManageDashboard() {
         body: JSON.stringify({ archive: shouldArchive }),
       });
 
+      console.log(`📨 Response status: ${response.status}`);
       const payload = await response.json().catch(() => null);
+      console.log(`📋 Response payload:`, payload);
 
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to update archive status.");
+        const errorMsg = payload?.error || `HTTP ${response.status}: Failed to update archive status.`;
+        throw new Error(errorMsg);
       }
 
       const event = payload?.event as Partial<ContextEvent> | undefined;
@@ -735,13 +1013,34 @@ export default function ManageDashboard() {
               : shouldArchive
                 ? new Date().toISOString()
                 : null,
+          archived_by:
+            typeof (event as any)?.archived_by === "string"
+              ? (event as any).archived_by
+              : shouldArchive
+                ? currentUserEmail || null
+                : MANUAL_UNARCHIVE_OVERRIDE,
         },
       }));
 
-      toast.success(shouldArchive ? "Event archived successfully." : "Event moved back to active list.");
+      // Immediately update local state to reflect change in UI
+      if (shouldArchive) {
+        setLocalArchivedIds((prev) => new Set(prev).add(eventId));
+      } else {
+        setLocalArchivedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(eventId);
+          return next;
+        });
+      }
+
+      toast.success(shouldArchive ? "✅ Event archived successfully." : "✅ Event moved back to active list.");
+      console.log(`✅ Archive update successful`);
+      
+      // Refresh live events to reflect the latest archive status
+      await refreshLiveEvents();
     } catch (error: any) {
-      console.error("Archive update failed:", error);
-      toast.error(error?.message || "Unable to update archive status.");
+      console.error("❌ Archive update failed:", error);
+      toast.error(`❌ ${error?.message || "Unable to update archive status."}`);
     } finally {
       setArchiveUpdatingIds((prev) => {
         const next = new Set(prev);
@@ -751,6 +1050,113 @@ export default function ManageDashboard() {
     }
   };
 
+  const handleToggleArchiveFest = async (festId: string, shouldArchive: boolean) => {
+    console.log(`🔄 Fest archive toggle initiated: festId=${festId}, shouldArchive=${shouldArchive}`);
+    
+    if (!authToken) {
+      toast.error("Please sign in again to update archive status.");
+      console.error("❌ No access token available");
+      return;
+    }
+
+    setFestArchiveUpdatingIds((prev) => {
+      const next = new Set(prev);
+      next.add(festId);
+      return next;
+    });
+
+    try {
+      const endpoint = `/api/fests/${festId}/archive`;
+      console.log(`📤 Sending PATCH request to: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ archive: shouldArchive }),
+      });
+
+      console.log(`📨 Response status: ${response.status}`);
+      const payload = await response.json().catch(() => null);
+      console.log(`📋 Response payload:`, payload);
+
+      if (!response.ok) {
+        const errorMsg = payload?.error || `HTTP ${response.status}: Failed to update fest archive status.`;
+        throw new Error(errorMsg);
+      }
+
+      // Update fest archive state
+      setFestArchiveOverrides((prev) => ({
+        ...prev,
+        [festId]: {
+          is_archived: Boolean(shouldArchive),
+          archived_at: shouldArchive ? new Date().toISOString() : null,
+        },
+      }));
+
+      // Immediately update local state for fest
+      if (shouldArchive) {
+        setLocalFestArchivedIds((prev) => new Set(prev).add(festId));
+      } else {
+        setLocalFestArchivedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(festId);
+          return next;
+        });
+      }
+
+      // Also update all events under this fest
+      const nowIso = new Date().toISOString();
+      setArchiveOverrides((prev) => {
+        const updated = { ...prev };
+        // Find all events with this fest_id and update them
+        const eventsToCheck = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+        eventsToCheck?.forEach((event) => {
+          if (event.fest === festId || (event as any).fest_id === festId) {
+            updated[event.event_id] = {
+              is_archived: Boolean(shouldArchive),
+              archived_at: shouldArchive ? nowIso : null,
+              archived_by: shouldArchive ? currentUserEmail || null : MANUAL_UNARCHIVE_OVERRIDE,
+            };
+            
+            // Also update local archived ids for cascading events
+            if (shouldArchive) {
+              setLocalArchivedIds((prev) => new Set(prev).add(event.event_id));
+            } else {
+              setLocalArchivedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(event.event_id);
+                return next;
+              });
+            }
+          }
+        });
+        return updated;
+      });
+
+      const eventsAffected = payload?.events_affected || 0;
+      toast.success(
+        shouldArchive
+          ? `✅ Fest and ${eventsAffected} events archived successfully.`
+          : "✅ Fest and associated events moved back to active list."
+      );
+      console.log(`✅ Fest archive update successful: ${eventsAffected} events affected`);
+
+      // Refresh both datasets so archive UI does not snap back to stale state.
+      await Promise.all([refreshLiveEvents(), refreshFests()]);
+    } catch (error: any) {
+      console.error("❌ Fest archive update failed:", error);
+      toast.error(`❌ ${error?.message || "Unable to update fest archive status."}`);
+    } finally {
+      setFestArchiveUpdatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(festId);
+        return next;
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -884,9 +1290,21 @@ export default function ManageDashboard() {
                 <div className="text-center text-slate-500 py-10 text-sm font-medium">No results found.</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {paginatedFests.items.map((fest) => (
-                        <MappedFestCard key={fest.fest_id} fest={fest} baseUrl="edit/fest" />
-                    ))}
+                    {paginatedFests.items.map((fest) => {
+                      const archiveOverride = festArchiveOverrides[fest.fest_id];
+                      const festWithOverride = archiveOverride
+                        ? { ...fest, ...archiveOverride }
+                        : fest;
+                      return (
+                        <MappedFestCard
+                          key={fest.fest_id}
+                          fest={festWithOverride}
+                          baseUrl="edit/fest"
+                          isArchiveUpdating={festArchiveUpdatingIds.has(fest.fest_id)}
+                          onArchiveToggle={handleToggleArchiveFest}
+                        />
+                      );
+                    })}
                 </div>
               )}
             </>
@@ -899,7 +1317,7 @@ export default function ManageDashboard() {
               ) : paginatedEvents.items.length === 0 ? (
                 <div className="text-center text-slate-500 py-10 text-sm font-medium">
                   {statusFilter === "archived"
-                    ? `No archived events found. Events auto-archive after ${AUTO_ARCHIVE_DAYS} days.`
+                    ? `No archived events found. Events auto-archive after their end date.`
                     : "No results found."}
                 </div>
               ) : (
@@ -915,6 +1333,7 @@ export default function ManageDashboard() {
                             archiveSource={archiveState.archiveSource}
                             onToggleArchive={handleToggleArchive}
                             isArchiveActionLoading={archiveUpdatingIds.has(event.event_id)}
+                            authToken={authToken}
                           />
                         );
                     })}
@@ -972,7 +1391,8 @@ export default function ManageDashboard() {
 
                   {selectedReportFest && (() => {
                     const selectedFestObj = fests.find(f => f.fest_id === selectedReportFest);
-                    const festEvents = contextAllEvents.filter((event) => {
+                    const eventsToFilter = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+                    const festEvents = eventsToFilter.filter((event) => {
                       const matchesByFestId =
                         Boolean(selectedFestObj?.fest_id) &&
                         String((event as any).fest_id || "") === String(selectedFestObj?.fest_id || "");
@@ -1028,7 +1448,8 @@ export default function ManageDashboard() {
 
               {/* Events Mode Logic */}
               {reportMode === "events" && (() => {
-                const userEvents = isMasterAdmin ? contextAllEvents : contextAllEvents.filter(e => e.created_by === userData?.email);
+                const eventsForReport = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+                const userEvents = isMasterAdmin ? eventsForReport : eventsForReport.filter(e => e.created_by === userData?.email);
                 const filteredEvents = userEvents.filter(e => 
                   e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
                   (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())

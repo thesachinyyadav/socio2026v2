@@ -14,6 +14,7 @@ interface Event {
   tags?: string[];
   image: string;
   allow_outsiders?: boolean | null;
+  is_archived?: boolean | null;
 }
 
 interface EventsSectionProps {
@@ -21,12 +22,16 @@ interface EventsSectionProps {
   events: Event[];
   showAll?: boolean;
   baseUrl?: string;
+  onArchiveToggle?: (eventId: string, shouldArchive: boolean) => Promise<void>;
+  archiveLoadingIds?: Set<string>;
 }
 
 export const EventsSection = ({
   title,
   events,
   baseUrl = "event",
+  onArchiveToggle,
+  archiveLoadingIds = new Set(),
 }: EventsSectionProps) => {
   return (
     <div className="min-w-0">
@@ -46,7 +51,10 @@ export const EventsSection = ({
             image={event.image}
             allowOutsiders={event.allow_outsiders}
             baseUrl={baseUrl}
-            idForLink={event.event_id} // Add the event_id for link generation
+            idForLink={event.event_id}
+            isArchived={Boolean(event.is_archived)}
+            onArchiveToggle={onArchiveToggle}
+            isArchiveLoading={archiveLoadingIds.has(event.event_id)}
           />
         ))}
       </div>

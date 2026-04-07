@@ -13,9 +13,9 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
-import debugRoutes from "./routes/debugRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import statuscheckRoutes from "./routes/statuscheckRoutes.js";
 
 dotenv.config();
 
@@ -39,17 +39,53 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// CORS - restrict to allowed origins in production
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://socio.christuniversity.in,http://localhost:3000,http://127.0.0.1:3000')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://socio.christuniversity.in',
+  'https://sociov2.vercel.app',
+  'https://sociodev.vercel.app',
+  'https://live.withsocio.com',
+  'https://gated.withsocio.com',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
 
-const ALLOWED_ORIGIN_PATTERNS = (process.env.ALLOWED_ORIGIN_PATTERNS || '^https://.*\\.vercel\\.app$,^https://.*\\.christuniversity\\.in$')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean)
-  .map(pattern => new RegExp(pattern));
+const DEFAULT_ALLOWED_ORIGIN_PATTERNS = [
+  '^https://.*\\.vercel\\.app$',
+  '^https://.*\\.christuniversity\\.in$'
+];
+
+const parseCsvEnv = (value) =>
+  (value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const compileOriginPatterns = (patterns) => {
+  const compiled = [];
+
+  for (const pattern of patterns) {
+    try {
+      compiled.push(new RegExp(pattern));
+    } catch (error) {
+      console.error(`Invalid ALLOWED_ORIGIN_PATTERNS entry skipped: ${pattern}`);
+    }
+  }
+
+  return compiled;
+};
+
+// CORS - allow explicit origins plus vetted wildcard patterns
+const ALLOWED_ORIGINS = Array.from(
+  new Set([
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...parseCsvEnv(process.env.ALLOWED_ORIGINS)
+  ])
+);
+
+const ALLOWED_ORIGIN_PATTERNS = compileOriginPatterns([
+  ...DEFAULT_ALLOWED_ORIGIN_PATTERNS,
+  ...parseCsvEnv(process.env.ALLOWED_ORIGIN_PATTERNS)
+]);
 
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
@@ -67,7 +103,7 @@ const setCorsHeaders = (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email, Accept, Origin');
 };
 
 app.use((req, res, next) => {
@@ -118,9 +154,9 @@ app.use("/api", attendanceRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", contactRoutes);
-app.use("/api/debug", debugRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api", reportRoutes);
+app.use("/api/statuscheck", statuscheckRoutes);
 
 // Global error handler - ensures CORS headers are always sent
 app.use((err, req, res, next) => {
@@ -130,8 +166,14 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`);
-  console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
-  console.log(`🗄️  Database: Supabase (${process.env.SUPABASE_URL || 'https://vkappuaapscvteexogtp.supabase.co'})`);
-});
+const isVercelRuntime = process.env.VERCEL === '1';
+
+if (!isVercelRuntime) {
+  app.listen(PORT, () => {
+    console.log(`✅ Server is running on port ${PORT}`);
+    console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
+    console.log(`🗄️  Database: Supabase (${process.env.SUPABASE_URL || 'https://vkappuaapscvteexogtp.supabase.co'})`);
+  });
+}
+
+export default app;

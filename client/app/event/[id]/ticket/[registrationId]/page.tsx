@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/context/EventContext";
 import { dayjs } from "@/lib/dateUtils";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
 const generateGoogleCalendarUrl = (title: string, date: string, time?: string): string | null => {
   try {
@@ -34,7 +34,7 @@ const generateGoogleCalendarUrl = (title: string, date: string, time?: string): 
       endDateTime = dateObj.add(1, "day").format("YYYYMMDD");
     }
     const params = new URLSearchParams({ text: title, dates: `${startDateTime}/${endDateTime}` });
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&${params.toString()}`;
+    return `${process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_BASE_URL!}&${params.toString()}`;
   } catch {
     return null;
   }

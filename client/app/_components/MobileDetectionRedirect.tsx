@@ -58,7 +58,7 @@ export default function MobileDetectionRedirect() {
 
   const handleNotNow = () => {
     acknowledgePrompt();
-    const pwaBaseUrl = process.env.NEXT_PUBLIC_PWA_URL || "https://thesocio.vercel.app";
+    const pwaBaseUrl = process.env.NEXT_PUBLIC_PWA_URL!;
     const targetUrl = `${pwaBaseUrl}${window.location.pathname}${window.location.search}`;
 
     try {

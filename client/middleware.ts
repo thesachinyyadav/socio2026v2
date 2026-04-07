@@ -71,23 +71,25 @@ export async function middleware(req: NextRequest) {
     return redirect("/auth");
   }
 
-  if (
-    user &&
-    (pathname.startsWith("/manage") ||
-      pathname.startsWith("/create") ||
-      pathname.startsWith("/edit"))
-  ) {
+  const isManagementRoute =
+    pathname.startsWith("/manage") ||
+    pathname.startsWith("/create") ||
+    pathname.startsWith("/edit");
+
+  if (user && isManagementRoute) {
     if (!user.email) {
       return redirect("/error");
     }
 
     const { data: userData, error } = await supabase
       .from("users")
-      .select("is_organiser")
+      .select("is_organiser, is_masteradmin")
       .eq("email", user.email)
       .single();
 
-    if (error || !userData || !userData.is_organiser) {
+    const canManage = Boolean(userData?.is_organiser) || Boolean(userData?.is_masteradmin);
+
+    if (isManagementRoute && (error || !userData || !canManage)) {
       return redirect("/error");
     }
   }

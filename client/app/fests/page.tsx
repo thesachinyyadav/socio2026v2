@@ -4,6 +4,7 @@ import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { formatDateRange } from "@/lib/dateUtils";
+import { useAuth } from "@/context/AuthContext";
 
 import { FestCard } from "../_components/Discover/FestCard";
 import Footer from "../_components/Home/Footer";
@@ -19,6 +20,8 @@ interface Fest {
   closing_date: string;
   fest_image_url: string;
   category: string;
+  is_archived?: boolean;
+  archived_at?: string;
 }
 
 interface FilterOption {
@@ -44,6 +47,7 @@ const buildFestsUrl = (category: string | null, searchValue: string) => {
 const FestsPageContent = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { userData, session } = useAuth();
   const categoryParam = searchParams.get("category");
   const searchParam = searchParams.get("search") || "";
 
@@ -61,13 +65,20 @@ const FestsPageContent = () => {
   ]);
 
   const [allFests, setAllFests] = useState<Fest[]>([]);
-  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
   
   useEffect(() => {
-    fetch(`${API_URL}/api/fests`)
+    fetch(`${API_URL}/api/fests?status=upcoming&sortBy=opening_date&sortOrder=asc`, {
+      headers: session?.access_token
+        ? {
+            Authorization: `Bearer ${session.access_token}`,
+          }
+        : undefined,
+      cache: "no-store",
+    })
       .then((res) => res.json())
       .then((data) => {
-        // Assuming the API returns { fests: Fest[] }
         if (data && Array.isArray(data.fests)) {
           setAllFests(data.fests);
         } else {
@@ -82,7 +93,7 @@ const FestsPageContent = () => {
         console.error("Error fetching fests:", error);
         setAllFests([]);
       });
-  }, []);
+  }, [API_URL, session?.access_token]);
 
   useEffect(() => {
     const activeFilter = filterOptions
@@ -141,6 +152,10 @@ const FestsPageContent = () => {
 
   const festsToFilter = Array.isArray(allFests) ? allFests : [];
   const filteredFests: Fest[] = festsToFilter.filter((fest: Fest) => {
+    if (!isAdminOrOrganizer && fest.is_archived) {
+      return false;
+    }
+
     if (
       activeFilter !== "All" &&
       fest.category?.toLowerCase() !== activeFilter.toLowerCase()

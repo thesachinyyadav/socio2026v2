@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   UseFormRegister,
+  RegisterOptions,
   FieldError,
   Control,
   Controller,
@@ -252,6 +253,7 @@ interface InputFieldProps
   label?: string;
   name: Path<EventFormData>;
   register: UseFormRegister<EventFormData>;
+  registerOptions?: RegisterOptions<EventFormData, Path<EventFormData>>;
   error?: FieldError;
   required?: boolean;
   as?: "input" | "textarea";
@@ -262,6 +264,7 @@ export function InputField({
   label,
   name,
   register,
+  registerOptions,
   error,
   required,
   as = "input",
@@ -285,7 +288,7 @@ export function InputField({
       )}
       <InputComponent
         id={name}
-        {...register(name)}
+        {...register(name, registerOptions)}
         {...props}
         rows={as === "textarea" ? rows : undefined}
         className={commonClasses}

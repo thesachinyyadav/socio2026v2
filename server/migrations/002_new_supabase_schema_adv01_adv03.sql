@@ -76,6 +76,7 @@ create table if not exists public.fests (
   contact_email text,
   contact_phone text,
   event_heads jsonb not null default '[]'::jsonb,
+  custom_fields jsonb not null default '[]'::jsonb,
 
   timeline jsonb not null default '[]'::jsonb,
   sponsors jsonb not null default '[]'::jsonb,

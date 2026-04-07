@@ -19,6 +19,7 @@ interface EventData {
   endDate: string;
   location: string;
   price: string;
+  minTeammates: number;
   numTeammates: number;
   daysLeft: number | null; // null means no deadline (open registration)
   description: string;
@@ -30,14 +31,17 @@ interface EventData {
   organizers?: Array<{ name: string; email: string; phone: string }>;
   whatsappLink?: string;
   registrationDeadlineISO?: string | null;
+  on_spot?: boolean;
   allow_outsiders?: boolean;
   custom_fields?: any[]; // Custom fields created by organizer
+  is_archived?: boolean; // Add archive status to event data
+  archived_at?: string; // When the event was archived
 }
 
 export default function Page() {
   const params = useParams(); // { id: string }
   const eventIdSlug = params?.id ? String(params.id) : null;
-  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
   const router = useRouter();
 
@@ -46,7 +50,7 @@ export default function Page() {
     isLoading: contextIsLoading,
     error: contextError,
   } = useEvents();
-  const { userData, isLoading: authIsLoading } = useAuth();
+  const { session, userData, isLoading: authIsLoading } = useAuth();
 
   const detailsRef = useRef<HTMLDivElement>(null);
   const rulesRef = useRef<HTMLDivElement>(null);
@@ -86,7 +90,7 @@ export default function Page() {
   // null daysLeft means no deadline (open registration)
   // Negative or 0 daysLeft means deadline has passed
   const isDeadlineOverForThisEvent = eventData
-    ? eventData.daysLeft !== null && eventData.daysLeft < 0
+    ? eventData.daysLeft !== null && eventData.daysLeft < 0 && !eventData.on_spot
     : false;
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
@@ -195,6 +199,15 @@ export default function Page() {
       },
     ];
 
+    const maxTeammates = Number(foundEvent.participants_per_team ?? 1);
+    const minTeammatesRaw = Number(
+      (foundEvent as any).min_participants ?? (maxTeammates > 1 ? 2 : 1)
+    );
+    const minTeammates =
+      maxTeammates > 1
+        ? Math.min(Math.max(minTeammatesRaw, 2), maxTeammates)
+        : 1;
+
     const finalEventData: EventData = {
       id: foundEvent.event_id,
       title: foundEvent.title || "Untitled Event",
@@ -221,7 +234,8 @@ export default function Page() {
         foundEvent.registration_fee != null && foundEvent.registration_fee > 0
           ? `₹${foundEvent.registration_fee}`
           : "Free",
-      numTeammates: foundEvent.participants_per_team ?? 1,
+      minTeammates,
+      numTeammates: maxTeammates,
       daysLeft: getDaysUntil(foundEvent.registration_deadline),
       description: foundEvent.description || "No description available.",
       rules: processedRules,
@@ -230,12 +244,17 @@ export default function Page() {
       image:
         foundEvent.banner_url ||
         foundEvent.event_image_url ||
-        "https://placehold.co/1200x600/e2e8f0/64748b?text=Event+Image",
+        process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!,
       pdf: foundEvent.pdf_url || undefined,
       organizers:
         transformedOrganizers.length > 0 ? transformedOrganizers : undefined,
       whatsappLink: foundEvent.whatsapp_invite_link || undefined,
       registrationDeadlineISO: foundEvent.registration_deadline,
+      on_spot:
+        (foundEvent as any).on_spot === true ||
+        (foundEvent as any).on_spot === 1 ||
+        (foundEvent as any).on_spot === "1" ||
+        (foundEvent as any).on_spot === "true",
       allow_outsiders: !!foundEvent.allow_outsiders,
       custom_fields: (() => {
         // Handle custom_fields - could be array, JSON string, or null
@@ -250,6 +269,8 @@ export default function Page() {
         }
         return Array.isArray(fields) ? fields : [];
       })(),
+      is_archived: foundEvent.is_archived ?? false,
+      archived_at: foundEvent.archived_at || undefined,
     };
     
     // DEBUG: Log custom fields to see if they're coming through
@@ -304,7 +325,13 @@ export default function Page() {
       setPageLoading(true);
       
       // Make direct API call to fetch the event
-      fetch(`${API_URL}/api/events/${currentEventIdString}`)
+      fetch(`${API_URL}/api/events/${currentEventIdString}`, {
+        headers: session?.access_token
+          ? {
+              Authorization: `Bearer ${session.access_token}`,
+            }
+          : undefined,
+      })
         .then(response => {
           if (!response.ok) {
             throw new Error(`Event with ID "${currentEventIdString}" not found.`);
@@ -313,6 +340,22 @@ export default function Page() {
         })
         .then(data => {
           if (data.event) {
+            // 🔒 CHECK IF EVENT IS ARCHIVED
+            const isEventArchived = data.event.is_archived === true;
+            const isUserOrganizerOrAdmin = Boolean(userData?.is_organiser || userData?.is_masteradmin);
+
+            if (isEventArchived && authIsLoading) {
+              setPageLoading(true);
+              return;
+            }
+            
+            if (isEventArchived && !isUserOrganizerOrAdmin) {
+              setPageError("This event is archived and not available for viewing.");
+              setEventData(null);
+              setPageLoading(false);
+              return;
+            }
+            
             // Process the event data and update state
             processEventData(data.event);
           } else {
@@ -329,6 +372,22 @@ export default function Page() {
     }
 
     if (foundEvent) {
+      // 🔒 CHECK IF EVENT IS ARCHIVED
+      const isEventArchived = foundEvent.is_archived === true;
+      const isUserOrganizerOrAdmin = Boolean(userData?.is_organiser || userData?.is_masteradmin);
+
+      if (isEventArchived && authIsLoading) {
+        setPageLoading(true);
+        return;
+      }
+      
+      if (isEventArchived && !isUserOrganizerOrAdmin) {
+        setPageError("This event is archived and not available for viewing.");
+        setEventData(null);
+        setPageLoading(false);
+        return;
+      }
+      
       // Process the found event data
       processEventData(foundEvent);
     } else {
@@ -338,7 +397,7 @@ export default function Page() {
       setEventData(null);
       setPageLoading(false);
     }
-  }, [eventIdSlug, allEvents, contextIsLoading, contextError]);
+  }, [eventIdSlug, allEvents, contextIsLoading, contextError, authIsLoading, userData, session?.access_token]);
 
   useEffect(() => {
     if (userData && userData.register_number && !authIsLoading) {
@@ -684,7 +743,7 @@ export default function Page() {
               <div className="flex flex-wrap gap-2 mb-2 items-center sm:justify-start">
                 {showOutsiderBadge && (
                   <p className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-[#F59E0B] text-black">
-                    PUBLIC
+                    Public
                   </p>
                 )}
                 {(eventData.tags || []).map((tag, index) => {
@@ -852,7 +911,7 @@ export default function Page() {
                     <p className="text-gray-800 font-medium">
                       {eventData.numTeammates <= 1
                         ? "Individual Event"
-                        : `Team Event (Up to ${eventData.numTeammates} members)`}
+                        : `Team Event (${eventData.minTeammates}-${eventData.numTeammates} members)`}
                     </p>
                   </div>
                 </div>

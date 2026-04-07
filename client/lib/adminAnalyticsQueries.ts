@@ -101,7 +101,11 @@ type QueryOrderColumn = string | "__none__";
 
 function isMissingColumnError(errorMessage: string): boolean {
   const normalized = errorMessage.toLowerCase();
-  return normalized.includes("column") && normalized.includes("does not exist");
+  return (
+    (normalized.includes("column") && normalized.includes("does not exist")) ||
+    (normalized.includes("could not find") && normalized.includes("column")) ||
+    (normalized.includes("schema cache") && normalized.includes("column"))
+  );
 }
 
 function isMissingRelationError(errorMessage: string): boolean {
@@ -109,21 +113,37 @@ function isMissingRelationError(errorMessage: string): boolean {
   return normalized.includes("relation") && normalized.includes("does not exist");
 }
 
+function extractMissingColumnName(errorMessage: string): string | null {
+  const patterns = [
+    /column\s+["']?(?:[a-z0-9_]+\.)?([a-z0-9_]+)["']?\s+does not exist/i,
+    /could not find the\s+["']([a-z0-9_]+)["']\s+column/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = errorMessage.match(pattern);
+    if (match?.[1]) {
+      return match[1].toLowerCase();
+    }
+  }
+
+  return null;
+}
+
 function getOrderCandidates(tableName: string): QueryOrderColumn[] {
   switch (tableName) {
     case "users":
-      return ["id", "created_at", "email", "__none__"];
+      return ["__none__", "id", "created_at", "email"];
     case "events":
-      return ["id", "event_id", "created_at", "__none__"];
+      return ["__none__", "id", "event_id", "created_at"];
     case "fests":
     case "fest":
-      return ["id", "fest_id", "created_at", "__none__"];
+      return ["__none__", "id", "fest_id", "created_at"];
     case "registrations":
-      return ["id", "registration_id", "created_at", "__none__"];
+      return ["__none__", "id", "registration_id", "created_at"];
     case "attendance_status":
-      return ["id", "registration_id", "marked_at", "__none__"];
+      return ["__none__", "id", "registration_id", "marked_at"];
     default:
-      return ["id", "created_at", "__none__"];
+      return ["__none__", "id", "created_at"];
   }
 }
 
@@ -333,9 +353,17 @@ async function fetchInBatches<T extends Record<string, unknown>>(
       };
 
       const composedError = `${lastError.code ? `${lastError.code} ` : ""}${lastError.message}`;
+      const missingColumn = extractMissingColumnName(composedError);
 
       if (isMissingColumnError(composedError) && index < orderCandidates.length - 1) {
-        continue;
+        const shouldRetryWithNextOrder =
+          Boolean(missingColumn) &&
+          orderBy !== "__none__" &&
+          missingColumn === orderBy.toLowerCase();
+
+        if (shouldRetryWithNextOrder) {
+          continue;
+        }
       }
 
       break;
@@ -378,7 +406,18 @@ async function fetchWithSelectFallback<T extends Record<string, unknown>>(
   signal?: AbortSignal
 ): Promise<T[]> {
   let lastError: Error | null = null;
-  const tableCandidates = table === "fests" ? ["fests", "fest"] : [table];
+  const tableCandidates = (() => {
+    switch (table) {
+      case "fests":
+        return ["fests", "fest"];
+      case "events":
+        return ["events", "event"];
+      case "users":
+        return ["users", "user"];
+      default:
+        return [table];
+    }
+  })();
 
   for (const tableCandidate of tableCandidates) {
     let shouldTryNextTable = false;
@@ -495,13 +534,17 @@ export async function fetchAdminAnalyticsDataset(signal?: AbortSignal): Promise<
     return rpcDataset;
   }
 
-  const [rawUsers, rawEvents, rawFests, rawRegistrations, rawAttendance] = await Promise.all([
+  const [usersResult, eventsResult, festsResult, registrationsResult, attendanceResult] = await Promise.allSettled([
     fetchWithSelectFallback<Record<string, unknown>>(
       supabase,
       "users",
       [
+        "email,name,created_at",
+        "email,name,is_organiser,is_support,is_masteradmin,created_at",
+        "email,name,campus,department,course,is_organiser,is_support,is_masteradmin,created_at",
         "email,name,campus,department,course,organization_type,is_organiser,is_support,is_masteradmin,created_at",
         "email,name,course,organization_type,is_organiser,is_support,is_masteradmin,created_at",
+        "email,name,course,is_organiser,is_support,is_masteradmin,created_at",
       ],
       signal
     ),
@@ -509,11 +552,19 @@ export async function fetchAdminAnalyticsDataset(signal?: AbortSignal): Promise<
       supabase,
       "events",
       [
+        "event_id,title,event_date,created_at,category",
+        "event_id,title,event_date,created_at,category,organizing_dept,fest",
+        "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,fest,created_by",
         "event_id,title,event_date,created_at,category,event_type,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest_id,fest,created_by",
         "event_id,title,event_date,created_at,category,event_type,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest,created_by",
         "event_id,title,event_date,created_at,category,organizing_dept,campus_hosted_at,registration_fee,outsider_registration_fee,fest,created_by",
         "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,fest,created_by",
         "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,created_by",
+        "event_id,title,event_date,created_at,category,organizing_dept,registration_fee,fest",
+        "event_id,title,event_date,created_at,category,organizing_dept,fest",
+        "event_id,title,event_date,created_at,category,organizing_dept",
+        "event_id,title,event_date,created_at,category",
+        "event_id,title,event_date,created_at",
       ],
       signal
     ),
@@ -521,8 +572,8 @@ export async function fetchAdminAnalyticsDataset(signal?: AbortSignal): Promise<
       supabase,
       "fests",
       [
-        "fest_id,fest_title,organizing_dept,campus_hosted_at,opening_date,closing_date",
         "fest_id,fest_title,organizing_dept,opening_date,closing_date",
+        "fest_id,fest_title,organizing_dept,campus_hosted_at,opening_date,closing_date",
       ],
       signal
     ),
@@ -530,8 +581,8 @@ export async function fetchAdminAnalyticsDataset(signal?: AbortSignal): Promise<
       supabase,
       "registrations",
       [
-        "registration_id,event_id,registration_type,participant_organization,user_email,individual_email,team_leader_email,teammates,created_at",
         "registration_id,event_id,registration_type,user_email,individual_email,team_leader_email,teammates,created_at",
+        "registration_id,event_id,registration_type,participant_organization,user_email,individual_email,team_leader_email,teammates,created_at",
       ],
       signal
     ),
@@ -542,6 +593,12 @@ export async function fetchAdminAnalyticsDataset(signal?: AbortSignal): Promise<
       signal
     ),
   ]);
+
+  const rawUsers = usersResult.status === "fulfilled" ? usersResult.value : [];
+  const rawEvents = eventsResult.status === "fulfilled" ? eventsResult.value : [];
+  const rawFests = festsResult.status === "fulfilled" ? festsResult.value : [];
+  const rawRegistrations = registrationsResult.status === "fulfilled" ? registrationsResult.value : [];
+  const rawAttendance = attendanceResult.status === "fulfilled" ? attendanceResult.value : [];
 
   return buildDataset(rawUsers, rawEvents, rawFests, rawRegistrations, rawAttendance);
 }

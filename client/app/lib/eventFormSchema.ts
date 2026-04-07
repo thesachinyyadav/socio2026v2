@@ -106,7 +106,16 @@ export const eventFormSchema = z
         "Invalid fee format. Enter a number (e.g., 0, 50, 100.50)"
       )
       .transform((val) => (val === "" ? undefined : val)),
+    isTeamEvent: z.boolean().default(false),
     maxParticipants: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || (Number(val) > 0 && Number.isInteger(Number(val))),
+        "Must be a positive integer"
+      )
+      .transform((val) => (val === "" ? undefined : val)),
+    minParticipants: z
       .string()
       .optional()
       .refine(
@@ -124,6 +133,7 @@ export const eventFormSchema = z
     whatsappLink: z.string().url("Invalid URL").optional().or(z.literal("")),
     provideClaims: z.boolean().default(false),
     sendNotifications: z.boolean().default(false),
+    onSpot: z.boolean().default(false),
     
     // Outsider registration fields
     allowOutsiders: z.boolean().default(false),
@@ -144,9 +154,11 @@ export const eventFormSchema = z
       )
       .transform((val) => (val === "" ? undefined : val)),
 
-    // Campus fields (only used when outsiders are NOT allowed)
-    campusHostedAt: z.string().optional().default(""),
-    allowedCampuses: z.array(z.string()).optional().default([]),
+    // Campus fields (mandatory)
+    campusHostedAt: z.string().min(1, "Hosted campus is required"),
+    allowedCampuses: z
+      .array(z.string())
+      .min(1, "Select at least one campus"),
 
     imageFile: fileSchema(
       MAX_FILE_SIZE_IMAGE,
@@ -185,6 +197,37 @@ export const eventFormSchema = z
   })
   .refine(
     (data) => {
+      if (!data.isTeamEvent) return true;
+      return !!data.maxParticipants && Number(data.maxParticipants) > 1;
+    },
+    {
+      message: "For team events, max participants per team must be at least 2",
+      path: ["maxParticipants"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.isTeamEvent) return true;
+      return !!data.minParticipants && Number(data.minParticipants) > 1;
+    },
+    {
+      message: "For team events, min participants per team must be at least 2",
+      path: ["minParticipants"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.isTeamEvent) return true;
+      if (!data.minParticipants || !data.maxParticipants) return true;
+      return Number(data.minParticipants) <= Number(data.maxParticipants);
+    },
+    {
+      message: "Min participants per team cannot exceed max participants per team",
+      path: ["minParticipants"],
+    }
+  )
+  .refine(
+    (data) => {
       if (data.eventDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.eventDate);
       }
@@ -220,59 +263,39 @@ export const departments = [
     label: "All Departments",
   },
   {
-    value: "dept_english_cultural_studies",
-    label: "Department of English and Cultural Studies",
-  },
-  { value: "dept_languages", label: "Department of Languages" },
-  { value: "dept_media_studies", label: "Department of Media Studies" },
-  {
-    value: "dept_performing_arts_theatre_music",
-    label: "Department of Performing Arts, Theatre Studies and Music",
+    value: "dept_business_management_bba",
+    label: "Department of Business and Management (BBA)",
   },
   {
-    value: "dept_philosophy_theology",
-    label: "Department of Philosophy and Theology",
-  },
-  {
-    value: "dept_business_management",
-    label: "Department of Business and Management",
+    value: "dept_business_management_mba",
+    label: "Department of Business and Management (MBA)",
   },
   { value: "dept_hotel_management", label: "Department of Hotel Management" },
-  {
-    value: "dept_tourism_management",
-    label: "Department of Tourism Management",
-  },
   { value: "dept_commerce", label: "Department of Commerce" },
   {
     value: "dept_professional_studies",
     label: "Department of Professional Studies",
   },
-  { value: "dept_civil_engineering", label: "Department of Civil Engineering" },
   {
-    value: "dept_computer_science_engineering",
-    label: "Department of Computer Science and Engineering",
+    value: "dept_english_cultural_studies",
+    label: "Department of English and Cultural Studies",
+  },
+  { value: "dept_music", label: "Department of Music" },
+  {
+    value: "dept_performing_arts",
+    label: "Department of Performing Arts",
   },
   {
-    value: "dept_electrical_electronics_engineering",
-    label: "Department of Electrical and Electronics Engineering",
+    value: "dept_philosophy_theology",
+    label: "Department of Philosophy and Theology",
   },
-  {
-    value: "dept_electronics_communication_engineering",
-    label: "Department of Electronics and Communication Engineering",
-  },
-  {
-    value: "dept_mechanical_automobile_engineering",
-    label: "Department of Mechanical and Automobile Engineering",
-  },
-  {
-    value: "dept_sciences_humanities_eng",
-    label: "Department of Sciences and Humanities",
-  },
-  {
-    value: "dept_computer_science_sci",
-    label: "Department of Computer Science",
-  },
+  { value: "dept_theatre_studies", label: "Department of Theatre Studies" },
+  { value: "dept_school_of_law", label: "Department of School of Law" },
+  { value: "dept_psychology", label: "Department of Psychology" },
+  { value: "dept_school_of_education", label: "Department of School of Education" },
+  { value: "dept_social_work", label: "Department of Social Work" },
   { value: "dept_chemistry", label: "Department of Chemistry" },
+  { value: "dept_computer_science", label: "Department of Computer Science" },
   { value: "dept_life_sciences", label: "Department of Life Sciences" },
   { value: "dept_mathematics", label: "Department of Mathematics" },
   {
@@ -286,14 +309,9 @@ export const departments = [
   { value: "dept_economics", label: "Department of Economics" },
   {
     value: "dept_international_studies_political_science_history",
-    label:
-      "Department of International Studies, Political Science, and History",
+    label: "Department of International Studies, Political Science and History",
   },
-  {
-    value: "dept_sociology_social_work",
-    label: "Department of Sociology and Social Work",
-  },
-  { value: "dept_liberal_arts", label: "Department of Liberal Arts" },
+  { value: "dept_media_studies", label: "Department of Media Studies" },
 ];
 
 export const categories = [
