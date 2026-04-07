@@ -1735,12 +1735,6 @@ function CreateFestForm(props?: CreateFestProps) {
                   </div>
                 </div>
 
-                <DepartmentAndCategoryInputs
-                  formData={formData}
-                  errors={errors}
-                  setFormData={setFormData}
-                  validateField={validateField}
-                />
                 <div>
                   <label
                     htmlFor="organizingDept"
@@ -1783,6 +1777,14 @@ function CreateFestForm(props?: CreateFestProps) {
                     </p>
                   )}
                 </div>
+
+                <DepartmentAndCategoryInputs
+                  formData={formData}
+                  errors={errors}
+                  setFormData={setFormData}
+                  validateField={validateField}
+                />
+
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">
                     Fest image: <span className="text-red-500">*</span> (max

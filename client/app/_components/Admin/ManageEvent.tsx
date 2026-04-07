@@ -1587,93 +1587,121 @@ export default function EventForm({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between h-[46px] sm:h-[48px] mt-0 sm:mt-7">
-                    <label
-                      htmlFor="isTeamEvent"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Team event
-                    </label>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <Controller
-                        name="isTeamEvent"
-                        control={control}
-                        render={({ field }) => (
-                          <input
-                            type="checkbox"
-                            id="isTeamEvent"
-                            checked={!!field.value}
-                            onChange={(e) => field.onChange(e.target.checked)}
-                            className="sr-only peer"
-                          />
-                        )}
-                      />
-                      <div className={toggleTrackClass}></div>
-                    </label>
-                  </div>
-                  {watchedIsTeamEvent && (
-                    <div className="space-y-3">
-                      <InputField
-                        label="Max participants per team:"
-                        name="maxParticipants"
-                        type="text"
-                        inputMode="numeric"
-                        register={register}
-                        registerOptions={{
-                          validate: (value) => {
-                            if (!watchedIsTeamEvent) return true;
-
-                            const maxRaw = String(value || "").trim();
-                            if (!maxRaw) return "Max participants per team is required";
-                            if (!/^\d+$/.test(maxRaw)) return "Enter a whole number";
-
-                            const maxValue = Number(maxRaw);
-                            if (maxValue < 2) return "Must be at least 2 for team events";
-
-                            const minRaw = String(watch("minParticipants") || "").trim();
-                            if (minRaw && /^\d+$/.test(minRaw) && maxValue < Number(minRaw)) {
-                              return "Max participants must be greater than or equal to min participants";
-                            }
-
-                            return true;
-                          },
-                        }}
-                        error={errors.maxParticipants}
-                        required
-                        placeholder="e.g., 2, 3, 5"
-                      />
-                      <InputField
-                        label="Min participants per team:"
-                        name="minParticipants"
-                        type="text"
-                        inputMode="numeric"
-                        register={register}
-                        registerOptions={{
-                          validate: (value) => {
-                            if (!watchedIsTeamEvent) return true;
-
-                            const minRaw = String(value || "").trim();
-                            if (!minRaw) return "Min participants per team is required";
-                            if (!/^\d+$/.test(minRaw)) return "Enter a whole number";
-
-                            const minValue = Number(minRaw);
-                            if (minValue < 2) return "Must be at least 2 for team events";
-
-                            const maxRaw = String(watch("maxParticipants") || "").trim();
-                            if (maxRaw && /^\d+$/.test(maxRaw) && minValue > Number(maxRaw)) {
-                              return "Min participants cannot exceed max participants";
-                            }
-
-                            return true;
-                          },
-                        }}
-                        error={errors.minParticipants}
-                        required
-                        placeholder="e.g., 2"
-                      />
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-3">
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <label
+                        htmlFor="isTeamEvent"
+                        className="text-sm font-medium text-gray-700 whitespace-nowrap"
+                      >
+                        Team event
+                      </label>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <Controller
+                          name="isTeamEvent"
+                          control={control}
+                          render={({ field }) => (
+                            <input
+                              type="checkbox"
+                              id="isTeamEvent"
+                              checked={!!field.value}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                          )}
+                        />
+                        <div className={toggleTrackClass}></div>
+                      </label>
                     </div>
-                  )}
+                    {watchedIsTeamEvent && (
+                      <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                        <div className="flex-1 sm:flex-none">
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                            Min
+                          </label>
+                          <Controller
+                            name="minParticipants"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                              <input
+                                {...field}
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="e.g., 2"
+                                className={`w-full px-3 py-2 text-sm rounded-lg border transition-all ${
+                                  fieldState.error
+                                    ? "border-red-500 focus:ring-red-500"
+                                    : "border-gray-300 focus:ring-[#154CB3]"
+                                } focus:outline-none focus:ring-1 focus:border-transparent`}
+                              />
+                            )}
+                            rules={{
+                              validate: (value) => {
+                                if (!watchedIsTeamEvent) return true;
+                                const minRaw = String(value || "").trim();
+                                if (!minRaw) return "Min is required";
+                                if (!/^\d+$/.test(minRaw)) return "Enter a number";
+                                const minValue = Number(minRaw);
+                                if (minValue < 2) return "Min 2 for teams";
+                                const maxRaw = String(watch("maxParticipants") || "").trim();
+                                if (maxRaw && /^\d+$/.test(maxRaw) && minValue > Number(maxRaw)) {
+                                  return "Min ≤ Max";
+                                }
+                                return true;
+                              },
+                            }}
+                          />
+                          {errors.minParticipants && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.minParticipants.message}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex-1 sm:flex-none">
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                            Max
+                          </label>
+                          <Controller
+                            name="maxParticipants"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                              <input
+                                {...field}
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="e.g., 5"
+                                className={`w-full px-3 py-2 text-sm rounded-lg border transition-all ${
+                                  fieldState.error
+                                    ? "border-red-500 focus:ring-red-500"
+                                    : "border-gray-300 focus:ring-[#154CB3]"
+                                } focus:outline-none focus:ring-1 focus:border-transparent`}
+                              />
+                            )}
+                            rules={{
+                              validate: (value) => {
+                                if (!watchedIsTeamEvent) return true;
+                                const maxRaw = String(value || "").trim();
+                                if (!maxRaw) return "Max is required";
+                                if (!/^\d+$/.test(maxRaw)) return "Enter a number";
+                                const maxValue = Number(maxRaw);
+                                if (maxValue < 2) return "Max 2 for teams";
+                                const minRaw = String(watch("minParticipants") || "").trim();
+                                if (minRaw && /^\d+$/.test(minRaw) && maxValue < Number(minRaw)) {
+                                  return "Max ≥ Min";
+                                }
+                                return true;
+                              },
+                            }}
+                          />
+                          {errors.maxParticipants && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.maxParticipants.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <InputField
@@ -1904,45 +1932,30 @@ export default function EventForm({
                   placeholder="e.g., Department of Computer Science /  Student Welfare Organization"
                 />
 
-                <div className="my-2">
-                  <div className="inline-flex bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 items-center gap-2 flex-wrap">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
+                  <div className="flex items-center justify-between gap-4">
                     <label className="text-sm font-medium text-gray-700">
                       Are claims provided for this fest?
                     </label>
-                    <Controller
-                      name="provideClaims"
-                      control={control}
-                      render={({ field }) => (
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={!!field.value}
-                          aria-label="Are claims provided for this fest"
-                          onClick={() => field.onChange(!field.value)}
-                          className={`relative h-5 w-14 shrink-0 rounded-full border-2 shadow-inner transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-[1.01] hover:brightness-105 hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            field.value
-                              ? "bg-green-500 border-green-600 focus:ring-green-500"
-                              : "bg-red-500 border-red-600 focus:ring-red-500"
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none absolute inset-0 flex items-center text-[10px] font-extrabold tracking-wide text-white transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                              field.value ? "justify-start pl-2" : "justify-end pr-2"
-                            }`}
-                          >
-                            {field.value ? "YES" : "NO"}
-                          </span>
-                          <span
-                            className={`pointer-events-none absolute left-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border border-white/90 bg-white shadow-sm transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                              field.value ? "translate-x-8" : "translate-x-0"
-                            }`}
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <Controller
+                        name="provideClaims"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="provideClaims"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="sr-only peer"
                           />
-                        </button>
-                      )}
-                    />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
                   </div>
                   {errors.provideClaims && (
-                    <p className="text-red-500 text-xs mt-1">
+                    <p className="text-red-500 text-xs mt-2">
                       {errors.provideClaims.message}
                     </p>
                   )}
