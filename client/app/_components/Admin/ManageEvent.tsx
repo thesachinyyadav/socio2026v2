@@ -1465,8 +1465,8 @@ export default function EventForm({
                             Specify where the event takes place and who can attend
                           </p>
                         </div>
-                        <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap">
-                          Optional
+                        <span className="text-xs bg-red-100 text-red-800 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap">
+                          Required
                         </span>
                       </div>
 
@@ -1474,23 +1474,33 @@ export default function EventForm({
                         {/* Hosted At */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-2">
-                            Where is the event Hosted at?
+                            Where is the event Hosted at? <span className="text-red-500">*</span>
                           </label>
                           <Controller
                             name="campusHostedAt"
                             control={control}
+                            rules={{ required: "Hosted campus is required" }}
                             render={({ field }) => (
-                              <select
-                                {...field}
-                                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-0 focus:border-transparent bg-white transition-all"
-                              >
-                                <option value="">Select campus</option>
-                                {christCampuses.map((campus) => (
-                                  <option key={campus} value={campus}>
-                                    {campus}
-                                  </option>
-                                ))}
-                              </select>
+                              <>
+                                <select
+                                  {...field}
+                                  className={`w-full px-3.5 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-0 focus:border-transparent bg-white transition-all ${
+                                    errors.campusHostedAt ? "border-red-500" : "border-gray-300"
+                                  }`}
+                                >
+                                  <option value="">Select campus</option>
+                                  {christCampuses.map((campus) => (
+                                    <option key={campus} value={campus}>
+                                      {campus}
+                                    </option>
+                                  ))}
+                                </select>
+                                {errors.campusHostedAt && (
+                                  <p className="text-red-500 text-xs mt-2">
+                                    {errors.campusHostedAt.message}
+                                  </p>
+                                )}
+                              </>
                             )}
                           />
                         </div>
@@ -1498,13 +1508,22 @@ export default function EventForm({
                         {/* Who Can Register */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-2">
-                            Who can register?
+                            Who can register? <span className="text-red-500">*</span>
                           </label>
                           <Controller
                             name="allowedCampuses"
                             control={control}
+                            rules={{
+                              validate: (value) =>
+                                (Array.isArray(value) && value.length > 0) ||
+                                "Select at least one campus",
+                            }}
                             render={({ field }) => (
-                              <div className="space-y-1.5 h-[102px] overflow-y-auto pr-2">
+                              <div
+                                className={`space-y-1.5 h-[102px] overflow-y-auto pr-2 rounded-md ${
+                                  errors.allowedCampuses ? "border border-red-500 p-2" : ""
+                                }`}
+                              >
                                 {christCampuses.map((campus) => (
                                   <label
                                     key={campus}
@@ -1530,10 +1549,13 @@ export default function EventForm({
                             )}
                           />
                           <p className="text-xs text-gray-500 mt-2">
-                            {!watch("allowOutsiders") 
-                              ? "All campuses or select specific campuses where this event will be held (Mandatory)"
-                              : "Leave all unchecked to allow all campuses"}
+                            Select at least one campus that can register for this event.
                           </p>
+                          {errors.allowedCampuses && (
+                            <p className="text-red-500 text-xs mt-2">
+                              {errors.allowedCampuses.message as string}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

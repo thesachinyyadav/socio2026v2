@@ -3,22 +3,6 @@ import CreateFestForm from "../../../_components/CreateFestForm";
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "../../../../context/AuthContext"; // Adjust path
-import { CustomField } from "../../../_components/UI/DynamicCustomFieldBuilder";
-
-const normalizeCustomFields = (value: unknown): CustomField[] => {
-  if (Array.isArray(value)) return value as CustomField[];
-
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? (parsed as CustomField[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-};
 
 interface FestDataForEdit {
   title: string;
@@ -31,7 +15,6 @@ interface FestDataForEdit {
   contactPhone: string;
   eventHeads: { email: string; expiresAt: string | null }[];
   organizingDept: string;
-  customFields: CustomField[];
 }
 
 const EditPage = () => {
@@ -97,7 +80,6 @@ const EditPage = () => {
               contactPhone: data.fest.contact_phone || "",
               eventHeads: transformedEventHeads,
               organizingDept: data.fest.organizing_dept || "",
-              customFields: normalizeCustomFields(data.fest.custom_fields),
             };
             setFestData(fetched);
 
@@ -159,7 +141,6 @@ const EditPage = () => {
       contactPhone={festData?.contactPhone}
       eventHeads={festData?.eventHeads}
       organizingDept={festData?.organizingDept}
-      customFields={festData?.customFields}
       isEditMode={true}
       existingImageFileUrl={existingImageFileUrl}
       existingBannerFileUrl={existingBannerFileUrl}

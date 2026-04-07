@@ -562,6 +562,23 @@ router.post(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const campusHostedAt =
+        String(req.body.campus_hosted_at || req.body.campusHostedAt || "").trim();
+      const parsedAllowedCampuses = Array.isArray(req.body.allowed_campuses)
+        ? req.body.allowed_campuses
+        : parseJsonField(req.body.allowed_campuses, []);
+
+      if (!campusHostedAt) {
+        return res.status(400).json({
+          error: "Campus hosted at is required.",
+        });
+      }
+
+      if (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) {
+        return res.status(400).json({
+          error: "At least one allowed campus is required.",
+        });
+      }
 
       console.log("✅ JSON fields parsed successfully");
       console.log("About to insert event into database with:", {
@@ -607,10 +624,8 @@ router.post(
         on_spot: req.body.on_spot === "true" || req.body.on_spot === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
-        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
-        allowed_campuses: Array.isArray(req.body.allowed_campuses)
-          ? req.body.allowed_campuses
-          : parseJsonField(req.body.allowed_campuses, []),
+        campus_hosted_at: campusHostedAt,
+        allowed_campuses: parsedAllowedCampuses,
       }]);
 
       if (!created || created.length === 0) {
@@ -953,6 +968,23 @@ router.put(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const campusHostedAt =
+        String(req.body.campus_hosted_at || req.body.campusHostedAt || "").trim();
+      const parsedAllowedCampuses = Array.isArray(req.body.allowed_campuses)
+        ? req.body.allowed_campuses
+        : parseJsonField(req.body.allowed_campuses, []);
+
+      if (!campusHostedAt) {
+        return res.status(400).json({
+          error: "Campus hosted at is required.",
+        });
+      }
+
+      if (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) {
+        return res.status(400).json({
+          error: "At least one allowed campus is required.",
+        });
+      }
 
       // Prepare update payload
       // Note: Only include event_id if it's NOT changing (to avoid primary key update issues)
@@ -987,10 +1019,8 @@ router.put(
         on_spot: req.body.on_spot === "true" || req.body.on_spot === true ? 1 : 0,
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
-        campus_hosted_at: req.body.campus_hosted_at || req.body.campusHostedAt || null,
-        allowed_campuses: Array.isArray(req.body.allowed_campuses)
-          ? req.body.allowed_campuses
-          : parseJsonField(req.body.allowed_campuses, []),
+        campus_hosted_at: campusHostedAt,
+        allowed_campuses: parsedAllowedCampuses,
         updated_at: new Date().toISOString(),
         // Auto-unarchive if date changed to future
         ...(shouldAutoUnarchive ? { is_archived: false, archived_at: null, archived_by: null } : {})

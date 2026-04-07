@@ -146,9 +146,11 @@ export const eventFormSchema = z
       )
       .transform((val) => (val === "" ? undefined : val)),
 
-    // Campus fields (only used when outsiders are NOT allowed)
-    campusHostedAt: z.string().optional().default(""),
-    allowedCampuses: z.array(z.string()).optional().default([]),
+    // Campus fields (mandatory)
+    campusHostedAt: z.string().min(1, "Hosted campus is required"),
+    allowedCampuses: z
+      .array(z.string())
+      .min(1, "Select at least one campus"),
 
     imageFile: fileSchema(
       MAX_FILE_SIZE_IMAGE,
