@@ -78,6 +78,31 @@ const parseComparableDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const deriveFestStatusFromDates = (
+  openingDateValue,
+  closingDateValue,
+  fallbackStatus = "upcoming"
+) => {
+  const openingDate = parseComparableDate(openingDateValue);
+  const closingDate = parseComparableDate(closingDateValue) || openingDate;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (!openingDate && !closingDate) {
+    return fallbackStatus;
+  }
+
+  if (openingDate && today < openingDate) {
+    return "upcoming";
+  }
+
+  if (closingDate && today > closingDate) {
+    return "past";
+  }
+
+  return "ongoing";
+};
+
 const isMissingColumnError = (error) => String(error?.code || "") === "42703";
 const isMissingRelationError = (error) => {
   const code = String(error?.code || "").toUpperCase();
@@ -591,12 +616,16 @@ router.post(
       }
 
       // Proceed with insertion
+      const openingDateValue = festData.openingDate || festData.opening_date || null;
+      const closingDateValue = festData.closingDate || festData.closing_date || null;
+      const derivedStatus = deriveFestStatusFromDates(openingDateValue, closingDateValue, "upcoming");
+
       const festPayload = {
         fest_id,
         fest_title: festData.festTitle || festData.title || "",
         description: festData.description || festData.detailed_description || festData.detailedDescription || "",
-        opening_date: festData.openingDate || festData.opening_date || null,
-        closing_date: festData.closingDate || festData.closing_date || null,
+        opening_date: openingDateValue,
+        closing_date: closingDateValue,
         fest_image_url: festData.festImageUrl || festData.fest_image_url || null,
         organizing_dept: festData.organizingDept || festData.organizing_dept || "",
         department_access: festData.departmentAccess || festData.department_access || [],
@@ -608,7 +637,7 @@ router.post(
         auth_uuid: req.userId,
         // New enhanced fest fields
         venue: festData.venue || null,
-        status: festData.status || "upcoming",
+        status: derivedStatus,
         registration_deadline: festData.registration_deadline || null,
         timeline: festData.timeline || [],
         sponsors: festData.sponsors || [],
@@ -726,6 +755,15 @@ router.put(
       const allowedCampusesInput = pickDefined(updateData.allowed_campuses, updateData.allowedCampuses);
       const departmentHostedAtInput = pickDefined(updateData.department_hosted_at, updateData.departmentHostedAt);
       const allowOutsidersInput = pickDefined(updateData.allow_outsiders, updateData.allowOutsiders);
+      const incomingOpeningDate = pickDefined(updateData.opening_date, updateData.openingDate);
+      const incomingClosingDate = pickDefined(updateData.closing_date, updateData.closingDate);
+      const resolvedOpeningDate = incomingOpeningDate !== undefined ? incomingOpeningDate : existingFest.opening_date;
+      const resolvedClosingDate = incomingClosingDate !== undefined ? incomingClosingDate : existingFest.closing_date;
+      const derivedStatus = deriveFestStatusFromDates(
+        resolvedOpeningDate,
+        resolvedClosingDate,
+        existingFest.status || "upcoming"
+      );
 
       const updatePayload = {};
 
@@ -742,8 +780,8 @@ router.put(
       const mapFields = [
         ["fest_title", newTitle],
         ["description", updateData.description ?? updateData.detailed_description ?? updateData.detailedDescription],
-        ["opening_date", updateData.opening_date ?? updateData.openingDate],
-        ["closing_date", updateData.closing_date ?? updateData.closingDate],
+        ["opening_date", incomingOpeningDate],
+        ["closing_date", incomingClosingDate],
         ["fest_image_url", incomingImageUrl],
         ["organizing_dept", updateData.organizing_dept ?? updateData.organizingDept],
         ["category", updateData.category],
@@ -754,7 +792,7 @@ router.put(
         ["custom_fields", parseJsonLikeField(customFieldsInput, [])],
         // New enhanced fest fields - parse JSON safely
         ["venue", updateData.venue],
-        ["status", updateData.status],
+        ["status", derivedStatus],
         ["registration_deadline", updateData.registration_deadline],
         ["timeline", parseJsonLikeField(updateData.timeline, [])],
         ["sponsors", parseJsonLikeField(updateData.sponsors, [])],

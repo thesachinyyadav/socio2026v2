@@ -451,7 +451,7 @@ interface CreateFestState {
   eventHeads: { email: string; expiresAt: string | null }[];
   organizingDept: string;
   venue: string;
-  status: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled";
+  status: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled" | "past";
   registration_deadline: string;
   timeline: { time: string; title: string; description: string }[];
   sponsors: { name: string; logo_url: string; website?: string }[];
@@ -541,7 +541,7 @@ function DepartmentAndCategoryInputs({
         >
           Department accessibility: <span className="text-red-500">*</span>
         </label>
-        <p className="text-xs text-gray-500 mb-2">
+        <p className="text-xs text-gray-500 mb-2 min-h-[18px]">
           Departments allowed to access this fest
         </p>
         <button
@@ -637,6 +637,7 @@ function DepartmentAndCategoryInputs({
         >
           Category: <span className="text-red-500">*</span>
         </label>
+        <p className="text-xs text-gray-500 mb-2 min-h-[18px]">Classify this fest for discovery</p>
         <button
           type="button"
           id="category-trigger"
@@ -734,7 +735,7 @@ interface CreateFestProps {
   existingBannerFileUrl?: string | null;
   existingPdfFileUrl?: string | null;
   venue?: string;
-  status?: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled";
+  status?: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled" | "past";
   registration_deadline?: string;
   timeline?: { time: string; title: string; description: string }[];
   sponsors?: { name: string; logo_url: string; website?: string }[];
@@ -794,7 +795,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const existingPdfFileUrl = props?.existingPdfFileUrl || null;
   // New fest enhancement fields
   const venue = props?.venue || "";
-  const status = props?.status || "upcoming";
+  const status = deriveFestStatusFromDates(openingDate, closingDate);
   const registration_deadline = "";
   const timeline = props?.timeline || [];
   const sponsors = props?.sponsors || [];
@@ -885,15 +886,17 @@ function CreateFestForm(props?: CreateFestProps) {
             });
 
             const parsedCustomFields = parseFestCustomFields(data.fest.custom_fields);
-            
+            const loadedOpeningDate = data.fest.opening_date
+              ? formatDateToYYYYMMDD(new Date(data.fest.opening_date))
+              : "";
+            const loadedClosingDate = data.fest.closing_date
+              ? formatDateToYYYYMMDD(new Date(data.fest.closing_date))
+              : "";
+
             setFormData({
               title: data.fest.fest_title || "",
-              openingDate: data.fest.opening_date
-                ? formatDateToYYYYMMDD(new Date(data.fest.opening_date))
-                : "",
-              closingDate: data.fest.closing_date
-                ? formatDateToYYYYMMDD(new Date(data.fest.closing_date))
-                : "",
+              openingDate: loadedOpeningDate,
+              closingDate: loadedClosingDate,
               isTeamEvent: false,
               minParticipants: "1",
               maxParticipants: "1",
@@ -905,7 +908,7 @@ function CreateFestForm(props?: CreateFestProps) {
               eventHeads: transformedEventHeads,
               organizingDept: data.fest.organizing_dept || "",
               venue: data.fest.venue || "",
-              status: data.fest.status || "upcoming",
+              status: deriveFestStatusFromDates(loadedOpeningDate, loadedClosingDate),
               registration_deadline: "",
               timeline: data.fest.timeline || [],
               sponsors: data.fest.sponsors || [],
@@ -933,6 +936,17 @@ function CreateFestForm(props?: CreateFestProps) {
       fetchFestData();
     }
   }, [isEditModeFromPath, festIdFromPath, session, pathname]); // Use isEditModeFromPath here
+
+  useEffect(() => {
+    const derivedStatus = deriveFestStatusFromDates(
+      formData.openingDate,
+      formData.closingDate
+    );
+
+    setFormData((prev) =>
+      prev.status === derivedStatus ? prev : { ...prev, status: derivedStatus }
+    );
+  }, [formData.openingDate, formData.closingDate]);
 
   const deleteFest = async () => {
     if (
@@ -1459,7 +1473,10 @@ function CreateFestForm(props?: CreateFestProps) {
         organizingDept: formData.organizingDept,
         createdBy: session.user.email,
         venue: formData.venue,
-        status: formData.status,
+        status: deriveFestStatusFromDates(
+          formData.openingDate,
+          formData.closingDate
+        ),
         registration_deadline: null,
         timeline: formData.timeline,
         sponsors: formData.sponsors,
@@ -2076,7 +2093,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     htmlFor="organizingDept"
                     className="block mb-2 text-sm font-medium text-gray-700"
                   >
-                    Organizing department:{" "}
+                    Organizing department (Select or Type):{" "}
                     <span className="text-red-500">*</span>
                   </label>
                   <datalist id="organizing-dept-list">
@@ -2090,7 +2107,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     type="text"
                     id="organizingDept"
                     list="organizing-dept-list"
-                    placeholder="Enter or select organizing department"
+                    placeholder="Select or type organizing department"
                     value={formData.organizingDept}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
@@ -2257,10 +2274,10 @@ function CreateFestForm(props?: CreateFestProps) {
                     )}
                   </div>
                 </div>
-                <div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6">
-                    <div className="flex items-center mb-4 sm:mb-0">
-                      <div className="bg-[#FFCC00] rounded-full w-8 h-8 flex items-center justify-center mr-3 shrink-0">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-[#FFCC00] rounded-full w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 16 16"
@@ -2272,10 +2289,10 @@ function CreateFestForm(props?: CreateFestProps) {
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-bold text-[#063168]">
-                          Event heads: (optional, max 5)
+                          Event heads (optional, max 5)
                         </h3>
-                        <p className="text-xs sm:text-sm text-gray-500">
-                          Assign organiser access to event heads
+                        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                          Assign organizer access with optional expiry.
                         </p>
                       </div>
                     </div>
@@ -2285,120 +2302,128 @@ function CreateFestForm(props?: CreateFestProps) {
                       disabled={formData.eventHeads.length >= 5}
                       aria-label="Add event head"
                       title="Add event head"
-                      className="bg-[#063168] px-4 py-2.5 rounded-full text-white cursor-pointer text-sm font-medium"
+                      className="bg-[#063168] px-4 py-2.5 rounded-full text-white cursor-pointer text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Add heads +
+                      + Add Head
                     </button>
                   </div>
-                  {formData.eventHeads.map((eventHead, index) => (
-                    <div key={index} className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <input
-                            type="email"
-                            placeholder="Enter event head email"
-                            value={eventHead.email}
-                            onChange={(e) =>
-                              handleEventHeadChange(index, e.target.value)
-                            }
-                            onBlur={() => handleEventHeadBlur(index)}
-                            aria-describedby={
-                              errors[`eventHead_${index}`]
-                                ? `eventHead-error-${index}`
-                                : undefined
-                            }
-                            className={`w-full px-4 py-3 sm:py-3.5 rounded-lg border ${
-                              errors[`eventHead_${index}`]
-                                ? "border-red-500"
-                                : "border-gray-300"
-                            } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm sm:text-base bg-white`}
-                          />
-                          {errors[`eventHead_${index}`] && (
-                            <p
-                              id={`eventHead-error-${index}`}
-                              className="text-red-500 text-xs mt-1"
-                            >
-                              {errors[`eventHead_${index}`]}
+
+                  {formData.eventHeads.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
+                      No event heads added yet.
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    {formData.eventHeads.map((eventHead, index) => (
+                      <div key={index} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Head {index + 1}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => removeEventHead(index)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                            aria-label={`Remove event head ${index + 1}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <label
+                          htmlFor={`event-head-email-${index}`}
+                          className="block text-xs font-semibold text-gray-600 mb-1.5"
+                        >
+                          Event head email
+                        </label>
+                        <input
+                          id={`event-head-email-${index}`}
+                          type="email"
+                          placeholder="name@christuniversity.in"
+                          value={eventHead.email}
+                          onChange={(e) => handleEventHeadChange(index, e.target.value)}
+                          onBlur={() => handleEventHeadBlur(index)}
+                          aria-describedby={
+                            errors[`eventHead_${index}`]
+                              ? `eventHead-error-${index}`
+                              : undefined
+                          }
+                          className={`w-full px-4 py-2.5 rounded-lg border ${
+                            errors[`eventHead_${index}`] ? "border-red-500" : "border-gray-300"
+                          } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm bg-white`}
+                        />
+                        {errors[`eventHead_${index}`] && (
+                          <p id={`eventHead-error-${index}`} className="text-red-500 text-xs mt-1">
+                            {errors[`eventHead_${index}`]}
+                          </p>
+                        )}
+
+                        <div className="mt-3 pt-3 border-t border-slate-200">
+                          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+                            <div>
+                              <label
+                                htmlFor={`event-head-expiration-${index}`}
+                                className="block text-xs font-semibold text-gray-600 mb-1.5"
+                              >
+                                Organizer access expiry (optional)
+                              </label>
+                              <input
+                                id={`event-head-expiration-${index}`}
+                                type="datetime-local"
+                                value={eventHead.expiresAt ? new Date(eventHead.expiresAt).toISOString().slice(0, 16) : ""}
+                                onChange={(e) =>
+                                  handleEventHeadExpirationChange(
+                                    index,
+                                    e.target.value ? new Date(e.target.value).toISOString() : null
+                                  )
+                                }
+                                aria-label={`Event head ${index + 1} expiration date and time`}
+                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                              {["1 week", "1 month", "3 months"].map((preset) => (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => {
+                                    const date = new Date();
+                                    if (preset === "1 week") date.setDate(date.getDate() + 7);
+                                    else if (preset === "1 month") date.setMonth(date.getMonth() + 1);
+                                    else if (preset === "3 months") date.setMonth(date.getMonth() + 3);
+                                    handleEventHeadExpirationChange(index, date.toISOString());
+                                  }}
+                                  className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-gray-600"
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                              {eventHead.expiresAt && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEventHeadExpirationChange(index, null)}
+                                  className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-red-300 hover:bg-red-50 transition-colors text-red-600"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {eventHead.expiresAt ? (
+                            <p className="text-xs text-green-600 mt-2">
+                              Access expires: {new Date(eventHead.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-amber-600 mt-2">
+                              No expiration set. Access remains active until removed.
                             </p>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeEventHead(index)}
-                          className="p-2 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 rounded-full cursor-pointer"
-                          aria-label={`Remove event head ${index + 1}`}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                            className="size-5"
-                          >
-                            <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
-                          </svg>
-                        </button>
                       </div>
-                      
-                      {/* Organiser Access Expiration */}
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <label htmlFor={`event-head-expiration-${index}`} className="block text-xs font-semibold text-gray-600 mb-2">
-                          Organiser Access Expiration (optional)
-                        </label>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <input
-                            id={`event-head-expiration-${index}`}
-                            type="datetime-local"
-                            value={eventHead.expiresAt ? new Date(eventHead.expiresAt).toISOString().slice(0, 16) : ""}
-                            onChange={(e) =>
-                              handleEventHeadExpirationChange(
-                                index,
-                                e.target.value ? new Date(e.target.value).toISOString() : null
-                              )
-                            }
-                            aria-label={`Event head ${index + 1} expiration date and time`}
-                            className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
-                          />
-                          <div className="flex gap-1">
-                            {["1 week", "1 month", "3 months"].map((preset) => (
-                              <button
-                                key={preset}
-                                type="button"
-                                onClick={() => {
-                                  const date = new Date();
-                                  if (preset === "1 week") date.setDate(date.getDate() + 7);
-                                  else if (preset === "1 month") date.setMonth(date.getMonth() + 1);
-                                  else if (preset === "3 months") date.setMonth(date.getMonth() + 3);
-                                  handleEventHeadExpirationChange(index, date.toISOString());
-                                }}
-                                className="px-2 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-100 transition-colors text-gray-600"
-                              >
-                                {preset}
-                              </button>
-                            ))}
-                            {eventHead.expiresAt && (
-                              <button
-                                type="button"
-                                onClick={() => handleEventHeadExpirationChange(index, null)}
-                                className="px-2 py-1 text-xs font-medium rounded border border-red-300 hover:bg-red-50 transition-colors text-red-600"
-                              >
-                                Clear
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {eventHead.expiresAt && (
-                          <p className="text-xs text-green-600 mt-1">
-                            ✓ Access expires: {new Date(eventHead.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                        )}
-                        {!eventHead.expiresAt && (
-                          <p className="text-xs text-amber-600 mt-1">
-                            ⚠ No expiration set - access will be permanent
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 {/* Additional Fest Details Section */}
@@ -2429,23 +2454,34 @@ function CreateFestForm(props?: CreateFestProps) {
                       />
                     </div>
 
-                    {/* Status */}
+                    {/* Status (auto from dates) */}
                     <div>
-                      <label htmlFor="status" className="block mb-2 text-sm font-medium text-gray-700">
-                        Status
+                      <label className="block mb-2 text-sm font-medium text-gray-700">
+                        Status (Auto from dates)
                       </label>
-                      <select
-                        id="status"
-                        value={formData.status}
-                        onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as CreateFestState["status"] }))}
-                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm"
-                      >
-                        <option value="draft">Draft</option>
-                        <option value="upcoming">Upcoming</option>
-                        <option value="ongoing">Ongoing</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
+                      <div className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-slate-50 flex items-center justify-between text-sm">
+                        <span className="text-gray-700">
+                          {formData.status === "upcoming"
+                            ? "Before opening date"
+                            : formData.status === "ongoing"
+                              ? "Within fest duration"
+                              : "After closing date"}
+                        </span>
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide ${
+                            formData.status === "upcoming"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : formData.status === "ongoing"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-slate-200 text-slate-700"
+                          }`}
+                        >
+                          {formData.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Upcoming: before opening date, Ongoing: between opening and closing, Past: after closing.
+                      </p>
                     </div>
                   </div>
 
