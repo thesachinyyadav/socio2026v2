@@ -413,7 +413,7 @@ const HELP_MESSAGE = [
 const FLOW_CONTINUE_LABEL = "Continue";
 const FLOW_RECAP_LABEL = "Quick recap";
 const FLOW_SKIP_LABEL = "Show other prompts";
-const LOCAL_STREAM_STEP_DELAY_MS = 12;
+const LOCAL_STREAM_STEP_DELAY_MS = 36;
 
 function splitIntoProgressiveChunks(answer: string): string[] {
   const normalized = answer.replace(/\s+/g, " ").trim();
@@ -722,7 +722,9 @@ export default function ChatBot() {
     const message = content.trim();
     if (!message) return;
 
-    if (!streamLocally || message.length < 36) {
+    setIsThinking(false);
+
+    if (!streamLocally) {
       setMessages((prev) => [...prev, { role: "assistant", content: message }]);
       return;
     }
@@ -731,16 +733,16 @@ export default function ChatBot() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
     setIsStreaming(true);
 
-    const totalLength = message.length;
-    const chunkSize = Math.max(4, Math.ceil(totalLength / 44));
+    const tokens = message.match(/\S+\s*/g) || [message];
+    let built = "";
 
     try {
-      for (let cursor = chunkSize; cursor <= totalLength + chunkSize; cursor += chunkSize) {
+      for (const token of tokens) {
         if (localStreamVersionRef.current !== streamVersion) {
           return;
         }
 
-        const partial = message.slice(0, Math.min(cursor, totalLength));
+        built += token;
         setMessages((prev) => {
           if (prev.length === 0) return prev;
           const next = [...prev];
@@ -749,16 +751,14 @@ export default function ChatBot() {
           if (next[lastIndex].role === "assistant") {
             next[lastIndex] = {
               ...next[lastIndex],
-              content: partial,
+              content: built,
             };
           }
 
           return next;
         });
 
-        if (cursor < totalLength) {
-          await wait(LOCAL_STREAM_STEP_DELAY_MS);
-        }
+        await wait(LOCAL_STREAM_STEP_DELAY_MS);
       }
     } finally {
       if (localStreamVersionRef.current === streamVersion) {
@@ -936,13 +936,57 @@ export default function ChatBot() {
       throw new Error("Streaming is unavailable on this connection.");
     }
 
+    const streamVersion = ++localStreamVersionRef.current;
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
     setIsThinking(false);
     setIsStreaming(true);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let accumulated = "";
+    let carryToken = "";
+    let rendered = "";
+
+    const pushRendered = () => {
+      setMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const next = [...prev];
+        const lastIndex = next.length - 1;
+
+        if (next[lastIndex].role === "assistant") {
+          next[lastIndex] = {
+            ...next[lastIndex],
+            content: rendered,
+          };
+        } else {
+          next.push({ role: "assistant", content: rendered });
+        }
+
+        return next;
+      });
+    };
+
+    const streamByWords = async (incomingText: string, flushRemainder = false) => {
+      const merged = carryToken + incomingText;
+      const tokens = merged.match(/\S+\s*/g) || [];
+
+      if (flushRemainder) {
+        carryToken = "";
+      } else if (!/\s$/.test(merged) && tokens.length > 0) {
+        carryToken = tokens.pop() || "";
+      } else {
+        carryToken = "";
+      }
+
+      for (const token of tokens) {
+        if (localStreamVersionRef.current !== streamVersion) {
+          return;
+        }
+
+        rendered += token;
+        pushRendered();
+        await wait(LOCAL_STREAM_STEP_DELAY_MS);
+      }
+    };
 
     try {
       while (true) {
@@ -952,41 +996,21 @@ export default function ChatBot() {
         const chunk = decoder.decode(value, { stream: true });
         if (!chunk) continue;
 
-        accumulated += chunk;
-        setMessages((prev) => {
-          if (prev.length === 0) return prev;
-          const next = [...prev];
-          const lastIndex = next.length - 1;
-          if (next[lastIndex].role === "assistant") {
-            next[lastIndex] = {
-              ...next[lastIndex],
-              content: accumulated,
-            };
-          } else {
-            next.push({ role: "assistant", content: accumulated });
-          }
-          return next;
-        });
+        await streamByWords(chunk);
       }
 
       const finalChunk = decoder.decode();
       if (finalChunk) {
-        accumulated += finalChunk;
-        setMessages((prev) => {
-          if (prev.length === 0) return prev;
-          const next = [...prev];
-          const lastIndex = next.length - 1;
-          if (next[lastIndex].role === "assistant") {
-            next[lastIndex] = {
-              ...next[lastIndex],
-              content: accumulated,
-            };
-          }
-          return next;
-        });
+        await streamByWords(finalChunk);
       }
 
-      if (!accumulated.trim()) {
+      if (carryToken && localStreamVersionRef.current === streamVersion) {
+        rendered += carryToken;
+        carryToken = "";
+        pushRendered();
+      }
+
+      if (!rendered.trim()) {
         setMessages((prev) => {
           if (prev.length === 0) return prev;
           const next = [...prev];
@@ -999,7 +1023,7 @@ export default function ChatBot() {
         throw new Error("Received an empty assistant response.");
       }
     } catch (error) {
-      if (accumulated.trim()) {
+      if (rendered.trim()) {
         return;
       }
 
