@@ -771,6 +771,16 @@ router.patch(
       }
 
       const archiveValue = shouldArchive;
+      const rawSendNotifications = req.body?.send_notifications;
+      const hasExplicitNotificationPreference =
+        rawSendNotifications !== undefined &&
+        rawSendNotifications !== null &&
+        String(rawSendNotifications).trim() !== "";
+      const shouldSendPublishNotifications =
+        !archiveValue &&
+        (hasExplicitNotificationPreference
+          ? asBoolean(rawSendNotifications)
+          : true);
       const nowIso = new Date().toISOString();
       const buildArchivePayload = (includeArchivedBy = true) => ({
         is_archived: archiveValue,
@@ -808,8 +818,32 @@ router.patch(
       const updatedEvent = updatedRows[0];
       const archiveState = deriveArchiveState(updatedEvent);
 
+      if (shouldSendPublishNotifications) {
+        const eventTitle = updatedEvent?.title || "An event";
+        const publishedEventId = updatedEvent?.event_id || eventId;
+        sendBroadcastNotification({
+          title: "Event Published",
+          message: `${eventTitle} is now live! Check it out.`,
+          type: "info",
+          event_id: publishedEventId,
+          event_title: eventTitle,
+          action_url: `/event/${publishedEventId}`,
+        })
+          .then(() => {
+            console.log(
+              `✅ Sent publish notifications for unarchived event: ${eventTitle}`
+            );
+          })
+          .catch((notifError) => {
+            console.error(
+              "❌ Failed to send publish notifications on unarchive:",
+              notifError
+            );
+          });
+      }
+
       return res.status(200).json({
-        message: archiveValue ? "Event archived successfully." : "Event moved back to active list.",
+        message: archiveValue ? "Event archived successfully." : "Event published successfully.",
         event: {
           ...updatedEvent,
           fest: updatedEvent.fest_id || null, // Map fest_id to fest for frontend compatibility
@@ -937,6 +971,7 @@ router.put(
         schedule,
         prizes,
         max_participants,
+        send_notifications,
         is_archived,
         save_as_draft
       } = req.body;
@@ -950,6 +985,16 @@ router.put(
         rawArchivePreference !== null &&
         String(rawArchivePreference).trim() !== "";
       const shouldArchiveFromRequest = asBoolean(rawArchivePreference);
+      const hasExplicitNotificationPreference =
+        send_notifications !== undefined &&
+        send_notifications !== null &&
+        String(send_notifications).trim() !== "";
+      const wasArchivedBeforeUpdate = asBoolean(event?.is_archived);
+      const isPublishTransition =
+        hasArchivePreference && !shouldArchiveFromRequest && wasArchivedBeforeUpdate;
+      const shouldSendPublishNotifications =
+        isPublishTransition &&
+        (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
 
       // ─── AUTO-UNARCHIVE LOGIC ───────────────────────────────────────────
       // If an event was auto-archived (date passed) but then the date is changed
@@ -1112,6 +1157,34 @@ router.put(
 
       const updated = await update("events", updateData, { event_id: eventId });
 
+      const notifyPublishIfNeeded = (eventRecord) => {
+        if (!shouldSendPublishNotifications) {
+          return;
+        }
+
+        const eventTitle = eventRecord?.title || title.trim() || "An event";
+        const publishedEventId = eventRecord?.event_id || newEventId || eventId;
+        sendBroadcastNotification({
+          title: "Event Published",
+          message: `${eventTitle} is now live! Check it out.`,
+          type: "info",
+          event_id: publishedEventId,
+          event_title: eventTitle,
+          action_url: `/event/${publishedEventId}`,
+        })
+          .then(() => {
+            console.log(
+              `✅ Sent publish notifications for updated event: ${eventTitle}`
+            );
+          })
+          .catch((notifError) => {
+            console.error(
+              "❌ Failed to send publish notifications during update:",
+              notifError
+            );
+          });
+      };
+
       console.log("💾 Database update result:");
       if (updated && updated.length > 0) {
         console.log(`✅ Event updated successfully`);
@@ -1128,6 +1201,7 @@ router.put(
             throw new Error("Could not fetch updated event after update");
           }
           console.log(`✅ Event updated and refetched successfully: ${eventId}`);
+          notifyPublishIfNeeded(refetchedEvent);
           
           // Push to UniversityGated if outsiders were enabled/changed (non-blocking)
           if (isGatedEnabled()) {
@@ -1163,6 +1237,7 @@ router.put(
 
       // At this point, updated is guaranteed to have data (either from update or refetch)
       const updatedEvent = updated[0];
+      notifyPublishIfNeeded(updatedEvent);
 
       // Push to UniversityGated if outsiders were enabled/changed (non-blocking)
       if (isGatedEnabled()) {

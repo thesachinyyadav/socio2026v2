@@ -327,6 +327,9 @@ export default function EditEventPage() {
     options?: { archiveAsDraft?: boolean }
   ) => {
     const archiveAsDraft = Boolean(options?.archiveAsDraft);
+    const publishFromArchivedEvent = !archiveAsDraft && isArchived;
+    const shouldSendPublishNotifications =
+      publishFromArchivedEvent && formData.sendNotifications !== false;
 
     if (!session) {
       setErrorMessage(
@@ -376,6 +379,12 @@ export default function EditEventPage() {
     payload.append("on_spot", String(formData.onSpot || false));
     if (archiveAsDraft) {
       payload.append("is_archived", "true");
+    } else if (publishFromArchivedEvent) {
+      payload.append("is_archived", "false");
+      payload.append(
+        "send_notifications",
+        String(shouldSendPublishNotifications)
+      );
     }
 
     payload.append("department_access", JSON.stringify(formData.department || []));
@@ -506,7 +515,19 @@ export default function EditEventPage() {
           setExistingImageFileUrl(resultJson.event.event_image_url || null);
           setExistingBannerFileUrl(resultJson.event.banner_url || null);
           setExistingPdfFileUrl(resultJson.event.pdf_url || null);
+          const stillArchived =
+            resultJson.event.is_archived === true ||
+            resultJson.event.is_archived === 1 ||
+            resultJson.event.is_archived === "1" ||
+            resultJson.event.is_archived === "true";
+          setIsArchived(Boolean(stillArchived));
         }
+
+        const successMessage = archiveAsDraft
+          ? "Draft saved successfully!"
+          : publishFromArchivedEvent
+            ? "Event published successfully!"
+            : "Event updated successfully!";
         
         // If the event_id changed (title was updated), show success message and redirect to new URL
         if (resultJson.id_changed && resultJson.event_id) {
@@ -515,7 +536,7 @@ export default function EditEventPage() {
           console.log(`Event ID changed from '${oldId}' to '${newId}', redirecting...`);
           
           toast.success(
-            `Event updated successfully! The event link has changed from /event/${oldId} to /event/${newId}`,
+            `${successMessage} The event link has changed from /event/${oldId} to /event/${newId}`,
             { duration: 5000 }
           );
           
@@ -523,24 +544,19 @@ export default function EditEventPage() {
           return;
         } else {
           // Show regular success message
-          toast.success(
-            archiveAsDraft
-              ? "Draft saved successfully!"
-              : "Event updated successfully!",
-            { duration: 3000 }
-          );
+          toast.success(successMessage, { duration: 3000 });
         }
       } catch (e) {
         console.warn(
           "Could not parse update response as JSON, or event data missing in response."
         );
         // Still show success if response was ok
-        toast.success(
-          archiveAsDraft
-            ? "Draft saved successfully!"
-            : "Event updated successfully!",
-          { duration: 3000 }
-        );
+        const fallbackMessage = archiveAsDraft
+          ? "Draft saved successfully!"
+          : publishFromArchivedEvent
+            ? "Event published successfully!"
+            : "Event updated successfully!";
+        toast.success(fallbackMessage, { duration: 3000 });
       }
     } catch (error: any) {
       console.error("Error in handleUpdateEvent:", error);

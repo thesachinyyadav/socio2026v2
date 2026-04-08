@@ -297,7 +297,7 @@ const MappedEventCard = ({
                   : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            {isArchiveActionLoading ? "Saving..." : isArchived ? "Unarchive" : "Archive"} <History className="w-4 h-4" />
+            {isArchiveActionLoading ? "Saving..." : isArchived ? "Publish" : "Archive"} <History className="w-4 h-4" />
           </button>
           <Link href={`/${baseUrl}/${event.event_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
             Edit <Pencil className="w-4 h-4" />
@@ -1033,7 +1033,11 @@ export default function ManageDashboard() {
         });
       }
 
-      toast.success(shouldArchive ? "✅ Event archived successfully." : "✅ Event moved back to active list.");
+      toast.success(
+        shouldArchive
+          ? "✅ Event archived successfully."
+          : "✅ Event published successfully."
+      );
       console.log(`✅ Archive update successful`);
       
       // Refresh live events to reflect the latest archive status

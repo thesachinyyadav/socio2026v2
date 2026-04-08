@@ -1460,13 +1460,15 @@ export default function EventForm({
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
                 {successAction === "draft"
                   ? "Draft Saved!"
-                  : `Event ${isEditMode ? "Updated!" : "Published!"}`}
+                  : `Event ${
+                      isEditMode && isArchived ? "Published!" : isEditMode ? "Updated!" : "Published!"
+                    }`}
               </h2>
               <p className="text-gray-600 mb-6 text-sm sm:text-base">
                 {successAction === "draft"
                   ? "Your event has been saved as a draft and is archived. You can publish it later by unarchiving it."
                   : `Your event has been successfully ${
-                      isEditMode ? "updated" : "published"
+                      isEditMode && isArchived ? "published" : isEditMode ? "updated" : "published"
                     }.`}
               </p>
               <button
@@ -2201,7 +2203,7 @@ export default function EventForm({
                                 : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 focus:ring-amber-500"
                           }`}
                         >
-                          {isArchiveUpdating ? "Saving..." : isArchived ? "Unarchive" : "Archive"}
+                          {isArchiveUpdating ? "Saving..." : isArchived ? "Publish" : "Archive"}
                         </button>
                       )}
                       <button
@@ -2267,10 +2269,14 @@ export default function EventForm({
                   >
                     {isSubmittingProp || rhfIsSubmitting
                       ? isEditMode
-                        ? "Updating..."
+                        ? isArchived
+                          ? "Publishing..."
+                          : "Updating..."
                         : "Publishing..."
                       : isEditMode
-                      ? "Update Event"
+                      ? isArchived
+                        ? "Publish Event"
+                        : "Update Event"
                       : "Publish Event"}
                   </button>
                 </div>
