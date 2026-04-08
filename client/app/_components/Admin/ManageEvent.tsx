@@ -2083,88 +2083,27 @@ export default function EventForm({
                 </div>
 
                 <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
-                  <Controller
-                    name="provideClaims"
-                    control={control}
-                    render={({ field }) => {
-                      const claimsEnabled = Boolean(field.value);
-
-                      return (
-                        <div className="flex flex-col gap-3">
-                          <label className="text-sm font-medium text-gray-700">
-                            Are claims provided for this fest?
-                          </label>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <button
-                              type="button"
-                              aria-pressed={claimsEnabled}
-                              onClick={() => field.onChange(true)}
-                              className={`inline-flex items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-semibold transition-colors ${
-                                claimsEnabled
-                                  ? "border-green-500 bg-green-50 text-green-700"
-                                  : "border-gray-300 bg-white text-gray-600 hover:border-green-300 hover:text-green-700"
-                              }`}
-                            >
-                              <span
-                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
-                                  claimsEnabled
-                                    ? "bg-green-500 text-white"
-                                    : "border border-green-500 bg-white text-green-500"
-                                }`}
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                  className="h-4 w-4"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.704 5.29a1 1 0 010 1.42l-7.25 7.25a1 1 0 01-1.415 0l-3.25-3.25a1 1 0 111.414-1.42l2.543 2.544 6.543-6.544a1 1 0 011.415 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </span>
-                              <span>Yes</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              aria-pressed={!claimsEnabled}
-                              onClick={() => field.onChange(false)}
-                              className={`inline-flex items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-semibold transition-colors ${
-                                !claimsEnabled
-                                  ? "border-red-500 bg-red-50 text-red-700"
-                                  : "border-gray-300 bg-white text-gray-600 hover:border-red-300 hover:text-red-700"
-                              }`}
-                            >
-                              <span
-                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
-                                  !claimsEnabled
-                                    ? "bg-red-500 text-white"
-                                    : "border border-red-500 bg-white text-red-500"
-                                }`}
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                  className="h-4 w-4"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </span>
-                              <span>No</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
+                  <div className="flex items-center justify-between gap-4">
+                    <label className="text-sm font-medium text-gray-700">
+                      Are claims provided for this fest?
+                    </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <Controller
+                        name="provideClaims"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="provideClaims"
+                            checked={Boolean(field.value)}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
+                  </div>
                   {errors.provideClaims && (
                     <p className="text-red-500 text-xs mt-2">
                       {errors.provideClaims.message}
