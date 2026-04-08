@@ -2087,22 +2087,86 @@ export default function EventForm({
                     <label className="text-sm font-medium text-gray-700">
                       Are claims provided for this fest?
                     </label>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <Controller
-                        name="provideClaims"
-                        control={control}
-                        render={({ field }) => (
-                          <input
-                            type="checkbox"
-                            id="provideClaims"
-                            checked={Boolean(field.value)}
-                            onChange={(e) => field.onChange(e.target.checked)}
-                            className="sr-only peer"
-                          />
-                        )}
-                      />
-                      <div className={toggleTrackClass}></div>
-                    </label>
+                    <Controller
+                      name="provideClaims"
+                      control={control}
+                      render={({ field }) => {
+                        const claimsEnabled = Boolean(field.value);
+
+                        return (
+                          <label
+                            htmlFor="provideClaims"
+                            className="relative inline-flex items-center cursor-pointer select-none"
+                          >
+                            <input
+                              type="checkbox"
+                              id="provideClaims"
+                              checked={claimsEnabled}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                              className="sr-only"
+                            />
+
+                            <div
+                              className={`relative h-8 w-20 rounded-full border-2 transition-colors ${
+                                claimsEnabled
+                                  ? "border-green-500 bg-green-50"
+                                  : "border-red-500 bg-red-50"
+                              }`}
+                            >
+                              <span
+                                className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold tracking-wide ${
+                                  claimsEnabled
+                                    ? "left-2 text-green-700"
+                                    : "right-2 text-red-700"
+                                }`}
+                              >
+                                {claimsEnabled ? "YES" : "NO"}
+                              </span>
+
+                              <span
+                                className={`absolute top-0.5 left-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-white transition-transform ${
+                                  claimsEnabled
+                                    ? "translate-x-[3.25rem] border-green-500 text-green-600"
+                                    : "translate-x-0 border-red-500 text-red-600"
+                                }`}
+                              >
+                                {claimsEnabled ? (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={2.5}
+                                    stroke="currentColor"
+                                    className="h-3.5 w-3.5"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M4.5 12.75l6 6 9-13.5"
+                                    />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={2.5}
+                                    stroke="currentColor"
+                                    className="h-3.5 w-3.5"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M6 18L18 6M6 6l12 12"
+                                    />
+                                  </svg>
+                                )}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      }}
+                    />
                   </div>
                   {errors.provideClaims && (
                     <p className="text-red-500 text-xs mt-2">
