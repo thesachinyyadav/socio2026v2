@@ -28,6 +28,14 @@ interface ChatApiResponse {
 interface InbuiltPromptQA {
   question: string;
   answer: string;
+  followUps?: string[];
+}
+
+interface ProgressiveFlowState {
+  question: string;
+  chunks: string[];
+  nextChunkIndex: number;
+  followUps: string[];
 }
 
 /* ─── Suggested Prompt Sets ─────────────────────────── */
@@ -35,10 +43,12 @@ const GLOBAL_INBUILT_QA: InbuiltPromptQA[] = [
   {
     question: "What is SOCIO?",
     answer: "SOCIO is Christ University's event platform for discovering, registering, and managing campus events and activities.",
+    followUps: ["What can I do?", "Where start?"],
   },
   {
     question: "What can I do?",
     answer: "You can discover events, register, track attendance, explore fests, and use support resources from one place.",
+    followUps: ["Events listed?", "Fests listed?"],
   },
   {
     question: "Is SOCIO free?",
@@ -67,6 +77,7 @@ const GLOBAL_INBUILT_QA: InbuiltPromptQA[] = [
   {
     question: "Where start?",
     answer: "Start from Discover, then open Events or Fests to find what you want to join.",
+    followUps: ["Open Discover?", "Events listed?"],
   },
   {
     question: "Open Discover?",
@@ -91,6 +102,7 @@ const GLOBAL_INBUILT_QA: InbuiltPromptQA[] = [
   {
     question: "Need support?",
     answer: "Use Contact or Support pages for quick help, guided articles, and direct team assistance.",
+    followUps: ["Help Center?", "Report issue?"],
   },
   {
     question: "Contact email?",
@@ -160,6 +172,7 @@ const GLOBAL_INBUILT_QA: InbuiltPromptQA[] = [
 
 const EVENTS_INBUILT_QA: InbuiltPromptQA[] = [
   {
+    followUps: ["Open Discover?", "Events listed?"],
     question: "Shortlist events?",
     answer: "Use search and filters first, open only the top matches, and shortlist events that fit your date and interest. Then review those shortlisted cards together to make a final registration choice faster.",
   },
@@ -397,6 +410,80 @@ const HELP_MESSAGE = [
   "- Use navigation commands like: open events, go to profile, open fests.",
 ].join("\n");
 
+const FLOW_CONTINUE_LABEL = "Continue";
+const FLOW_RECAP_LABEL = "Quick recap";
+const FLOW_SKIP_LABEL = "Show other prompts";
+
+function splitIntoProgressiveChunks(answer: string): string[] {
+  const normalized = answer.replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+
+  const sentenceMatches = normalized.match(/[^.!?]+[.!?]?/g);
+  const sentences = (sentenceMatches || [normalized])
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    const candidate = currentChunk
+      ? `${currentChunk} ${sentence}`
+      : sentence;
+
+    if (candidate.length <= 170) {
+      currentChunk = candidate;
+      continue;
+    }
+
+    if (currentChunk) chunks.push(currentChunk);
+    currentChunk = sentence;
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks.length > 0 ? chunks : [normalized];
+}
+
+function formatProgressiveChunkMessage(
+  question: string,
+  chunk: string,
+  chunkIndex: number,
+  totalChunks: number
+): string {
+  const intro =
+    totalChunks > 1
+      ? `Let's go step-by-step for "${question}" (${chunkIndex + 1}/${totalChunks}).`
+      : `Here is a quick answer for "${question}".`;
+
+  const outro =
+    chunkIndex < totalChunks - 1
+      ? `\n\nWould you like the next step? Tap "${FLOW_CONTINUE_LABEL}".`
+      : "\n\nThat covers it. Want a related topic next?";
+
+  return `${intro}\n\n${chunk}${outro}`;
+}
+
+function isContinueFlowIntent(input: string): boolean {
+  const normalized = normalizePromptForMatch(input);
+  return normalized === normalizePromptForMatch(FLOW_CONTINUE_LABEL)
+    || /^(next|continue|go on|yes|step \d+)$/i.test(normalized);
+}
+
+function isRecapFlowIntent(input: string): boolean {
+  const normalized = normalizePromptForMatch(input);
+  return normalized === normalizePromptForMatch(FLOW_RECAP_LABEL)
+    || /recap|summary|summarize/i.test(normalized);
+}
+
+function isSkipFlowIntent(input: string): boolean {
+  const normalized = normalizePromptForMatch(input);
+  return normalized === normalizePromptForMatch(FLOW_SKIP_LABEL)
+    || /show (other|more) prompts|skip/i.test(normalized);
+}
+
 function getUserFacingErrorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message.trim() : "";
   if (!raw) return UNKNOWN_ANSWER_MESSAGE;
@@ -494,16 +581,17 @@ export default function ChatBot() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showFabPulse, setShowFabPulse] = useState(true);
   const [dailyUsage, setDailyUsage] = useState<ChatUsage | null>(null);
+  const [activeFlow, setActiveFlow] = useState<ProgressiveFlowState | null>(null);
 
   const inbuiltPromptQA = useMemo(() => getInbuiltPromptQA(pathname), [pathname]);
   const quickPrompts = useMemo(
     () => inbuiltPromptQA.map((entry) => entry.question),
     [inbuiltPromptQA]
   );
-  const inbuiltAnswerMap = useMemo(() => {
-    const map = new Map<string, string>();
+  const inbuiltPromptMap = useMemo(() => {
+    const map = new Map<string, InbuiltPromptQA>();
     for (const entry of inbuiltPromptQA) {
-      map.set(normalizePromptForMatch(entry.question), entry.answer);
+      map.set(normalizePromptForMatch(entry.question), entry);
     }
     return map;
   }, [inbuiltPromptQA]);
@@ -514,7 +602,25 @@ export default function ChatBot() {
   const suggestionPool = unseenSuggestions.length > 0
     ? unseenSuggestions
     : quickPrompts;
-  const visibleSuggestions = suggestionPool.slice(0, 4);
+
+  const visibleSuggestions = useMemo(() => {
+    if (!activeFlow) {
+      return suggestionPool.slice(0, 4);
+    }
+
+    const contextualFollowUps = activeFlow.followUps.length > 0
+      ? activeFlow.followUps
+      : suggestionPool.filter((prompt) => prompt !== activeFlow.question);
+
+    const merged = [
+      FLOW_CONTINUE_LABEL,
+      FLOW_RECAP_LABEL,
+      ...contextualFollowUps,
+      FLOW_SKIP_LABEL,
+    ];
+
+    return Array.from(new Set(merged)).slice(0, 4);
+  }, [activeFlow, suggestionPool]);
 
   const resetChat = useCallback(() => {
     if (streamAbortRef.current) {
@@ -522,6 +628,7 @@ export default function ChatBot() {
       streamAbortRef.current = null;
     }
     setMessages([{ role: "assistant", content: WELCOME_MESSAGE }]);
+    setActiveFlow(null);
     setInput("");
     setIsThinking(false);
     setIsStreaming(false);
@@ -590,11 +697,6 @@ export default function ChatBot() {
       return HELP_MESSAGE;
     }
 
-    const inbuiltAnswer = inbuiltAnswerMap.get(normalizePromptForMatch(trimmed));
-    if (inbuiltAnswer) {
-      return inbuiltAnswer;
-    }
-
     const navTarget = detectNavigationCommand(trimmed);
     if (navTarget) {
       if (navTarget.path === pathname) {
@@ -620,7 +722,7 @@ export default function ChatBot() {
     }
 
     return null;
-  }, [fetchWebSummary, inbuiltAnswerMap, pathname, router]);
+  }, [fetchWebSummary, pathname, router]);
 
   const requestChatReply = useCallback(async (trimmed: string, history: Message[]): Promise<string> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -842,6 +944,104 @@ export default function ChatBot() {
     setIsThinking(true);
 
     try {
+      if (activeFlow && isSkipFlowIntent(trimmed)) {
+        setActiveFlow(null);
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Sure, let's switch topics. Pick a prompt below or ask me anything." },
+        ]);
+        return;
+      }
+
+      if (activeFlow && isRecapFlowIntent(trimmed)) {
+        const deliveredChunks = activeFlow.chunks.slice(0, activeFlow.nextChunkIndex);
+        const hasNext = activeFlow.nextChunkIndex < activeFlow.chunks.length;
+        const recapMessage = [
+          `Quick recap for "${activeFlow.question}":`,
+          deliveredChunks.join(" "),
+          hasNext
+            ? `\nWould you like to continue? Tap "${FLOW_CONTINUE_LABEL}" for the next step.`
+            : "\nYou've reached the final step. Want to explore a related prompt?",
+        ].join("\n\n");
+
+        setMessages((prev) => [...prev, { role: "assistant", content: recapMessage }]);
+        return;
+      }
+
+      if (activeFlow && isContinueFlowIntent(trimmed)) {
+        const chunkIndex = activeFlow.nextChunkIndex;
+        if (chunkIndex >= activeFlow.chunks.length) {
+          setActiveFlow(null);
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "We've reached the end of that answer. Pick a related prompt and I'll continue." },
+          ]);
+          return;
+        }
+
+        const chunkMessage = formatProgressiveChunkMessage(
+          activeFlow.question,
+          activeFlow.chunks[chunkIndex],
+          chunkIndex,
+          activeFlow.chunks.length
+        );
+
+        const nextIndex = chunkIndex + 1;
+        if (nextIndex >= activeFlow.chunks.length) {
+          setActiveFlow(null);
+        } else {
+          setActiveFlow((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  nextChunkIndex: nextIndex,
+                }
+              : prev
+          );
+        }
+
+        setMessages((prev) => [...prev, { role: "assistant", content: chunkMessage }]);
+        return;
+      }
+
+      const inbuiltEntry = inbuiltPromptMap.get(normalizePromptForMatch(trimmed));
+      if (inbuiltEntry) {
+        const chunks = splitIntoProgressiveChunks(inbuiltEntry.answer);
+        if (chunks.length === 0) {
+          setActiveFlow(null);
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: UNKNOWN_ANSWER_MESSAGE },
+          ]);
+          return;
+        }
+
+        const firstChunkMessage = formatProgressiveChunkMessage(
+          inbuiltEntry.question,
+          chunks[0],
+          0,
+          chunks.length
+        );
+
+        if (chunks.length > 1) {
+          setActiveFlow({
+            question: inbuiltEntry.question,
+            chunks,
+            nextChunkIndex: 1,
+            followUps: inbuiltEntry.followUps || [],
+          });
+        } else {
+          setActiveFlow(null);
+        }
+
+        setMessages((prev) => [...prev, { role: "assistant", content: firstChunkMessage }]);
+        return;
+      }
+
+      if (activeFlow) {
+        setActiveFlow(null);
+      }
+
       const localReply = await generateLocalReply(trimmed);
       if (localReply) {
         setMessages((prev) => [...prev, { role: "assistant", content: localReply }]);
@@ -934,10 +1134,10 @@ export default function ChatBot() {
             <div className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden backdrop-blur-sm ${
+                  <div className={`max-w-[86%] px-4 py-3 rounded-2xl text-[13px] sm:text-sm leading-6 whitespace-pre-wrap break-words overflow-hidden backdrop-blur-sm shadow-sm ${
                     msg.role === "user"
-                      ? "bg-gradient-to-r from-[#1f63de] to-[#154CB3] text-white rounded-br-md shadow-[0_8px_20px_-8px_rgba(31,99,222,0.8)]"
-                      : "bg-white/10 border border-white/10 text-blue-50 rounded-bl-md"
+                      ? "bg-gradient-to-br from-[#2d7bf8] via-[#1f63de] to-[#154CB3] border border-blue-200/35 text-white rounded-br-md shadow-[0_10px_24px_-12px_rgba(31,99,222,0.95)]"
+                      : "bg-white/10 border border-white/15 text-blue-50 rounded-bl-md"
                   }`}>
                     {msg.content}
                   </div>
@@ -957,21 +1157,32 @@ export default function ChatBot() {
 
               {visibleSuggestions.length > 0 && !isTyping && !isThinking && !input.trim() && (
                 <div className="mt-3 rounded-2xl border border-blue-200/20 bg-[#10275d]/45 px-3 py-3">
-                  <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100/80">
-                    Tap a quick prompt
+                  <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-100/85">
+                    {activeFlow ? "Continue this answer" : "Try a quick prompt"}
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {visibleSuggestions.map((q) => (
-                      <button
-                        key={q}
-                        onClick={() => handleQuestion(q)}
-                        className="h-10 w-full rounded-full border border-blue-200/35 bg-[#13397d]/45 px-3 py-2 text-center text-[12px] font-medium leading-4 text-blue-50 transition-colors hover:border-cyan-200/60 hover:bg-[#1c4fb6]/45 hover:text-white"
-                        title={q}
-                        type="button"
-                      >
-                        <span className="block overflow-hidden whitespace-nowrap">{q}</span>
-                      </button>
-                    ))}
+                  <div className="flex flex-wrap gap-2">
+                    {visibleSuggestions.map((q) => {
+                      const isPrimaryFlowAction = activeFlow && q === FLOW_CONTINUE_LABEL;
+                      const isSecondaryFlowAction = activeFlow && (q === FLOW_RECAP_LABEL || q === FLOW_SKIP_LABEL);
+
+                      return (
+                        <button
+                          key={q}
+                          onClick={() => handleQuestion(q)}
+                          className={`inline-flex max-w-full items-center rounded-full border px-3.5 py-2 text-xs font-medium leading-4 transition-all ${
+                            isPrimaryFlowAction
+                              ? "border-cyan-200/75 bg-cyan-300/15 text-cyan-50 shadow-[0_8px_20px_-12px_rgba(34,211,238,0.95)]"
+                              : isSecondaryFlowAction
+                                ? "border-blue-200/45 bg-[#173b77]/60 text-blue-50 hover:border-blue-100/65 hover:bg-[#24509a]"
+                                : "border-blue-200/35 bg-[#13397d]/45 text-blue-50 hover:border-cyan-200/60 hover:bg-[#1c4fb6]/45 hover:text-white"
+                          }`}
+                          title={q}
+                          type="button"
+                        >
+                          <span className="truncate">{q}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -985,7 +1196,15 @@ export default function ChatBot() {
                   ref={inputRef}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder={isThinking ? "SocioAssist is thinking..." : isTyping ? "SocioAssist is replying... (send to interrupt)" : "Ask anything or paste a URL"}
+                  placeholder={
+                    isThinking
+                      ? "SocioAssist is thinking..."
+                      : isTyping
+                        ? "SocioAssist is replying... (send to interrupt)"
+                        : activeFlow
+                          ? `Type "${FLOW_CONTINUE_LABEL}" or ask a related question`
+                          : "Ask anything or paste a URL"
+                  }
                   disabled={isThinking}
                   className="flex-1 min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-blue-100/65 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-300/30 transition"
                 />
@@ -1001,7 +1220,15 @@ export default function ChatBot() {
                 </button>
               </form>
               <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-blue-100/75">
-                <span>{isThinking ? "Assistant is thinking" : isTyping ? "Assistant is streaming (send to interrupt)" : "Press Enter to send"}</span>
+                <span>
+                  {isThinking
+                    ? "Assistant is thinking"
+                    : isTyping
+                      ? "Assistant is streaming (send to interrupt)"
+                      : activeFlow
+                        ? `Step-by-step mode active (${activeFlow.nextChunkIndex}/${activeFlow.chunks.length} delivered)`
+                        : "Press Enter to send"}
+                </span>
                 <div className="flex items-center gap-2">
                   {dailyUsage && (
                     <span className={`rounded-full border px-2 py-0.5 ${dailyUsage.remaining <= 1 ? "border-amber-300/55 text-amber-100" : "border-emerald-300/45 text-emerald-100"}`}>
