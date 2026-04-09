@@ -18,6 +18,64 @@ const ALLOWED_FEST_IMAGE_TYPES = [
   "image/webp",
   "image/gif",
 ];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const MAX_EMAIL_LENGTH = 100;
+const PHONE_REGEX = /^\+?[\d\s-]{10,14}$/;
+
+const normalizeEmail = (value: unknown): string =>
+  String(value ?? "").trim().toLowerCase();
+
+const isValidEmail = (value: unknown): boolean =>
+  EMAIL_REGEX.test(normalizeEmail(value));
+
+const normalizePhone = (value: unknown): string => String(value ?? "").trim();
+
+const readApiBodySafely = async (response: Response): Promise<any> => {
+  const rawText = await response.text();
+  if (!rawText) return null;
+
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return { message: rawText };
+  }
+};
+
+const extractApiErrorMessage = (
+  response: Response,
+  body: any,
+  fallbackMessage: string
+): string => {
+  if (body && typeof body === "object") {
+    const candidates = [
+      body.error,
+      body.message,
+      typeof body.details === "string" ? body.details : null,
+      body.detail,
+    ];
+    const firstMessage = candidates.find(
+      (candidate) => typeof candidate === "string" && candidate.trim().length > 0
+    );
+
+    if (firstMessage) {
+      return firstMessage;
+    }
+  }
+
+  const statusLabel = [response.status, response.statusText]
+    .filter(Boolean)
+    .join(" ");
+  return statusLabel
+    ? `${fallbackMessage} (${statusLabel})`
+    : fallbackMessage;
+};
+
+const toDateTimeLocalInputValue = (value: string | null): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 16);
+};
 
 const FEST_TEAM_SETTINGS_KEY = "__team_event_settings__";
 
@@ -788,10 +846,14 @@ function CreateFestForm(props?: CreateFestProps) {
   const detailedDescription = props?.detailedDescription || "";
   const department: string[] = props?.department || [];
   const category = props?.category || "";
-  const contactEmail = props?.contactEmail || "";
-  const contactPhone = props?.contactPhone || "";
+  const contactEmail = normalizeEmail(props?.contactEmail || "");
+  const contactPhone = normalizePhone(props?.contactPhone || "");
   const organizingDept = props?.organizingDept || "";
-  const initialEventHeads: { email: string; expiresAt: string | null }[] = props?.eventHeads || [];
+  const initialEventHeads: { email: string; expiresAt: string | null }[] =
+    (props?.eventHeads || []).map((head) => ({
+      email: normalizeEmail(head.email),
+      expiresAt: head.expiresAt || null,
+    }));
   const customFields = parseFestCustomFields(props?.customFields);
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
@@ -886,22 +948,33 @@ function CreateFestForm(props?: CreateFestProps) {
               },
             }
           );
+          const responseBody = await readApiBodySafely(response);
+
           if (!response.ok) {
             if (response.status === 404) {
               throw new Error("Fest not found.");
             }
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to fetch fest details.");
+            throw new Error(
+              extractApiErrorMessage(
+                response,
+                responseBody,
+                "Failed to fetch fest details."
+              )
+            );
           }
-          const data = await response.json();
-          if (data.fest) {
+
+          const data = responseBody;
+          if (data?.fest) {
             // Transform event_heads to new format
             const eventHeadsData = data.fest.event_heads || [];
             const transformedEventHeads = eventHeadsData.map((head: any) => {
               if (typeof head === 'string') {
-                return { email: head, expiresAt: null };
+                return { email: normalizeEmail(head), expiresAt: null };
               }
-              return { email: head.email || '', expiresAt: head.expiresAt || null };
+              return {
+                email: normalizeEmail(head.email || ""),
+                expiresAt: head.expiresAt || null,
+              };
             });
 
             const parsedCustomFields = parseFestCustomFields(data.fest.custom_fields);
@@ -922,8 +995,8 @@ function CreateFestForm(props?: CreateFestProps) {
               detailedDescription: data.fest.description || "",
               department: data.fest.department_access || [],
               category: data.fest.category || "",
-              contactEmail: data.fest.contact_email || "",
-              contactPhone: data.fest.contact_phone || "",
+              contactEmail: normalizeEmail(data.fest.contact_email || ""),
+              contactPhone: normalizePhone(data.fest.contact_phone || ""),
               eventHeads: transformedEventHeads,
               organizingDept: data.fest.organizing_dept || "",
               venue: data.fest.venue || "",
@@ -1005,9 +1078,12 @@ function CreateFestForm(props?: CreateFestProps) {
           headers: { Authorization: `Bearer ${session?.access_token}` },
         }
       );
+      const responseBody = await readApiBodySafely(response);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete fest");
+        throw new Error(
+          extractApiErrorMessage(response, responseBody, "Failed to delete fest")
+        );
       }
       router.replace("/manage");
     } catch (error: any) {
@@ -1023,8 +1099,6 @@ function CreateFestForm(props?: CreateFestProps) {
     ) => {
       const newErrors: Record<string, string | undefined> = { ...errors };
       const currentDate = new Date(currentDateRef.current);
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const phoneRegex = /^\+?[\d\s-]{10,14}$/;
 
       if (
         typeof value === "object" &&
@@ -1033,18 +1107,19 @@ function CreateFestForm(props?: CreateFestProps) {
         "eventHead" in value
       ) {
         const { index, eventHead } = value;
+        const normalizedHeadEmail = normalizeEmail(eventHead);
         const expiryValue = formData.eventHeads[index]?.expiresAt || null;
 
-        if (eventHead.trim() === "") {
+        if (normalizedHeadEmail === "") {
           delete newErrors[`eventHead_${index}`];
           delete newErrors[`eventHeadExpiry_${index}`];
-        } else if (!emailRegex.test(eventHead))
+        } else if (!isValidEmail(normalizedHeadEmail))
           newErrors[`eventHead_${index}`] = "Invalid email format.";
-        else if (eventHead.length > 100)
+        else if (normalizedHeadEmail.length > MAX_EMAIL_LENGTH)
           newErrors[`eventHead_${index}`] = "Max 100 chars.";
         else delete newErrors[`eventHead_${index}`];
 
-        if (eventHead.trim() !== "" && !expiryValue) {
+        if (normalizedHeadEmail !== "" && !expiryValue) {
           newErrors[`eventHeadExpiry_${index}`] =
             "Expiry date and time is required.";
         } else {
@@ -1197,16 +1272,18 @@ function CreateFestForm(props?: CreateFestProps) {
             else delete newErrors.category;
             break;
           case "contactEmail":
-            if (!(value as string).trim())
+            if (!normalizeEmail(value))
               newErrors.contactEmail = "Contact email is required";
-            else if (!emailRegex.test(value as string))
+            else if (!isValidEmail(value))
               newErrors.contactEmail = "Invalid email format";
+            else if (normalizeEmail(value).length > MAX_EMAIL_LENGTH)
+              newErrors.contactEmail = "Max 100 chars.";
             else delete newErrors.contactEmail;
             break;
           case "contactPhone":
-            if (!(value as string).trim())
+            if (!normalizePhone(value))
               newErrors.contactPhone = "Contact phone is required";
-            else if (!phoneRegex.test(value as string))
+            else if (!PHONE_REGEX.test(normalizePhone(value)))
               newErrors.contactPhone = "Must be 10-14 digits";
             else delete newErrors.contactPhone;
             break;
@@ -1264,8 +1341,6 @@ function CreateFestForm(props?: CreateFestProps) {
 
       const validateSync = (name: string, value: any) => {
         const currentDate = new Date(currentDateRef.current);
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const phoneRegex = /^\+?[\d\s-]{10,14}$/;
         let errorMsg: string | undefined = undefined;
 
         switch (name) {
@@ -1370,12 +1445,15 @@ function CreateFestForm(props?: CreateFestProps) {
             if (!String(value).trim()) errorMsg = "Category is required";
             break;
           case "contactEmail":
-            if (!String(value).trim()) errorMsg = "Contact email is required";
-            else if (!emailRegex.test(String(value))) errorMsg = "Invalid email format";
+            if (!normalizeEmail(value)) errorMsg = "Contact email is required";
+            else if (!isValidEmail(value)) errorMsg = "Invalid email format";
+            else if (normalizeEmail(value).length > MAX_EMAIL_LENGTH)
+              errorMsg = "Max 100 chars.";
             break;
           case "contactPhone":
-            if (!String(value).trim()) errorMsg = "Contact phone is required";
-            else if (!phoneRegex.test(String(value))) errorMsg = "Must be 10-14 digits";
+            if (!normalizePhone(value)) errorMsg = "Contact phone is required";
+            else if (!PHONE_REGEX.test(normalizePhone(value)))
+              errorMsg = "Must be 10-14 digits";
             break;
           case "organizingDept":
             if (!String(value).trim()) errorMsg = "Organizing department is required";
@@ -1397,13 +1475,15 @@ function CreateFestForm(props?: CreateFestProps) {
       fieldsToValidate.forEach((field) => validateSync(field, formData[field]));
 
       formData.eventHeads.forEach((head, index) => {
-        if (head.email.trim() !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(head.email)) {
+        const normalizedHeadEmail = normalizeEmail(head.email);
+
+        if (normalizedHeadEmail !== "" && !isValidEmail(normalizedHeadEmail)) {
           currentValidationErrors[`eventHead_${index}`] = "Invalid email format.";
-        } else if (head.email.length > 100) {
+        } else if (normalizedHeadEmail.length > MAX_EMAIL_LENGTH) {
           currentValidationErrors[`eventHead_${index}`] = "Max 100 chars.";
         }
 
-        if (head.email.trim() !== "" && !head.expiresAt) {
+        if (normalizedHeadEmail !== "" && !head.expiresAt) {
           currentValidationErrors[`eventHeadExpiry_${index}`] =
             "Expiry date and time is required.";
         }
@@ -1534,11 +1614,17 @@ function CreateFestForm(props?: CreateFestProps) {
             'Authorization': `Bearer ${session?.access_token}`
           },
         });
-        
-        const uploadData = await uploadResponse.json();
+
+        const uploadData = await readApiBodySafely(uploadResponse);
         
         if (!uploadResponse.ok) {
-          throw new Error(uploadData?.message || uploadData?.error || 'Failed to upload image to server');
+          throw new Error(
+            extractApiErrorMessage(
+              uploadResponse,
+              uploadData,
+              "Failed to upload image to server"
+            )
+          );
         }
 
         if (!uploadData || !uploadData.url) {
@@ -1596,6 +1682,14 @@ function CreateFestForm(props?: CreateFestProps) {
       // - Otherwise null (new fest with no image - already caught above)
       const finalImageUrl = uploadedFestImageUrl ?? (isEditMode ? existingImageFileUrl : null);
       const isPublishingDraft = !saveAsDraft && finalIsEditMode && isDraftFest;
+      const normalizedContactEmail = normalizeEmail(formData.contactEmail);
+      const normalizedContactPhone = normalizePhone(formData.contactPhone);
+      const sanitizedEventHeads = formData.eventHeads
+        .map((head) => ({
+          email: normalizeEmail(head.email),
+          expiresAt: head.expiresAt || null,
+        }))
+        .filter((head) => head.email !== "");
 
       console.log(`[Fest Submit] isEditMode=${isEditMode}, uploadedFestImageUrl=${uploadedFestImageUrl}, existingImageFileUrl=${existingImageFileUrl}, finalImageUrl=${finalImageUrl}`);
 
@@ -1611,9 +1705,9 @@ function CreateFestForm(props?: CreateFestProps) {
             ? formData.allowedDepartments
             : formData.department,
         category: formData.category,
-        contactEmail: formData.contactEmail,
-        contactPhone: formData.contactPhone,
-        eventHeads: formData.eventHeads.filter((head) => head.email.trim() !== ""),
+        contactEmail: normalizedContactEmail,
+        contactPhone: normalizedContactPhone,
+        eventHeads: sanitizedEventHeads,
         organizingDept: formData.organizingDept,
         createdBy: session.user.email,
         venue: formData.venue,
@@ -1661,16 +1755,19 @@ function CreateFestForm(props?: CreateFestProps) {
         });
       }
 
+      const responseData = await readApiBodySafely(response);
+
       if (!response.ok) {
-        const errorData = await response.json();
         throw new Error(
-          errorData.error ||
+          extractApiErrorMessage(
+            response,
+            responseData,
             `Failed to ${isEditMode ? "update" : "create"} fest.` // Use prop isEditMode here
+          )
         );
       }
 
       // Handle response - check if fest_id changed
-      const responseData = await response.json();
       if (responseData?.fest) {
         setIsDraftFest(
           responseData.fest.is_draft === true ||
@@ -1714,7 +1811,10 @@ function CreateFestForm(props?: CreateFestProps) {
       setSuccessAction(saveAsDraft ? "draft" : "publish");
       setPendingFestSuccess(true);
     } catch (error: any) {
-      setErrors((prev) => ({ ...prev, submit: error.message }));
+      setErrors((prev) => ({
+        ...prev,
+        submit: error?.message || "Something went wrong while saving the fest.",
+      }));
     } finally {
       setIsSubmitting(false);
       setSubmitIntent("publish");
@@ -1886,7 +1986,25 @@ function CreateFestForm(props?: CreateFestProps) {
 
   const handleInputBlur = (
     e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => validateField(e.target.id, e.target.value);
+  ) => {
+    const { id, value } = e.target;
+
+    if (id === "contactEmail") {
+      const normalized = normalizeEmail(value);
+      setFormData((prev) => ({ ...prev, contactEmail: normalized }));
+      validateField(id, normalized);
+      return;
+    }
+
+    if (id === "contactPhone") {
+      const normalized = normalizePhone(value);
+      setFormData((prev) => ({ ...prev, contactPhone: normalized }));
+      validateField(id, normalized);
+      return;
+    }
+
+    validateField(id, value);
+  };
   const handleDateChange = (
     name: "openingDate" | "closingDate",
     value: string
@@ -1908,7 +2026,7 @@ function CreateFestForm(props?: CreateFestProps) {
 
     setErrors((prev) => {
       const next = { ...prev };
-      const hasEmail = newEventHeads[index].email.trim() !== "";
+      const hasEmail = normalizeEmail(newEventHeads[index].email) !== "";
       if (hasEmail && !value) {
         next[`eventHeadExpiry_${index}`] = "Expiry date and time is required.";
       } else {
@@ -1917,11 +2035,23 @@ function CreateFestForm(props?: CreateFestProps) {
       return next;
     });
   };
-  const handleEventHeadBlur = (index: number) =>
+  const handleEventHeadBlur = (index: number) => {
+    const normalizedHeadEmail = normalizeEmail(formData.eventHeads[index].email);
+
+    setFormData((prev) => {
+      const updatedHeads = [...prev.eventHeads];
+      updatedHeads[index] = {
+        ...updatedHeads[index],
+        email: normalizedHeadEmail,
+      };
+      return { ...prev, eventHeads: updatedHeads };
+    });
+
     validateField(`eventHead_${index}`, {
       index,
-      eventHead: formData.eventHeads[index].email,
+      eventHead: normalizedHeadEmail,
     });
+  };
   const addEventHead = () => {
     if (formData.eventHeads.length < 5)
       setFormData((prev) => ({
@@ -1935,10 +2065,37 @@ function CreateFestForm(props?: CreateFestProps) {
       eventHeads: prev.eventHeads.filter((_, i) => i !== index),
     }));
     setErrors((prev) => {
-      const newE = { ...prev };
-      delete newE[`eventHead_${index}`];
-      delete newE[`eventHeadExpiry_${index}`];
-      return newE;
+      const nextErrors: Record<string, string | undefined> = {};
+
+      Object.entries(prev).forEach(([key, message]) => {
+        if (!message) return;
+
+        const eventHeadMatch = key.match(/^eventHead_(\d+)$/);
+        if (eventHeadMatch) {
+          const currentIndex = Number(eventHeadMatch[1]);
+          if (currentIndex === index) return;
+          const nextKey =
+            currentIndex > index ? `eventHead_${currentIndex - 1}` : key;
+          nextErrors[nextKey] = message;
+          return;
+        }
+
+        const expiryMatch = key.match(/^eventHeadExpiry_(\d+)$/);
+        if (expiryMatch) {
+          const currentIndex = Number(expiryMatch[1]);
+          if (currentIndex === index) return;
+          const nextKey =
+            currentIndex > index
+              ? `eventHeadExpiry_${currentIndex - 1}`
+              : key;
+          nextErrors[nextKey] = message;
+          return;
+        }
+
+        nextErrors[key] = message;
+      });
+
+      return nextErrors;
     });
   };
 
@@ -2639,13 +2796,21 @@ function CreateFestForm(props?: CreateFestProps) {
                               <input
                                 id={`event-head-expiration-${index}`}
                                 type="datetime-local"
-                                value={eventHead.expiresAt ? new Date(eventHead.expiresAt).toISOString().slice(0, 16) : ""}
-                                onChange={(e) =>
+                                value={toDateTimeLocalInputValue(eventHead.expiresAt)}
+                                onChange={(e) => {
+                                  if (!e.target.value) {
+                                    handleEventHeadExpirationChange(index, null);
+                                    return;
+                                  }
+
+                                  const parsedExpiry = new Date(e.target.value);
                                   handleEventHeadExpirationChange(
                                     index,
-                                    e.target.value ? new Date(e.target.value).toISOString() : null
-                                  )
-                                }
+                                    Number.isNaN(parsedExpiry.getTime())
+                                      ? null
+                                      : parsedExpiry.toISOString()
+                                  );
+                                }}
                                 onBlur={() => handleEventHeadBlur(index)}
                                 aria-label={`Event head ${index + 1} expiration date and time`}
                                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
@@ -2685,9 +2850,10 @@ function CreateFestForm(props?: CreateFestProps) {
                             </div>
                           </div>
 
-                          {eventHead.expiresAt ? (
+                          {eventHead.expiresAt &&
+                          !Number.isNaN(new Date(eventHead.expiresAt).getTime()) ? (
                             <p className="text-xs text-green-600 mt-2">
-                              Access expires: {new Date(eventHead.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              Access expires: {new Date(eventHead.expiresAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           ) : (
                             <p className="text-xs text-red-600 mt-2">

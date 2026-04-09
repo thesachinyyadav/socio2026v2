@@ -9,6 +9,15 @@ import { useRouter } from "next/navigation";
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+  const MAX_EMAIL_LENGTH = 100;
+
+  const normalizeEmail = (value: unknown): string =>
+    String(value ?? "").trim().toLowerCase();
+
+  const validateEmail = (value: unknown): boolean =>
+    EMAIL_REGEX.test(normalizeEmail(value));
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabase = useMemo(() => {
@@ -95,6 +104,37 @@ export default function CreateEventPage() {
       return;
     }
 
+    const normalizedContactEmail = normalizeEmail(dataFromHookForm.contactEmail);
+    if (!normalizedContactEmail) {
+      alert("Contact email is required.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
+      alert("Contact email must be 100 characters or fewer.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!validateEmail(normalizedContactEmail)) {
+      alert("Please enter a valid contact email, like name@gmail.com.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const hasInvalidEventHeadEmail = Array.isArray(dataFromHookForm.eventHeads)
+      ? dataFromHookForm.eventHeads.some(
+          (head) => normalizeEmail(head).length > 0 && !validateEmail(head)
+        )
+      : false;
+
+    if (hasInvalidEventHeadEmail) {
+      alert("Each event head email must be valid.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const formData = new FormData();
 
     const appendIfExists = (key: string, value: any) => {
@@ -154,7 +194,7 @@ export default function CreateEventPage() {
         : "1"
     );
 
-    appendIfExists("organizer_email", dataFromHookForm.contactEmail);
+    appendIfExists("organizer_email", normalizedContactEmail);
     appendIfExists("organizer_phone", dataFromHookForm.contactPhone);
     appendIfExists("whatsapp_invite_link", dataFromHookForm.whatsappLink);
 

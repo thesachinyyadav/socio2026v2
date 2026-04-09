@@ -142,7 +142,7 @@ export default function EventReminderButton({ eventId, eventTitle, authToken }: 
     <>
       <button
         type="button"
-        onClick={(e) => {
+        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
           e.preventDefault();
           e.stopPropagation();
           setOpen(true);
@@ -162,7 +162,7 @@ export default function EventReminderButton({ eventId, eventTitle, authToken }: 
         >
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-md"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
             style={{ animation: "reminderScaleIn 150ms ease-out" }}
           >
             {step === "select" && (

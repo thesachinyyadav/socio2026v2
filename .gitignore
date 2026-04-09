@@ -51,3 +51,7 @@ work_log_*.md
 attendance_collaboration_plan_2026_04_01.md
 .vercel
 .env*.local
+
+# Internal Documentation
+system-architecture-prd.md
+socio_module_11.html

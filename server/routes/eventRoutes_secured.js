@@ -191,6 +191,12 @@ const asBoolean = (value) => {
   return value === true || value === 1 || value === "1" || value === "true";
 };
 
+const ORGANIZER_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const ORGANIZER_EMAIL_MAX_LENGTH = 100;
+
+const normalizeEmailAddress = (value) => String(value || "").trim().toLowerCase();
+const isValidEmailAddress = (value) => ORGANIZER_EMAIL_REGEX.test(normalizeEmailAddress(value));
+
 const deriveArchiveState = (event) => {
   const manualArchived = asBoolean(event?.is_archived);
   const autoArchived = shouldAutoArchiveEvent(event);
@@ -553,6 +559,29 @@ router.post(
       const shouldSendNotifications =
         !shouldSaveAsDraft &&
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
+      const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
+      const fallbackOrganizerEmail = normalizeEmailAddress(req.userInfo?.email || "");
+      const organizerEmail = normalizeEmailAddress(
+        organizerEmailInput || fallbackOrganizerEmail
+      );
+
+      if (!organizerEmail) {
+        return res.status(400).json({
+          error: "Organizer contact email is required.",
+        });
+      }
+
+      if (organizerEmail.length > ORGANIZER_EMAIL_MAX_LENGTH) {
+        return res.status(400).json({
+          error: "Organizer contact email must be 100 characters or fewer.",
+        });
+      }
+
+      if (!isValidEmailAddress(organizerEmail)) {
+        return res.status(400).json({
+          error: "Please provide a valid organizer contact email.",
+        });
+      }
 
       // Validation
       if (!title || typeof title !== "string" || title.trim() === "") {
@@ -689,7 +718,7 @@ router.post(
         schedule: parsedSchedule,
         prizes: parsedPrizes,
         custom_fields: parsedCustomFields,
-        organizer_email: req.body.organizer_email || req.userInfo?.email || null,
+        organizer_email: organizerEmail,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,
@@ -1037,6 +1066,28 @@ router.put(
       const shouldSendPublishNotifications =
         isPublishTransition &&
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
+      const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
+      const resolvedOrganizerEmail = normalizeEmailAddress(
+        organizerEmailInput || event?.organizer_email || req.userInfo?.email || ""
+      );
+
+      if (!resolvedOrganizerEmail) {
+        return res.status(400).json({
+          error: "Organizer contact email is required.",
+        });
+      }
+
+      if (resolvedOrganizerEmail.length > ORGANIZER_EMAIL_MAX_LENGTH) {
+        return res.status(400).json({
+          error: "Organizer contact email must be 100 characters or fewer.",
+        });
+      }
+
+      if (!isValidEmailAddress(resolvedOrganizerEmail)) {
+        return res.status(400).json({
+          error: "Please provide a valid organizer contact email.",
+        });
+      }
 
       // ─── AUTO-UNARCHIVE LOGIC ───────────────────────────────────────────
       // If an event was auto-archived (date passed) but then the date is changed
@@ -1154,7 +1205,7 @@ router.put(
         schedule: parsedSchedule,
         prizes: parsedPrizes,
         custom_fields: parsedCustomFields,
-        organizer_email: req.body.organizer_email || null,
+        organizer_email: resolvedOrganizerEmail,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_dept: organizing_dept || null,

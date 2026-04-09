@@ -9,11 +9,14 @@ import {
   useWatch,
   Control,
   FieldErrors,
+  Resolver,
 } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
   EventFormData,
+  eventFormSchema,
   departments as departmentOptions,
   categories as categoryOptions,
   festEvents as festEventOptions,
@@ -860,6 +863,12 @@ const normalizeAllowedCampuses = (value: unknown): string[] =>
 const normalizeBoolean = (value: unknown): boolean =>
   value === true || value === "true" || value === 1 || value === "1";
 
+const CONTACT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const CONTACT_EMAIL_MAX_LENGTH = 100;
+
+const normalizeEmailInput = (value: unknown): string =>
+  String(value ?? "").trim().toLowerCase();
+
 const isArchivedFest = (fest: any): boolean =>
   normalizeBoolean(fest?.is_archived) || normalizeBoolean(fest?.archived_effective);
 
@@ -1033,7 +1042,9 @@ export default function EventForm({
     trigger,
     getValues,
   } = useForm<EventFormData>({
-    // Schema resolver can be re-enabled later if validation is restored here.
+    resolver: zodResolver(eventFormSchema) as unknown as Resolver<EventFormData>,
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: {
       eventTitle: "",
       eventDate: "",
@@ -1148,6 +1159,42 @@ export default function EventForm({
       scrollToFirstValidationError(formErrors);
     },
     [scrollToFirstValidationError]
+  );
+
+  const handleFormKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLFormElement>) => {
+      if (event.key !== "Enter") return;
+
+      const target = event.target as HTMLElement;
+
+      if (target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (target instanceof HTMLButtonElement) {
+        return;
+      }
+
+      if (target instanceof HTMLInputElement) {
+        const blockedTypes = new Set([
+          "text",
+          "email",
+          "tel",
+          "url",
+          "search",
+          "number",
+          "date",
+          "time",
+          "datetime-local",
+          "password",
+        ]);
+
+        if (blockedTypes.has(target.type)) {
+          event.preventDefault();
+        }
+      }
+    },
+    []
   );
 
   const { session } = useAuth();
@@ -1753,6 +1800,7 @@ export default function EventForm({
               </h2>
               <form
                 onSubmit={handleSubmit(processSubmit, handleInvalidSubmit)}
+                onKeyDown={handleFormKeyDown}
                 className="space-y-6 sm:space-y-8"
                 noValidate
               >
@@ -2402,6 +2450,27 @@ export default function EventForm({
                     type="email"
                     autoComplete="new-password"
                     register={register}
+                    registerOptions={{
+                      required: "Contact email is required",
+                      setValueAs: (value) => normalizeEmailInput(value),
+                      validate: (value) => {
+                        const normalized = normalizeEmailInput(value);
+
+                        if (!normalized) {
+                          return "Contact email is required";
+                        }
+
+                        if (normalized.length > CONTACT_EMAIL_MAX_LENGTH) {
+                          return "Contact email must be 100 characters or fewer";
+                        }
+
+                        if (!CONTACT_EMAIL_REGEX.test(normalized)) {
+                          return "Enter a valid email like name@gmail.com";
+                        }
+
+                        return true;
+                      },
+                    }}
                     error={errors.contactEmail}
                     required
                     placeholder="event.support@example.com"

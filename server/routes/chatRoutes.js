@@ -16,7 +16,7 @@ const GEMINI_FALLBACK_MODELS = Array.from(new Set([
   "gemini-flash-latest",
 ]));
 const MAX_HISTORY_MESSAGES = 24;
-const DEFAULT_CHAT_DAILY_LIMIT = 5;
+const DEFAULT_CHAT_DAILY_LIMIT = 7;
 const parsedDailyLimit = Number.parseInt(process.env.CHAT_DAILY_LIMIT || "", 10);
 const CHAT_DAILY_LIMIT = Number.isInteger(parsedDailyLimit) && parsedDailyLimit > 0
   ? parsedDailyLimit
@@ -59,11 +59,203 @@ You help students with:
 Rules:
 - Be concise and friendly
 - Be natural and lively in tone while staying professional
+- Understand short, informal, or misspelled inputs and still respond helpfully
 - If you don't know something specific, suggest checking the events page or contacting support
-- Never make up event details — only use data provided in context
-- Keep responses under 150 words
+- Never make up event details — only use data provided in context for event-specific facts
+- Keep responses under 180 words unless the user asks for a deeper explanation
 - When user asks about "this event" or "this fest", refer to the current page context
-- If a question is unclear, outside your scope, or you cannot confidently help, reply: "I can't assist you with that. Please rephrase your question or ask something else."`;
+- If a question is unclear, ask one short clarifying question and include 2-3 concrete suggestions they can tap or type next
+- Decline only content that violates safety policies. For normal unclear inputs, never end with a dead-end refusal.`;
+
+const SHORT_INPUT_HELP_REPLY = [
+  "I am here and ready to help.",
+  "Try one of these:",
+  "- Show upcoming events",
+  "- Who are Socio co-founders?",
+  "- Open fests",
+].join("\n");
+
+const SMALL_TALK_TOKENS = new Set([
+  "hi",
+  "hii",
+  "hiii",
+  "hey",
+  "heyy",
+  "hello",
+  "yo",
+  "sup",
+  "hola",
+  "namaste",
+  "ok",
+  "okay",
+  "thanks",
+  "thankyou",
+  "thx",
+]);
+
+const KNOWN_INTENT_TOKENS = new Set([
+  "about",
+  "admin",
+  "contact",
+  "cookies",
+  "discover",
+  "event",
+  "events",
+  "faq",
+  "fest",
+  "fests",
+  "founder",
+  "founders",
+  "help",
+  "hello",
+  "hey",
+  "hi",
+  "manage",
+  "mission",
+  "open",
+  "pricing",
+  "privacy",
+  "profile",
+  "register",
+  "registration",
+  "socio",
+  "story",
+  "support",
+  "team",
+  "terms",
+]);
+
+function normalizeLooseInput(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyNonsenseToken(token) {
+  if (!token) return false;
+  if (KNOWN_INTENT_TOKENS.has(token)) return false;
+  if (SMALL_TALK_TOKENS.has(token)) return false;
+  if (/^\d+$/.test(token)) return true;
+  if (/^(.)\1{2,}$/.test(token)) return true;
+  if (token.length <= 2) return true;
+
+  const hasVowel = /[aeiou]/.test(token);
+  if (!hasVowel && token.length >= 3) return true;
+
+  return false;
+}
+
+function getMaxTypoDistance(tokenLength) {
+  if (tokenLength <= 4) return 1;
+  if (tokenLength <= 8) return 2;
+  return 3;
+}
+
+function levenshteinDistance(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const prev = new Array(b.length + 1).fill(0);
+  const curr = new Array(b.length + 1).fill(0);
+
+  for (let j = 0; j <= b.length; j += 1) {
+    prev[j] = j;
+  }
+
+  for (let i = 1; i <= a.length; i += 1) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const substitutionCost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + substitutionCost
+      );
+    }
+
+    for (let j = 0; j <= b.length; j += 1) {
+      prev[j] = curr[j];
+    }
+  }
+
+  return prev[b.length];
+}
+
+function findClosestIntentToken(token) {
+  if (!token || token.length < 3) return null;
+
+  const maxDistance = getMaxTypoDistance(token.length);
+  let bestToken = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const candidate of KNOWN_INTENT_TOKENS) {
+    if (!candidate || candidate === token) continue;
+    if (Math.abs(candidate.length - token.length) > maxDistance) continue;
+    if (candidate[0] !== token[0]) continue;
+
+    const distance = levenshteinDistance(token, candidate);
+    if (distance === 0 || distance > maxDistance) continue;
+
+    const normalizedDistance = distance / Math.max(token.length, candidate.length);
+    if (normalizedDistance > 0.36) continue;
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestToken = candidate;
+    }
+  }
+
+  return bestToken;
+}
+
+function getQuickReplyForLowSignalMessage(message, currentPage) {
+  const normalized = normalizeLooseInput(message);
+
+  if (!normalized) {
+    return SHORT_INPUT_HELP_REPLY;
+  }
+
+  if (/^(help|start|menu|options)$/.test(normalized)) {
+    return SHORT_INPUT_HELP_REPLY;
+  }
+
+  const tokens = normalized.split(" ").filter(Boolean);
+
+  if (tokens.length === 1) {
+    const token = tokens[0];
+    const suggestedToken = findClosestIntentToken(token);
+
+    if (SMALL_TALK_TOKENS.has(token)) {
+      const pageHint = currentPage ? ` You are currently on ${currentPage}.` : "";
+      return `Hi! I am SocioAssist and I can help with events, fests, registrations, founders, support, and general questions.${pageHint}`;
+    }
+
+    if (suggestedToken) {
+      const isGreetingSuggestion = SMALL_TALK_TOKENS.has(suggestedToken);
+      const suggestedLabel = isGreetingSuggestion ? "hi" : suggestedToken;
+
+      if (isGreetingSuggestion) {
+        return `Did you mean "${suggestedLabel}"? Hi! I am ready to help with events, fests, registrations, support, or general questions.`;
+      }
+
+      return `Did you mean "${suggestedLabel}"? I can help with that right away. You can type: "open ${suggestedLabel}".`;
+    }
+
+    if (isLikelyNonsenseToken(token)) {
+      return "I got your message. Share a few more words and I will help right away. Example: 'show events today' or 'who are Socio co-founders'.";
+    }
+  }
+
+  if (/^(hi+|hey+|yo+|hello+)\s+(there|socio|bot)?$/.test(normalized)) {
+    const pageHint = currentPage ? ` You are currently on ${currentPage}.` : "";
+    return `Hi! I am online and ready.${pageHint} Ask me anything and I will guide you.`;
+  }
+
+  return null;
+}
 
 // Per-user daily limit storage
 const dailyLimitMap = new Map();
@@ -479,24 +671,43 @@ router.post("/", authenticateUser, async (req, res) => {
   console.log("[ChatBot] Request received from:", userEmail);
 
   const usage = getDailyUsage(userEmail);
-  if (usage.used >= usage.limit) {
-    console.log("[ChatBot] Rate limit hit for:", userEmail);
-    setUsageHeaders(res, usage);
-    return res.status(429).json({
-      error: `You've used all ${usage.limit} daily questions. Please try again tomorrow.`,
-      usage: toUsageBody(usage),
-    });
-  }
-
-  const usageAfterSuccess = getNextUsageSnapshot(usage);
 
   try {
     const { message, history = [], context, stream = false } = req.body || {};
-    console.log("[ChatBot] Message:", message, "| Page:", context?.page);
+    const normalizedMessage = typeof message === "string" ? message.trim() : "";
+    const currentPage = typeof context?.page === "string" ? context.page : "";
+    const userId = context?.userId || userEmail;
 
-    if (!message || typeof message !== "string") {
+    console.log("[ChatBot] Message:", normalizedMessage, "| Page:", currentPage);
+
+    if (!normalizedMessage) {
       return res.status(400).json({ error: "Message is required" });
     }
+
+    const quickReply = getQuickReplyForLowSignalMessage(normalizedMessage, currentPage);
+    if (quickReply) {
+      setUsageHeaders(res, usage);
+
+      if (stream) {
+        setStreamHeaders(res);
+        res.write(quickReply);
+        res.end();
+        return;
+      }
+
+      return res.json({ reply: quickReply, usage: toUsageBody(usage) });
+    }
+
+    if (usage.used >= usage.limit) {
+      console.log("[ChatBot] Rate limit hit for:", userEmail);
+      setUsageHeaders(res, usage);
+      return res.status(429).json({
+        error: `You've used all ${usage.limit} daily questions. Please try again tomorrow.`,
+        usage: toUsageBody(usage),
+      });
+    }
+
+    const usageAfterSuccess = getNextUsageSnapshot(usage);
 
     const hasOpenAI = Boolean(process.env.OPENAI_API_KEY);
     const hasGemini = Boolean(process.env.GEMINI_API_KEY);
@@ -508,8 +719,6 @@ router.post("/", authenticateUser, async (req, res) => {
       });
     }
 
-    const currentPage = typeof context?.page === "string" ? context.page : "";
-    const userId = context?.userId || userEmail;
     const fullSystemPrompt = await buildFullSystemPrompt(currentPage, userId);
 
     const disconnectController = new AbortController();
@@ -534,7 +743,7 @@ router.post("/", authenticateUser, async (req, res) => {
             console.log("[ChatBot] Streaming from OpenAI...");
             reply = await streamOpenAIReply({
               res,
-              message,
+              message: normalizedMessage,
               history,
               fullSystemPrompt,
               signal: disconnectController.signal,
@@ -549,7 +758,7 @@ router.post("/", authenticateUser, async (req, res) => {
         if (!reply && hasGemini) {
           try {
             console.log("[ChatBot] Falling back to Gemini (non-stream chunk)...");
-            reply = await getGeminiReply({ message, history, fullSystemPrompt });
+            reply = await getGeminiReply({ message: normalizedMessage, history, fullSystemPrompt });
             providerUsed = "gemini";
             if (!res.writableEnded) {
               res.write(reply);
@@ -595,7 +804,7 @@ router.post("/", authenticateUser, async (req, res) => {
       if (hasOpenAI) {
         try {
           console.log("[ChatBot] Requesting non-stream reply from OpenAI...");
-          reply = await getOpenAIReply({ message, history, fullSystemPrompt });
+          reply = await getOpenAIReply({ message: normalizedMessage, history, fullSystemPrompt });
           console.log("[ChatBot] OpenAI response length:", reply.length);
         } catch (error) {
           openAIError = error;
@@ -606,7 +815,7 @@ router.post("/", authenticateUser, async (req, res) => {
       if (!reply && hasGemini) {
         try {
           console.log("[ChatBot] Falling back to Gemini...");
-          reply = await getGeminiReply({ message, history, fullSystemPrompt });
+          reply = await getGeminiReply({ message: normalizedMessage, history, fullSystemPrompt });
           console.log("[ChatBot] Gemini response length:", reply.length);
         } catch (error) {
           geminiError = error;

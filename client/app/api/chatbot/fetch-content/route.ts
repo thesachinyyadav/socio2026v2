@@ -33,6 +33,39 @@ function isPrivateHost(hostname: string): boolean {
   return false;
 }
 
+function getRequestHostname(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host") || "";
+  const hostHeader = forwardedHost || request.headers.get("host") || "";
+  const rawHost = hostHeader.split(",")[0].trim();
+
+  if (rawHost) {
+    try {
+      return new URL(`http://${rawHost}`).hostname.toLowerCase();
+    } catch {
+      return rawHost.replace(/:\d+$/, "").toLowerCase();
+    }
+  }
+
+  try {
+    return new URL(request.url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isAllowedLocalHostInDev(request: Request, parsedUrl: URL): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+
+  const requestHostname = getRequestHostname(request);
+  const targetHostname = parsedUrl.hostname.toLowerCase();
+
+  if (!requestHostname || !targetHostname) return false;
+  if (requestHostname === targetHostname) return true;
+
+  const localhostAliases = new Set(["localhost", "127.0.0.1", "::1"]);
+  return localhostAliases.has(requestHostname) && localhostAliases.has(targetHostname);
+}
+
 function decodeEntities(value: string): string {
   return value
     .replace(/&nbsp;/gi, " ")
@@ -114,10 +147,49 @@ function rankSentencesByQuery(text: string, query: string): string {
     .map((item) => item.sentence);
 
   if (scored.length === 0) {
-    return sentences.slice(0, 3).join(" ").slice(0, 760);
+    return sentences.slice(0, 3).join(" ").slice(0, 560);
   }
 
-  return scored.join(" ").slice(0, 760);
+  return scored.join(" ").slice(0, 560);
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function extractCoFounderNames(text: string): string[] {
+  const names: string[] = [];
+  const regex = /\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\s+Co-Founder\b/g;
+  let match = regex.exec(text);
+
+  while (match) {
+    names.push(`${match[1]} ${match[2]}`);
+    match = regex.exec(text);
+  }
+
+  return dedupeStrings(names);
+}
+
+function buildHighlights(text: string, query: string, parsedUrl: URL): string[] {
+  const lowerQuery = query.toLowerCase();
+  const pathname = parsedUrl.pathname.toLowerCase();
+
+  const wantsFounders =
+    /co[-\s]?founder|founders?|who (created|made|built)|team/.test(lowerQuery)
+    || pathname.includes("/about/team");
+
+  if (wantsFounders) {
+    const names = extractCoFounderNames(text);
+    if (names.length >= 2) {
+      return [`SOCIO has two co-founders: ${names[0]} and ${names[1]}.`];
+    }
+
+    if (names.length === 1) {
+      return [`SOCIO co-founder listed on the team page: ${names[0]}.`];
+    }
+  }
+
+  return [];
 }
 
 export async function POST(request: Request) {
@@ -136,7 +208,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Only http/https URLs are supported." }, { status: 400 });
     }
 
-    if (isPrivateHost(parsedUrl.hostname)) {
+    if (isPrivateHost(parsedUrl.hostname) && !isAllowedLocalHostInDev(request, parsedUrl)) {
       return NextResponse.json({ ok: false, error: "Private or local network URLs are not allowed." }, { status: 400 });
     }
 
@@ -179,6 +251,7 @@ export async function POST(request: Request) {
     }
 
     const summary = rankSentencesByQuery(text, query);
+    const highlights = buildHighlights(text, query, parsedUrl);
 
     return NextResponse.json({
       ok: true,
@@ -186,6 +259,7 @@ export async function POST(request: Request) {
       title: title || parsedUrl.hostname,
       description,
       summary,
+      highlights,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error while fetching webpage.";

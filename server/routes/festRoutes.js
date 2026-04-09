@@ -81,6 +81,35 @@ const parseComparableDate = (value) => {
 const asBoolean = (value) =>
   value === true || value === 1 || value === "1" || value === "true";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const PHONE_REGEX = /^\+?[\d\s-]{10,14}$/;
+const MAX_EMAIL_LENGTH = 100;
+
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const normalizePhone = (value) => String(value || "").trim();
+const isValidEmail = (value) => EMAIL_REGEX.test(normalizeEmail(value));
+
+const normalizeEventHead = (head) => {
+  if (typeof head === "string") {
+    return {
+      email: normalizeEmail(head),
+      expiresAt: null,
+    };
+  }
+
+  if (!head || typeof head !== "object" || Array.isArray(head)) {
+    return {
+      email: "",
+      expiresAt: null,
+    };
+  }
+
+  return {
+    email: normalizeEmail(head.email),
+    expiresAt: head.expiresAt || null,
+  };
+};
+
 const deriveFestStatusFromDates = (
   openingDateValue,
   closingDateValue,
@@ -606,23 +635,68 @@ router.post(
         (hasExplicitNotificationPreference ? asBoolean(sendNotificationsInput) : true);
 
       // Basic validation
-      const title = festData.festTitle || festData.title;
-      const dept = festData.organizingDept || festData.organizing_dept;
+      const title = String(festData.festTitle || festData.title || "").trim();
+      const dept = String(festData.organizingDept || festData.organizing_dept || "").trim();
+      const contactEmail = normalizeEmail(
+        pickDefined(festData.contactEmail, festData.contact_email)
+      );
+      const contactPhone = normalizePhone(
+        pickDefined(festData.contactPhone, festData.contact_phone)
+      );
       const eventHeadsInput = pickDefined(festData.eventHeads, festData.event_heads);
       const eventHeads = Array.isArray(eventHeadsInput)
         ? eventHeadsInput
         : parseJsonLikeField(eventHeadsInput, []);
-      const normalizedEventHeads = Array.isArray(eventHeads) ? eventHeads : [];
+      const normalizedEventHeads = Array.isArray(eventHeads)
+        ? eventHeads.map(normalizeEventHead).filter((head) => head.email)
+        : [];
 
       if (!title || !dept) {
         console.log("Validation failed. Received:", JSON.stringify(festData));
         return res.status(400).json({ error: "Fest title and organizing department are required" });
       }
 
+      if (!contactEmail) {
+        return res.status(400).json({ error: "Contact email is required." });
+      }
+
+      if (contactEmail.length > MAX_EMAIL_LENGTH) {
+        return res.status(400).json({ error: "Contact email must be 100 characters or fewer." });
+      }
+
+      if (!isValidEmail(contactEmail)) {
+        return res.status(400).json({ error: "Please provide a valid contact email." });
+      }
+
+      if (!contactPhone) {
+        return res.status(400).json({ error: "Contact phone is required." });
+      }
+
+      if (!PHONE_REGEX.test(contactPhone)) {
+        return res.status(400).json({ error: "Contact phone must be 10-14 digits." });
+      }
+
+      const invalidHeadEmail = normalizedEventHeads.some(
+        (head) => !isValidEmail(head.email)
+      );
+
+      if (invalidHeadEmail) {
+        return res.status(400).json({
+          error: "Each event head must have a valid email address.",
+        });
+      }
+
+      const overlongHeadEmail = normalizedEventHeads.some(
+        (head) => head.email.length > MAX_EMAIL_LENGTH
+      );
+
+      if (overlongHeadEmail) {
+        return res.status(400).json({
+          error: "Each event head email must be 100 characters or fewer.",
+        });
+      }
+
       const missingHeadExpiry = normalizedEventHeads.some((head) => {
-        if (!head || typeof head !== "object" || Array.isArray(head)) return false;
-        const email = String(head.email || "").trim();
-        if (!email) return false;
         return !head.expiresAt;
       });
 
@@ -633,7 +707,7 @@ router.post(
       }
 
       // Generate slug-based ID from title
-      const titleForSlug = festData.festTitle || festData.title || "";
+      const titleForSlug = title;
       let fest_id = titleForSlug
         ? titleForSlug
           .toLowerCase()
@@ -662,16 +736,16 @@ router.post(
 
       const festPayload = {
         fest_id,
-        fest_title: festData.festTitle || festData.title || "",
+        fest_title: title,
         description: festData.description || festData.detailed_description || festData.detailedDescription || "",
         opening_date: openingDateValue,
         closing_date: closingDateValue,
         fest_image_url: festData.festImageUrl || festData.fest_image_url || null,
-        organizing_dept: festData.organizingDept || festData.organizing_dept || "",
+        organizing_dept: dept,
         department_access: festData.departmentAccess || festData.department_access || [],
         category: festData.category || "",
-        contact_email: festData.contactEmail || festData.contact_email || "",
-        contact_phone: festData.contactPhone || festData.contact_phone || "",
+        contact_email: contactEmail,
+        contact_phone: contactPhone,
         event_heads: normalizedEventHeads,
         created_by: req.userInfo?.email,
         auth_uuid: req.userId,
@@ -787,12 +861,34 @@ router.put(
       const existingFest = req.resource; // From ownership middleware
 
       // Get the new title
-      const newTitle = updateData.fest_title ?? updateData.festTitle ?? updateData.title;
-      const titleChanged = newTitle && newTitle.trim() !== existingFest.fest_title;
+      const incomingTitle = updateData.fest_title ?? updateData.festTitle ?? updateData.title;
+      const normalizedNewTitle =
+        incomingTitle !== undefined && incomingTitle !== null
+          ? String(incomingTitle).trim()
+          : undefined;
+      const titleChanged =
+        typeof normalizedNewTitle === "string" &&
+        normalizedNewTitle !== "" &&
+        normalizedNewTitle !== existingFest.fest_title;
 
       const departmentAccessInput = pickDefined(updateData.department_access, updateData.departmentAccess);
       const eventHeadsInput = pickDefined(updateData.event_heads, updateData.eventHeads);
       const customFieldsInput = pickDefined(updateData.custom_fields, updateData.customFields);
+      const organizingDeptInput = pickDefined(updateData.organizing_dept, updateData.organizingDept);
+      const normalizedOrganizingDept =
+        organizingDeptInput !== undefined
+          ? String(organizingDeptInput || "").trim()
+          : undefined;
+      const contactEmailInput = pickDefined(updateData.contact_email, updateData.contactEmail);
+      const normalizedContactEmail =
+        contactEmailInput !== undefined
+          ? normalizeEmail(contactEmailInput)
+          : undefined;
+      const contactPhoneInput = pickDefined(updateData.contact_phone, updateData.contactPhone);
+      const normalizedContactPhone =
+        contactPhoneInput !== undefined
+          ? normalizePhone(contactPhoneInput)
+          : undefined;
       const campusHostedAtInput = pickDefined(updateData.campus_hosted_at, updateData.campusHostedAt);
       const allowedCampusesInput = pickDefined(updateData.allowed_campuses, updateData.allowedCampuses);
       const departmentHostedAtInput = pickDefined(updateData.department_hosted_at, updateData.departmentHostedAt);
@@ -818,15 +914,72 @@ router.put(
           ? parseJsonLikeField(eventHeadsInput, [])
           : undefined;
       const normalizedEventHeadsInput = Array.isArray(parsedEventHeadsInput)
-        ? parsedEventHeadsInput
+        ? parsedEventHeadsInput.map(normalizeEventHead).filter((head) => head.email)
         : [];
       const hasEventHeadsUpdate = eventHeadsInput !== undefined;
 
+      if (normalizedNewTitle !== undefined && !normalizedNewTitle) {
+        return res.status(400).json({
+          error: "Fest title cannot be empty.",
+        });
+      }
+
+      if (normalizedOrganizingDept !== undefined && !normalizedOrganizingDept) {
+        return res.status(400).json({
+          error: "Organizing department cannot be empty.",
+        });
+      }
+
+      if (normalizedContactEmail !== undefined) {
+        if (!normalizedContactEmail) {
+          return res.status(400).json({ error: "Contact email is required." });
+        }
+
+        if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
+          return res.status(400).json({
+            error: "Contact email must be 100 characters or fewer.",
+          });
+        }
+
+        if (!isValidEmail(normalizedContactEmail)) {
+          return res.status(400).json({ error: "Please provide a valid contact email." });
+        }
+      }
+
+      if (normalizedContactPhone !== undefined) {
+        if (!normalizedContactPhone) {
+          return res.status(400).json({ error: "Contact phone is required." });
+        }
+
+        if (!PHONE_REGEX.test(normalizedContactPhone)) {
+          return res.status(400).json({
+            error: "Contact phone must be 10-14 digits.",
+          });
+        }
+      }
+
       if (hasEventHeadsUpdate) {
+        const invalidHeadEmail = normalizedEventHeadsInput.some(
+          (head) => !isValidEmail(head.email)
+        );
+
+        if (invalidHeadEmail) {
+          return res.status(400).json({
+            error: "Each event head must have a valid email address.",
+          });
+        }
+
+        const overlongHeadEmail = normalizedEventHeadsInput.some(
+          (head) => head.email.length > MAX_EMAIL_LENGTH
+        );
+
+        if (overlongHeadEmail) {
+          return res.status(400).json({
+            error: "Each event head email must be 100 characters or fewer.",
+          });
+        }
+
         const missingHeadExpiry = normalizedEventHeadsInput.some((head) => {
-          if (!head || typeof head !== "object" || Array.isArray(head)) return false;
-          const email = String(head.email || "").trim();
-          if (!email) return false;
           return !head.expiresAt;
         });
 
@@ -859,15 +1012,15 @@ router.put(
       console.log(`[Fest Update] 'festImageUrl' in body: ${'festImageUrl' in updateData}`);
 
       const mapFields = [
-        ["fest_title", newTitle],
+        ["fest_title", normalizedNewTitle],
         ["description", updateData.description ?? updateData.detailed_description ?? updateData.detailedDescription],
         ["opening_date", incomingOpeningDate],
         ["closing_date", incomingClosingDate],
         ["fest_image_url", incomingImageUrl],
-        ["organizing_dept", updateData.organizing_dept ?? updateData.organizingDept],
+        ["organizing_dept", normalizedOrganizingDept],
         ["category", updateData.category],
-        ["contact_email", updateData.contact_email ?? updateData.contactEmail],
-        ["contact_phone", updateData.contact_phone ?? updateData.contactPhone],
+        ["contact_email", normalizedContactEmail],
+        ["contact_phone", normalizedContactPhone],
         ["department_access", parseJsonLikeField(departmentAccessInput, [])],
         ["event_heads", hasEventHeadsUpdate ? normalizedEventHeadsInput : undefined],
         ["custom_fields", parseJsonLikeField(customFieldsInput, [])],
@@ -907,7 +1060,7 @@ router.put(
       if (titleChanged) {
         try {
           // Update notifications event_title so they match the new name
-          const updatedTitle = newTitle.trim();
+          const updatedTitle = normalizedNewTitle;
           await update("notifications", {
             event_title: updatedTitle,
           }, { event_id: festId });

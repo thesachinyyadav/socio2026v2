@@ -16,6 +16,15 @@ export default function EditEventPage() {
   const params = useParams();
   const eventIdSlug = params?.id as string;
   const router = useRouter();
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+  const MAX_EMAIL_LENGTH = 100;
+
+  const normalizeEmail = (value: unknown): string =>
+    String(value ?? "").trim().toLowerCase();
+
+  const validateEmail = (value: unknown): boolean =>
+    EMAIL_REGEX.test(normalizeEmail(value));
+
   const { session, userData, isLoading: authIsLoading } = useAuth();
   const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
@@ -422,6 +431,25 @@ export default function EditEventPage() {
     const publishFromDraft = !archiveAsDraft && isDraft;
     const shouldSendPublishNotifications =
       publishFromDraft && formData.sendNotifications !== false;
+    const normalizedContactEmail = normalizeEmail(formData.contactEmail);
+
+    if (!normalizedContactEmail) {
+      setErrorMessage("Contact email is required.");
+      setIsSubmitting(false);
+      throw new Error("Contact email is required.");
+    }
+
+    if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
+      setErrorMessage("Contact email must be 100 characters or fewer.");
+      setIsSubmitting(false);
+      throw new Error("Contact email must be 100 characters or fewer.");
+    }
+
+    if (!validateEmail(normalizedContactEmail)) {
+      setErrorMessage("Please enter a valid contact email, like name@gmail.com.");
+      setIsSubmitting(false);
+      throw new Error("Please enter a valid contact email.");
+    }
 
     if (!session) {
       setErrorMessage(
@@ -464,7 +492,7 @@ export default function EditEventPage() {
       "min_participants",
       formData.isTeamEvent ? (formData.minParticipants || "2") : "1"
     );
-    payload.append("organizer_email", formData.contactEmail);
+    payload.append("organizer_email", normalizedContactEmail);
     payload.append("organizer_phone", formData.contactPhone || "");
     payload.append("whatsapp_invite_link", formData.whatsappLink || "");
     payload.append("claims_applicable", String(formData.provideClaims));
