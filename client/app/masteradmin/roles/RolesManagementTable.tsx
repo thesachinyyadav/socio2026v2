@@ -3,19 +3,24 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import DomainScopeModal from "./DomainScopeModal";
-import { deleteUserAccount, updateUserRoles } from "./actions";
-import type { RolesPageData, RolesPayload, UserRoleRow } from "./types";
+import { assignRoleAction, deleteUserAccount } from "./actions";
+import type { AssignableRole, RolesPageData, UserRoleRow } from "./types";
 
 type RolesManagementTableProps = {
   initialData: RolesPageData;
 };
 
-type DomainModalState = {
-  isOpen: boolean;
-  mode: "hod" | "dean";
-  previousDraft: RolesPayload | null;
+type AssignmentDraft = {
+  role: AssignableRole;
+  domainId: string | null;
 };
+
+const ROLE_OPTIONS: Array<{ value: AssignableRole; label: string }> = [
+  { value: "HOD", label: "HOD" },
+  { value: "DEAN", label: "DEAN" },
+  { value: "CFO", label: "CFO" },
+  { value: "FINANCE_OFFICER", label: "FINANCE_OFFICER" },
+];
 
 const formatDate = (value: string | null) => {
   if (!value) {
@@ -37,42 +42,83 @@ const formatDate = (value: string | null) => {
 const sameUserId = (left: string | number, right: string | number) =>
   String(left) === String(right);
 
-const mapRowToDraft = (row: UserRoleRow): RolesPayload => ({
-  isOrganiser: Boolean(row.is_organiser),
-  isSupport: Boolean(row.is_support),
-  isMasterAdmin: Boolean(row.is_masteradmin),
-  isHod: Boolean(row.is_hod),
-  isDean: Boolean(row.is_dean),
-  department_id: row.department_id,
-  school_id: row.school_id,
-});
+function normalizeRoleKey(
+  rawRole: string | null,
+  flags: { is_hod: boolean; is_dean: boolean }
+): "hod" | "dean" | "cfo" | "finance_officer" | null {
+  const normalized = String(rawRole || "").trim().toLowerCase();
+  if (
+    normalized === "hod" ||
+    normalized === "dean" ||
+    normalized === "cfo" ||
+    normalized === "finance_officer"
+  ) {
+    return normalized;
+  }
 
-const statusClass = (enabled: boolean) =>
-  enabled ? "text-emerald-600" : "text-slate-500";
+  if (flags.is_hod) {
+    return "hod";
+  }
 
-function RoleToggle({
-  checked,
-  disabled,
-  onChange,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <label className="inline-flex items-center gap-2">
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={onChange}
-        className="h-4 w-4 rounded border-slate-300 accent-emerald-600 disabled:cursor-not-allowed"
-      />
-      <span className={`text-xs font-semibold ${statusClass(checked)}`}>
-        {checked ? "Enabled" : "Disabled"}
-      </span>
-    </label>
-  );
+  if (flags.is_dean) {
+    return "dean";
+  }
+
+  return null;
+}
+
+function roleKeyToAssignable(roleKey: "hod" | "dean" | "cfo" | "finance_officer" | null): AssignableRole {
+  if (roleKey === "hod") {
+    return "HOD";
+  }
+
+  if (roleKey === "dean") {
+    return "DEAN";
+  }
+
+  if (roleKey === "cfo") {
+    return "CFO";
+  }
+
+  return "FINANCE_OFFICER";
+}
+
+function roleNeedsDomain(role: AssignableRole): boolean {
+  return role === "HOD" || role === "DEAN" || role === "CFO";
+}
+
+function assignmentFromUser(user: UserRoleRow, data: RolesPageData): AssignmentDraft {
+  const roleKey = normalizeRoleKey(user.university_role, {
+    is_hod: user.is_hod,
+    is_dean: user.is_dean,
+  });
+  const role = roleKeyToAssignable(roleKey);
+
+  if (role === "HOD") {
+    return {
+      role,
+      domainId: user.department_id || data.departments[0]?.id || null,
+    };
+  }
+
+  if (role === "DEAN") {
+    return {
+      role,
+      domainId: user.school_id || data.schools[0]?.id || null,
+    };
+  }
+
+  if (role === "CFO") {
+    return {
+      role,
+      domainId: user.campus || data.campuses[0] || null,
+    };
+  }
+
+  return {
+    role,
+    domainId: null,
+  };
 }
 
 export default function RolesManagementTable({ initialData }: RolesManagementTableProps) {
@@ -80,19 +126,12 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
   const [users, setUsers] = useState<UserRoleRow[]>(initialData.users);
   const [searchText, setSearchText] = useState("");
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
-  const [draftRoles, setDraftRoles] = useState<RolesPayload | null>(null);
+  const [draft, setDraft] = useState<AssignmentDraft | null>(null);
   const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | number | null>(null);
-  const [modalState, setModalState] = useState<DomainModalState>({
-    isOpen: false,
-    mode: "hod",
-    previousDraft: null,
-  });
-
   const [isPending, startTransition] = useTransition();
 
   const filteredUsers = useMemo(() => {
     const normalized = searchText.trim().toLowerCase();
-
     if (!normalized) {
       return users;
     }
@@ -105,175 +144,82 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
     });
   }, [users, searchText]);
 
-  const currentEditingUser = useMemo(
-    () => users.find((row) => sameUserId(row.id, editingUserId || "")) || null,
-    [users, editingUserId]
-  );
-
   const beginEdit = (user: UserRoleRow) => {
     setEditingUserId(user.id);
-    setDraftRoles(mapRowToDraft(user));
+    setDraft(assignmentFromUser(user, initialData));
   };
 
   const cancelEdit = () => {
     setEditingUserId(null);
-    setDraftRoles(null);
-    setModalState({ isOpen: false, mode: "hod", previousDraft: null });
+    setDraft(null);
   };
 
-  const toggleSimpleRole = (key: "isOrganiser" | "isSupport" | "isMasterAdmin") => {
-    setDraftRoles((previous) => {
+  const resolveDepartmentName = (departmentId: string | null) => {
+    if (!departmentId) {
+      return "-";
+    }
+
+    return (
+      initialData.departments.find((row) => row.id === departmentId)?.department_name ||
+      departmentId
+    );
+  };
+
+  const resolveSchoolName = (schoolId: string | null) => {
+    if (!schoolId) {
+      return "-";
+    }
+
+    return initialData.schools.find((row) => row.id === schoolId)?.name || schoolId;
+  };
+
+  const getDefaultDomainForRole = (role: AssignableRole): string | null => {
+    if (role === "HOD") {
+      return initialData.departments[0]?.id || null;
+    }
+
+    if (role === "DEAN") {
+      return initialData.schools[0]?.id || null;
+    }
+
+    if (role === "CFO") {
+      return initialData.campuses[0] || null;
+    }
+
+    return null;
+  };
+
+  const handleRoleChange = (nextRole: AssignableRole) => {
+    setDraft((previous) => {
       if (!previous) {
         return previous;
       }
+
+      const nextDomain = roleNeedsDomain(nextRole)
+        ? previous.role === nextRole
+          ? previous.domainId
+          : getDefaultDomainForRole(nextRole)
+        : null;
 
       return {
-        ...previous,
-        [key]: !previous[key],
+        role: nextRole,
+        domainId: nextDomain,
       };
     });
   };
 
-  const enableHodRole = () => {
-    if (initialData.departments.length === 0) {
-      toast.error("No departments available for HOD assignment.");
+  const saveAssignment = (userId: string | number) => {
+    if (!draft) {
       return;
     }
 
-    setDraftRoles((previous) => {
-      if (!previous) {
-        return previous;
-      }
-
-      const snapshot = { ...previous };
-      const nextDraft: RolesPayload = {
-        ...previous,
-        isHod: true,
-        isDean: false,
-        school_id: null,
-      };
-
-      setModalState({
-        isOpen: true,
-        mode: "hod",
-        previousDraft: snapshot,
-      });
-
-      return nextDraft;
-    });
-  };
-
-  const enableDeanRole = () => {
-    if (initialData.schools.length === 0) {
-      toast.error("No schools available for Dean assignment.");
-      return;
-    }
-
-    setDraftRoles((previous) => {
-      if (!previous) {
-        return previous;
-      }
-
-      const snapshot = { ...previous };
-      const nextDraft: RolesPayload = {
-        ...previous,
-        isDean: true,
-        isHod: false,
-        department_id: null,
-      };
-
-      setModalState({
-        isOpen: true,
-        mode: "dean",
-        previousDraft: snapshot,
-      });
-
-      return nextDraft;
-    });
-  };
-
-  const toggleHod = () => {
-    if (!draftRoles) {
-      return;
-    }
-
-    if (draftRoles.isHod) {
-      setDraftRoles({
-        ...draftRoles,
-        isHod: false,
-        department_id: null,
-      });
-      return;
-    }
-
-    enableHodRole();
-  };
-
-  const toggleDean = () => {
-    if (!draftRoles) {
-      return;
-    }
-
-    if (draftRoles.isDean) {
-      setDraftRoles({
-        ...draftRoles,
-        isDean: false,
-        school_id: null,
-      });
-      return;
-    }
-
-    enableDeanRole();
-  };
-
-  const handleDomainCancel = () => {
-    if (modalState.previousDraft) {
-      setDraftRoles(modalState.previousDraft);
-    }
-
-    setModalState({ isOpen: false, mode: "hod", previousDraft: null });
-  };
-
-  const handleDomainConfirm = (selectedValue: string) => {
-    if (!selectedValue) {
-      toast.error("Select a value before continuing.");
-      return;
-    }
-
-    setDraftRoles((previous) => {
-      if (!previous) {
-        return previous;
-      }
-
-      if (modalState.mode === "hod") {
-        return {
-          ...previous,
-          department_id: selectedValue,
-          school_id: null,
-          isHod: true,
-          isDean: false,
-        };
-      }
-
-      return {
-        ...previous,
-        school_id: selectedValue,
-        department_id: null,
-        isDean: true,
-        isHod: false,
-      };
-    });
-
-    setModalState({ isOpen: false, mode: "hod", previousDraft: null });
-  };
-
-  const saveRoles = (userId: string | number) => {
-    if (!draftRoles) {
+    if (roleNeedsDomain(draft.role) && !String(draft.domainId || "").trim()) {
+      toast.error("Please select a scope before saving.");
       return;
     }
 
     startTransition(async () => {
-      const response = await updateUserRoles(userId, draftRoles);
+      const response = await assignRoleAction(userId, draft.role, draft.domainId);
 
       if (!response.ok) {
         toast.error(response.error);
@@ -281,22 +227,17 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       }
 
       setUsers((previous) =>
-        previous.map((row) =>
-          sameUserId(row.id, userId) ? response.user : row
-        )
+        previous.map((row) => (sameUserId(row.id, userId) ? response.user : row))
       );
 
-      toast.success("Roles updated successfully.");
+      toast.success("Role assignment updated.");
       cancelEdit();
       router.refresh();
     });
   };
 
   const requestDelete = (user: UserRoleRow) => {
-    const proceed = window.confirm(
-      `Delete ${user.email}? This cannot be undone.`
-    );
-
+    const proceed = window.confirm(`Delete ${user.email}? This cannot be undone.`);
     if (!proceed) {
       return;
     }
@@ -312,36 +253,11 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
         return;
       }
 
-      setUsers((previous) =>
-        previous.filter((row) => !sameUserId(row.id, user.id))
-      );
+      setUsers((previous) => previous.filter((row) => !sameUserId(row.id, user.id)));
       setPendingDeleteUserId(null);
       toast.success("User deleted successfully.");
       router.refresh();
     });
-  };
-
-  const resolveDepartmentName = (departmentId: string | null) => {
-    if (!departmentId) {
-      return "No department selected";
-    }
-
-    return (
-      initialData.departments.find((row) => row.id === departmentId)
-        ?.department_name || "Unknown department"
-    );
-  };
-
-  const resolveSchoolName = (schoolId: string | null) => {
-    if (!schoolId) {
-      return "No school selected";
-    }
-
-    return (
-      initialData.schools.find((row) => row.id === schoolId)?.name ||
-      schoolId ||
-      "Unknown school"
-    );
   };
 
   return (
@@ -351,7 +267,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
           <div>
             <h2 className="text-xl font-bold text-slate-900">User Role Matrix</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Toggle roles with domain scoping for HOD and Dean.
+              Assign HOD, DEAN, CFO, or FINANCE_OFFICER with strict domain scoping.
             </p>
           </div>
 
@@ -369,7 +285,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-[1200px] w-full border-collapse">
+          <table className="min-w-[1500px] w-full border-collapse">
             <thead className="bg-slate-100/80 text-left">
               <tr>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
@@ -382,19 +298,19 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                   Joined Date
                 </th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  ORGANISER
-                </th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  SUPPORT
-                </th>
-                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
                   HOD
                 </th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
                   DEAN
                 </th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  MASTER ADMIN
+                  CFO
+                </th>
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  FINANCE OFFICER
+                </th>
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Assignment Form
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
                   Actions
@@ -403,8 +319,15 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
             </thead>
             <tbody>
               {filteredUsers.map((user) => {
+                const roleKey = normalizeRoleKey(user.university_role, {
+                  is_hod: user.is_hod,
+                  is_dean: user.is_dean,
+                });
+                const isHod = roleKey === "hod";
+                const isDean = roleKey === "dean";
+                const isCfo = roleKey === "cfo";
+                const isFinance = roleKey === "finance_officer";
                 const isEditing = editingUserId !== null && sameUserId(editingUserId, user.id);
-                const roles = isEditing && draftRoles ? draftRoles : mapRowToDraft(user);
 
                 return (
                   <tr key={`${user.id}-${user.email}`} className="border-t border-slate-200 align-top">
@@ -418,50 +341,140 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                       <span className="text-sm text-slate-700">{formatDate(user.created_at)}</span>
                     </td>
                     <td className="px-4 py-4">
-                      <RoleToggle
-                        checked={roles.isOrganiser}
-                        disabled={!isEditing || isPending}
-                        onChange={() => toggleSimpleRole("isOrganiser")}
-                      />
+                      <span className={`text-sm font-medium ${isHod ? "text-emerald-700" : "text-slate-400"}`}>
+                        {isHod ? resolveDepartmentName(user.department_id) : "-"}
+                      </span>
                     </td>
                     <td className="px-4 py-4">
-                      <RoleToggle
-                        checked={roles.isSupport}
-                        disabled={!isEditing || isPending}
-                        onChange={() => toggleSimpleRole("isSupport")}
-                      />
+                      <span className={`text-sm font-medium ${isDean ? "text-sky-700" : "text-slate-400"}`}>
+                        {isDean ? resolveSchoolName(user.school_id) : "-"}
+                      </span>
                     </td>
                     <td className="px-4 py-4">
-                      <RoleToggle
-                        checked={roles.isHod}
-                        disabled={!isEditing || isPending || roles.isDean}
-                        onChange={toggleHod}
-                      />
-                      {roles.isHod && (
-                        <p className="mt-1 text-xs text-slate-500">
-                          {resolveDepartmentName(roles.department_id || null)}
-                        </p>
+                      <span className={`text-sm font-medium ${isCfo ? "text-amber-700" : "text-slate-400"}`}>
+                        {isCfo ? user.campus || "Unassigned campus" : "-"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`text-sm font-medium ${isFinance ? "text-violet-700" : "text-slate-400"}`}>
+                        {isFinance ? "Global" : "-"}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {isEditing && draft ? (
+                        <div className="space-y-2">
+                          <div>
+                            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              Role Select
+                            </label>
+                            <select
+                              value={draft.role}
+                              onChange={(event) => handleRoleChange(event.target.value as AssignableRole)}
+                              disabled={isPending}
+                              aria-label="Role Select"
+                              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                            >
+                              {ROLE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {draft.role === "HOD" && (
+                            <div>
+                              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                Department Select
+                              </label>
+                              <select
+                                value={draft.domainId || ""}
+                                onChange={(event) =>
+                                  setDraft((previous) =>
+                                    previous
+                                      ? { ...previous, domainId: event.target.value || null }
+                                      : previous
+                                  )
+                                }
+                                disabled={isPending}
+                                aria-label="Department Select"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                              >
+                                {initialData.departments.map((department) => (
+                                  <option key={department.id} value={department.id}>
+                                    {department.department_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {draft.role === "DEAN" && (
+                            <div>
+                              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                School Select
+                              </label>
+                              <select
+                                value={draft.domainId || ""}
+                                onChange={(event) =>
+                                  setDraft((previous) =>
+                                    previous
+                                      ? { ...previous, domainId: event.target.value || null }
+                                      : previous
+                                  )
+                                }
+                                disabled={isPending}
+                                aria-label="School Select"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                              >
+                                {initialData.schools.map((school) => (
+                                  <option key={school.id} value={school.id}>
+                                    {school.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {draft.role === "CFO" && (
+                            <div>
+                              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                Campus Select
+                              </label>
+                              <select
+                                value={draft.domainId || ""}
+                                onChange={(event) =>
+                                  setDraft((previous) =>
+                                    previous
+                                      ? { ...previous, domainId: event.target.value || null }
+                                      : previous
+                                  )
+                                }
+                                disabled={isPending}
+                                aria-label="Campus Select"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                              >
+                                {initialData.campuses.map((campus) => (
+                                  <option key={campus} value={campus}>
+                                    {campus}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {draft.role === "FINANCE_OFFICER" && (
+                            <div className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                              Global Platform Access
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400">Click Edit to assign role</span>
                       )}
                     </td>
-                    <td className="px-4 py-4">
-                      <RoleToggle
-                        checked={roles.isDean}
-                        disabled={!isEditing || isPending || roles.isHod}
-                        onChange={toggleDean}
-                      />
-                      {roles.isDean && (
-                        <p className="mt-1 text-xs text-slate-500">
-                          {resolveSchoolName(roles.school_id || null)}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <RoleToggle
-                        checked={roles.isMasterAdmin}
-                        disabled={!isEditing || isPending}
-                        onChange={() => toggleSimpleRole("isMasterAdmin")}
-                      />
-                    </td>
+
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
                         {isEditing ? (
@@ -469,7 +482,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                             <button
                               type="button"
                               disabled={isPending}
-                              onClick={() => saveRoles(user.id)}
+                              onClick={() => saveAssignment(user.id)}
                               className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                             >
                               Save
@@ -499,8 +512,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                               onClick={() => requestDelete(user)}
                               className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                             >
-                              {pendingDeleteUserId !== null &&
-                              sameUserId(pendingDeleteUserId, user.id)
+                              {pendingDeleteUserId !== null && sameUserId(pendingDeleteUserId, user.id)
                                 ? "Deleting..."
                                 : "Delete"}
                             </button>
@@ -511,6 +523,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                   </tr>
                 );
               })}
+
               {filteredUsers.length === 0 && (
                 <tr>
                   <td
@@ -525,21 +538,6 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
           </table>
         </div>
       </div>
-
-      <DomainScopeModal
-        isOpen={modalState.isOpen}
-        mode={modalState.mode}
-        userName={currentEditingUser?.name || currentEditingUser?.email || "this user"}
-        departments={initialData.departments}
-        schools={initialData.schools}
-        initialValue={
-          modalState.mode === "hod"
-            ? draftRoles?.department_id || null
-            : draftRoles?.school_id || null
-        }
-        onCancel={handleDomainCancel}
-        onConfirm={handleDomainConfirm}
-      />
     </div>
   );
 }

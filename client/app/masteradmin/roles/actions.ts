@@ -5,18 +5,27 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import type {
+  AssignRoleActionResult,
+  AssignableRole,
   DeleteUserActionResult,
   DepartmentOption,
   RolesPageData,
-  RolesPayload,
   SchoolOption,
-  UpdateRolesActionResult,
   UserRoleRow,
 } from "./types";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const CAMPUS_OPTIONS = [
+  "Central Campus (Main)",
+  "Bannerghatta Road Campus",
+  "Yeshwanthpur Campus",
+  "Kengeri Campus",
+  "Delhi NCR Campus",
+  "Pune Lavasa Campus",
+];
 
 function ensureEnvVars() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -50,33 +59,57 @@ function normalizeUserRecord(row: any): UserRoleRow {
     name: row.name ?? null,
     email: String(row.email ?? ""),
     created_at: row.created_at ?? null,
-    is_organiser: Boolean(row.is_organiser),
-    is_support: Boolean(row.is_support),
+    is_masteradmin: Boolean(row.is_masteradmin),
     is_hod: Boolean(row.is_hod),
     is_dean: Boolean(row.is_dean),
-    is_masteradmin: Boolean(row.is_masteradmin),
     department_id: row.department_id ?? null,
     school_id: row.school_id ?? null,
+    campus: row.campus ?? null,
+    university_role: row.university_role ?? null,
   };
 }
 
-function normalizePayload(payload: RolesPayload) {
-  return {
-    is_organiser: Boolean(payload.isOrganiser),
-    is_support: Boolean(payload.isSupport),
-    is_masteradmin: Boolean(payload.isMasterAdmin),
-    is_hod: Boolean(payload.isHod),
-    is_dean: Boolean(payload.isDean),
-    department_id: payload.department_id ?? null,
-    school_id: payload.school_id ?? null,
-  };
+function normalizeAssignableRole(input: string): AssignableRole | null {
+  const normalized = input.trim().toUpperCase();
+  if (
+    normalized === "HOD" ||
+    normalized === "DEAN" ||
+    normalized === "CFO" ||
+    normalized === "FINANCE_OFFICER"
+  ) {
+    return normalized as AssignableRole;
+  }
+
+  return null;
+}
+
+function needsDomain(role: AssignableRole): boolean {
+  return role === "HOD" || role === "DEAN" || role === "CFO";
+}
+
+function mapToUniversityRole(role: AssignableRole): "hod" | "dean" | "cfo" | "finance_officer" {
+  if (role === "HOD") {
+    return "hod";
+  }
+
+  if (role === "DEAN") {
+    return "dean";
+  }
+
+  if (role === "CFO") {
+    return "cfo";
+  }
+
+  return "finance_officer";
 }
 
 function isMissingColumnError(error: { message?: string | null; details?: string | null }) {
   const fullText = `${error?.message ?? ""} ${error?.details ?? ""}`.toLowerCase();
   return (
     fullText.includes("column") &&
-    (fullText.includes("is_hod") ||
+    (fullText.includes("university_role") ||
+      fullText.includes("campus") ||
+      fullText.includes("is_hod") ||
       fullText.includes("is_dean") ||
       fullText.includes("school_id"))
   );
@@ -131,12 +164,15 @@ async function assertMasterAdmin() {
 
   const { data: byAuthUuid, error: byAuthUuidError } = await adminClient
     .from("users")
-    .select("id,email,is_masteradmin")
+    .select("id,email,university_role")
     .eq("auth_uuid", authUser.id)
     .maybeSingle();
 
   if (byAuthUuidError) {
-    throw new Error(byAuthUuidError.message || "Failed to verify admin permissions.");
+    const message = isMissingColumnError(byAuthUuidError)
+      ? "Role schema is outdated. Please apply the latest users role-scope migration."
+      : byAuthUuidError.message || "Failed to verify admin permissions.";
+    throw new Error(message);
   }
 
   let actingUser = byAuthUuid;
@@ -144,18 +180,22 @@ async function assertMasterAdmin() {
   if (!actingUser && authUser.email) {
     const { data: byEmail, error: byEmailError } = await adminClient
       .from("users")
-      .select("id,email,is_masteradmin")
+      .select("id,email,university_role")
       .eq("email", authUser.email)
       .maybeSingle();
 
     if (byEmailError) {
-      throw new Error(byEmailError.message || "Failed to verify admin permissions.");
+      const message = isMissingColumnError(byEmailError)
+        ? "Role schema is outdated. Please apply the latest users role-scope migration."
+        : byEmailError.message || "Failed to verify admin permissions.";
+      throw new Error(message);
     }
 
     actingUser = byEmail;
   }
 
-  if (!actingUser?.is_masteradmin) {
+  const actingRole = String(actingUser?.university_role || "").toLowerCase().trim();
+  if (actingRole !== "masteradmin") {
     throw new Error("Master Admin privileges are required.");
   }
 
@@ -164,6 +204,7 @@ async function assertMasterAdmin() {
     actingUser: {
       id: actingUser.id as string | number,
       email: String(actingUser.email || authUser.email || ""),
+      university_role: actingRole,
     },
   };
 }
@@ -172,7 +213,7 @@ export async function getRolesTableData(): Promise<RolesPageData> {
   const { adminClient } = await assertMasterAdmin();
 
   const usersSelect =
-    "id,name,email,created_at,is_organiser,is_support,is_masteradmin,is_hod,is_dean,department_id,school_id";
+    "id,name,email,created_at,is_masteradmin,is_hod,is_dean,department_id,school_id,campus,university_role";
 
   let usersData: any[] | null = null;
 
@@ -185,19 +226,28 @@ export async function getRolesTableData(): Promise<RolesPageData> {
     if (isMissingColumnError(usersQuery.error)) {
       const legacyUsersQuery = await adminClient
         .from("users")
-        .select("id,name,email,created_at,is_organiser,is_support,is_masteradmin,department_id")
+        .select("id,name,email,created_at,is_masteradmin,is_hod,is_dean,department_id,school_id")
         .order("created_at", { ascending: false });
 
       if (legacyUsersQuery.error) {
         throw new Error(legacyUsersQuery.error.message || "Failed to load users.");
       }
 
-      usersData = (legacyUsersQuery.data || []).map((row: any) => ({
-        ...row,
-        is_hod: false,
-        is_dean: false,
-        school_id: null,
-      }));
+      usersData = (legacyUsersQuery.data || []).map((row: any) => {
+        const derivedRole = Boolean(row.is_masteradmin)
+          ? "masteradmin"
+          : Boolean(row.is_hod)
+            ? "hod"
+            : Boolean(row.is_dean)
+              ? "dean"
+              : null;
+
+        return {
+          ...row,
+          university_role: derivedRole,
+          campus: null,
+        };
+      });
     } else {
       throw new Error(usersQuery.error.message || "Failed to load users.");
     }
@@ -244,20 +294,38 @@ export async function getRolesTableData(): Promise<RolesPageData> {
     users: (usersData || []).map(normalizeUserRecord),
     departments,
     schools,
+    campuses: [...CAMPUS_OPTIONS],
   };
 }
 
-export async function updateUserRoles(
+export async function assignRoleAction(
   userId: string | number,
-  rolesPayload: RolesPayload
-): Promise<UpdateRolesActionResult> {
+  role: AssignableRole | string,
+  domainId?: string | null
+): Promise<AssignRoleActionResult> {
   try {
     const { adminClient, actingUser } = await assertMasterAdmin();
     const targetUserId = coerceUserId(userId);
+    const normalizedRole = normalizeAssignableRole(String(role || ""));
+
+    if (!normalizedRole) {
+      return {
+        ok: false,
+        error: "Invalid role selection.",
+      };
+    }
+
+    const normalizedDomain = String(domainId || "").trim() || null;
+    if (needsDomain(normalizedRole) && !normalizedDomain) {
+      return {
+        ok: false,
+        error: `Select a ${normalizedRole === "HOD" ? "department" : normalizedRole === "DEAN" ? "school" : "campus"} before assigning ${normalizedRole}.`,
+      };
+    }
 
     const { data: existingUser, error: existingUserError } = await adminClient
       .from("users")
-      .select("id,email,is_masteradmin")
+      .select("id,email,university_role")
       .eq("id", targetUserId)
       .maybeSingle();
 
@@ -275,42 +343,19 @@ export async function updateUserRoles(
       };
     }
 
-    const normalized = normalizePayload(rolesPayload);
+    const existingRole = String(existingUser.university_role || "").toLowerCase().trim();
+    if (existingRole === "masteradmin") {
+      if (sameUserId(existingUser.id, actingUser.id)) {
+        return {
+          ok: false,
+          error: "You cannot reassign your own Master Admin account.",
+        };
+      }
 
-    if (normalized.is_hod && normalized.is_dean) {
-      return {
-        ok: false,
-        error: "A user cannot be both HOD and Dean.",
-      };
-    }
-
-    if (!normalized.is_hod) {
-      normalized.department_id = null;
-    }
-
-    if (!normalized.is_dean) {
-      normalized.school_id = null;
-    }
-
-    if (normalized.is_hod && !normalized.department_id) {
-      return {
-        ok: false,
-        error: "Select a department before enabling HOD.",
-      };
-    }
-
-    if (normalized.is_dean && !normalized.school_id) {
-      return {
-        ok: false,
-        error: "Select a school before enabling Dean.",
-      };
-    }
-
-    if (existingUser.is_masteradmin && normalized.is_masteradmin === false) {
       const { count, error: countError } = await adminClient
         .from("users")
         .select("id", { head: true, count: "exact" })
-        .eq("is_masteradmin", true);
+        .eq("university_role", "masteradmin");
 
       if (countError) {
         return {
@@ -322,39 +367,94 @@ export async function updateUserRoles(
       if ((count || 0) <= 1) {
         return {
           ok: false,
-          error: "Cannot remove the last Master Admin.",
+          error: "Cannot reassign the last Master Admin.",
         };
       }
     }
 
-    if (sameUserId(existingUser.id, actingUser.id) && !normalized.is_masteradmin) {
+    if (normalizedRole === "HOD" && normalizedDomain) {
+      const { data: departmentRow, error: departmentError } = await adminClient
+        .from("departments_courses")
+        .select("id")
+        .eq("id", normalizedDomain)
+        .maybeSingle();
+
+      if (departmentError) {
+        return {
+          ok: false,
+          error: departmentError.message || "Failed to validate department selection.",
+        };
+      }
+
+      if (!departmentRow) {
+        return {
+          ok: false,
+          error: "Selected department does not exist.",
+        };
+      }
+    }
+
+    if (normalizedRole === "DEAN" && normalizedDomain) {
+      const { data: schoolRows, error: schoolError } = await adminClient
+        .from("departments_courses")
+        .select("id")
+        .eq("school", normalizedDomain)
+        .limit(1);
+
+      if (schoolError) {
+        return {
+          ok: false,
+          error: schoolError.message || "Failed to validate school selection.",
+        };
+      }
+
+      if (!Array.isArray(schoolRows) || schoolRows.length === 0) {
+        return {
+          ok: false,
+          error: "Selected school does not exist.",
+        };
+      }
+    }
+
+    if (normalizedRole === "CFO" && normalizedDomain && !CAMPUS_OPTIONS.includes(normalizedDomain)) {
       return {
         ok: false,
-        error: "You cannot revoke your own Master Admin access.",
+        error: "Invalid campus selection.",
       };
+    }
+
+    const updatePayload: Record<string, any> = {
+      university_role: mapToUniversityRole(normalizedRole),
+      department_id: null,
+      school_id: null,
+      campus: null,
+      is_hod: false,
+      is_dean: false,
+    };
+
+    if (normalizedRole === "HOD") {
+      updatePayload.department_id = normalizedDomain;
+      updatePayload.is_hod = true;
+    } else if (normalizedRole === "DEAN") {
+      updatePayload.school_id = normalizedDomain;
+      updatePayload.is_dean = true;
+    } else if (normalizedRole === "CFO") {
+      updatePayload.campus = normalizedDomain;
     }
 
     const { data: updatedUser, error: updateError } = await adminClient
       .from("users")
-      .update({
-        is_organiser: normalized.is_organiser,
-        is_support: normalized.is_support,
-        is_masteradmin: normalized.is_masteradmin,
-        is_hod: normalized.is_hod,
-        is_dean: normalized.is_dean,
-        department_id: normalized.department_id,
-        school_id: normalized.school_id,
-      })
+      .update(updatePayload)
       .eq("id", targetUserId)
       .select(
-        "id,name,email,created_at,is_organiser,is_support,is_masteradmin,is_hod,is_dean,department_id,school_id"
+        "id,name,email,created_at,is_masteradmin,is_hod,is_dean,department_id,school_id,campus,university_role"
       )
       .single();
 
     if (updateError) {
       const fallbackMessage = isMissingColumnError(updateError)
-        ? "HOD/Dean columns are missing in the database. Apply the latest migration first."
-        : updateError.message || "Failed to update user roles.";
+        ? "Role schema is outdated. Please apply the latest users role-scope migration."
+        : updateError.message || "Failed to assign user role.";
 
       return {
         ok: false,
@@ -373,7 +473,7 @@ export async function updateUserRoles(
   } catch (error: any) {
     return {
       ok: false,
-      error: error?.message || "Failed to update user roles.",
+      error: error?.message || "Failed to assign user role.",
     };
   }
 }
@@ -387,7 +487,7 @@ export async function deleteUserAccount(
 
     const { data: existingUser, error: existingUserError } = await adminClient
       .from("users")
-      .select("id,email,is_masteradmin")
+      .select("id,email,university_role")
       .eq("id", targetUserId)
       .maybeSingle();
 
@@ -412,11 +512,12 @@ export async function deleteUserAccount(
       };
     }
 
-    if (existingUser.is_masteradmin) {
+    const existingRole = String(existingUser.university_role || "").toLowerCase().trim();
+    if (existingRole === "masteradmin") {
       const { count, error: countError } = await adminClient
         .from("users")
         .select("id", { head: true, count: "exact" })
-        .eq("is_masteradmin", true);
+        .eq("university_role", "masteradmin");
 
       if (countError) {
         return {

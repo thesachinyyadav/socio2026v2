@@ -77,6 +77,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/edit");
   const isHodManagementRoute = pathname.startsWith("/manage/hod");
   const isDeanManagementRoute = pathname.startsWith("/manage/dean");
+  const isCfoManagementRoute = pathname.startsWith("/manage/cfo");
 
   if (user && isManagementRoute) {
     if (!user.email) {
@@ -89,13 +90,14 @@ export async function middleware(req: NextRequest) {
       .eq("email", user.email)
       .single();
 
+    const universityRole = String((userData as any)?.university_role || "").toLowerCase();
     const canManage =
       Boolean(userData?.is_masteradmin) ||
       Boolean(userData?.is_organiser) ||
       Boolean((userData as any)?.is_hod) ||
-      Boolean((userData as any)?.is_dean);
-
-    const universityRole = String((userData as any)?.university_role || "").toLowerCase();
+      Boolean((userData as any)?.is_dean) ||
+      Boolean((userData as any)?.is_cfo) ||
+      universityRole === "cfo";
     const canAccessHodRoute =
       Boolean(userData?.is_masteradmin) ||
       Boolean((userData as any)?.is_hod) ||
@@ -104,6 +106,10 @@ export async function middleware(req: NextRequest) {
       Boolean(userData?.is_masteradmin) ||
       Boolean((userData as any)?.is_dean) ||
       universityRole === "dean";
+    const canAccessCfoRoute =
+      Boolean(userData?.is_masteradmin) ||
+      Boolean((userData as any)?.is_cfo) ||
+      universityRole === "cfo";
 
     if (isHodManagementRoute && (error || !userData || !canAccessHodRoute)) {
       return redirect("/error");
@@ -113,9 +119,14 @@ export async function middleware(req: NextRequest) {
       return redirect("/error");
     }
 
+    if (isCfoManagementRoute && (error || !userData || !canAccessCfoRoute)) {
+      return redirect("/error");
+    }
+
     if (
       !isHodManagementRoute &&
       !isDeanManagementRoute &&
+      !isCfoManagementRoute &&
       isManagementRoute &&
       (error || !userData || !canManage)
     ) {
