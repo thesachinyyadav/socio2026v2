@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
@@ -78,12 +78,132 @@ const toDateTimeLocalInputValue = (value: string | null): string => {
 };
 
 const FEST_TEAM_SETTINGS_KEY = "__team_event_settings__";
+const FEST_BUDGET_SETTINGS_KEY = "__budget_approval__";
 
 interface FestTeamSettings {
   isTeamEvent: boolean;
   minParticipants: string;
   maxParticipants: string;
 }
+
+interface FestBudgetItem {
+  category: string;
+  requirement: string;
+  vendor: string;
+  price: string;
+  quantity: string;
+  advance: string;
+  gst: string;
+  quotationFileName: string;
+}
+
+interface FestBudgetSettings {
+  requiresBudgetApproval: boolean;
+  items: FestBudgetItem[];
+  totalSponsorship: string;
+}
+
+const createEmptyBudgetItem = (): FestBudgetItem => ({
+  category: "",
+  requirement: "",
+  vendor: "",
+  price: "",
+  quantity: "",
+  advance: "",
+  gst: "",
+  quotationFileName: "",
+});
+
+const toPositiveNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return parsed;
+};
+
+const extractBudgetSettingsFromCustomFields = (
+  customFields: unknown
+): FestBudgetSettings | null => {
+  const parsedFields = parseFestCustomFields(customFields);
+  const settingsEntry = parsedFields.find(
+    (field) =>
+      field &&
+      typeof field === "object" &&
+      !Array.isArray(field) &&
+      field.key === FEST_BUDGET_SETTINGS_KEY
+  );
+
+  if (!settingsEntry || typeof settingsEntry !== "object" || Array.isArray(settingsEntry)) {
+    return null;
+  }
+
+  const rawValue = (settingsEntry as { value?: unknown }).value;
+  if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    return null;
+  }
+
+  const value = rawValue as {
+    requiresBudgetApproval?: unknown;
+    items?: unknown;
+    totalSponsorship?: unknown;
+  };
+
+  const requiresBudgetApproval =
+    value.requiresBudgetApproval === true ||
+    value.requiresBudgetApproval === "true";
+
+  const items = Array.isArray(value.items)
+    ? value.items
+        .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+        .map((item) => {
+          const budgetItem = item as Record<string, unknown>;
+          return {
+            category: String(budgetItem.category ?? ""),
+            requirement: String(budgetItem.requirement ?? ""),
+            vendor: String(budgetItem.vendor ?? ""),
+            price: String(budgetItem.price ?? ""),
+            quantity: String(budgetItem.quantity ?? ""),
+            advance: String(budgetItem.advance ?? ""),
+            gst: String(budgetItem.gst ?? ""),
+            quotationFileName: String(budgetItem.quotationFileName ?? ""),
+          } satisfies FestBudgetItem;
+        })
+    : [];
+
+  return {
+    requiresBudgetApproval,
+    items,
+    totalSponsorship: String(value.totalSponsorship ?? ""),
+  };
+};
+
+const upsertBudgetSettingsInCustomFields = (
+  customFields: unknown,
+  budgetSettings: FestBudgetSettings
+): any[] => {
+  const parsedFields = parseFestCustomFields(customFields).filter(
+    (field) =>
+      !(
+        field &&
+        typeof field === "object" &&
+        !Array.isArray(field) &&
+        field.key === FEST_BUDGET_SETTINGS_KEY
+      )
+  );
+
+  return [
+    ...parsedFields,
+    {
+      key: FEST_BUDGET_SETTINGS_KEY,
+      value: {
+        requiresBudgetApproval: budgetSettings.requiresBudgetApproval,
+        items: budgetSettings.items,
+        totalSponsorship: budgetSettings.totalSponsorship,
+      },
+    },
+  ];
+};
 
 const parseFestCustomFields = (value: unknown): any[] => {
   if (Array.isArray(value)) return value;
@@ -857,6 +977,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const customFields = parseFestCustomFields(props?.customFields);
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
+  const initialBudgetSettings = extractBudgetSettingsFromCustomFields(customFields);
   const existingImageFileUrl = props?.existingImageFileUrl || null;
   const existingBannerFileUrl = props?.existingBannerFileUrl || null;
   const existingPdfFileUrl = props?.existingPdfFileUrl || null;
@@ -871,6 +992,18 @@ function CreateFestForm(props?: CreateFestProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDraftFest, setIsDraftFest] = useState(Boolean(props?.isDraft));
+  const [creationStep, setCreationStep] = useState<"details" | "budget">("details");
+  const [requiresBudgetApproval, setRequiresBudgetApproval] = useState(
+    initialBudgetSettings?.requiresBudgetApproval ?? false
+  );
+  const [budgetItems, setBudgetItems] = useState<FestBudgetItem[]>(
+    initialBudgetSettings?.items?.length
+      ? initialBudgetSettings.items
+      : [createEmptyBudgetItem()]
+  );
+  const [totalSponsorshipAmount, setTotalSponsorshipAmount] = useState(
+    initialBudgetSettings?.totalSponsorship ?? ""
+  );
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [formData, setFormData] = useState<CreateFestState>({
     title,
@@ -912,6 +1045,29 @@ function CreateFestForm(props?: CreateFestProps) {
   const [successAction, setSuccessAction] = useState<"publish" | "draft">("publish");
   const [festModalVisible, setFestModalVisible] = useState(false);
   const [isOpeningPreview, setIsOpeningPreview] = useState(false);
+
+  const budgetTotals = useMemo(() => {
+    const subtotal = budgetItems.reduce((sum, item) => {
+      const price = toPositiveNumber(item.price);
+      const quantity = toPositiveNumber(item.quantity);
+      return sum + price * quantity;
+    }, 0);
+
+    const totalGst = budgetItems.reduce((sum, item) => {
+      return sum + toPositiveNumber(item.gst);
+    }, 0);
+
+    const sponsorship = toPositiveNumber(totalSponsorshipAmount);
+    const totalAmount = subtotal + totalGst;
+
+    return {
+      subtotal,
+      totalGst,
+      sponsorship,
+      totalAmount,
+      requiredAmount: Math.max(0, totalAmount - sponsorship),
+    };
+  }, [budgetItems, totalSponsorshipAmount]);
 
   const { session } = useAuth();
   const currentDateRef = useRef(new Date());
@@ -978,6 +1134,7 @@ function CreateFestForm(props?: CreateFestProps) {
             });
 
             const parsedCustomFields = parseFestCustomFields(data.fest.custom_fields);
+            const parsedBudgetSettings = extractBudgetSettingsFromCustomFields(parsedCustomFields);
             const loadedOpeningDate = data.fest.opening_date
               ? formatDateToYYYYMMDD(new Date(data.fest.opening_date))
               : "";
@@ -1013,6 +1170,13 @@ function CreateFestForm(props?: CreateFestProps) {
               allowOutsiders: data.fest.allow_outsiders === true || data.fest.allow_outsiders === 'true' || false,
               customFields: parsedCustomFields,
             });
+            setRequiresBudgetApproval(parsedBudgetSettings?.requiresBudgetApproval ?? false);
+            setBudgetItems(
+              parsedBudgetSettings?.items?.length
+                ? parsedBudgetSettings.items
+                : [createEmptyBudgetItem()]
+            );
+            setTotalSponsorshipAmount(parsedBudgetSettings?.totalSponsorship ?? "");
             setIsDraftFest(
               data.fest.is_draft === true ||
                 data.fest.is_draft === 1 ||
@@ -1574,9 +1738,99 @@ function CreateFestForm(props?: CreateFestProps) {
     []
   );
 
+  const formatCurrency = useCallback((amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      maximumFractionDigits: 0,
+    }).format(Math.round(amount));
+  }, []);
+
+  const updateBudgetItem = useCallback(
+    (index: number, key: keyof FestBudgetItem, value: string) => {
+      setBudgetItems((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, [key]: value } : item
+        )
+      );
+    },
+    []
+  );
+
+  const validateBudgetForm = useCallback((): string | null => {
+    if (!requiresBudgetApproval) {
+      return null;
+    }
+
+    const hasFilledRows = budgetItems.some((item) =>
+      Object.values(item).some((fieldValue) => String(fieldValue).trim() !== "")
+    );
+
+    if (!hasFilledRows) {
+      return "Please add at least one budget line item.";
+    }
+
+    const hasInvalidRow = budgetItems.some((item) => {
+      const hasAnyValue = Object.values(item).some(
+        (fieldValue) => String(fieldValue).trim() !== ""
+      );
+
+      if (!hasAnyValue) return false;
+
+      const price = toPositiveNumber(item.price);
+      const quantity = toPositiveNumber(item.quantity);
+
+      return (
+        item.category.trim() === "" ||
+        item.requirement.trim() === "" ||
+        item.vendor.trim() === "" ||
+        price <= 0 ||
+        quantity <= 0
+      );
+    });
+
+    if (hasInvalidRow) {
+      return "Please complete each budget row with category, requirement, vendor, price and quantity.";
+    }
+
+    return null;
+  }, [budgetItems, requiresBudgetApproval]);
+
+  const goToBudgetStep = useCallback(() => {
+    setErrors((prev) => ({ ...prev, submit: undefined }));
+    const currentValidationErrors = getValidationErrors({ validateImage: true });
+
+    if (
+      Object.keys(currentValidationErrors).some(
+        (key) => currentValidationErrors[key] !== undefined
+      )
+    ) {
+      setErrors({
+        ...currentValidationErrors,
+        submit: "Please correct the errors in the form.",
+      });
+      requestAnimationFrame(() => {
+        scrollToFirstFestError(currentValidationErrors);
+      });
+      return;
+    }
+
+    setCreationStep("budget");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [getValidationErrors, scrollToFirstFestError]);
+
   const submitFest = async (saveAsDraft: boolean) => {
     setErrors((prev) => ({ ...prev, submit: undefined }));
     setSubmitIntent(saveAsDraft ? "draft" : "publish");
+
+    if (!saveAsDraft) {
+      const budgetValidationError = validateBudgetForm();
+      if (budgetValidationError) {
+        setErrors((prev) => ({
+          ...prev,
+          submit: budgetValidationError,
+        }));
+        return;
+      }
+    }
 
     const currentValidationErrors = getValidationErrors({ validateImage: true });
 
@@ -1675,6 +1929,28 @@ function CreateFestForm(props?: CreateFestProps) {
           maxParticipants: String(normalizedTeamMax),
         }
       );
+      const normalizedBudgetItems = budgetItems
+        .filter((item) =>
+          Object.values(item).some((fieldValue) => String(fieldValue).trim() !== "")
+        )
+        .map((item) => ({
+          category: item.category.trim(),
+          requirement: item.requirement.trim(),
+          vendor: item.vendor.trim(),
+          price: item.price.trim(),
+          quantity: item.quantity.trim(),
+          advance: item.advance.trim(),
+          gst: item.gst.trim(),
+          quotationFileName: item.quotationFileName.trim(),
+        }));
+      const customFieldsWithBudgetAndTeam = upsertBudgetSettingsInCustomFields(
+        customFieldsWithTeamSettings,
+        {
+          requiresBudgetApproval,
+          items: requiresBudgetApproval ? normalizedBudgetItems : [],
+          totalSponsorship: totalSponsorshipAmount.trim(),
+        }
+      );
 
       // Determine the final image URL:
       // - If a new file was uploaded, use the new URL
@@ -1724,7 +2000,7 @@ function CreateFestForm(props?: CreateFestProps) {
         allowed_campuses: formData.allowedCampuses || [],
         department_hosted_at: formData.departmentHostedAt || null,
         allow_outsiders: formData.allowOutsiders,
-        custom_fields: customFieldsWithTeamSettings,
+        custom_fields: customFieldsWithBudgetAndTeam,
         // Always include festImageUrl so backend always updates the DB column
         festImageUrl: finalImageUrl,
         is_draft: saveAsDraft,
@@ -1823,6 +2099,12 @@ function CreateFestForm(props?: CreateFestProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (creationStep === "details") {
+      goToBudgetStep();
+      return;
+    }
+
     await submitFest(false);
   };
 
@@ -2169,7 +2451,7 @@ function CreateFestForm(props?: CreateFestProps) {
               >
                 {successAction === "draft"
                   ? "Draft Saved!"
-                  : `Fest ${finalIsEditMode ? (wasDraftOnSubmit ? "Published" : "Updated") : "Published"}!`}
+                  : "Sent for approval!"}
               </h2>
               <p
                 id="modal-description"
@@ -2179,8 +2461,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   ? "Your fest has been saved as a draft. It is hidden until you publish it."
                   : (
                     <>
-                      Your fest has been successfully{" "}
-                      {finalIsEditMode ? (wasDraftOnSubmit ? "published" : "updated") : "published"}.<br />
+                      Your fest has been successfully sent for approval.<br />
                       What would you like to do next?
                     </>
                   )}
@@ -2259,14 +2540,35 @@ function CreateFestForm(props?: CreateFestProps) {
           </div>
           <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-12">
             <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 md:p-10 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                <span
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                    creationStep === "details"
+                      ? "bg-blue-50 text-[#154CB3] border-blue-200"
+                      : "bg-gray-50 text-gray-500 border-gray-200"
+                  }`}
+                >
+                  1. Fest details
+                </span>
+                <span
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                    creationStep === "budget"
+                      ? "bg-blue-50 text-[#154CB3] border-blue-200"
+                      : "bg-gray-50 text-gray-500 border-gray-200"
+                  }`}
+                >
+                  2. Budget approval
+                </span>
+              </div>
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-6 sm:mb-8">
-                Fest details
+                {creationStep === "details" ? "Fest details" : "Budget page"}
               </h2>
               <form
                 onSubmit={handleSubmit}
-                className="space-y-6 sm:space-y-8"
+                className="space-y-6"
                 noValidate
               >
+                <div className={creationStep === "details" ? "space-y-6 sm:space-y-8" : "hidden"}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
                   <div>
                     <label
@@ -3187,6 +3489,214 @@ function CreateFestForm(props?: CreateFestProps) {
                   </div>
                 </div>
 
+                </div>
+
+                {creationStep === "budget" && (
+                  <div className="space-y-6">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                      <h3 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
+                        Does this fest require a budget approval?
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Select Yes to add budget requirements and amount details.
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setRequiresBudgetApproval(true)}
+                          className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                            requiresBudgetApproval
+                              ? "bg-[#154CB3] border-[#154CB3] text-white"
+                              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRequiresBudgetApproval(false)}
+                          className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                            !requiresBudgetApproval
+                              ? "bg-[#154CB3] border-[#154CB3] text-white"
+                              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+
+                    {requiresBudgetApproval && (
+                      <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[980px] border-collapse">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                                <th className="py-2 pr-2">Category</th>
+                                <th className="py-2 px-2">Requirement</th>
+                                <th className="py-2 px-2">Vendor</th>
+                                <th className="py-2 px-2">Price</th>
+                                <th className="py-2 px-2">Quantity</th>
+                                <th className="py-2 px-2">Advance</th>
+                                <th className="py-2 px-2">Total</th>
+                                <th className="py-2 px-2">GST</th>
+                                <th className="py-2 pl-2">Quotation</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {budgetItems.map((item, index) => {
+                                const rowTotal =
+                                  toPositiveNumber(item.price) * toPositiveNumber(item.quantity);
+                                return (
+                                  <tr key={index} className="border-b border-gray-100 last:border-b-0">
+                                    <td className="py-2 pr-2">
+                                      <input
+                                        type="text"
+                                        value={item.category}
+                                        onChange={(e) =>
+                                          updateBudgetItem(index, "category", e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="Category"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="text"
+                                        value={item.requirement}
+                                        onChange={(e) =>
+                                          updateBudgetItem(index, "requirement", e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="Requirement"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="text"
+                                        value={item.vendor}
+                                        onChange={(e) => updateBudgetItem(index, "vendor", e.target.value)}
+                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="Vendor"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.price}
+                                        onChange={(e) => updateBudgetItem(index, "price", e.target.value)}
+                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.quantity}
+                                        onChange={(e) => updateBudgetItem(index, "quantity", e.target.value)}
+                                        className="w-20 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.advance}
+                                        onChange={(e) => updateBudgetItem(index, "advance", e.target.value)}
+                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <p className="text-sm font-semibold text-gray-800 min-w-[90px]">
+                                        ₹{formatCurrency(rowTotal)}
+                                      </p>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.gst}
+                                        onChange={(e) => updateBudgetItem(index, "gst", e.target.value)}
+                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 pl-2">
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          id={`budget-quotation-${index}`}
+                                          type="file"
+                                          className="hidden"
+                                          onChange={(e) =>
+                                            updateBudgetItem(
+                                              index,
+                                              "quotationFileName",
+                                              e.target.files?.[0]?.name || ""
+                                            )
+                                          }
+                                        />
+                                        <label
+                                          htmlFor={`budget-quotation-${index}`}
+                                          className="px-3 py-2 rounded-md bg-[#154CB3] text-white text-xs font-medium hover:bg-[#0f3a7a] cursor-pointer"
+                                        >
+                                          Upload
+                                        </label>
+                                        <span className="text-xs text-gray-500 max-w-[110px] truncate">
+                                          {item.quotationFileName || "No file"}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="flex justify-end mt-4">
+                          <button
+                            type="button"
+                            onClick={() => setBudgetItems((prev) => [...prev, createEmptyBudgetItem()])}
+                            className="px-4 py-2 rounded-md bg-[#154CB3] text-white text-sm font-medium hover:bg-[#0f3a7a]"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        <div className="mt-8 space-y-2 text-right">
+                          <p className="text-sm text-gray-700">
+                            <span className="font-semibold mr-3">Sub-total</span>₹{formatCurrency(budgetTotals.subtotal)}
+                          </p>
+                          <p className="text-sm text-gray-700">
+                            <span className="font-semibold mr-3">Total GST</span>₹{formatCurrency(budgetTotals.totalGst)}
+                          </p>
+                          <div className="flex items-center justify-end gap-3">
+                            <label htmlFor="totalSponsorshipAmount" className="text-sm font-semibold text-gray-700">
+                              Total Sponsorship amount
+                            </label>
+                            <input
+                              id="totalSponsorshipAmount"
+                              type="number"
+                              min="0"
+                              value={totalSponsorshipAmount}
+                              onChange={(e) => setTotalSponsorshipAmount(e.target.value)}
+                              className="w-40 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              placeholder="0"
+                            />
+                          </div>
+                          <p className="text-base font-bold text-[#063168]">
+                            Amount required: ₹{formatCurrency(budgetTotals.requiredAmount)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {errors.submit && (
                   <p className="text-red-500 text-sm mt-4 bg-red-50 p-3 rounded-md">
                     {errors.submit}
@@ -3201,58 +3711,75 @@ function CreateFestForm(props?: CreateFestProps) {
                   </Link>
                   
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleSaveDraft}
-                      disabled={isSubmitting || isNavigating || isOpeningPreview}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isSubmitting && submitIntent === "draft"
-                        ? "Saving Draft..."
-                        : "Save as Draft"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handlePreview}
-                      disabled={isSubmitting || isNavigating || isOpeningPreview}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isOpeningPreview ? "Opening preview..." : "Preview"}
-                    </button>
-                    
-                    {finalIsEditMode && (
-                      <div className="relative" ref={actionsDropdownRef}>
+                    {creationStep === "details" ? (
+                      <>
                         <button
                           type="button"
-                          onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
-                          disabled={isNavigating || isSubmitting || isOpeningPreview}
-                          className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 text-gray-700 bg-white text-sm font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                          onClick={handleSaveDraft}
+                          disabled={isSubmitting || isNavigating || isOpeningPreview}
+                          className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                         >
-                          <span>More actions</span>
-                          <svg className={`w-4 h-4 transition-transform ${isActionsDropdownOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                          </svg>
+                          {isSubmitting && submitIntent === "draft"
+                            ? "Saving Draft..."
+                            : "Save as Draft"}
                         </button>
-                        {isActionsDropdownOpen && (
-                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+
+                        <button
+                          type="button"
+                          onClick={handlePreview}
+                          disabled={isSubmitting || isNavigating || isOpeningPreview}
+                          className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isOpeningPreview ? "Opening preview..." : "Preview"}
+                        </button>
+
+                        {finalIsEditMode && (
+                          <div className="relative" ref={actionsDropdownRef}>
                             <button
                               type="button"
-                              onClick={() => {
-                                deleteFest();
-                                setIsActionsDropdownOpen(false);
-                              }}
+                              onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
                               disabled={isNavigating || isSubmitting || isOpeningPreview}
-                              className="w-full text-left px-4 py-3 text-red-600 hover:bg-red-50 text-sm font-medium border-b border-gray-100 first:rounded-t-lg last:border-b-0 last:rounded-b-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                              className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 text-gray-700 bg-white text-sm font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                             >
-                              <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <span>More actions</span>
+                              <svg className={`w-4 h-4 transition-transform ${isActionsDropdownOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                               </svg>
-                              {isNavigating ? "Deleting..." : "Delete Fest"}
                             </button>
+                            {isActionsDropdownOpen && (
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    deleteFest();
+                                    setIsActionsDropdownOpen(false);
+                                  }}
+                                  disabled={isNavigating || isSubmitting || isOpeningPreview}
+                                  className="w-full text-left px-4 py-3 text-red-600 hover:bg-red-50 text-sm font-medium border-b border-gray-100 first:rounded-t-lg last:border-b-0 last:rounded-b-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  {isNavigating ? "Deleting..." : "Delete Fest"}
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreationStep("details");
+                          setErrors((prev) => ({ ...prev, submit: undefined }));
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        disabled={isSubmitting || isNavigating || isOpeningPreview}
+                        className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Back
+                      </button>
                     )}
                   </div>
                   
@@ -3261,7 +3788,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     disabled={isSubmitting || isNavigating || isOpeningPreview}
                     className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                   >
-                    {(isSubmitting || isUploadingImage) && (
+                    {(creationStep === "budget" && (isSubmitting || isUploadingImage)) && (
                       <svg
                         className="animate-spin h-4 w-4 text-white"
                         xmlns="http://www.w3.org/2000/svg"
@@ -3284,21 +3811,15 @@ function CreateFestForm(props?: CreateFestProps) {
                       </svg>
                     )}
                     <span>
-                      {isUploadingImage
+                      {creationStep === "details"
+                        ? "NEXT"
+                        : isUploadingImage
                         ? "Uploading image..."
                         : isSubmitting
                         ? submitIntent === "draft"
                           ? "Saving Draft..."
-                          : finalIsEditMode
-                            ? isDraftFest
-                              ? "Publishing..."
-                              : "Updating..."
-                            : "Publishing..."
-                        : finalIsEditMode
-                        ? isDraftFest
-                          ? "Publish Fest"
-                          : "Update Fest"
-                        : "Publish Fest"}
+                          : "Sending for approval..."
+                        : "Send for approval"}
                     </span>
                   </button>
                 </div>
