@@ -220,6 +220,7 @@ const DEFAULT_ADDITIONAL_REQUESTS = {
     hardboardSelected: false,
     hardboardQuantity: "0",
     hardboardDescription: "",
+    description: "",
   },
   security: {
     enabled: false,
@@ -284,6 +285,12 @@ const sanitizeAdditionalRequests = (value) => {
       canopyDescription: normalizeSingleStringField(parsed?.stalls?.canopyDescription || ""),
       hardboardQuantity: normalizeSingleStringField(parsed?.stalls?.hardboardQuantity || "0"),
       hardboardDescription: normalizeSingleStringField(parsed?.stalls?.hardboardDescription || ""),
+      description: normalizeSingleStringField(
+        parsed?.stalls?.description ||
+          parsed?.stalls?.hardboardDescription ||
+          parsed?.stalls?.canopyDescription ||
+          ""
+      ),
     },
     security: {
       ...defaults.security,

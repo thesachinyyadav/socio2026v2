@@ -286,6 +286,7 @@ export default function EditEventPage() {
                 hardboardSelected: false,
                 hardboardQuantity: "0",
                 hardboardDescription: "",
+                description: "",
               },
               security: {
                 enabled: false,
@@ -326,6 +327,11 @@ export default function EditEventPage() {
               stalls: {
                 ...defaults.stalls,
                 ...(parsed.stalls || {}),
+                description:
+                  (parsed?.stalls?.description as string | undefined) ||
+                  (parsed?.stalls?.hardboardDescription as string | undefined) ||
+                  (parsed?.stalls?.canopyDescription as string | undefined) ||
+                  "",
               },
               security: {
                 ...defaults.security,

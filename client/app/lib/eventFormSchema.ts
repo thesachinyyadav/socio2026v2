@@ -45,6 +45,7 @@ export const additionalRequestsDefaultValues = {
     hardboardSelected: false,
     hardboardQuantity: "0",
     hardboardDescription: "",
+    description: "",
   },
   security: {
     enabled: false,
@@ -142,6 +143,7 @@ export const additionalRequestsSchema = z.object({
       hardboardSelected: z.boolean().default(false),
       hardboardQuantity: z.string().optional().or(z.literal("")),
       hardboardDescription: z.string().optional().or(z.literal("")),
+      description: z.string().optional().or(z.literal("")),
     })
     .default(additionalRequestsDefaultValues.stalls),
   security: z

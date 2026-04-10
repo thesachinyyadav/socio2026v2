@@ -1550,10 +1550,6 @@ export default function EventForm({
         shouldDirty: true,
         shouldValidate: true,
       });
-      setValue("additionalRequests.stalls.canopyDescription", "", {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
     }
   }, [watchedStallsEnabled, watchedCanopySelected, setValue]);
 
@@ -1565,10 +1561,6 @@ export default function EventForm({
     if (!watchedStallsEnabled) return;
     if (wasSelected && !isSelected) {
       setValue("additionalRequests.stalls.hardboardQuantity", "0", {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-      setValue("additionalRequests.stalls.hardboardDescription", "", {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -2355,7 +2347,7 @@ export default function EventForm({
                                         : "border-gray-300"
                                     }`}
                                   >
-                                    <option value="">Select a predefined venue</option>
+                                    <option value="">--- None --- (Use custom venue below)</option>
                                     {predefinedVenues.map((venueOption) => (
                                       <option
                                         key={venueOption}
@@ -2556,7 +2548,7 @@ export default function EventForm({
                             </div>
 
                             {watchedCanopySelected && (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
                                 <InputField
                                   label="Canopy Quantity"
                                   name={"additionalRequests.stalls.canopyQuantity" as any}
@@ -2569,18 +2561,6 @@ export default function EventForm({
                                       ?.canopyQuantity as FieldError | undefined
                                   }
                                   required
-                                />
-                                <InputField
-                                  label="Canopy Description (optional)"
-                                  name={
-                                    "additionalRequests.stalls.canopyDescription" as any
-                                  }
-                                  register={register}
-                                  error={
-                                    errors.additionalRequests?.stalls
-                                      ?.canopyDescription as FieldError | undefined
-                                  }
-                                  placeholder="Optional notes"
                                 />
                               </div>
                             )}
@@ -2613,7 +2593,7 @@ export default function EventForm({
                             </div>
 
                             {watchedHardboardSelected && (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
                                 <InputField
                                   label="Hardboard Quantity"
                                   name={"additionalRequests.stalls.hardboardQuantity" as any}
@@ -2627,19 +2607,22 @@ export default function EventForm({
                                   }
                                   required
                                 />
-                                <InputField
-                                  label="Hardboard Description (optional)"
-                                  name={
-                                    "additionalRequests.stalls.hardboardDescription" as any
-                                  }
-                                  register={register}
-                                  error={
-                                    errors.additionalRequests?.stalls
-                                      ?.hardboardDescription as FieldError | undefined
-                                  }
-                                  placeholder="Optional notes"
-                                />
                               </div>
+                            )}
+
+                            {(watchedCanopySelected || watchedHardboardSelected) && (
+                              <InputField
+                                label="Stall Description (optional)"
+                                name={"additionalRequests.stalls.description" as any}
+                                as="textarea"
+                                rows={3}
+                                register={register}
+                                error={
+                                  errors.additionalRequests?.stalls
+                                    ?.description as FieldError | undefined
+                                }
+                                placeholder="Provide any setup/details for requested stalls"
+                              />
                             )}
                           </div>
                         )}
