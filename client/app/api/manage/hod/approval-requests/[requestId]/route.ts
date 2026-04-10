@@ -124,13 +124,14 @@ export async function PATCH(
     }
 
     const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
+    const isMasterAdmin = Boolean(userProfile.is_masteradmin);
     const isHodUser = Boolean(userProfile.is_hod) || universityRole === "hod";
-    if (!isHodUser) {
-      return jsonError(403, "Only HOD users can perform L1 actions.");
+    if (!isHodUser && !isMasterAdmin) {
+      return jsonError(403, "Only HOD or Master Admin users can perform L1 actions.");
     }
 
     const departmentId = String(userProfile.department_id || "").trim();
-    if (!departmentId) {
+    if (!departmentId && !isMasterAdmin) {
       return jsonError(403, "No department is mapped to this HOD account.");
     }
 
@@ -187,7 +188,7 @@ export async function PATCH(
       return jsonError(409, "This request is no longer pending.");
     }
 
-    if (String(eventRow.organizing_dept || "") !== departmentId) {
+    if (!isMasterAdmin && String(eventRow.organizing_dept || "") !== departmentId) {
       return jsonError(403, "This request does not belong to your department.");
     }
 

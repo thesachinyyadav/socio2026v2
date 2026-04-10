@@ -111,9 +111,11 @@ export async function fetchDeanDashboardData({
   l1Threshold,
 }: {
   supabase: any;
-  schoolId: string;
+  schoolId?: string | null;
   l1Threshold: number;
 }): Promise<DeanDashboardData> {
+  const normalizedSchoolId = String(schoolId || "").trim();
+
   const queueSelect = `
     event_id,
     title,
@@ -136,10 +138,9 @@ export async function fetchDeanDashboardData({
     )
   `;
 
-  const { data: pendingEventsData, error: pendingEventsError } = await supabase
+  let pendingEventsQuery = supabase
     .from("events")
     .select(queueSelect)
-    .eq("organizing_school", schoolId)
     .is("fest_id", null)
     .eq("approval_requests.approval_level", "L2_DEAN")
     .eq("approval_requests.status", "pending")
@@ -148,6 +149,12 @@ export async function fetchDeanDashboardData({
       ascending: true,
       referencedTable: "approval_requests",
     });
+
+  if (normalizedSchoolId) {
+    pendingEventsQuery = pendingEventsQuery.eq("organizing_school", normalizedSchoolId);
+  }
+
+  const { data: pendingEventsData, error: pendingEventsError } = await pendingEventsQuery;
 
   if (pendingEventsError) {
     throw new Error(`Failed to load dean approvals: ${pendingEventsError.message}`);
@@ -206,13 +213,18 @@ export async function fetchDeanDashboardData({
 
   const pendingBudgetTotal = queue.reduce((sum, row) => sum + row.totalBudget, 0);
 
-  const { data: kpiEventsData, error: kpiEventsError } = await supabase
+  let kpiEventsQuery = supabase
     .from("events")
     .select(queueSelect)
-    .eq("organizing_school", schoolId)
     .is("fest_id", null)
     .eq("approval_requests.approval_level", "L2_DEAN")
     .gte("event_budgets.total_estimated_expense", l1Threshold);
+
+  if (normalizedSchoolId) {
+    kpiEventsQuery = kpiEventsQuery.eq("organizing_school", normalizedSchoolId);
+  }
+
+  const { data: kpiEventsData, error: kpiEventsError } = await kpiEventsQuery;
 
   if (kpiEventsError) {
     throw new Error(`Failed to load dean KPI data: ${kpiEventsError.message}`);

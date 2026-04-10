@@ -88,9 +88,11 @@ export async function fetchHodDashboardData({
   departmentId,
 }: {
   supabase: any;
-  departmentId: string;
+  departmentId?: string | null;
 }): Promise<HodDashboardData> {
-  const { data: pendingData, error: pendingError } = await supabase
+  const normalizedDepartmentId = String(departmentId || "").trim();
+
+  let pendingQuery = supabase
     .from("approval_requests")
     .select(
       `
@@ -109,9 +111,14 @@ export async function fetchHodDashboardData({
     )
     .eq("status", "pending")
     .eq("approval_level", "L1_HOD")
-    .eq("events.organizing_dept", departmentId)
     .is("events.fest_id", null)
     .order("created_at", { ascending: true });
+
+  if (normalizedDepartmentId) {
+    pendingQuery = pendingQuery.eq("events.organizing_dept", normalizedDepartmentId);
+  }
+
+  const { data: pendingData, error: pendingError } = await pendingQuery;
 
   if (pendingError) {
     throw new Error(`Failed to load HOD approvals: ${pendingError.message}`);
@@ -198,7 +205,7 @@ export async function fetchHodDashboardData({
 
   const { startDate, endDate } = getYearDateBounds(new Date());
 
-  const { data: ytdBudgetData, error: ytdBudgetError } = await supabase
+  let ytdBudgetQuery = supabase
     .from("event_budgets")
     .select(
       `
@@ -212,9 +219,14 @@ export async function fetchHodDashboardData({
         )
       `
     )
-    .eq("events.organizing_dept", departmentId)
     .gte("events.event_date", startDate)
     .lte("events.event_date", endDate);
+
+  if (normalizedDepartmentId) {
+    ytdBudgetQuery = ytdBudgetQuery.eq("events.organizing_dept", normalizedDepartmentId);
+  }
+
+  const { data: ytdBudgetData, error: ytdBudgetError } = await ytdBudgetQuery;
 
   if (ytdBudgetError) {
     throw new Error(`Failed to load YTD department budget: ${ytdBudgetError.message}`);

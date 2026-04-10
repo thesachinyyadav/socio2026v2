@@ -900,6 +900,14 @@ export default function MasterAdminPage() {
               Organiser View
             </span>
           </Link>
+          <Link href="/manage/hod">
+            <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
+              <span className="text-slate-400">
+                <Eye className="w-4 h-4" />
+              </span>
+              HOD View
+            </span>
+          </Link>
           <Link href="/manage/dean">
             <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
               <span className="text-slate-400">

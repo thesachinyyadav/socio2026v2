@@ -146,13 +146,14 @@ export async function PATCH(
     }
 
     const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
+    const isMasterAdmin = Boolean(userProfile.is_masteradmin);
     const isDeanUser = Boolean(userProfile.is_dean) || universityRole === "dean";
-    if (!isDeanUser) {
-      return jsonError(403, "Only Dean users can perform L2 actions.");
+    if (!isDeanUser && !isMasterAdmin) {
+      return jsonError(403, "Only Dean or Master Admin users can perform L2 actions.");
     }
 
     const schoolId = String(userProfile.school_id || "").trim();
-    if (!schoolId) {
+    if (!schoolId && !isMasterAdmin) {
       return jsonError(403, "No school scope is mapped to this Dean account.");
     }
 
@@ -211,7 +212,7 @@ export async function PATCH(
       return jsonError(409, "This request is no longer pending.");
     }
 
-    if (String(eventRow.organizing_school || "") !== schoolId) {
+    if (!isMasterAdmin && String(eventRow.organizing_school || "") !== schoolId) {
       return jsonError(403, "This request does not belong to your school scope.");
     }
 

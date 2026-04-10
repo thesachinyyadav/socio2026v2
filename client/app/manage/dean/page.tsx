@@ -108,13 +108,14 @@ export default async function DeanManagePage() {
   }
 
   const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
+  const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isDeanUser = Boolean(userProfile.is_dean) || universityRole === "dean";
-  if (!isDeanUser) {
+  if (!isDeanUser && !isMasterAdmin) {
     redirect("/manage");
   }
 
   const schoolId = String(userProfile.school_id || "").trim();
-  if (!schoolId) {
+  if (!schoolId && !isMasterAdmin) {
     redirect("/error");
   }
 
@@ -135,7 +136,7 @@ export default async function DeanManagePage() {
   try {
     dashboardData = await fetchDeanDashboardData({
       supabase,
-      schoolId,
+      schoolId: schoolId || null,
       l1Threshold,
     });
   } catch (error) {
@@ -151,7 +152,7 @@ export default async function DeanManagePage() {
         </div>
       ) : null}
       <DeanDashboardClient
-        schoolName={schoolId}
+        schoolName={schoolId || "All Schools"}
         l1Threshold={l1Threshold}
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}

@@ -87,27 +87,34 @@ export default async function HodManagePage() {
   }
 
   const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
+  const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isHodUser = Boolean(userProfile.is_hod) || universityRole === "hod";
-  if (!isHodUser) {
+  if (!isHodUser && !isMasterAdmin) {
     redirect("/error");
   }
 
   const departmentId = String(userProfile.department_id || "").trim();
-  if (!departmentId) {
+  if (!departmentId && !isMasterAdmin) {
     redirect("/error");
   }
 
   const [dashboardData, departmentLookup] = await Promise.all([
-    fetchHodDashboardData({ supabase, departmentId }),
-    supabase
-      .from("departments_courses")
-      .select("department_name")
-      .eq("id", departmentId)
-      .maybeSingle(),
+    fetchHodDashboardData({
+      supabase,
+      departmentId: departmentId || null,
+    }),
+    departmentId
+      ? supabase
+          .from("departments_courses")
+          .select("department_name")
+          .eq("id", departmentId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const departmentName =
-    String(departmentLookup?.data?.department_name || "").trim() || "My Department";
+    String(departmentLookup?.data?.department_name || "").trim() ||
+    (isMasterAdmin ? "All Departments" : "My Department");
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

@@ -93,6 +93,8 @@ function NavigationBar() {
   const universityRole = String((userData as any)?.university_role || "").toLowerCase().trim();
   const isHod = Boolean((userData as any)?.is_hod) || universityRole === "hod";
   const isDean = Boolean((userData as any)?.is_dean) || universityRole === "dean";
+  const canOpenHodDashboard = isHod || isMasterAdmin;
+  const canOpenDeanDashboard = isDean || isMasterAdmin;
   const isManagementUser = isMasterAdmin || isOrganiser || isHod || isDean;
 
   useEffect(() => {
@@ -366,14 +368,14 @@ function NavigationBar() {
                       </button>
                     </Link>
                   )}
-                  {!isDesktopCompact && isHod && (
+                  {!isDesktopCompact && canOpenHodDashboard && (
                     <Link href="/manage/hod">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm border-amber-400 text-amber-700 hover:bg-amber-50 transition-all duration-200 ease-in-out">
                         HOD Dashboard
                       </button>
                     </Link>
                   )}
-                  {!isDesktopCompact && isDean && (
+                  {!isDesktopCompact && canOpenDeanDashboard && (
                     <Link href="/manage/dean">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm border-slate-700 text-slate-700 hover:bg-slate-100 transition-all duration-200 ease-in-out">
                         Dean Dashboard
@@ -638,7 +640,7 @@ function NavigationBar() {
                     </Link>
                   )}
 
-                  {isHod && (
+                  {canOpenHodDashboard && (
                     <Link
                       href="/manage/hod"
                       onClick={closeDesktopMenu}
@@ -648,7 +650,7 @@ function NavigationBar() {
                     </Link>
                   )}
 
-                  {isDean && (
+                  {canOpenDeanDashboard && (
                     <Link
                       href="/manage/dean"
                       onClick={closeDesktopMenu}
@@ -709,7 +711,7 @@ function NavigationBar() {
               </Link>
             )}
 
-            {isHod && (
+            {canOpenHodDashboard && (
               <Link
                 href="/manage/hod"
                 className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 transition-colors duration-200"
@@ -718,7 +720,7 @@ function NavigationBar() {
               </Link>
             )}
 
-            {isDean && (
+            {canOpenDeanDashboard && (
               <Link
                 href="/manage/dean"
                 className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors duration-200"
