@@ -448,6 +448,241 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({
       ...dayNames.map((name) => (
         <div
           key={name}
+
+                <div className={creationStep === "budget" ? "space-y-6" : "hidden"}>
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+                    <p className="text-sm font-semibold text-gray-800 mb-3">
+                      Does this Fest require a budget approval?
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setRequiresBudgetApproval(true)}
+                        className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                          requiresBudgetApproval
+                            ? "bg-[#154CB3] text-white border-[#154CB3]"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRequiresBudgetApproval(false)}
+                        className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                          !requiresBudgetApproval
+                            ? "bg-[#154CB3] text-white border-[#154CB3]"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+
+                  {requiresBudgetApproval ? (
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-700 border-b border-gray-200">
+                              <th className="py-2 pr-3 font-semibold">Category</th>
+                              <th className="py-2 pr-3 font-semibold">Requirement</th>
+                              <th className="py-2 pr-3 font-semibold">Vendor</th>
+                              <th className="py-2 pr-3 font-semibold">Price</th>
+                              <th className="py-2 pr-3 font-semibold">Qty</th>
+                              <th className="py-2 pr-3 font-semibold">Advance</th>
+                              <th className="py-2 pr-3 font-semibold">Total</th>
+                              <th className="py-2 pr-3 font-semibold">GST</th>
+                              <th className="py-2 pr-3 font-semibold">Quotation</th>
+                              <th className="py-2 font-semibold">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {budgetItems.map((item, index) => {
+                              const rowTotal =
+                                toPositiveNumber(item.price) *
+                                toPositiveNumber(item.quantity);
+
+                              return (
+                                <tr key={index} className="border-b border-gray-100">
+                                  <td className="py-2 pr-3 min-w-[140px]">
+                                    <input
+                                      type="text"
+                                      value={item.category}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "category", e.target.value)
+                                      }
+                                      placeholder="Category"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[180px]">
+                                    <input
+                                      type="text"
+                                      value={item.requirement}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "requirement", e.target.value)
+                                      }
+                                      placeholder="Requirement"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[140px]">
+                                    <input
+                                      type="text"
+                                      value={item.vendor}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "vendor", e.target.value)
+                                      }
+                                      placeholder="Vendor"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[120px]">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={item.price}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "price", e.target.value)
+                                      }
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[90px]">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={item.quantity}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "quantity", e.target.value)
+                                      }
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[120px]">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={item.advance}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "advance", e.target.value)
+                                      }
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[100px] text-gray-800 font-medium">
+                                    ₹{formatCurrency(rowTotal)}
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[120px]">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={item.gst}
+                                      onChange={(e) =>
+                                        updateBudgetItem(index, "gst", e.target.value)
+                                      }
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-3 min-w-[170px]">
+                                    <label className="inline-flex items-center justify-center px-3 py-2 border border-[#154CB3] text-[#154CB3] rounded-md text-xs font-medium hover:bg-blue-50 cursor-pointer transition-colors">
+                                      Upload
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const fileName = e.target.files?.[0]?.name || "";
+                                          updateBudgetItem(index, "quotationFileName", fileName);
+                                        }}
+                                      />
+                                    </label>
+                                    {item.quotationFileName && (
+                                      <p className="text-xs text-gray-500 mt-1 truncate" title={item.quotationFileName}>
+                                        {item.quotationFileName}
+                                      </p>
+                                    )}
+                                  </td>
+                                  <td className="py-2 min-w-[100px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeBudgetRow(index)}
+                                      className="px-3 py-2 border border-red-200 text-red-600 rounded-md text-xs font-medium hover:bg-red-50 transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 mt-4">
+                        <button
+                          type="button"
+                          onClick={addBudgetRow}
+                          className="px-4 py-2 border border-[#154CB3] text-[#154CB3] rounded-md text-sm font-medium hover:bg-blue-50 transition-colors"
+                        >
+                          Add Row
+                        </button>
+                        <button
+                          type="button"
+                          onClick={undoBudgetRowChange}
+                          disabled={budgetHistory.length === 0}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Undo Row Change
+                        </button>
+                      </div>
+
+                      <div className="mt-6 pt-4 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                        <div className="space-y-2 text-gray-700">
+                          <div className="flex items-center justify-between">
+                            <span>Sub-total</span>
+                            <span className="font-semibold">₹{formatCurrency(budgetTotals.subtotal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Total GST</span>
+                            <span className="font-semibold">₹{formatCurrency(budgetTotals.totalGst)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Total</span>
+                            <span className="font-semibold">₹{formatCurrency(budgetTotals.totalAmount)}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label htmlFor="totalSponsorshipAmount" className="block text-gray-700 font-medium">
+                            Total Sponsorship amount
+                          </label>
+                          <input
+                            id="totalSponsorshipAmount"
+                            type="number"
+                            min="0"
+                            value={totalSponsorshipAmount}
+                            onChange={(e) => setTotalSponsorshipAmount(e.target.value)}
+                            placeholder="0"
+                            className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                          />
+                          <div className="flex items-center justify-between text-gray-800">
+                            <span>Amount required</span>
+                            <span className="font-semibold">₹{formatCurrency(budgetTotals.requiredAmount)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                      Budget approval is not required. You can directly send this fest for approval.
+                    </div>
+                  )}
+                </div>
           className="text-center text-xs font-medium text-gray-500 py-1"
         >
           {name}
@@ -1001,6 +1236,7 @@ function CreateFestForm(props?: CreateFestProps) {
       ? initialBudgetSettings.items
       : [createEmptyBudgetItem()]
   );
+  const [budgetHistory, setBudgetHistory] = useState<FestBudgetItem[][]>([]);
   const [totalSponsorshipAmount, setTotalSponsorshipAmount] = useState(
     initialBudgetSettings?.totalSponsorship ?? ""
   );
@@ -1754,6 +1990,34 @@ function CreateFestForm(props?: CreateFestProps) {
     },
     []
   );
+
+  const addBudgetRow = useCallback(() => {
+    setBudgetItems((prev) => {
+      setBudgetHistory((history) => [prev, ...history].slice(0, 30));
+      return [...prev, createEmptyBudgetItem()];
+    });
+  }, []);
+
+  const removeBudgetRow = useCallback((index: number) => {
+    setBudgetItems((prev) => {
+      if (prev.length <= 1) {
+        return [createEmptyBudgetItem()];
+      }
+      setBudgetHistory((history) => [prev, ...history].slice(0, 30));
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  }, []);
+
+  const undoBudgetRowChange = useCallback(() => {
+    setBudgetHistory((prevHistory) => {
+      if (!prevHistory.length) {
+        return prevHistory;
+      }
+      const [lastState, ...remaining] = prevHistory;
+      setBudgetItems(lastState.length ? lastState : [createEmptyBudgetItem()]);
+      return remaining;
+    });
+  }, []);
 
   const validateBudgetForm = useCallback((): string | null => {
     if (!requiresBudgetApproval) {
