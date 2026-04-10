@@ -34,6 +34,7 @@ export default function ApprovalDecisionModal({
   const noteLength = note.trim().length;
   const canSubmit = noteLength >= minCharacters && !isSubmitting;
   const heading = mode === "reject" ? "Reject Request" : "Return for Revision";
+  const noteLabel = mode === "reject" ? "Rejection Note" : "Revision Note";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
@@ -45,7 +46,7 @@ export default function ApprovalDecisionModal({
 
         <div className="space-y-3 px-6 py-5">
           <label htmlFor="decision-note" className="text-sm font-medium text-slate-700">
-            Rejection Note
+            {noteLabel}
           </label>
           <textarea
             id="decision-note"

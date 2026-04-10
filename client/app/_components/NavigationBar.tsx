@@ -90,6 +90,10 @@ function NavigationBar() {
   const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
   const isOrganiser = Boolean(userData?.is_organiser);
+  const universityRole = String((userData as any)?.university_role || "").toLowerCase().trim();
+  const isHod = Boolean((userData as any)?.is_hod) || universityRole === "hod";
+  const isDean = Boolean((userData as any)?.is_dean) || universityRole === "dean";
+  const isManagementUser = isMasterAdmin || isOrganiser || isHod || isDean;
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -328,7 +332,7 @@ function NavigationBar() {
               type="button"
               onClick={() => setIsDesktopMenuOpen((prev) => !prev)}
               aria-label="Toggle navigation menu"
-              aria-expanded={isDesktopMenuOpen}
+              aria-expanded={isDesktopMenuOpen ? "true" : "false"}
               className="hidden md:inline-flex items-center justify-center w-10 h-10 rounded-full border border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -345,7 +349,7 @@ function NavigationBar() {
                 <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
               </div>
             ) : session ? (
-              userData && (isOrganiser || isMasterAdmin) ? (
+              userData && isManagementUser ? (
                 <div className="flex gap-2 sm:gap-4 items-center md:flex-nowrap justify-end">
                   <NotificationSystem />
                   {!isDesktopCompact && isMasterAdmin && (
@@ -359,6 +363,20 @@ function NavigationBar() {
                     <Link href="/manage">
                       <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out">
                         Organiser
+                      </button>
+                    </Link>
+                  )}
+                  {!isDesktopCompact && isHod && (
+                    <Link href="/manage/hod">
+                      <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm border-amber-400 text-amber-700 hover:bg-amber-50 transition-all duration-200 ease-in-out">
+                        HOD Dashboard
+                      </button>
+                    </Link>
+                  )}
+                  {!isDesktopCompact && isDean && (
+                    <Link href="/manage/dean">
+                      <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm border-slate-700 text-slate-700 hover:bg-slate-100 transition-all duration-200 ease-in-out">
+                        Dean Dashboard
                       </button>
                     </Link>
                   )}
@@ -509,7 +527,7 @@ function NavigationBar() {
                         <button
                           type="button"
                           aria-label={`Toggle ${link.name} submenu`}
-                          aria-expanded={isExpanded}
+                          aria-expanded={isExpanded ? "true" : "false"}
                           onClick={() => {
                             setExpandedDesktopSection((prev) => (prev === link.name ? null : link.name));
                             setExpandedDesktopSubSection(null);
@@ -550,7 +568,7 @@ function NavigationBar() {
                                   <button
                                     type="button"
                                     aria-label={`Toggle ${item.name} nested options`}
-                                    aria-expanded={isSubExpanded}
+                                    aria-expanded={isSubExpanded ? "true" : "false"}
                                     onClick={() => {
                                       setExpandedDesktopSubSection((prev) => (prev === item.href ? null : item.href));
                                     }}
@@ -593,7 +611,7 @@ function NavigationBar() {
               })}
             </div>
 
-            {session && userData && (isMasterAdmin || isOrganiser) && (
+            {session && userData && isManagementUser && (
               <div className="px-4 pb-4 border-t border-gray-200">
                 <p className="pt-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Quick actions
@@ -617,6 +635,26 @@ function NavigationBar() {
                       className="block rounded-lg border border-[#154CB3]/30 px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
                     >
                       Organiser
+                    </Link>
+                  )}
+
+                  {isHod && (
+                    <Link
+                      href="/manage/hod"
+                      onClick={closeDesktopMenu}
+                      className="block rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 transition-colors duration-200"
+                    >
+                      HOD Dashboard
+                    </Link>
+                  )}
+
+                  {isDean && (
+                    <Link
+                      href="/manage/dean"
+                      onClick={closeDesktopMenu}
+                      className="block rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors duration-200"
+                    >
+                      Dean Dashboard
                     </Link>
                   )}
                 </div>
@@ -668,6 +706,24 @@ function NavigationBar() {
                 className="inline-flex items-center justify-center rounded-full border border-[#154CB3]/30 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
               >
                 Organiser
+              </Link>
+            )}
+
+            {isHod && (
+              <Link
+                href="/manage/hod"
+                className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 transition-colors duration-200"
+              >
+                HOD Dashboard
+              </Link>
+            )}
+
+            {isDean && (
+              <Link
+                href="/manage/dean"
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors duration-200"
+              >
+                Dean Dashboard
               </Link>
             )}
           </div>

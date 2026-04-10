@@ -124,7 +124,8 @@ export async function PATCH(
     }
 
     const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
-    if (universityRole !== "hod") {
+    const isHodUser = Boolean(userProfile.is_hod) || universityRole === "hod";
+    if (!isHodUser) {
       return jsonError(403, "Only HOD users can perform L1 actions.");
     }
 

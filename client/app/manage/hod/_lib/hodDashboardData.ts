@@ -161,11 +161,17 @@ export async function fetchHodDashboardData({
 
     if (!userRowsError && Array.isArray(userRowsData)) {
       const userRows = userRowsData as UserNameRow[];
-      userNamesByEmail = new Map(
-        userRows
-          .map((row) => [String(row.email || ""), String(row.name || "")])
-          .filter(([email]) => email.length > 0)
-      );
+      const userNameEntries = userRows.reduce<Array<[string, string]>>((entries, row) => {
+        const email = String(row.email || "").trim();
+        if (!email) {
+          return entries;
+        }
+
+        entries.push([email, String(row.name || "")]);
+        return entries;
+      }, []);
+
+      userNamesByEmail = new Map(userNameEntries);
     }
   }
 

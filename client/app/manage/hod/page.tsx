@@ -87,7 +87,8 @@ export default async function HodManagePage() {
   }
 
   const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
-  if (universityRole !== "hod") {
+  const isHodUser = Boolean(userProfile.is_hod) || universityRole === "hod";
+  if (!isHodUser) {
     redirect("/error");
   }
 
