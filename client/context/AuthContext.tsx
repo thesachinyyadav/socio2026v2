@@ -23,6 +23,10 @@ type UserData = {
   is_organiser: boolean;
   is_support: boolean;
   is_masteradmin: boolean;
+  is_hod?: boolean;
+  is_dean?: boolean;
+  department_id?: string | null;
+  school_id?: string | null;
   organiser_expires_at?: string | null;
   support_expires_at?: string | null;
   masteradmin_expires_at?: string | null;
@@ -338,7 +342,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
       const data = await response.json();
-      const user = { ...data.user, is_support: Boolean(data.user?.is_support) };
+      const user = {
+        ...data.user,
+        is_organiser: Boolean(data.user?.is_organiser),
+        is_support: Boolean(data.user?.is_support),
+        is_masteradmin: Boolean(data.user?.is_masteradmin),
+        is_hod: Boolean(data.user?.is_hod),
+        is_dean: Boolean(data.user?.is_dean),
+      };
       setUserData(user);
       return user;
     } catch (error) {

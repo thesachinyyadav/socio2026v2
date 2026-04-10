@@ -798,6 +798,14 @@ export default function MasterAdminPage() {
         {/* Management section */}
         <div className="mt-1 px-3 pb-4">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1.5">Management</p>
+          <Link href="/masteradmin/roles">
+            <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
+              <span className="text-slate-400">
+                <Users className="w-4 h-4" />
+              </span>
+              Role Matrix
+            </span>
+          </Link>
           <Link href="/manage">
             <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
               <span className="text-slate-400">

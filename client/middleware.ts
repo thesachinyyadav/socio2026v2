@@ -75,6 +75,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/manage") ||
     pathname.startsWith("/create") ||
     pathname.startsWith("/edit");
+  const isHodManagementRoute = pathname.startsWith("/manage/hod");
+  const isDeanManagementRoute = pathname.startsWith("/manage/dean");
 
   if (user && isManagementRoute) {
     if (!user.email) {
@@ -83,13 +85,40 @@ export async function middleware(req: NextRequest) {
 
     const { data: userData, error } = await supabase
       .from("users")
-      .select("is_organiser, is_masteradmin")
+      .select("*")
       .eq("email", user.email)
       .single();
 
-    const canManage = Boolean(userData?.is_organiser) || Boolean(userData?.is_masteradmin);
+    const canManage =
+      Boolean(userData?.is_masteradmin) ||
+      Boolean(userData?.is_organiser) ||
+      Boolean((userData as any)?.is_hod) ||
+      Boolean((userData as any)?.is_dean);
 
-    if (isManagementRoute && (error || !userData || !canManage)) {
+    const universityRole = String((userData as any)?.university_role || "").toLowerCase();
+    const canAccessHodRoute =
+      Boolean(userData?.is_masteradmin) ||
+      Boolean((userData as any)?.is_hod) ||
+      universityRole === "hod";
+    const canAccessDeanRoute =
+      Boolean(userData?.is_masteradmin) ||
+      Boolean((userData as any)?.is_dean) ||
+      universityRole === "dean";
+
+    if (isHodManagementRoute && (error || !userData || !canAccessHodRoute)) {
+      return redirect("/error");
+    }
+
+    if (isDeanManagementRoute && (error || !userData || !canAccessDeanRoute)) {
+      return redirect("/error");
+    }
+
+    if (
+      !isHodManagementRoute &&
+      !isDeanManagementRoute &&
+      isManagementRoute &&
+      (error || !userData || !canManage)
+    ) {
       return redirect("/error");
     }
   }
