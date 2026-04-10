@@ -336,6 +336,8 @@ export default function ManageDashboard() {
   const universityRole = String((userData as any)?.university_role || "").toLowerCase().trim();
   const isHod = Boolean((userData as any)?.is_hod) || universityRole === "hod";
   const isDean = Boolean((userData as any)?.is_dean) || universityRole === "dean";
+  const canOpenHodDashboard = isHod || isMasterAdmin;
+  const canOpenDeanDashboard = isDean || isMasterAdmin;
   
   // Fests Data
   const [fests, setFests] = useState<Fest[]>([]);
@@ -1207,14 +1209,14 @@ export default function ManageDashboard() {
           </div>
         </div>
 
-        {(isHod || isDean) && (
+        {(canOpenHodDashboard || canOpenDeanDashboard) && (
           <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Approval Dashboards</p>
             <p className="mt-1 text-sm text-slate-600">
               Role-based approval queues are available below.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              {isHod && (
+              {canOpenHodDashboard && (
                 <Link
                   href="/manage/hod"
                   className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
@@ -1222,7 +1224,7 @@ export default function ManageDashboard() {
                   Open HOD Dashboard <ArrowRight className="h-4 w-4" />
                 </Link>
               )}
-              {isDean && (
+              {canOpenDeanDashboard && (
                 <Link
                   href="/manage/dean"
                   className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-200"
