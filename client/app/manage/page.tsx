@@ -46,6 +46,7 @@ interface Fest {
   contact_email?: string | null;
   event_heads?: Array<{ email?: string | null } | string>;
   campus_hosted_at?: string | null;
+  is_draft?: boolean | number | string;
   is_archived?: boolean;
   archived_at?: string | null;
   workflow_status?: string | null;

@@ -194,7 +194,11 @@ async function assertMasterAdmin() {
     actingUser = byEmail;
   }
 
-  const actingRole = String(actingUser?.university_role || "").toLowerCase().trim();
+  if (!actingUser) {
+    throw new Error("Unable to resolve your user profile for role checks.");
+  }
+
+  const actingRole = String(actingUser.university_role || "").toLowerCase().trim();
   if (actingRole !== "masteradmin") {
     throw new Error("Master Admin privileges are required.");
   }
