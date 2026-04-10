@@ -579,9 +579,9 @@ function buildVenueOptions(eventRows: any[], festRows: any[], usersRows: any[]):
     }
   };
 
-  eventRows.forEach((row) => addVenue(row?.venue, row?.campus_hosted_at));
-  festRows.forEach((row) => addVenue(row?.venue, row?.campus_hosted_at));
-  usersRows.forEach((row) => addVenue(row?.venue_id, row?.campus));
+  eventRows.forEach((row: any) => addVenue(row?.venue, row?.campus_hosted_at));
+  festRows.forEach((row: any) => addVenue(row?.venue, row?.campus_hosted_at));
+  usersRows.forEach((row: any) => addVenue(row?.venue_id, row?.campus));
 
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -642,7 +642,7 @@ async function buildRolesAnalytics(adminClient: any): Promise<RolesAnalytics> {
     ]);
 
     const registrationCountByEvent = new Map<string, number>();
-    registrationRows.forEach((row) => {
+    registrationRows.forEach((row: any) => {
       const eventId = normalizeNullableText(row?.event_id);
       if (!eventId) {
         return;
@@ -656,7 +656,7 @@ async function buildRolesAnalytics(adminClient: any): Promise<RolesAnalytics> {
     let totalRevenue = 0;
     let eventsWithVenue = 0;
 
-    eventRows.forEach((row) => {
+    eventRows.forEach((row: any) => {
       const eventId = normalizeNullableText(row?.event_id);
       const monthBucket = toMonthBucket(row?.event_date);
 
@@ -684,7 +684,7 @@ async function buildRolesAnalytics(adminClient: any): Promise<RolesAnalytics> {
     let totalSlaHours = 0;
     let totalSlaSamples = 0;
 
-    approvalRows.forEach((row) => {
+    approvalRows.forEach((row: any) => {
       const submittedValue = normalizeNullableText(row?.submitted_at) || normalizeNullableText(row?.created_at);
       const decidedValue = normalizeNullableText(row?.decided_at);
       if (!submittedValue || !decidedValue) {
@@ -755,7 +755,7 @@ export async function getRolesTableData(): Promise<RolesPageData> {
   const usersRows = await fetchUsersWithFallback(adminClient);
   const assignmentFallbackMap = await fetchRoleAssignmentFallbacks(
     adminClient,
-    usersRows.map((row) => row.id)
+    usersRows.map((row: any) => row.id)
   );
 
   const { data: departmentRows, error: departmentError } = await adminClient
@@ -800,19 +800,19 @@ export async function getRolesTableData(): Promise<RolesPageData> {
   const venues = buildVenueOptions(eventVenueRows, festVenueRows, usersRows);
 
   const campusesSet = new Set<string>(CAMPUS_OPTIONS);
-  usersRows.forEach((row) => {
+  usersRows.forEach((row: any) => {
     const campus = normalizeNullableText(row?.campus);
     if (campus) {
       campusesSet.add(campus);
     }
   });
-  eventVenueRows.forEach((row) => {
+  eventVenueRows.forEach((row: any) => {
     const campus = normalizeNullableText(row?.campus_hosted_at);
     if (campus) {
       campusesSet.add(campus);
     }
   });
-  festVenueRows.forEach((row) => {
+  festVenueRows.forEach((row: any) => {
     const campus = normalizeNullableText(row?.campus_hosted_at);
     if (campus) {
       campusesSet.add(campus);
@@ -820,7 +820,7 @@ export async function getRolesTableData(): Promise<RolesPageData> {
   });
 
   return {
-    users: usersRows.map((row) => normalizeUserRecord(row, assignmentFallbackMap.get(String(row.id)))),
+    users: usersRows.map((row: any) => normalizeUserRecord(row, assignmentFallbackMap.get(String(row.id)))),
     departments,
     schools: Array.from(schoolMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
     campuses: Array.from(campusesSet.values()).sort((a, b) => a.localeCompare(b)),
