@@ -784,9 +784,6 @@ export default function VolunteerExecutionDashboardClient({
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Module 11 - Event Logistics
-            </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">Volunteer Execution Dashboard</h1>
             <p className="mt-1 text-sm text-slate-600">
               Live execution console for on-ground volunteers. Session-linked and event-scoped.

@@ -148,7 +148,6 @@ export default function FinanceDashboardClient({
   return (
     <section className="space-y-6">
       <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Module 11 - Event Logistics</p>
         <h1 className="mt-1 text-2xl font-bold text-slate-900">Finance Officer Dashboard</h1>
         <p className="mt-2 text-sm text-slate-600">
           All budget-bearing events require Finance L4 approval. Event details here are strictly read-only.
