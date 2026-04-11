@@ -47,10 +47,6 @@ export const additionalRequestsDefaultValues = {
     hardboardDescription: "",
     description: "",
   },
-  security: {
-    enabled: false,
-    description: "",
-  },
 };
 
 const fileSchema = (
@@ -146,12 +142,6 @@ export const additionalRequestsSchema = z.object({
       description: z.string().optional().or(z.literal("")),
     })
     .default(additionalRequestsDefaultValues.stalls),
-  security: z
-    .object({
-      enabled: z.boolean().default(false),
-      description: z.string().optional().or(z.literal("")),
-    })
-    .default(additionalRequestsDefaultValues.security),
 });
 
 export const eventFormSchema = z
@@ -544,17 +534,6 @@ export const eventFormSchema = z
       }
     }
 
-    if (requests.security?.enabled) {
-      const description = String(requests.security.description || "").trim();
-      if (!description) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["additionalRequests", "security", "description"],
-          message:
-            "Security description is required when Security module is selected",
-        });
-      }
-    }
   });
 
 // TypeScript type inferred from schema

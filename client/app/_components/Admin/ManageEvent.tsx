@@ -897,9 +897,6 @@ const getAdditionalRequestsDefaults = (): EventFormData["additionalRequests"] =>
   stalls: {
     ...additionalRequestsDefaultValues.stalls,
   },
-  security: {
-    ...additionalRequestsDefaultValues.security,
-  },
 });
 
 const mergeAdditionalRequests = (
@@ -927,10 +924,6 @@ const mergeAdditionalRequests = (
     stalls: {
       ...base.stalls,
       ...(source.stalls || {}),
-    },
-    security: {
-      ...base.security,
-      ...(source.security || {}),
     },
   };
 };
@@ -1005,11 +998,88 @@ const ADDITIONAL_REQUEST_STEPS = [
   { key: "venue", label: "Venue" },
   { key: "catering", label: "Catering" },
   { key: "stalls", label: "Stalls" },
-  { key: "security", label: "Security" },
 ] as const;
 
 type AdditionalRequestStepKey =
   (typeof ADDITIONAL_REQUEST_STEPS)[number]["key"];
+
+const renderAdditionalRequestStepIcon = (
+  stepKey: AdditionalRequestStepKey
+): React.ReactNode => {
+  switch (stepKey) {
+    case "it":
+      return (
+        <svg
+          className="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <path d="M8 20h8" />
+          <path d="M12 16v4" />
+        </svg>
+      );
+    case "venue":
+      return (
+        <svg
+          className="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
+          <circle cx="12" cy="10" r="2.5" />
+        </svg>
+      );
+    case "catering":
+      return (
+        <svg
+          className="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M4 14h16" />
+          <path d="M6 14a6 6 0 0 1 12 0" />
+          <path d="M12 8V6" />
+          <path d="M5 18h14" />
+        </svg>
+      );
+    case "stalls":
+      return (
+        <svg
+          className="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 9h18" />
+          <path d="M4.5 9L6 5h12l1.5 4" />
+          <path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+          <path d="M9 19v-5h6v5" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
 
 const ADDITIONAL_REQUEST_STEP_FIELD_MAP: Record<
   AdditionalRequestStepKey,
@@ -1035,10 +1105,6 @@ const ADDITIONAL_REQUEST_STEP_FIELD_MAP: Record<
     "additionalRequests.stalls.hardboardSelected",
     "additionalRequests.stalls.hardboardQuantity",
     "additionalRequests.stalls.description",
-  ],
-  security: [
-    "additionalRequests.security.enabled",
-    "additionalRequests.security.description",
   ],
 };
 
@@ -1428,10 +1494,6 @@ export default function EventForm({
     control,
     name: "additionalRequests.stalls.hardboardSelected",
   });
-  const watchedSecurityEnabled = useWatch({
-    control,
-    name: "additionalRequests.security.enabled",
-  });
 
   const hasFestSelected =
     typeof watchedFestEvent === "string" &&
@@ -1445,7 +1507,6 @@ export default function EventForm({
   const prevStallsEnabledRef = useRef(Boolean(watchedStallsEnabled));
   const prevCanopySelectedRef = useRef(Boolean(watchedCanopySelected));
   const prevHardboardSelectedRef = useRef(Boolean(watchedHardboardSelected));
-  const prevSecurityEnabledRef = useRef(Boolean(watchedSecurityEnabled));
 
   useEffect(() => {
     if (!watchedIsTeamEvent) {
@@ -1663,19 +1724,6 @@ export default function EventForm({
       });
     }
   }, [watchedStallsEnabled, watchedHardboardSelected, setValue]);
-
-  useEffect(() => {
-    const wasEnabled = prevSecurityEnabledRef.current;
-    const isEnabled = Boolean(watchedSecurityEnabled);
-    prevSecurityEnabledRef.current = isEnabled;
-
-    if (wasEnabled && !isEnabled) {
-      setValue("additionalRequests.security.description", "", {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    }
-  }, [watchedSecurityEnabled, setValue]);
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
@@ -2354,7 +2402,7 @@ export default function EventForm({
                                   }`}
                                   aria-label={`Go to ${step.label} step`}
                                 >
-                                  {stepIndex + 1}
+                                  {renderAdditionalRequestStepIcon(step.key)}
                                 </button>
                                 {stepIndex < ADDITIONAL_REQUEST_STEPS.length - 1 && (
                                   <div
@@ -2779,58 +2827,6 @@ export default function EventForm({
                         </div>
                       )}
 
-                      {activeAdditionalRequestStep === 4 && (
-                        <div className="bg-white border border-gray-200 rounded-xl p-4">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <label
-                              htmlFor="additionalRequests-security-enabled"
-                              className="text-sm font-semibold text-gray-900"
-                            >
-                              Security
-                            </label>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Basic security request description.
-                            </p>
-                          </div>
-                          <Controller
-                            name="additionalRequests.security.enabled"
-                            control={control}
-                            render={({ field }) => (
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  id="additionalRequests-security-enabled"
-                                  checked={!!field.value}
-                                  onChange={(e) => field.onChange(e.target.checked)}
-                                  className="sr-only peer"
-                                />
-                                <div className={toggleTrackClass}></div>
-                              </label>
-                            )}
-                          />
-                        </div>
-
-                        {watchedSecurityEnabled && (
-                          <div className="mt-4">
-                            <InputField
-                              label="Description"
-                              name={"additionalRequests.security.description" as any}
-                              as="textarea"
-                              rows={3}
-                              register={register}
-                              error={
-                                errors.additionalRequests?.security
-                                  ?.description as FieldError | undefined
-                              }
-                              required
-                              placeholder="Provide security requirements"
-                            />
-                          </div>
-                        )}
-                        </div>
-                      )}
-
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <p className="text-xs text-gray-500">
                           Step {activeAdditionalRequestStep + 1} of {ADDITIONAL_REQUEST_STEPS.length}
@@ -2845,7 +2841,7 @@ export default function EventForm({
                           </button>
                         ) : (
                           <p className="text-xs text-[#063168] font-medium">
-                            All options unlocked. Use the step numbers above to revisit any section.
+                            All options unlocked. Use the request icons above to revisit any section.
                           </p>
                         )}
                       </div>

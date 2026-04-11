@@ -2,8 +2,7 @@ export type ServiceRoleSlug =
   | "it"
   | "venue"
   | "catering-vendors"
-  | "stalls-misc"
-  | "security";
+  | "stalls-misc";
 
 export interface ServiceRoleDashboardConfig {
   slug: ServiceRoleSlug;
@@ -56,13 +55,6 @@ export const SERVICE_ROLE_DASHBOARDS: ServiceRoleDashboardConfig[] = [
       "is_stalls",
       "is_service_stalls",
     ],
-  },
-  {
-    slug: "security",
-    label: "Security",
-    roleCodes: ["SERVICE_SECURITY"],
-    aliases: ["security", "security service", "security services"],
-    userFlagKeys: ["is_security", "is_security_service", "is_service_security"],
   },
 ];
 

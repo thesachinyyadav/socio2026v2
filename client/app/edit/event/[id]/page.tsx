@@ -313,10 +313,6 @@ export default function EditEventPage() {
                 hardboardDescription: "",
                 description: "",
               },
-              security: {
-                enabled: false,
-                description: "",
-              },
             };
 
             if (!additionalRequests) {
@@ -357,10 +353,6 @@ export default function EditEventPage() {
                   (parsed?.stalls?.hardboardDescription as string | undefined) ||
                   (parsed?.stalls?.canopyDescription as string | undefined) ||
                   "",
-              },
-              security: {
-                ...defaults.security,
-                ...(parsed.security || {}),
               },
             };
           };
