@@ -273,7 +273,6 @@ function NavigationBar() {
     "/manage/venue",
     "/manage/catering-vendors",
     "/support/inbox",
-    "/manage/security",
   ];
 
       const roleDashboardDisplayPriority = new Map(
