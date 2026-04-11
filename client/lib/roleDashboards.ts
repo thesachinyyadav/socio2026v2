@@ -19,14 +19,14 @@ export const SERVICE_ROLE_DASHBOARDS: ServiceRoleDashboardConfig[] = [
     label: "IT",
     roleCodes: ["SERVICE_IT"],
     aliases: ["it", "it service", "it services", "information technology"],
-    userFlagKeys: ["is_it"],
+    userFlagKeys: ["is_it", "is_it_service", "is_service_it"],
   },
   {
     slug: "venue",
     label: "Venue",
     roleCodes: ["SERVICE_VENUE"],
     aliases: ["venue", "venues"],
-    userFlagKeys: ["is_venue"],
+    userFlagKeys: ["is_venue", "is_venue_manager", "is_service_venue"],
   },
   {
     slug: "catering-vendors",
@@ -38,21 +38,31 @@ export const SERVICE_ROLE_DASHBOARDS: ServiceRoleDashboardConfig[] = [
       "catering",
       "cateringvendors",
     ],
-    userFlagKeys: ["is_catering_vendor", "is_catering_vendors"],
+    userFlagKeys: [
+      "is_catering_vendor",
+      "is_catering_vendors",
+      "is_service_catering",
+      "is_catering",
+    ],
   },
   {
     slug: "stalls-misc",
     label: "Stalls/Misc",
     roleCodes: ["SERVICE_STALLS"],
     aliases: ["stalls misc", "stall misc", "stalls", "stallsmisc"],
-    userFlagKeys: ["is_stalls_misc", "is_stall_misc", "is_stalls"],
+    userFlagKeys: [
+      "is_stalls_misc",
+      "is_stall_misc",
+      "is_stalls",
+      "is_service_stalls",
+    ],
   },
   {
     slug: "security",
     label: "Security",
     roleCodes: ["SERVICE_SECURITY"],
     aliases: ["security", "security service", "security services"],
-    userFlagKeys: ["is_security", "is_security_service"],
+    userFlagKeys: ["is_security", "is_security_service", "is_service_security"],
   },
 ];
 
@@ -204,7 +214,7 @@ export function hasServiceRoleAccess(
     return true;
   }
 
-  return false;
+  return hasRoleAlias(userLike.university_role, roleConfig.aliases);
 }
 
 export function getAccessibleServiceRoleDashboards(
