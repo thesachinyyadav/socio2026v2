@@ -5,6 +5,7 @@ export const ROLE_CODES = Object.freeze({
   DEAN: "DEAN",
   CFO: "CFO",
   ACCOUNTS: "ACCOUNTS",
+  FINANCE_OFFICER: "FINANCE_OFFICER",
   ORGANIZER_TEACHER: "ORGANIZER_TEACHER",
   ORGANIZER_STUDENT: "ORGANIZER_STUDENT",
   ORGANIZER_VOLUNTEER: "ORGANIZER_VOLUNTEER",
@@ -32,6 +33,8 @@ const ASSIGNMENT_FALLBACK_ROLE_SET = new Set([
 
 export const normalizeRoleCode = (roleCode) =>
   String(roleCode || "").trim().toUpperCase();
+
+const isTruthy = (value) => value === true || value === 1 || value === "1" || value === "true";
 
 export const isRoleAssignmentActive = (assignment, nowDate = new Date()) => {
   if (!assignment || assignment.is_active === false) {
@@ -106,10 +109,62 @@ export const deriveRoleCodesFromUserRecord = (userRecord = null) => {
 
   if (
     Boolean(userRecord?.is_finance_officer) ||
+    Boolean(userRecord?.is_finance_office) ||
     normalizedUniversityRole === "finance_officer" ||
     normalizedUniversityRole === "accounts"
   ) {
     roleCodes.add(ROLE_CODES.ACCOUNTS);
+    roleCodes.add(ROLE_CODES.FINANCE_OFFICER);
+  }
+
+  if (
+    isTruthy(userRecord?.is_organiser_student) ||
+    normalizedUniversityRole === "organizer_student" ||
+    normalizedUniversityRole === "organiser_student"
+  ) {
+    roleCodes.add(ROLE_CODES.ORGANIZER_STUDENT);
+  }
+
+  if (
+    isTruthy(userRecord?.is_volunteer) ||
+    normalizedUniversityRole === "organizer_volunteer" ||
+    normalizedUniversityRole === "organiser_volunteer"
+  ) {
+    roleCodes.add(ROLE_CODES.ORGANIZER_VOLUNTEER);
+  }
+
+  if (isTruthy(userRecord?.is_service_it) || normalizedUniversityRole === "service_it") {
+    roleCodes.add(ROLE_CODES.SERVICE_IT);
+  }
+
+  if (
+    isTruthy(userRecord?.is_service_venue) ||
+    isTruthy(userRecord?.is_venue_manager) ||
+    normalizedUniversityRole === "service_venue" ||
+    normalizedUniversityRole === "venue_manager"
+  ) {
+    roleCodes.add(ROLE_CODES.SERVICE_VENUE);
+  }
+
+  if (
+    isTruthy(userRecord?.is_service_catering) ||
+    normalizedUniversityRole === "service_catering"
+  ) {
+    roleCodes.add(ROLE_CODES.SERVICE_CATERING);
+  }
+
+  if (
+    isTruthy(userRecord?.is_service_stalls) ||
+    normalizedUniversityRole === "service_stalls"
+  ) {
+    roleCodes.add(ROLE_CODES.SERVICE_STALLS);
+  }
+
+  if (
+    isTruthy(userRecord?.is_service_security) ||
+    normalizedUniversityRole === "service_security"
+  ) {
+    roleCodes.add(ROLE_CODES.SERVICE_SECURITY);
   }
 
   return Array.from(roleCodes);
@@ -153,7 +208,15 @@ export const deriveLegacyFlagsFromRoleCodes = (roleCodes = [], fallbackUser = nu
   const hasHodRole = roleSet.has(ROLE_CODES.HOD);
   const hasDeanRole = roleSet.has(ROLE_CODES.DEAN);
   const hasCfoRole = roleSet.has(ROLE_CODES.CFO);
-  const hasFinanceOfficerRole = roleSet.has(ROLE_CODES.ACCOUNTS);
+  const hasFinanceOfficerRole =
+    roleSet.has(ROLE_CODES.ACCOUNTS) || roleSet.has(ROLE_CODES.FINANCE_OFFICER);
+  const hasOrganizerStudentRole = roleSet.has(ROLE_CODES.ORGANIZER_STUDENT);
+  const hasOrganizerVolunteerRole = roleSet.has(ROLE_CODES.ORGANIZER_VOLUNTEER);
+  const hasServiceItRole = roleSet.has(ROLE_CODES.SERVICE_IT);
+  const hasServiceVenueRole = roleSet.has(ROLE_CODES.SERVICE_VENUE);
+  const hasServiceCateringRole = roleSet.has(ROLE_CODES.SERVICE_CATERING);
+  const hasServiceStallsRole = roleSet.has(ROLE_CODES.SERVICE_STALLS);
+  const hasServiceSecurityRole = roleSet.has(ROLE_CODES.SERVICE_SECURITY);
 
   return {
     is_masteradmin: Boolean(fallbackUser?.is_masteradmin) || hasMasterAdminRole,
@@ -163,5 +226,14 @@ export const deriveLegacyFlagsFromRoleCodes = (roleCodes = [], fallbackUser = nu
     is_dean: Boolean(fallbackUser?.is_dean) || hasDeanRole,
     is_cfo: Boolean(fallbackUser?.is_cfo) || hasCfoRole,
     is_finance_officer: Boolean(fallbackUser?.is_finance_officer) || hasFinanceOfficerRole,
+    is_finance_office: Boolean(fallbackUser?.is_finance_office) || hasFinanceOfficerRole,
+    is_organiser_student: Boolean(fallbackUser?.is_organiser_student) || hasOrganizerStudentRole,
+    is_volunteer: Boolean(fallbackUser?.is_volunteer) || hasOrganizerVolunteerRole,
+    is_service_it: Boolean(fallbackUser?.is_service_it) || hasServiceItRole,
+    is_service_venue: Boolean(fallbackUser?.is_service_venue) || hasServiceVenueRole,
+    is_venue_manager: Boolean(fallbackUser?.is_venue_manager) || hasServiceVenueRole,
+    is_service_catering: Boolean(fallbackUser?.is_service_catering) || hasServiceCateringRole,
+    is_service_stalls: Boolean(fallbackUser?.is_service_stalls) || hasServiceStallsRole,
+    is_service_security: Boolean(fallbackUser?.is_service_security) || hasServiceSecurityRole,
   };
 };

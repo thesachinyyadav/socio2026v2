@@ -81,7 +81,7 @@ export const EventCard = ({
                   ARCHIVED
                 </span>
               )}
-              {(tags || []).map((tag, index) => {
+              {(tags || []).map((tag) => {
                 if (!tag || typeof tag !== 'string') return null;
 
                 const titleTag = tag
@@ -114,7 +114,7 @@ export const EventCard = ({
                 if (titleTag === "Claims") bgColor = "bg-[#73ec66] text-black";
 
                 return (
-                  <span key={index} className={`${base} ${bgColor} max-w-full truncate`}>
+                  <span key={`tag-${titleTag.toLowerCase()}`} className={`${base} ${bgColor} max-w-full truncate`}>
                     {titleTag}
                   </span>
                 );

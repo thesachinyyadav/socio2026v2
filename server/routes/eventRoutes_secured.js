@@ -176,6 +176,107 @@ const createTeacherApprovalRequestForChildEvent = async ({ eventRecord, userInfo
   }
 };
 
+const collectRequestedServiceRoleCodes = (additionalRequests = {}) => {
+  const requestedRoleCodes = [];
+
+  if (asBoolean(additionalRequests?.it?.enabled)) {
+    requestedRoleCodes.push(ROLE_CODES.SERVICE_IT);
+  }
+
+  if (asBoolean(additionalRequests?.venue?.enabled)) {
+    requestedRoleCodes.push(ROLE_CODES.SERVICE_VENUE);
+  }
+
+  if (asBoolean(additionalRequests?.catering?.enabled)) {
+    requestedRoleCodes.push(ROLE_CODES.SERVICE_CATERING);
+  }
+
+  if (asBoolean(additionalRequests?.stalls?.enabled)) {
+    requestedRoleCodes.push(ROLE_CODES.SERVICE_STALLS);
+  }
+
+  if (asBoolean(additionalRequests?.security?.enabled)) {
+    requestedRoleCodes.push(ROLE_CODES.SERVICE_SECURITY);
+  }
+
+  return requestedRoleCodes;
+};
+
+const getServiceRequestDetails = (additionalRequests, roleCode) => {
+  const normalizedRoleCode = String(roleCode || "").trim().toUpperCase();
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_IT) {
+    return additionalRequests?.it || {};
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_VENUE) {
+    return additionalRequests?.venue || {};
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_CATERING) {
+    return additionalRequests?.catering || {};
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_STALLS) {
+    return additionalRequests?.stalls || {};
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_SECURITY) {
+    return additionalRequests?.security || {};
+  }
+
+  return {};
+};
+
+const createServiceRequestsForEvent = async ({ eventRecord, userInfo, approvalRequestId = null }) => {
+  try {
+    const eventId = String(eventRecord?.event_id || "").trim();
+    if (!eventId) {
+      return { createdCount: 0, requestedRoleCodes: [] };
+    }
+
+    const additionalRequests = sanitizeAdditionalRequests(eventRecord?.additional_requests);
+    const requestedRoleCodes = collectRequestedServiceRoleCodes(additionalRequests);
+
+    if (requestedRoleCodes.length === 0) {
+      return { createdCount: 0, requestedRoleCodes: [] };
+    }
+
+    const nowIso = new Date().toISOString();
+    const rows = requestedRoleCodes.map((roleCode, index) => ({
+      service_request_id: `SR-${eventId}-${Date.now()}-${index + 1}`,
+      event_id: eventId,
+      approval_request_id: approvalRequestId,
+      service_role_code: roleCode,
+      requested_by_user_id: userInfo?.id || null,
+      requested_by_email: userInfo?.email || null,
+      status: "PENDING",
+      details: getServiceRequestDetails(additionalRequests, roleCode),
+      created_at: nowIso,
+      updated_at: nowIso,
+    }));
+
+    const inserted = await insert("service_requests", rows);
+
+    return {
+      createdCount: Array.isArray(inserted) ? inserted.length : 0,
+      requestedRoleCodes,
+    };
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      console.warn("[EventCreate] Service request tables are not available yet; skipping service request creation.");
+      return { createdCount: 0, requestedRoleCodes: [] };
+    }
+
+    if (String(error?.code || "") === "23505") {
+      console.warn("[EventCreate] Duplicate pending service requests detected; skipping duplicate insert.");
+      return { createdCount: 0, requestedRoleCodes: [] };
+    }
+
+    throw error;
+  }
+};
+
 // HEALTH CHECK - Verify Supabase connection
 router.get("/debug/health", async (req, res) => {
   try {
@@ -1508,9 +1609,9 @@ router.post(
 
       console.log("✅ Event inserted successfully:", event_id);
 
+      const createdEventRecord = created[0];
       let teacherApprovalRequest = null;
       if (userIsOrganizerStudentOnly) {
-        const createdEventRecord = created[0];
         teacherApprovalRequest = await createTeacherApprovalRequestForChildEvent({
           eventRecord: createdEventRecord,
           userInfo: req.userInfo,
@@ -1549,6 +1650,38 @@ router.post(
 
             console.warn("[EventCreate] Workflow state columns missing; saved student submission as draft fallback.");
           }
+        }
+      }
+
+      const serviceWorkflow = (!shouldSaveAsDraft && !shouldArchiveOnCreate)
+        ? await createServiceRequestsForEvent({
+            eventRecord: createdEventRecord,
+            userInfo: req.userInfo,
+            approvalRequestId: teacherApprovalRequest?.id || null,
+          })
+        : { createdCount: 0, requestedRoleCodes: [] };
+
+      if ((serviceWorkflow.requestedRoleCodes || []).length > 0) {
+        try {
+          await update(
+            "events",
+            {
+              service_approval_state: "PENDING",
+              activation_state: "PENDING",
+              updated_at: new Date().toISOString(),
+            },
+            { event_id }
+          );
+        } catch (serviceStateError) {
+          const missingServiceStateColumns =
+            isMissingColumnError(serviceStateError, "service_approval_state") ||
+            isMissingColumnError(serviceStateError, "activation_state");
+
+          if (!missingServiceStateColumns) {
+            throw serviceStateError;
+          }
+
+          console.warn("[EventCreate] Service workflow state columns missing; skipping service state update.");
         }
       }
 
@@ -1599,6 +1732,8 @@ router.post(
         created_by: req.userInfo.email,
         pending_teacher_review: userIsOrganizerStudentOnly,
         approval_request_id: teacherApprovalRequest?.request_id || null,
+        pending_service_approvals: serviceWorkflow.createdCount || 0,
+        pending_service_roles: serviceWorkflow.requestedRoleCodes || [],
       });
 
     } catch (error) {

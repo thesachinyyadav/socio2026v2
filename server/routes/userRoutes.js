@@ -586,6 +586,14 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
       is_dean,
       is_cfo,
       is_finance_officer,
+      is_finance_office,
+      is_organiser_student,
+      is_volunteer,
+      is_service_it,
+      is_service_venue,
+      is_service_catering,
+      is_service_stalls,
+      is_service_security,
       university_role
     } = req.body;
 
@@ -609,6 +617,7 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
 
     // Build update object
     const updates = {};
+    const hasFinanceOfficeColumn = Object.prototype.hasOwnProperty.call(existingUser, 'is_finance_office');
     
     if (typeof is_organiser === 'boolean') {
       updates.is_organiser = is_organiser;
@@ -625,15 +634,50 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
       updates.masteradmin_expires_at = masteradmin_expires_at || null;
     }
 
+    if (typeof is_organiser_student === 'boolean') {
+      updates.is_organiser_student = is_organiser_student;
+    }
+
+    if (typeof is_volunteer === 'boolean') {
+      updates.is_volunteer = is_volunteer;
+    }
+
+    if (typeof is_service_it === 'boolean') {
+      updates.is_service_it = is_service_it;
+    }
+
+    if (typeof is_service_venue === 'boolean') {
+      updates.is_service_venue = is_service_venue;
+    }
+
+    if (typeof is_service_catering === 'boolean') {
+      updates.is_service_catering = is_service_catering;
+    }
+
+    if (typeof is_service_stalls === 'boolean') {
+      updates.is_service_stalls = is_service_stalls;
+    }
+
+    if (typeof is_service_security === 'boolean') {
+      updates.is_service_security = is_service_security;
+    }
+
     const roleScopePayloadProvided =
       typeof is_hod === 'boolean' ||
       typeof is_dean === 'boolean' ||
       typeof is_cfo === 'boolean' ||
       typeof is_finance_officer === 'boolean' ||
+      typeof is_finance_office === 'boolean' ||
       university_role !== undefined;
 
     if (roleScopePayloadProvided) {
       const existingRole = String(existingUser.university_role || '').trim().toLowerCase();
+      const requestedFinanceFlag =
+        typeof is_finance_officer === 'boolean'
+          ? is_finance_officer
+          : typeof is_finance_office === 'boolean'
+            ? is_finance_office
+            : undefined;
 
       let nextIsHod =
         typeof is_hod === 'boolean'
@@ -648,9 +692,9 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
           ? is_cfo
           : existingRole === 'cfo';
       let nextIsFinanceOfficer =
-        typeof is_finance_officer === 'boolean'
-          ? is_finance_officer
-          : existingRole === 'finance_officer';
+        typeof requestedFinanceFlag === 'boolean'
+          ? requestedFinanceFlag
+          : Boolean(existingUser.is_finance_officer) || Boolean(existingUser.is_finance_office) || existingRole === 'finance_officer';
 
       if (university_role !== undefined && university_role !== null && String(university_role).trim() !== '') {
         const requestedRole = String(university_role).trim().toLowerCase();
@@ -693,6 +737,9 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
       updates.is_dean = nextIsDean;
       updates.is_cfo = nextIsCfo;
       updates.is_finance_officer = nextIsFinanceOfficer;
+      if (hasFinanceOfficeColumn) {
+        updates.is_finance_office = nextIsFinanceOfficer;
+      }
       updates.university_role = nextUniversityRole;
     }
 

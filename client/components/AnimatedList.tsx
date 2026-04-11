@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useCallback, ReactNode, MouseEventHandler } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo, ReactNode, MouseEventHandler } from 'react';
 import { cn } from '@/lib/utils';
 import { motion, useInView } from 'motion/react';
 
@@ -150,6 +150,16 @@ const AnimatedList: React.FC<AnimatedListProps> = ({
     setKeyboardNav(false);
   }, [selectedIndex, keyboardNav]);
 
+  const resolvedItemKeys = useMemo(() => {
+    const seenItems = new Map<string, number>();
+
+    return items.map((item) => {
+      const occurrence = (seenItems.get(item) || 0) + 1;
+      seenItems.set(item, occurrence);
+      return `${item}::${occurrence}`;
+    });
+  }, [items]);
+
   return (
     <div className={cn('relative w-full', className)}>
       <div
@@ -164,7 +174,7 @@ const AnimatedList: React.FC<AnimatedListProps> = ({
       >
         {items.map((item, index) => (
           <AnimatedItem
-            key={index}
+            key={resolvedItemKeys[index]}
             delay={0.1}
             index={index}
             className={itemWrapperClassName}

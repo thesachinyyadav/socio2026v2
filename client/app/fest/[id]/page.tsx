@@ -538,8 +538,8 @@ const FestPage = () => {
             <div className="mb-6 sm:mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">Timeline</h2>
               <div className="space-y-4">
-                {timeline.map((item, index) => (
-                  <div key={index} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {timeline.map((item) => (
+                  <div key={`${item.time}-${item.title}-${item.description || ""}`} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="flex-shrink-0 w-20 text-sm font-semibold text-[#154CB3]">{item.time}</div>
                     <div>
                       <h4 className="font-medium text-gray-800">{item.title}</h4>
@@ -556,8 +556,8 @@ const FestPage = () => {
             <div className="mb-6 sm:mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">FAQs</h2>
               <div className="space-y-3">
-                {faqs.map((faq, index) => (
-                  <details key={index} className="group p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {faqs.map((faq) => (
+                  <details key={`${faq.question}-${faq.answer}`} className="group p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <summary className="font-medium text-gray-800 cursor-pointer list-none flex justify-between items-center">
                       {faq.question}
                       <svg className="w-5 h-5 text-gray-500 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -576,8 +576,8 @@ const FestPage = () => {
             <div className="mb-6 sm:mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">Sponsors</h2>
               <div className="flex flex-wrap gap-6">
-                {sponsors.map((sponsor, index) => (
-                  <div key={index} className="flex flex-col items-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {sponsors.map((sponsor) => (
+                  <div key={`${sponsor.name}-${sponsor.logo_url || ""}`} className="flex flex-col items-center p-4 bg-gray-50 rounded-lg border border-gray-200">
                     {sponsor.logo_url && (
                       <img src={sponsor.logo_url} alt={sponsor.name} className="h-16 object-contain mb-2" />
                     )}
@@ -598,9 +598,9 @@ const FestPage = () => {
             <div className="mb-6 sm:mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">Connect With Us</h2>
               <div className="flex flex-wrap gap-3">
-                {socialLinks.map((link, index) => (
+                {socialLinks.map((link) => (
                   <a
-                    key={index}
+                    key={`${link.platform}-${link.url}`}
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"

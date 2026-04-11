@@ -31,6 +31,275 @@ const isMissingRelationError = (error) => {
   );
 };
 
+const isMissingColumnError = (error, columnName) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  const normalizedColumn = String(columnName || "").toLowerCase();
+
+  if (!normalizedColumn) {
+    return false;
+  }
+
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes(`column \"${normalizedColumn}\"`) ||
+    message.includes(`${normalizedColumn} does not exist`) ||
+    (message.includes("could not find") && message.includes(normalizedColumn))
+  );
+};
+
+const normalizeWorkflowStatus = (value, fallback = "") => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized || String(fallback || "").trim().toUpperCase();
+};
+
+const resolveActivationState = (approvalState, serviceState) => {
+  const normalizedApprovalState = normalizeWorkflowStatus(approvalState, "PENDING");
+  const normalizedServiceState = normalizeWorkflowStatus(serviceState, "APPROVED");
+
+  if (normalizedApprovalState === "REJECTED" || normalizedServiceState === "REJECTED") {
+    return "REJECTED";
+  }
+
+  if (normalizedApprovalState !== "APPROVED") {
+    return "PENDING";
+  }
+
+  if (normalizedServiceState === "REJECTED") {
+    return "REJECTED";
+  }
+
+  if (normalizedServiceState === "PENDING") {
+    return "PENDING";
+  }
+
+  return "ACTIVE";
+};
+
+const recomputeEventServiceApprovalState = async (eventId) => {
+  if (!eventId) {
+    return "APPROVED";
+  }
+
+  try {
+    const serviceRequests = await queryAll("service_requests", {
+      where: { event_id: eventId },
+    });
+
+    const statuses = (serviceRequests || []).map((request) =>
+      normalizeWorkflowStatus(request?.status, "PENDING")
+    );
+
+    if (statuses.length === 0) {
+      return "APPROVED";
+    }
+
+    if (statuses.some((status) => status === "REJECTED")) {
+      return "REJECTED";
+    }
+
+    if (statuses.some((status) => status === "PENDING")) {
+      return "PENDING";
+    }
+
+    return "APPROVED";
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return "APPROVED";
+    }
+
+    throw error;
+  }
+};
+
+const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, decidedByEmail, comment }) => {
+  const eventId = String(approvalRequest?.entity_ref || "").trim();
+  if (!eventId) {
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+
+  try {
+    const eventRecord = await queryOne("events", {
+      where: { event_id: eventId },
+    });
+
+    if (!eventRecord) {
+      return;
+    }
+
+    const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
+    const serviceApprovalState = await recomputeEventServiceApprovalState(eventId);
+
+    const updates = {
+      approval_state: normalizedRequestStatus,
+      service_approval_state: serviceApprovalState,
+      activation_state: resolveActivationState(normalizedRequestStatus, serviceApprovalState),
+      updated_at: nowIso,
+    };
+
+    if (normalizedRequestStatus === "APPROVED") {
+      updates.approved_at = nowIso;
+      updates.approved_by = decidedByEmail || null;
+      updates.rejected_at = null;
+      updates.rejected_by = null;
+      updates.rejection_reason = null;
+    }
+
+    if (normalizedRequestStatus === "REJECTED") {
+      updates.rejected_at = nowIso;
+      updates.rejected_by = decidedByEmail || null;
+      updates.rejection_reason = comment || "Rejected in approval workflow";
+      updates.approved_at = null;
+      updates.approved_by = null;
+    }
+
+    await update("events", updates, { event_id: eventId });
+  } catch (error) {
+    if (
+      isMissingRelationError(error) ||
+      isMissingColumnError(error, "approval_state") ||
+      isMissingColumnError(error, "activation_state") ||
+      isMissingColumnError(error, "service_approval_state")
+    ) {
+      return;
+    }
+
+    throw error;
+  }
+};
+
+const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decidedByEmail, comment }) => {
+  const festId = String(approvalRequest?.entity_ref || "").trim();
+  if (!festId) {
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
+  const updates = {
+    approval_state: normalizedRequestStatus,
+    activation_state: normalizedRequestStatus === "APPROVED" ? "ACTIVE" : normalizedRequestStatus === "REJECTED" ? "REJECTED" : "PENDING",
+    updated_at: nowIso,
+  };
+
+  if (normalizedRequestStatus === "APPROVED") {
+    updates.approved_at = nowIso;
+    updates.approved_by = decidedByEmail || null;
+    updates.rejected_at = null;
+    updates.rejected_by = null;
+    updates.rejection_reason = null;
+  }
+
+  if (normalizedRequestStatus === "REJECTED") {
+    updates.rejected_at = nowIso;
+    updates.rejected_by = decidedByEmail || null;
+    updates.rejection_reason = comment || "Rejected in approval workflow";
+    updates.approved_at = null;
+    updates.approved_by = null;
+  }
+
+  for (const tableName of ["fests", "fest"]) {
+    try {
+      const festRecord = await queryOne(tableName, {
+        where: { fest_id: festId },
+      });
+
+      if (!festRecord) {
+        continue;
+      }
+
+      await update(tableName, updates, { fest_id: festId });
+      return;
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        continue;
+      }
+
+      if (
+        isMissingColumnError(error, "approval_state") ||
+        isMissingColumnError(error, "activation_state")
+      ) {
+        return;
+      }
+
+      throw error;
+    }
+  }
+};
+
+const syncApprovalOutcomeToEntity = async ({ approvalRequest, requestStatus, decidedByEmail, comment }) => {
+  const entityType = normalizeWorkflowStatus(approvalRequest?.entity_type);
+  if (!entityType) {
+    return;
+  }
+
+  if (["EVENT", "STANDALONE_EVENT", "FEST_CHILD_EVENT"].includes(entityType)) {
+    await syncApprovalOutcomeToEvent({ approvalRequest, requestStatus, decidedByEmail, comment });
+    return;
+  }
+
+  if (entityType === "FEST") {
+    await syncApprovalOutcomeToFest({ approvalRequest, requestStatus, decidedByEmail, comment });
+  }
+};
+
+const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comment }) => {
+  const eventId = String(serviceRequest?.event_id || "").trim();
+  if (!eventId) {
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+
+  try {
+    const eventRecord = await queryOne("events", {
+      where: { event_id: eventId },
+    });
+
+    if (!eventRecord) {
+      return;
+    }
+
+    const serviceApprovalState = await recomputeEventServiceApprovalState(eventId);
+    const currentApprovalState = normalizeWorkflowStatus(eventRecord.approval_state, "APPROVED");
+
+    const updates = {
+      service_approval_state: serviceApprovalState,
+      activation_state: resolveActivationState(currentApprovalState, serviceApprovalState),
+      updated_at: nowIso,
+    };
+
+    if (serviceApprovalState === "REJECTED") {
+      updates.rejected_at = nowIso;
+      updates.rejected_by = decidedByEmail || null;
+      updates.rejection_reason = comment || "Rejected in service workflow";
+    }
+
+    if (serviceApprovalState === "APPROVED" && currentApprovalState === "APPROVED") {
+      updates.rejected_at = null;
+      updates.rejected_by = null;
+      updates.rejection_reason = null;
+      updates.approved_at = eventRecord.approved_at || nowIso;
+      updates.approved_by = eventRecord.approved_by || decidedByEmail || null;
+    }
+
+    await update("events", updates, { event_id: eventId });
+  } catch (error) {
+    if (
+      isMissingRelationError(error) ||
+      isMissingColumnError(error, "service_approval_state") ||
+      isMissingColumnError(error, "activation_state")
+    ) {
+      return;
+    }
+
+    throw error;
+  }
+};
+
 const normalizeDecision = (decision) => String(decision || "").trim().toUpperCase();
 
 const getUserRoleCodes = (req) => {
@@ -285,6 +554,12 @@ router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) =>
     }
 
     const requestStatus = await recomputeApprovalRequestStatus(approvalRequest.id);
+    await syncApprovalOutcomeToEntity({
+      approvalRequest,
+      requestStatus,
+      decidedByEmail: req.userInfo?.email || null,
+      comment,
+    });
 
     return res.status(200).json({
       message: "Decision recorded",
@@ -378,6 +653,12 @@ router.post("/service-requests/:serviceRequestId/decision", async (req, res) => 
       decision,
       comment,
     }]);
+
+    await syncServiceOutcomeToEvent({
+      serviceRequest,
+      decidedByEmail: req.userInfo?.email || null,
+      comment,
+    });
 
     return res.status(200).json({
       message: "Service decision recorded",

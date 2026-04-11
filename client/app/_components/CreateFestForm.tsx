@@ -87,6 +87,7 @@ interface FestTeamSettings {
 }
 
 interface FestBudgetItem {
+  _uiKey?: string;
   category: string;
   requirement: string;
   vendor: string;
@@ -103,7 +104,29 @@ interface FestBudgetSettings {
   totalSponsorship: string;
 }
 
+type ClientKeyedItem = {
+  _uiKey?: string;
+};
+
+const createClientUiKey = (prefix: string): string =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
+
+const withClientUiKeys = <T extends ClientKeyedItem>(
+  items: T[] | undefined,
+  prefix: string
+): Array<T & { _uiKey: string }> =>
+  (items || []).map((item) => ({
+    ...item,
+    _uiKey:
+      typeof item._uiKey === "string" && item._uiKey.trim().length > 0
+        ? item._uiKey
+        : createClientUiKey(prefix),
+  }));
+
 const createEmptyBudgetItem = (): FestBudgetItem => ({
+  _uiKey: createClientUiKey("budget"),
   category: "",
   requirement: "",
   vendor: "",
@@ -630,15 +653,15 @@ interface CreateFestState {
   category: string;
   contactEmail: string;
   contactPhone: string;
-  eventHeads: { email: string; expiresAt: string | null }[];
+  eventHeads: { email: string; expiresAt: string | null; _uiKey?: string }[];
   organizingDept: string;
   venue: string;
   status: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled" | "past";
   registration_deadline: string;
-  timeline: { time: string; title: string; description: string }[];
-  sponsors: { name: string; logo_url: string; website?: string }[];
-  social_links: { platform: string; url: string }[];
-  faqs: { question: string; answer: string }[];
+  timeline: { time: string; title: string; description: string; _uiKey?: string }[];
+  sponsors: { name: string; logo_url: string; website?: string; _uiKey?: string }[];
+  social_links: { platform: string; url: string; _uiKey?: string }[];
+  faqs: { question: string; answer: string; _uiKey?: string }[];
   campusHostedAt: string;
   allowedCampuses: string[];
   departmentHostedAt: string;
@@ -969,11 +992,13 @@ function CreateFestForm(props?: CreateFestProps) {
   const contactEmail = normalizeEmail(props?.contactEmail || "");
   const contactPhone = normalizePhone(props?.contactPhone || "");
   const organizingDept = props?.organizingDept || "";
-  const initialEventHeads: { email: string; expiresAt: string | null }[] =
+  const initialEventHeads = withClientUiKeys(
     (props?.eventHeads || []).map((head) => ({
       email: normalizeEmail(head.email),
       expiresAt: head.expiresAt || null,
-    }));
+    })),
+    "event-head"
+  );
   const customFields = parseFestCustomFields(props?.customFields);
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
@@ -985,10 +1010,10 @@ function CreateFestForm(props?: CreateFestProps) {
   const venue = props?.venue || "";
   const status = deriveFestStatusFromDates(openingDate, closingDate);
   const registration_deadline = "";
-  const timeline = props?.timeline || [];
-  const sponsors = props?.sponsors || [];
-  const social_links = props?.social_links || [];
-  const faqs = props?.faqs || [];
+  const timeline = withClientUiKeys(props?.timeline || [], "timeline");
+  const sponsors = withClientUiKeys(props?.sponsors || [], "sponsor");
+  const social_links = withClientUiKeys(props?.social_links || [], "social-link");
+  const faqs = withClientUiKeys(props?.faqs || [], "faq");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDraftFest, setIsDraftFest] = useState(Boolean(props?.isDraft));
@@ -998,7 +1023,7 @@ function CreateFestForm(props?: CreateFestProps) {
   );
   const [budgetItems, setBudgetItems] = useState<FestBudgetItem[]>(
     initialBudgetSettings?.items?.length
-      ? initialBudgetSettings.items
+      ? withClientUiKeys(initialBudgetSettings.items, "budget")
       : [createEmptyBudgetItem()]
   );
   const [budgetHistory, setBudgetHistory] = useState<FestBudgetItem[][]>([]);
@@ -1124,15 +1149,18 @@ function CreateFestForm(props?: CreateFestProps) {
           if (data?.fest) {
             // Transform event_heads to new format
             const eventHeadsData = data.fest.event_heads || [];
-            const transformedEventHeads = eventHeadsData.map((head: any) => {
-              if (typeof head === 'string') {
-                return { email: normalizeEmail(head), expiresAt: null };
-              }
-              return {
-                email: normalizeEmail(head.email || ""),
-                expiresAt: head.expiresAt || null,
-              };
-            });
+            const transformedEventHeads = withClientUiKeys(
+              eventHeadsData.map((head: any) => {
+                if (typeof head === 'string') {
+                  return { email: normalizeEmail(head), expiresAt: null };
+                }
+                return {
+                  email: normalizeEmail(head.email || ""),
+                  expiresAt: head.expiresAt || null,
+                };
+              }),
+              "event-head"
+            );
 
             const parsedCustomFields = parseFestCustomFields(data.fest.custom_fields);
             const parsedBudgetSettings = extractBudgetSettingsFromCustomFields(parsedCustomFields);
@@ -1160,10 +1188,10 @@ function CreateFestForm(props?: CreateFestProps) {
               venue: data.fest.venue || "",
               status: deriveFestStatusFromDates(loadedOpeningDate, loadedClosingDate),
               registration_deadline: "",
-              timeline: data.fest.timeline || [],
-              sponsors: data.fest.sponsors || [],
-              social_links: data.fest.social_links || [],
-              faqs: data.fest.faqs || [],
+              timeline: withClientUiKeys(data.fest.timeline || [], "timeline"),
+              sponsors: withClientUiKeys(data.fest.sponsors || [], "sponsor"),
+              social_links: withClientUiKeys(data.fest.social_links || [], "social-link"),
+              faqs: withClientUiKeys(data.fest.faqs || [], "faq"),
               campusHostedAt: data.fest.campus_hosted_at || "",
               allowedCampuses: data.fest.allowed_campuses || [],
               departmentHostedAt: data.fest.department_hosted_at || "",
@@ -1174,7 +1202,7 @@ function CreateFestForm(props?: CreateFestProps) {
             setRequiresBudgetApproval(parsedBudgetSettings?.requiresBudgetApproval ?? false);
             setBudgetItems(
               parsedBudgetSettings?.items?.length
-                ? parsedBudgetSettings.items
+                ? withClientUiKeys(parsedBudgetSettings.items, "budget")
                 : [createEmptyBudgetItem()]
             );
             setTotalSponsorshipAmount(parsedBudgetSettings?.totalSponsorship ?? "");
@@ -1995,6 +2023,24 @@ function CreateFestForm(props?: CreateFestProps) {
           expiresAt: head.expiresAt || null,
         }))
         .filter((head) => head.email !== "");
+      const sanitizedTimeline = formData.timeline.map((item) => ({
+        time: item.time,
+        title: item.title,
+        description: item.description,
+      }));
+      const sanitizedSponsors = formData.sponsors.map((sponsor) => ({
+        name: sponsor.name,
+        logo_url: sponsor.logo_url,
+        website: sponsor.website,
+      }));
+      const sanitizedSocialLinks = formData.social_links.map((link) => ({
+        platform: link.platform,
+        url: link.url,
+      }));
+      const sanitizedFaqs = formData.faqs.map((faq) => ({
+        question: faq.question,
+        answer: faq.answer,
+      }));
 
       console.log(`[Fest Submit] isEditMode=${isEditMode}, uploadedFestImageUrl=${uploadedFestImageUrl}, existingImageFileUrl=${existingImageFileUrl}, finalImageUrl=${finalImageUrl}`);
 
@@ -2021,10 +2067,10 @@ function CreateFestForm(props?: CreateFestProps) {
           formData.closingDate
         ),
         registration_deadline: null,
-        timeline: formData.timeline,
-        sponsors: formData.sponsors,
-        social_links: formData.social_links,
-        faqs: formData.faqs,
+        timeline: sanitizedTimeline,
+        sponsors: sanitizedSponsors,
+        social_links: sanitizedSocialLinks,
+        faqs: sanitizedFaqs,
         campus_hosted_at: formData.campusHostedAt || null,
         allowed_campuses: formData.allowedCampuses || [],
         department_hosted_at: formData.departmentHostedAt || null,
@@ -2367,7 +2413,10 @@ function CreateFestForm(props?: CreateFestProps) {
     if (formData.eventHeads.length < 5)
       setFormData((prev) => ({
         ...prev,
-        eventHeads: [...prev.eventHeads, { email: "", expiresAt: null }],
+        eventHeads: [
+          ...prev.eventHeads,
+          { email: "", expiresAt: null, _uiKey: createClientUiKey("event-head") },
+        ],
       }));
   };
   const removeEventHead = (index: number) => {
@@ -3072,7 +3121,10 @@ function CreateFestForm(props?: CreateFestProps) {
 
                   <div className="space-y-4">
                     {formData.eventHeads.map((eventHead, index) => (
-                      <div key={index} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div
+                        key={eventHead._uiKey || `event-head-${index}`}
+                        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
                         <div className="flex items-center justify-between mb-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Head {index + 1}
@@ -3260,7 +3312,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   <div className="mb-6">
                     <label className="block mb-2 text-sm font-medium text-gray-700">Social Links</label>
                     {formData.social_links.map((link, index) => (
-                      <div key={index} className="flex gap-2 mb-2">
+                      <div key={link._uiKey || `social-link-${index}`} className="flex gap-2 mb-2">
                         <select
                           value={link.platform}
                           onChange={(e) => {
@@ -3308,7 +3360,19 @@ function CreateFestForm(props?: CreateFestProps) {
                     ))}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, social_links: [...prev.social_links, { platform: "instagram", url: "" }] }))}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          social_links: [
+                            ...prev.social_links,
+                            {
+                              platform: "instagram",
+                              url: "",
+                              _uiKey: createClientUiKey("social-link"),
+                            },
+                          ],
+                        }))
+                      }
                       className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
                     >
                       + Add Social Link
@@ -3319,7 +3383,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   <div className="mb-6">
                     <label className="block mb-2 text-sm font-medium text-gray-700">FAQs</label>
                     {formData.faqs.map((faq, index) => (
-                      <div key={index} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div key={faq._uiKey || `faq-${index}`} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
                         <div className="flex gap-2 items-start">
                           <div className="flex-1 space-y-2">
                             <input
@@ -3366,7 +3430,19 @@ function CreateFestForm(props?: CreateFestProps) {
                     ))}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, faqs: [...prev.faqs, { question: "", answer: "" }] }))}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          faqs: [
+                            ...prev.faqs,
+                            {
+                              question: "",
+                              answer: "",
+                              _uiKey: createClientUiKey("faq"),
+                            },
+                          ],
+                        }))
+                      }
                       className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
                     >
                       + Add FAQ
@@ -3377,7 +3453,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   <div className="mb-6">
                     <label className="block mb-2 text-sm font-medium text-gray-700">Sponsors</label>
                     {formData.sponsors.map((sponsor, index) => (
-                      <div key={index} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div key={sponsor._uiKey || `sponsor-${index}`} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
                         <div className="flex gap-2 items-start">
                           <div className="flex-1 space-y-2">
                             <input
@@ -3438,7 +3514,20 @@ function CreateFestForm(props?: CreateFestProps) {
                     ))}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, sponsors: [...prev.sponsors, { name: "", logo_url: "", website: "" }] }))}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          sponsors: [
+                            ...prev.sponsors,
+                            {
+                              name: "",
+                              logo_url: "",
+                              website: "",
+                              _uiKey: createClientUiKey("sponsor"),
+                            },
+                          ],
+                        }))
+                      }
                       className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
                     >
                       + Add Sponsor
@@ -3449,7 +3538,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   <div className="mb-6">
                     <label className="block mb-2 text-sm font-medium text-gray-700">Timeline</label>
                     {formData.timeline.map((item, index) => (
-                      <div key={index} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div key={item._uiKey || `timeline-${index}`} className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
                         <div className="flex gap-2 items-start">
                           <div className="flex-1 space-y-2">
                             <div className="grid grid-cols-2 gap-2">
@@ -3510,7 +3599,20 @@ function CreateFestForm(props?: CreateFestProps) {
                     ))}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, timeline: [...prev.timeline, { time: "", title: "", description: "" }] }))}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          timeline: [
+                            ...prev.timeline,
+                            {
+                              time: "",
+                              title: "",
+                              description: "",
+                              _uiKey: createClientUiKey("timeline"),
+                            },
+                          ],
+                        }))
+                      }
                       className="mt-2 px-3 py-1.5 text-sm font-medium text-[#154CB3] border border-[#154CB3] rounded-full hover:bg-blue-50 transition-colors"
                     >
                       + Add Timeline Item
@@ -3578,7 +3680,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 const rowTotal =
                                   toPositiveNumber(item.price) * toPositiveNumber(item.quantity);
                                 return (
-                                  <tr key={index} className="border-b border-gray-100 last:border-b-0">
+                                  <tr key={item._uiKey || `budget-${index}`} className="border-b border-gray-100 last:border-b-0">
                                     <td className="py-2 pr-2">
                                       <input
                                         type="text"

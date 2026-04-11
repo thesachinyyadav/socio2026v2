@@ -10,7 +10,7 @@ import {
   getAccessibleServiceRoleDashboards,
   hasRoleAlias,
 } from "@/lib/roleDashboards";
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 // OPTIMIZATION: Move static data outside component to prevent recreation on every render
@@ -146,6 +146,7 @@ function NavigationBar() {
   const rightControlsRef = useRef<HTMLDivElement | null>(null);
   const desktopNavMeasureRef = useRef<HTMLDivElement | null>(null);
   const roleDashboardsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const measurementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionDisplayName =
     session?.user?.user_metadata?.full_name ||
     session?.user?.user_metadata?.name ||
@@ -167,9 +168,13 @@ function NavigationBar() {
   const isFinanceOfficer =
     Boolean((userData as any)?.is_finance_officer) ||
     hasRoleAlias(universityRole, ["finance officer", "finance_officer"]);
-  const accessibleServiceRoleDashboards = getAccessibleServiceRoleDashboards(
-    (userData as Record<string, unknown> | null) || null,
-    isMasterAdmin
+  const accessibleServiceRoleDashboards = useMemo(
+    () =>
+      getAccessibleServiceRoleDashboards(
+        (userData as Record<string, unknown> | null) || null,
+        isMasterAdmin
+      ),
+    [userData, isMasterAdmin]
   );
   const canOpenManageDashboard = isOrganiser || isMasterAdmin;
   const canOpenHodDashboard = isHod || isMasterAdmin;
@@ -190,100 +195,142 @@ function NavigationBar() {
     isCfo ||
     isFinanceOfficer ||
     accessibleServiceRoleDashboards.length > 0;
-  const unsortedRoleDashboardLinks = dedupeRoleDashboardLinks([
-    isMasterAdmin
-      ? { name: "Admin", href: "/masteradmin", variant: "danger" }
-      : null,
-    canOpenManageDashboard
-      ? {
-          name: isOrganiser ? "Organiser" : "Manage Dashboard",
-          href: "/manage",
-          variant: "brand",
-        }
-      : null,
-    canOpenStudentOrganiserDashboard
-      ? {
-          name: "Student Organiser Dashboard",
-          href: "/manage/student-organiser",
-          variant: "brand",
-        }
-      : null,
-    canOpenVolunteerDashboard
-      ? {
-          name: "Volunteer Dashboard",
-          href: "/execution/volunteer",
-          variant: "neutral",
-        }
-      : null,
-    canOpenHodDashboard
-      ? { name: "HOD Dashboard", href: "/manage/hod", variant: "neutral" }
-      : null,
-    canOpenDeanDashboard
-      ? { name: "Dean Dashboard", href: "/manage/dean", variant: "neutral" }
-      : null,
-    ...accessibleServiceRoleDashboards.map((roleConfig) => ({
-      name: `${roleConfig.label} Dashboard`,
-      href: `/manage/${roleConfig.slug}`,
-      variant: "neutral" as const,
-    })),
-    canOpenCfoDashboard
-      ? { name: "CFO Dashboard", href: "/manage/cfo", variant: "amber" }
-      : null,
-    canOpenFinanceDashboard
-      ? { name: "Finance Dashboard", href: "/manage/finance", variant: "emerald" }
-      : null,
-    canOpenSupportDashboard
-      ? { name: "Support Dashboard", href: "/support/inbox", variant: "neutral" }
-      : null,
-  ].filter((item): item is RoleDashboardLink => item !== null));
+  const roleDashboardLinks = useMemo(
+    () => {
+      const unsortedRoleDashboardLinks = dedupeRoleDashboardLinks(
+        [
+          isMasterAdmin
+            ? { name: "Admin", href: "/masteradmin", variant: "danger" }
+            : null,
+          canOpenManageDashboard
+            ? {
+                name: isOrganiser ? "Organiser" : "Manage Dashboard",
+                href: "/manage",
+                variant: "brand",
+              }
+            : null,
+          canOpenStudentOrganiserDashboard
+            ? {
+                name: "Student Organiser Dashboard",
+                href: "/manage/student-organiser",
+                variant: "brand",
+              }
+            : null,
+          canOpenVolunteerDashboard
+            ? {
+                name: "Volunteer Dashboard",
+                href: "/execution/volunteer",
+                variant: "neutral",
+              }
+            : null,
+          canOpenHodDashboard
+            ? { name: "HOD Dashboard", href: "/manage/hod", variant: "neutral" }
+            : null,
+          canOpenDeanDashboard
+            ? { name: "Dean Dashboard", href: "/manage/dean", variant: "neutral" }
+            : null,
+          ...accessibleServiceRoleDashboards.map((roleConfig) => ({
+            name: `${roleConfig.label} Dashboard`,
+            href: `/manage/${roleConfig.slug}`,
+            variant: "neutral" as const,
+          })),
+          canOpenCfoDashboard
+            ? { name: "CFO Dashboard", href: "/manage/cfo", variant: "amber" }
+            : null,
+          canOpenFinanceDashboard
+            ? {
+                name: "Finance Dashboard",
+                href: "/manage/finance",
+                variant: "emerald",
+              }
+            : null,
+          canOpenSupportDashboard
+            ? { name: "Support Dashboard", href: "/support/inbox", variant: "neutral" }
+            : null,
+        ].filter((item): item is RoleDashboardLink => item !== null)
+      );
 
-  const roleDashboardDisplayPriorityOrder = [
-    "/masteradmin",
-    "/manage/cfo",
-    "/manage/finance",
-    "/manage/dean",
-    "/manage/hod",
-    "/manage",
-    "/manage/student-organiser",
-    "/execution/volunteer",
-    "/manage/stalls-misc",
-    "/manage/it",
-    "/manage/venue",
-    "/manage/catering-vendors",
-    "/support/inbox",
-  ];
+      const roleDashboardDisplayPriorityOrder = [
+        "/manage",
+        "/masteradmin",
+        "/manage/cfo",
+        "/manage/finance",
+        "/manage/dean",
+        "/manage/hod",
+        "/manage/student-organiser",
+        "/execution/volunteer",
+        "/manage/stalls-misc",
+        "/manage/it",
+        "/manage/venue",
+        "/manage/catering-vendors",
+        "/support/inbox",
+      ];
 
-  const roleDashboardDisplayPriority = new Map(
-    roleDashboardDisplayPriorityOrder.map((href, index) => [href, index])
+      const roleDashboardDisplayPriority = new Map(
+        roleDashboardDisplayPriorityOrder.map((href, index) => [href, index])
+      );
+
+      return [...unsortedRoleDashboardLinks].sort((left, right) => {
+        const leftPriority = roleDashboardDisplayPriority.get(left.href) ?? Number.MAX_SAFE_INTEGER;
+        const rightPriority = roleDashboardDisplayPriority.get(right.href) ?? Number.MAX_SAFE_INTEGER;
+
+        if (leftPriority === rightPriority) {
+          return 0;
+        }
+
+        return leftPriority - rightPriority;
+      });
+    },
+    [
+      isMasterAdmin,
+      canOpenManageDashboard,
+      isOrganiser,
+      canOpenStudentOrganiserDashboard,
+      canOpenVolunteerDashboard,
+      canOpenHodDashboard,
+      canOpenDeanDashboard,
+      accessibleServiceRoleDashboards,
+      canOpenCfoDashboard,
+      canOpenFinanceDashboard,
+      canOpenSupportDashboard,
+    ]
   );
-
-  const roleDashboardLinks = [...unsortedRoleDashboardLinks].sort((left, right) => {
-    const leftPriority = roleDashboardDisplayPriority.get(left.href) ?? Number.MAX_SAFE_INTEGER;
-    const rightPriority = roleDashboardDisplayPriority.get(right.href) ?? Number.MAX_SAFE_INTEGER;
-
-    if (leftPriority === rightPriority) {
-      return 0;
-    }
-
-    return leftPriority - rightPriority;
-  });
-
   const shouldGroupRoleDashboards = roleDashboardLinks.length > 2;
-  const inlineRoleDashboardLinks = shouldGroupRoleDashboards
-    ? roleDashboardLinks.slice(0, 1)
-    : roleDashboardLinks;
-  const inlineRoleDashboardHrefSet = new Set(
-    inlineRoleDashboardLinks.map((item) => item.href)
+  const primaryInlineRoleDashboardLink = useMemo(() => {
+    const manageLink = roleDashboardLinks.find((item) => item.href === "/manage");
+    if (manageLink) return manageLink;
+
+    const masterAdminLink = roleDashboardLinks.find(
+      (item) => item.href === "/masteradmin"
+    );
+    if (masterAdminLink) return masterAdminLink;
+
+    return roleDashboardLinks[0] || null;
+  }, [roleDashboardLinks]);
+  const inlineRoleDashboardLinks = useMemo(
+    () =>
+      shouldGroupRoleDashboards
+        ? primaryInlineRoleDashboardLink
+          ? [primaryInlineRoleDashboardLink]
+          : []
+        : roleDashboardLinks,
+    [
+      shouldGroupRoleDashboards,
+      primaryInlineRoleDashboardLink,
+      roleDashboardLinks,
+    ]
   );
-  const dropdownRoleDashboardLinks = shouldGroupRoleDashboards
-    ? roleDashboardLinks.filter((item) => !inlineRoleDashboardHrefSet.has(item.href))
-    : [];
-  const mobilePrimaryRoleDashboardLink =
-    roleDashboardLinks[0] ||
-    null;
-  const mobileDropdownRoleDashboardLinks = mobilePrimaryRoleDashboardLink
-    ? roleDashboardLinks.filter((item) => item.href !== mobilePrimaryRoleDashboardLink.href)
-    : [];
+  const inlineRoleDashboardHrefSet = useMemo(
+    () => new Set(inlineRoleDashboardLinks.map((item) => item.href)),
+    [inlineRoleDashboardLinks]
+  );
+  const dropdownRoleDashboardLinks = useMemo(
+    () =>
+      shouldGroupRoleDashboards
+        ? roleDashboardLinks.filter((item) => !inlineRoleDashboardHrefSet.has(item.href))
+        : [],
+    [shouldGroupRoleDashboards, roleDashboardLinks, inlineRoleDashboardHrefSet]
+  );
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -326,37 +373,67 @@ function NavigationBar() {
     const reservedSpacing = window.innerWidth < 1280 ? 190 : 150;
     const shouldCompact = logoWidth + rightWidth + centerWidth + reservedSpacing > navWidth;
 
-    setIsDesktopCompact(shouldCompact);
+    setIsDesktopCompact((prevCompact) =>
+      prevCompact === shouldCompact ? prevCompact : shouldCompact
+    );
     if (!shouldCompact) {
       closeDesktopMenu();
     }
   }, [closeDesktopMenu]);
 
+  const scheduleMeasureDesktopOverlap = useCallback(() => {
+    if (measurementTimeoutRef.current) {
+      clearTimeout(measurementTimeoutRef.current);
+    }
+
+    measurementTimeoutRef.current = setTimeout(() => {
+      measurementTimeoutRef.current = null;
+      measureDesktopOverlap();
+    }, 120);
+  }, [measureDesktopOverlap]);
+
   useEffect(() => {
     measureDesktopOverlap();
 
-    const onResize = () => measureDesktopOverlap();
+    const onResize = () => scheduleMeasureDesktopOverlap();
     window.addEventListener("resize", onResize);
 
     if (typeof ResizeObserver !== "undefined") {
       const observer = new ResizeObserver(() => {
-        measureDesktopOverlap();
+        scheduleMeasureDesktopOverlap();
       });
 
       if (navContainerRef.current) observer.observe(navContainerRef.current);
-      if (rightControlsRef.current) observer.observe(rightControlsRef.current);
       if (desktopNavMeasureRef.current) observer.observe(desktopNavMeasureRef.current);
 
       return () => {
         window.removeEventListener("resize", onResize);
         observer.disconnect();
+        if (measurementTimeoutRef.current) {
+          clearTimeout(measurementTimeoutRef.current);
+          measurementTimeoutRef.current = null;
+        }
       };
     }
 
     return () => {
       window.removeEventListener("resize", onResize);
+      if (measurementTimeoutRef.current) {
+        clearTimeout(measurementTimeoutRef.current);
+        measurementTimeoutRef.current = null;
+      }
     };
-  }, [measureDesktopOverlap]);
+  }, [measureDesktopOverlap, scheduleMeasureDesktopOverlap]);
+
+  useEffect(() => {
+    scheduleMeasureDesktopOverlap();
+  }, [
+    scheduleMeasureDesktopOverlap,
+    roleDashboardLinks.length,
+    isManagementUser,
+    isLoading,
+    session?.user?.id,
+  ]);
 
   useEffect(() => {
     closeDesktopMenu();
@@ -381,9 +458,13 @@ function NavigationBar() {
   }, [showRoleDashboardsDropdown]);
 
   useEffect(() => {
-    if (!shouldGroupRoleDashboards && showRoleDashboardsDropdown) {
+    if (shouldGroupRoleDashboards || !showRoleDashboardsDropdown) return;
+
+    const closeTimer = setTimeout(() => {
       setShowRoleDashboardsDropdown(false);
-    }
+    }, 120);
+
+    return () => clearTimeout(closeTimer);
   }, [shouldGroupRoleDashboards, showRoleDashboardsDropdown]);
 
   useEffect(() => {
@@ -934,17 +1015,17 @@ function NavigationBar() {
               Fests
             </Link>
 
-            {mobilePrimaryRoleDashboardLink && (
+            {inlineRoleDashboardLinks.map((item) => (
               <Link
-                key={`mobile-role-${mobilePrimaryRoleDashboardLink.href}`}
-                href={mobilePrimaryRoleDashboardLink.href}
-                className={mobileRoleLinkClassByVariant[mobilePrimaryRoleDashboardLink.variant]}
+                key={`mobile-role-${item.href}`}
+                href={item.href}
+                className={mobileRoleLinkClassByVariant[item.variant]}
               >
-                {mobilePrimaryRoleDashboardLink.name}
+                {item.name}
               </Link>
-            )}
+            ))}
 
-            {mobileDropdownRoleDashboardLinks.length > 0 && (
+            {shouldGroupRoleDashboards && dropdownRoleDashboardLinks.length > 0 && (
               <div className="col-span-2">
                 <button
                   type="button"
@@ -968,7 +1049,7 @@ function NavigationBar() {
 
                 {showRoleDashboardsDropdown && (
                   <div className="mt-2 space-y-2">
-                    {mobileDropdownRoleDashboardLinks.map((item) => (
+                    {dropdownRoleDashboardLinks.map((item) => (
                       <Link
                         key={`mobile-${item.href}`}
                         href={item.href}

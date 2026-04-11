@@ -1,74 +1,77 @@
 import supabase from "../config/supabaseClient.js";
-import { queryAll, queryOne, update } from "../config/database.js";
+import { queryOne, update } from "../config/database.js";
 import {
   ROLE_CODES,
-  combineRoleCodes,
-  deriveFallbackRoleCodesFromAssignments,
   deriveLegacyFlagsFromRoleCodes,
   deriveRoleCodesFromUserRecord,
   hasAnyRoleCode,
 } from "../utils/roleAccessService.js";
 
-const ROLE_ASSIGNMENTS_TABLE = "user_role_assignments";
+const getRoleCodes = (userInfo) => (Array.isArray(userInfo?.role_codes) ? userInfo.role_codes : []);
 
-const isMissingRelationError = (error) => {
-  const code = String(error?.code || "").toUpperCase();
-  const message = String(error?.message || "").toLowerCase();
-
-  return (
-    code === "42P01" ||
-    code === "PGRST205" ||
-    (message.includes("relation") && message.includes("does not exist")) ||
-    (message.includes("could not find") && message.includes("schema cache"))
-  );
+const isMasterAdminUser = (userInfo) => {
+  return Boolean(userInfo?.is_masteradmin) || hasAnyRoleCode(getRoleCodes(userInfo), [ROLE_CODES.MASTER_ADMIN]);
 };
 
-const enrichUserInfoWithRoleAssignments = async (userRecord) => {
+const isOrganiserUser = (userInfo) => {
+  return Boolean(userInfo?.is_organiser) || hasAnyRoleCode(getRoleCodes(userInfo), [ROLE_CODES.ORGANIZER_TEACHER]);
+};
+
+const hasLegacyFlagForRole = (userInfo, roleCode) => {
+  const normalizedRole = String(roleCode || "").trim().toUpperCase();
+
+  if (!normalizedRole) {
+    return false;
+  }
+
+  switch (normalizedRole) {
+    case ROLE_CODES.MASTER_ADMIN:
+      return Boolean(userInfo?.is_masteradmin);
+    case ROLE_CODES.ORGANIZER_TEACHER:
+      return Boolean(userInfo?.is_organiser);
+    case ROLE_CODES.SUPPORT:
+      return Boolean(userInfo?.is_support);
+    case ROLE_CODES.HOD:
+      return Boolean(userInfo?.is_hod);
+    case ROLE_CODES.DEAN:
+      return Boolean(userInfo?.is_dean);
+    case ROLE_CODES.CFO:
+      return Boolean(userInfo?.is_cfo);
+    case ROLE_CODES.ACCOUNTS:
+      return Boolean(userInfo?.is_finance_officer) || Boolean(userInfo?.is_finance_office);
+    case ROLE_CODES.ORGANIZER_STUDENT:
+      return Boolean(userInfo?.is_organiser_student);
+    case ROLE_CODES.ORGANIZER_VOLUNTEER:
+      return Boolean(userInfo?.is_volunteer);
+    case ROLE_CODES.SERVICE_IT:
+      return Boolean(userInfo?.is_service_it);
+    case ROLE_CODES.SERVICE_VENUE:
+      return Boolean(userInfo?.is_service_venue) || Boolean(userInfo?.is_venue_manager);
+    case ROLE_CODES.SERVICE_CATERING:
+      return Boolean(userInfo?.is_service_catering);
+    case ROLE_CODES.SERVICE_STALLS:
+      return Boolean(userInfo?.is_service_stalls);
+    case ROLE_CODES.SERVICE_SECURITY:
+      return Boolean(userInfo?.is_service_security);
+    default:
+      return false;
+  }
+};
+
+const enrichUserInfoWithRoles = async (userRecord) => {
   if (!userRecord?.id) {
     return userRecord;
   }
 
-  const roleCodesFromUsers = deriveRoleCodesFromUserRecord(userRecord);
+  const roleCodes = deriveRoleCodesFromUserRecord(userRecord);
+  const legacyRoleFlags = deriveLegacyFlagsFromRoleCodes(roleCodes, userRecord);
 
-  try {
-    const assignments = await queryAll(ROLE_ASSIGNMENTS_TABLE, {
-      where: { user_id: userRecord.id },
-      order: { column: "created_at", ascending: false },
-    });
-
-    const roleAssignments = Array.isArray(assignments) ? assignments : [];
-    const fallbackRoleCodes = deriveFallbackRoleCodesFromAssignments(roleAssignments);
-    const roleCodes = combineRoleCodes(roleCodesFromUsers, fallbackRoleCodes);
-    const legacyRoleFlags = deriveLegacyFlagsFromRoleCodes(roleCodes, userRecord);
-
-    return {
-      ...userRecord,
-      ...legacyRoleFlags,
-      role_assignments: roleAssignments,
-      role_codes: roleCodes,
-    };
-  } catch (error) {
-    if (isMissingRelationError(error)) {
-      const legacyRoleFlags = deriveLegacyFlagsFromRoleCodes(roleCodesFromUsers, userRecord);
-
-      return {
-        ...userRecord,
-        ...legacyRoleFlags,
-        role_assignments: [],
-        role_codes: roleCodesFromUsers,
-      };
-    }
-
-    throw error;
-  }
-};
-
-const isMasterAdminUser = (userInfo) => {
-  return Boolean(userInfo?.is_masteradmin) || hasAnyRoleCode(userInfo?.role_codes, [ROLE_CODES.MASTER_ADMIN]);
-};
-
-const isOrganiserUser = (userInfo) => {
-  return Boolean(userInfo?.is_organiser) || hasAnyRoleCode(userInfo?.role_codes, [ROLE_CODES.ORGANIZER_TEACHER]);
+  return {
+    ...userRecord,
+    ...legacyRoleFlags,
+    role_assignments: [],
+    role_codes: roleCodes,
+  };
 };
 
 /**
@@ -197,7 +200,7 @@ export const getUserInfo = () => {
       }
 
       console.log(`[UserInfo] ✅ Found user: ${user.email}`);
-      req.userInfo = await enrichUserInfoWithRoleAssignments(user);
+      req.userInfo = await enrichUserInfoWithRoles(user);
       next();
     } catch (error) {
       console.error('Get user info error:', error);
@@ -282,9 +285,9 @@ export const requireAnyRole = (allowedRoleCodes = [], options = {}) => {
       return next();
     }
 
-    const fallbackAllowedByLegacyFlags =
-      (normalizedAllowedRoles.includes(ROLE_CODES.ORGANIZER_TEACHER) && Boolean(req.userInfo.is_organiser)) ||
-      (normalizedAllowedRoles.includes(ROLE_CODES.MASTER_ADMIN) && Boolean(req.userInfo.is_masteradmin));
+    const fallbackAllowedByLegacyFlags = normalizedAllowedRoles.some((roleCode) =>
+      hasLegacyFlagForRole(req.userInfo, roleCode)
+    );
 
     if (fallbackAllowedByLegacyFlags) {
       return next();
@@ -493,7 +496,7 @@ export const optionalAuth = async (req, res, next) => {
         try {
           const localUser = await queryOne('users', { where: { auth_uuid: user.id } });
           if (localUser) {
-            req.userInfo = await enrichUserInfoWithRoleAssignments(localUser);
+            req.userInfo = await enrichUserInfoWithRoles(localUser);
           }
         } catch (dbError) {
           console.warn('[optionalAuth] Failed to hydrate req.userInfo:', dbError?.message || dbError);
