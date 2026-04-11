@@ -104,9 +104,7 @@ interface FestBudgetSettings {
   totalSponsorship: string;
 }
 
-type ClientKeyedItem = {
-  _uiKey?: string;
-};
+type ClientKeyedItem = object;
 
 const createClientUiKey = (prefix: string): string =>
   `${prefix}-${Date.now().toString(36)}-${Math.random()
@@ -117,13 +115,17 @@ const withClientUiKeys = <T extends ClientKeyedItem>(
   items: T[] | undefined,
   prefix: string
 ): Array<T & { _uiKey: string }> =>
-  (items || []).map((item) => ({
-    ...item,
-    _uiKey:
-      typeof item._uiKey === "string" && item._uiKey.trim().length > 0
-        ? item._uiKey
-        : createClientUiKey(prefix),
-  }));
+  (items || []).map((item) => {
+    const existingKey = (item as { _uiKey?: unknown })._uiKey;
+
+    return {
+      ...item,
+      _uiKey:
+        typeof existingKey === "string" && existingKey.trim().length > 0
+          ? existingKey
+          : createClientUiKey(prefix),
+    };
+  });
 
 const createEmptyBudgetItem = (): FestBudgetItem => ({
   _uiKey: createClientUiKey("budget"),
@@ -1149,7 +1151,7 @@ function CreateFestForm(props?: CreateFestProps) {
           if (data?.fest) {
             // Transform event_heads to new format
             const eventHeadsData = data.fest.event_heads || [];
-            const transformedEventHeads = withClientUiKeys(
+            const transformedEventHeads = withClientUiKeys<{ email: string; expiresAt: string | null }>(
               eventHeadsData.map((head: any) => {
                 if (typeof head === 'string') {
                   return { email: normalizeEmail(head), expiresAt: null };
