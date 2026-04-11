@@ -18,17 +18,42 @@ import {
   parseJsonField,
 } from "../utils/parsers.js";
 import { v4 as uuidv4 } from "uuid";
+import { getFestTableForDatabase } from "../utils/festTableResolver.js";
 
 import { ROLE_CODES } from "../utils/roleAccessService.js";
 // Import fest approval helpers for workflow logic
 import {
   findActiveApprovalRequestForEntity,
-  createFestApprovalRequest,
-  applyFestWorkflowState,
   extractBudgetApprovalRequirement,
 } from "./festRoutes.js";
 
 const router = express.Router();
+
+const normalizeWorkflowStatus = (value, fallback = "") => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized || String(fallback || "").trim().toUpperCase();
+};
+
+const isMissingColumnError = (error) => String(error?.code || "") === "42703";
+const isMissingRelationError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
+};
+
+const isTruthy = (value) => {
+  if (value === true || value === 1 || value === "1") return true;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "yes" || normalized === "on";
+  }
+  return false;
+};
 
 // GET all events
 router.get("/", async (req, res) => {
@@ -179,21 +204,64 @@ router.post("/", multerUpload.fields([
   async (req, res) => {
     try {
       console.log("POST /api/events - Creating new event");
-      
-      const eventData = req.body;
-      const files = req.files;
 
-      // Simple validation - just check for required fields
-      const requiredFields = ["title", "eventDate", "category", "organizingDept", "venue"];
-      for (const field of requiredFields) {
-        if (!eventData[field]) {
-          return res.status(400).json({ error: `Missing required field: ${field}` });
+      const eventData = req.body;
+      const files = req.files || {};
+
+      const pickField = (...keys) => {
+        for (const key of keys) {
+          const value = eventData[key];
+          if (value !== undefined && value !== null) {
+            return value;
+          }
+        }
+
+        return undefined;
+      };
+
+      const titleValue = String(pickField("title") || "").trim();
+      const eventDateValue = String(
+        pickField("eventDate", "event_date") || ""
+      ).trim();
+      const categoryValue = String(pickField("category") || "").trim();
+      const organizingDeptValue = String(
+        pickField("organizingDept", "organizing_dept") || ""
+      ).trim();
+      const venueValue = String(pickField("venue", "location") || "").trim();
+
+      const requiredFields = [
+        ["title", titleValue],
+        ["eventDate", eventDateValue],
+        ["category", categoryValue],
+        ["organizingDept", organizingDeptValue],
+        ["venue", venueValue],
+      ];
+
+      for (const [fieldName, fieldValue] of requiredFields) {
+        if (!fieldValue) {
+          return res.status(400).json({ error: `Missing required field: ${fieldName}` });
         }
       }
 
+      const shouldSaveAsDraft = isTruthy(pickField("is_draft", "isDraft"));
+      const claimsApplicable = isTruthy(
+        pickField("claimsApplicable", "claims_applicable")
+      );
+
+      const rawFestId = String(
+        pickField("fest_id", "fest", "festEvent") || ""
+      ).trim();
+      const festId =
+        rawFestId && rawFestId.toLowerCase() !== "none" ? rawFestId : null;
+
+      const customFieldsRaw = pickField("custom_fields", "customFields");
+      const customFields = Array.isArray(customFieldsRaw)
+        ? customFieldsRaw
+        : parseJsonField(customFieldsRaw, []);
+
       // Generate slug-based ID from title
-      let event_id = eventData.title
-        ? eventData.title
+      let event_id = titleValue
+        ? titleValue
             .toLowerCase()
             .trim()
             .replace(/[^\w\s-]/g, "")
@@ -251,136 +319,230 @@ router.post("/", multerUpload.fields([
       let approvalRequestId = null;
       let approval_state = null;
       let activation_state = null;
-      let is_budget_related = false;
+      const is_budget_related =
+        claimsApplicable || extractBudgetApprovalRequirement(customFields);
       let festApprovalInherited = false;
+      let festApprovalBypassed = false;
+      let requiresDeanApproval = false;
+      let requiresCfoApproval = false;
 
-      // Check if event is linked to a fest
-      const festId = eventData.fest_id || eventData.fest || null;
-      if (festId) {
-        // Try to inherit fest approval workflow if fest is under review
-        const festApproval = await findActiveApprovalRequestForEntity({ entityType: "FEST", entityRef: festId });
-        if (festApproval) {
-          approvalRequestId = festApproval.id;
-          approval_state = "UNDER_REVIEW";
-          activation_state = "PENDING";
-          festApprovalInherited = true;
-        }
-      }
+      if (!shouldSaveAsDraft) {
+        if (festId) {
+          let festRecord = null;
 
-      // If not inherited, check if event itself needs approval (standalone or fest doesn't require approval)
-      if (!festApprovalInherited) {
-        // Determine if event requires budget approval (claims_applicable or custom_fields)
-        const claimsApplicable = eventData.claimsApplicable === "true" || eventData.claims_applicable === true;
-        // Check custom_fields for budget approval requirement
-        let customFields = Array.isArray(eventData.custom_fields)
-          ? eventData.custom_fields
-          : parseJsonField(eventData.custom_fields, []);
-        is_budget_related = claimsApplicable || (customFields && customFields.some(f => f.key === "__budget_approval__" && (f.value?.requiresBudgetApproval === true || String(f.value?.requiresBudgetApproval).toLowerCase() === "true")));
-
-        if (claimsApplicable || is_budget_related) {
-          // Create approval request for event (Dean, then CFO if budget)
-          // For simplicity, reuse fest approval helpers but with entityType EVENT
-          const nowIso = new Date().toISOString();
-          const insertedRequest = await insert("approval_requests", [{
-            request_id: `APR-EVENT-${event_id}-${Date.now()}`,
-            entity_type: "EVENT",
-            entity_ref: event_id,
-            parent_fest_ref: festId,
-            requested_by_user_id: req.user?.id || null,
-            requested_by_email: req.user?.email || null,
-            organizing_dept: eventData.organizingDept || null,
-            campus_hosted_at: eventData.campus_hosted_at || eventData.campusHostedAt || null,
-            is_budget_related: Boolean(is_budget_related),
-            status: "UNDER_REVIEW",
-            submitted_at: nowIso,
-          }]);
-          const approvalRequest = insertedRequest?.[0];
-          if (approvalRequest) {
-            approvalRequestId = approvalRequest.id;
-            approval_state = "UNDER_REVIEW";
-            activation_state = "PENDING";
-            // Insert approval steps
-            const approvalSteps = [
-              {
-                approval_request_id: approvalRequest.id,
-                step_code: "DEAN",
-                role_code: ROLE_CODES.DEAN,
-                step_group: 1,
-                sequence_order: 1,
-                required_count: 1,
-                status: "PENDING",
-              },
-            ];
-            if (is_budget_related) {
-              approvalSteps.push({
-                approval_request_id: approvalRequest.id,
-                step_code: "CFO",
-                role_code: ROLE_CODES.CFO,
-                step_group: 2,
-                sequence_order: 2,
-                required_count: 1,
-                status: "PENDING",
-              });
+          try {
+            const festTable = await getFestTableForDatabase(queryAll);
+            festRecord = await queryOne(festTable, { where: { fest_id: festId } });
+          } catch (festLookupError) {
+            if (!isMissingRelationError(festLookupError) && !isMissingColumnError(festLookupError)) {
+              throw festLookupError;
             }
-            await insert("approval_steps", approvalSteps);
+          }
+
+          const festApprovalState = normalizeWorkflowStatus(festRecord?.approval_state);
+          const festActivationState = normalizeWorkflowStatus(
+            festRecord?.activation_state,
+            "ACTIVE"
+          );
+          festApprovalBypassed =
+            festApprovalState === "APPROVED" && festActivationState === "ACTIVE";
+
+          if (!festApprovalBypassed) {
+            const festApproval = await findActiveApprovalRequestForEntity({
+              entityType: "FEST",
+              entityRef: festId,
+            });
+
+            if (festApproval) {
+              approvalRequestId = festApproval.id;
+              approval_state = "UNDER_REVIEW";
+              activation_state = "PENDING";
+              festApprovalInherited = true;
+            }
+          }
+        }
+
+        if (!festApprovalInherited && !festApprovalBypassed) {
+          requiresDeanApproval = true;
+          requiresCfoApproval = Boolean(is_budget_related);
+
+          try {
+            const nowIso = new Date().toISOString();
+            const insertedRequest = await insert("approval_requests", [
+              {
+                request_id: `APR-EVENT-${event_id}-${Date.now()}`,
+                entity_type: "EVENT",
+                entity_ref: event_id,
+                parent_fest_ref: festId,
+                requested_by_user_id: req.userInfo?.id || req.user?.id || null,
+                requested_by_email: req.userInfo?.email || req.user?.email || null,
+                organizing_dept: organizingDeptValue || null,
+                campus_hosted_at:
+                  pickField("campus_hosted_at", "campusHostedAt") || null,
+                is_budget_related: Boolean(is_budget_related),
+                status: "UNDER_REVIEW",
+                submitted_at: nowIso,
+              },
+            ]);
+
+            const approvalRequest = insertedRequest?.[0];
+            if (approvalRequest) {
+              approvalRequestId = approvalRequest.id;
+              approval_state = "UNDER_REVIEW";
+              activation_state = "PENDING";
+
+              const approvalSteps = [
+                {
+                  approval_request_id: approvalRequest.id,
+                  step_code: "DEAN",
+                  role_code: ROLE_CODES.DEAN,
+                  step_group: 1,
+                  sequence_order: 1,
+                  required_count: 1,
+                  status: "PENDING",
+                },
+              ];
+
+              if (requiresCfoApproval) {
+                approvalSteps.push({
+                  approval_request_id: approvalRequest.id,
+                  step_code: "CFO",
+                  role_code: ROLE_CODES.CFO,
+                  step_group: 2,
+                  sequence_order: 2,
+                  required_count: 1,
+                  status: "PENDING",
+                });
+              }
+
+              await insert("approval_steps", approvalSteps);
+            }
+          } catch (workflowError) {
+            if (String(workflowError?.code || "") === "23505") {
+              const existingRequest = await findActiveApprovalRequestForEntity({
+                entityType: "EVENT",
+                entityRef: event_id,
+              });
+
+              if (existingRequest) {
+                approvalRequestId = existingRequest.id;
+                approval_state = "UNDER_REVIEW";
+                activation_state = "PENDING";
+              }
+            } else if (!isMissingRelationError(workflowError) && !isMissingColumnError(workflowError)) {
+              throw workflowError;
+            }
           }
         }
       }
 
+      const departmentAccessRaw = pickField("departmentAccess", "department_access");
+      const allowedCampusesRaw = pickField("allowed_campuses", "allowedCampuses");
+      const scheduleRaw = pickField("scheduleItems", "schedule");
+      const rulesRaw = pickField("rules");
+      const prizesRaw = pickField("prizes");
+      const organizerEmailValue = String(
+        pickField("organizerEmail", "organizer_email", "contactEmail", "contact_email") || ""
+      ).trim();
+      const organizerPhoneValue = String(
+        pickField("organizerPhone", "organizer_phone", "contactPhone", "contact_phone") || ""
+      ).trim();
+      const whatsappInviteLinkValue = String(
+        pickField(
+          "whatsappInviteLink",
+          "whatsapp_invite_link",
+          "whatsappLink",
+          "whatsapp_link"
+        ) || ""
+      ).trim();
+      const eventTimeValue = String(
+        pickField("eventTime", "event_time") || ""
+      ).trim();
+      const endDateValue = String(
+        pickField("endDate", "end_date") || ""
+      ).trim();
+      const registrationDeadlineValue = String(
+        pickField("registrationDeadline", "registration_deadline") || ""
+      ).trim();
+      const createdByValue = String(
+        pickField("createdBy", "created_by") || "admin"
+      ).trim();
+
       // Prepare event payload
       const eventPayload = {
         event_id: event_id,
-        title: eventData.title,
-        description: eventData.description || "",
-        event_date: eventData.eventDate,
-        event_time: eventData.eventTime || null,
-        end_date: eventData.endDate || null,
-        venue: eventData.venue,
-        category: eventData.category,
-        department_access: Array.isArray(eventData.departmentAccess)
-          ? eventData.departmentAccess
-          : parseJsonField(eventData.departmentAccess, []),
-        claims_applicable: eventData.claimsApplicable === "true" ? 1 : 0,
-        registration_fee: parseOptionalFloat(eventData.registrationFee, 0),
-        participants_per_team: parseOptionalInt(eventData.participantsPerTeam, 1),
-        max_participants: parseOptionalInt(eventData.maxParticipants, null),
-        organizer_email: eventData.organizerEmail || "",
-        organizer_phone: eventData.organizerPhone || "",
-        whatsapp_invite_link: eventData.whatsappInviteLink || "",
-        organizing_dept: eventData.organizingDept,
+        title: titleValue,
+        description: pickField("description", "detailedDescription") || "",
+        event_date: eventDateValue,
+        event_time: eventTimeValue || null,
+        end_date: endDateValue || null,
+        venue: venueValue,
+        category: categoryValue,
+        department_access: Array.isArray(departmentAccessRaw)
+          ? departmentAccessRaw
+          : parseJsonField(departmentAccessRaw, []),
+        claims_applicable: claimsApplicable ? 1 : 0,
+        registration_fee: parseOptionalFloat(
+          pickField("registrationFee", "registration_fee"),
+          0
+        ),
+        participants_per_team: parseOptionalInt(
+          pickField("participantsPerTeam", "participants_per_team"),
+          1
+        ),
+        max_participants: parseOptionalInt(
+          pickField("maxParticipants", "max_participants"),
+          null
+        ),
+        organizer_email: organizerEmailValue,
+        organizer_phone: organizerPhoneValue,
+        whatsapp_invite_link: whatsappInviteLinkValue,
+        organizing_dept: organizingDeptValue,
         fest_id: festId,
-        registration_deadline: eventData.registrationDeadline || null,
-        allow_outsiders: eventData.allowOutsiders === "true" || eventData.allow_outsiders === true ? 1 : 0,
-        outsider_registration_fee: parseOptionalFloat(eventData.outsiderRegistrationFee || eventData.outsider_registration_fee, null),
-        outsider_max_participants: parseOptionalInt(eventData.outsiderMaxParticipants || eventData.outsider_max_participants, null),
-        campus_hosted_at: eventData.campus_hosted_at || eventData.campusHostedAt || null,
-        allowed_campuses: Array.isArray(eventData.allowed_campuses)
-          ? eventData.allowed_campuses
-          : parseJsonField(eventData.allowed_campuses, []),
-        schedule: Array.isArray(eventData.scheduleItems)
-          ? eventData.scheduleItems
-          : parseJsonField(eventData.scheduleItems, []),
-        rules: Array.isArray(eventData.rules)
-          ? eventData.rules
-          : parseJsonField(eventData.rules, []),
-        prizes: Array.isArray(eventData.prizes)
-          ? eventData.prizes
-          : parseJsonField(eventData.prizes, []),
-        custom_fields: Array.isArray(eventData.custom_fields)
-          ? eventData.custom_fields
-          : parseJsonField(eventData.custom_fields, []),
+        registration_deadline: registrationDeadlineValue || null,
+        allow_outsiders: isTruthy(
+          pickField("allowOutsiders", "allow_outsiders")
+        )
+          ? 1
+          : 0,
+        outsider_registration_fee: parseOptionalFloat(
+          pickField("outsiderRegistrationFee", "outsider_registration_fee"),
+          null
+        ),
+        outsider_max_participants: parseOptionalInt(
+          pickField("outsiderMaxParticipants", "outsider_max_participants"),
+          null
+        ),
+        campus_hosted_at:
+          pickField("campus_hosted_at", "campusHostedAt") || null,
+        allowed_campuses: Array.isArray(allowedCampusesRaw)
+          ? allowedCampusesRaw
+          : parseJsonField(allowedCampusesRaw, []),
+        schedule: Array.isArray(scheduleRaw)
+          ? scheduleRaw
+          : parseJsonField(scheduleRaw, []),
+        rules: Array.isArray(rulesRaw)
+          ? rulesRaw
+          : parseJsonField(rulesRaw, []),
+        prizes: Array.isArray(prizesRaw)
+          ? prizesRaw
+          : parseJsonField(prizesRaw, []),
+        custom_fields: customFields,
         event_image_url: event_image_url,
         banner_url: banner_url,
         pdf_url: pdf_url,
-        min_participants: parseOptionalInt(eventData.minParticipants || eventData.min_participants, 1),
+        min_participants: parseOptionalInt(
+          pickField("minParticipants", "min_participants"),
+          1
+        ),
         total_participants: 0,
-        created_by: eventData.createdBy || "admin",
+        created_by: createdByValue || "admin",
         // Approval workflow fields
         approval_request_id: approvalRequestId,
         approval_state: approval_state,
         activation_state: activation_state,
         is_budget_related: is_budget_related,
-        is_draft: approval_state === "UNDER_REVIEW" ? true : false,
+        is_draft: shouldSaveAsDraft ? true : approval_state === "UNDER_REVIEW",
       };
 
       const [createdEvent] = await insert("events", [eventPayload]);
@@ -405,9 +567,21 @@ router.post("/", multerUpload.fields([
       };
 
       return res.status(201).json({
-        message: approval_state === "UNDER_REVIEW"
-          ? "Event created and sent for approval. Activation pending required approvals."
+        message: shouldSaveAsDraft
+          ? "Event draft saved successfully"
+          : approval_state === "UNDER_REVIEW"
+          ? festApprovalInherited
+            ? "Event created and linked to fest approval workflow. Activation pending required approvals."
+            : "Event created and sent for approval. Activation pending required approvals."
           : "Event created successfully",
+        workflow: {
+          approval_state: approval_state || "NONE",
+          activation_state: activation_state || "ACTIVE",
+          fest_approval_inherited: festApprovalInherited,
+          fest_approval_bypassed: festApprovalBypassed,
+          requires_dean_approval: requiresDeanApproval,
+          requires_cfo_approval: requiresCfoApproval,
+        },
         event: responseEvent,
       });
 

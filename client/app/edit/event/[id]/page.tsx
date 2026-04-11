@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { dayjs } from "@/lib/dateUtils";
-import EventForm from "@/app/_components/Admin/ManageEvent";
+import EventForm, { EventSubmitResult } from "@/app/_components/Admin/ManageEvent";
 import {
   EventFormData,
   departments as departmentOptions,
@@ -508,7 +508,7 @@ export default function EditEventPage() {
   const submitEventUpdate = async (
     formData: EventFormData,
     options?: { archiveAsDraft?: boolean }
-  ) => {
+  ): Promise<EventSubmitResult | void> => {
     const normalizeStringArrayPayload = (value: unknown): string[] => {
       if (Array.isArray(value)) {
         return value
@@ -803,6 +803,31 @@ export default function EditEventPage() {
           : publishFromDraft
             ? "Event published successfully!"
             : "Event updated successfully!";
+
+        const approvalState = String(
+          resultJson?.workflow?.approval_state || resultJson?.event?.approval_state || ""
+        )
+          .trim()
+          .toUpperCase();
+        const activationState = String(
+          resultJson?.workflow?.activation_state || resultJson?.event?.activation_state || ""
+        )
+          .trim()
+          .toUpperCase();
+        const workflowOutcome: EventSubmitResult["workflowOutcome"] =
+          approvalState === "UNDER_REVIEW" || activationState === "PENDING"
+            ? "approval_pending"
+            : "published";
+
+        const submitResult: EventSubmitResult = {
+          workflowOutcome,
+          message:
+            typeof resultJson?.message === "string" && resultJson.message.trim()
+              ? resultJson.message.trim()
+              : successMessage,
+          approvalState: approvalState || null,
+          activationState: activationState || null,
+        };
         
         // If the event_id changed (title was updated), show success message and redirect to new URL
         if (resultJson.id_changed && resultJson.event_id) {
@@ -816,10 +841,11 @@ export default function EditEventPage() {
           );
           
           router.replace(`/edit/event/${newId}`);
-          return;
+          return submitResult;
         } else {
           // Show regular success message
           toast.success(successMessage, { duration: 3000 });
+          return submitResult;
         }
       } catch (e) {
         console.warn(
@@ -832,6 +858,10 @@ export default function EditEventPage() {
             ? "Event published successfully!"
             : "Event updated successfully!";
         toast.success(fallbackMessage, { duration: 3000 });
+        return {
+          workflowOutcome: "published",
+          message: fallbackMessage,
+        };
       }
     } catch (error: any) {
       console.error("Error in handleUpdateEvent:", error);

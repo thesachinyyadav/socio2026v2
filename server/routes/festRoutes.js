@@ -63,7 +63,7 @@ const normalizeWorkflowStatus = (value, fallback = "") => {
   return normalized || String(fallback || "").trim().toUpperCase();
 };
 
-const extractBudgetApprovalRequirement = (customFieldsValue) => {
+export const extractBudgetApprovalRequirement = (customFieldsValue) => {
   const parsedCustomFields = parseJsonLikeField(customFieldsValue, []);
   if (!Array.isArray(parsedCustomFields)) {
     return false;
@@ -92,7 +92,7 @@ const extractBudgetApprovalRequirement = (customFieldsValue) => {
   );
 };
 
-const findActiveApprovalRequestForEntity = async ({ entityType, entityRef }) => {
+export const findActiveApprovalRequestForEntity = async ({ entityType, entityRef }) => {
   const normalizedEntityType = normalizeWorkflowStatus(entityType);
   const normalizedEntityRef = String(entityRef || "").trim();
 
@@ -129,7 +129,7 @@ const findActiveApprovalRequestForEntity = async ({ entityType, entityRef }) => 
   }
 };
 
-const createFestApprovalRequest = async ({ festRecord, userInfo, isBudgetRelated }) => {
+export const createFestApprovalRequest = async ({ festRecord, userInfo, isBudgetRelated }) => {
   const festId = String(festRecord?.fest_id || "").trim();
   if (!festId) {
     return null;
@@ -211,7 +211,7 @@ const createFestApprovalRequest = async ({ festRecord, userInfo, isBudgetRelated
   }
 };
 
-const applyFestWorkflowState = async ({ festTable, festId, approvalRequestId, isBudgetRelated }) => {
+export const applyFestWorkflowState = async ({ festTable, festId, approvalRequestId, isBudgetRelated }) => {
   const normalizedFestId = String(festId || "").trim();
   if (!normalizedFestId) {
     return { applied: false, activationState: "ACTIVE" };

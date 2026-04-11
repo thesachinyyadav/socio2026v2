@@ -1,6 +1,6 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import EventForm from "@/app/_components/Admin/ManageEvent";
+import EventForm, { EventSubmitResult } from "@/app/_components/Admin/ManageEvent";
 import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
@@ -33,7 +33,7 @@ export default function CreateEventPage() {
   const submitEvent = async (
     dataFromHookForm: EventFormData,
     saveAsDraft: boolean
-  ) => {
+  ): Promise<EventSubmitResult | void> => {
 
     console.log(
       `CreateEventPage: submitEvent CALLED. Mode: ${saveAsDraft ? "draft" : "publish"}. Data:`,
@@ -326,6 +326,31 @@ export default function CreateEventPage() {
         `CreateEventPage: Event ${saveAsDraft ? "draft saved" : "created"} successfully via API:`,
         result
       );
+
+      const approvalState = String(
+        result?.workflow?.approval_state || result?.event?.approval_state || ""
+      )
+        .trim()
+        .toUpperCase();
+      const activationState = String(
+        result?.workflow?.activation_state || result?.event?.activation_state || ""
+      )
+        .trim()
+        .toUpperCase();
+      const workflowOutcome: EventSubmitResult["workflowOutcome"] =
+        approvalState === "UNDER_REVIEW" || activationState === "PENDING"
+          ? "approval_pending"
+          : "published";
+
+      return {
+        workflowOutcome,
+        message:
+          typeof result?.message === "string" && result.message.trim()
+            ? result.message.trim()
+            : undefined,
+        approvalState: approvalState || null,
+        activationState: activationState || null,
+      };
     } catch (error: any) {
       console.error(
         `CreateEventPage: Error during event ${saveAsDraft ? "draft save" : "creation"} fetch/processing:`,

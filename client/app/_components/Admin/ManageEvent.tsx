@@ -716,9 +716,22 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   );
 };
 
+export type EventWorkflowOutcome = "published" | "approval_pending";
+
+export interface EventSubmitResult {
+  workflowOutcome?: EventWorkflowOutcome;
+  message?: string;
+  approvalState?: string | null;
+  activationState?: string | null;
+}
+
+type EventSubmitAction = (
+  data: EventFormData
+) => Promise<EventSubmitResult | void> | EventSubmitResult | void;
+
 interface EventFormProps {
-  onSubmit: SubmitHandler<EventFormData>;
-  onSubmitDraft?: SubmitHandler<EventFormData>;
+  onSubmit: EventSubmitAction;
+  onSubmitDraft?: EventSubmitAction;
   defaultValues?: Partial<EventFormData>;
   isSubmittingProp: boolean;
   isEditMode: boolean;
@@ -747,6 +760,8 @@ interface FestOption {
   campusHostedAt: string;
   allowedCampuses: string[];
   allowOutsiders: boolean;
+  approvalState?: string;
+  activationState?: string;
 }
 
 const toCanonical = (value: string): string =>
@@ -1103,6 +1118,14 @@ export default function EventForm({
               campusHostedAt: normalizeCampusHostedAt(f.campus_hosted_at),
               allowedCampuses: normalizeAllowedCampuses(f.allowed_campuses),
               allowOutsiders: normalizeBoolean(f.allow_outsiders ?? f.allowOutsiders),
+              approvalState:
+                typeof f.approval_state === "string"
+                  ? f.approval_state.trim().toUpperCase()
+                  : "",
+              activationState:
+                typeof f.activation_state === "string"
+                  ? f.activation_state.trim().toUpperCase()
+                  : "",
             }));
           setFetchedFests([
             {
@@ -1114,6 +1137,8 @@ export default function EventForm({
               campusHostedAt: "",
               allowedCampuses: [],
               allowOutsiders: false,
+              approvalState: "",
+              activationState: "",
             },
             ...options,
           ]);
@@ -1437,6 +1462,60 @@ export default function EventForm({
     typeof watchedFestEvent === "string" &&
     watchedFestEvent.trim() !== "" &&
     watchedFestEvent.trim().toLowerCase() !== "none";
+  const selectedFestOption = React.useMemo(() => {
+    if (!hasFestSelected) return null;
+
+    const watchedFestEventValue = String(watchedFestEvent ?? "").trim();
+    const watchedFestCanonical = toCanonical(watchedFestEventValue);
+
+    return (
+      fetchedFests.find(
+        (fest) =>
+          fest.value === watchedFestEventValue ||
+          toCanonical(fest.value) === watchedFestCanonical ||
+          toCanonical(fest.label) === watchedFestCanonical
+      ) || null
+    );
+  }, [hasFestSelected, watchedFestEvent, fetchedFests]);
+
+  const selectedFestApprovalState = String(selectedFestOption?.approvalState || "")
+    .trim()
+    .toUpperCase();
+  const selectedFestActivationState = String(
+    selectedFestOption?.activationState || ""
+  )
+    .trim()
+    .toUpperCase();
+  const isFestWorkflowApproved =
+    Boolean(selectedFestOption) &&
+    selectedFestApprovalState === "APPROVED" &&
+    (!selectedFestActivationState || selectedFestActivationState === "ACTIVE");
+
+  const publishActionNeedsApproval =
+    (!isEditMode || Boolean(isDraft)) && !isFestWorkflowApproved;
+  const requiresCfoApprovalForPublish =
+    publishActionNeedsApproval && Boolean(watchedProvideClaims);
+
+  const primarySubmitLabel = isEditMode
+    ? isDraft
+      ? publishActionNeedsApproval
+        ? "Send for Approval"
+        : "Publish Event"
+      : "Update Event"
+    : publishActionNeedsApproval
+    ? "Send for Approval"
+    : "Publish Event";
+
+  const primarySubmittingLabel = isEditMode
+    ? isDraft
+      ? publishActionNeedsApproval
+        ? "Sending for Approval..."
+        : "Publishing..."
+      : "Updating..."
+    : publishActionNeedsApproval
+    ? "Sending for Approval..."
+    : "Publishing...";
+
   const lastAutoFilledFestRef = useRef<string | null>(null);
   const prevHasFestSelectedRef = useRef(hasFestSelected);
   const prevItEnabledRef = useRef(Boolean(watchedItEnabled));
@@ -1683,6 +1762,10 @@ export default function EventForm({
   const [successAction, setSuccessAction] = React.useState<"publish" | "draft">("publish");
   const [wasDraftOnSubmit, setWasDraftOnSubmit] = React.useState(false);
   const [modalVisible, setModalVisible] = React.useState(false);
+  const [publishFeedback, setPublishFeedback] = React.useState<{
+    mode: EventWorkflowOutcome;
+    message: string;
+  } | null>(null);
 
   const applyServerFieldErrors = React.useCallback(
     (incoming: unknown) => {
@@ -1727,8 +1810,40 @@ export default function EventForm({
 
   const processSubmit: SubmitHandler<EventFormData> = async (data) => {
     try {
-      setWasDraftOnSubmit(Boolean(isDraft));
-      await onSubmit(data);
+      const draftOnSubmit = Boolean(isDraft);
+      setWasDraftOnSubmit(draftOnSubmit);
+
+      const submitResult = (await onSubmit(data)) as EventSubmitResult | void;
+      const normalizedApprovalState = String(
+        submitResult?.approvalState || ""
+      )
+        .trim()
+        .toUpperCase();
+      const normalizedActivationState = String(
+        submitResult?.activationState || ""
+      )
+        .trim()
+        .toUpperCase();
+      const isApprovalPending =
+        submitResult?.workflowOutcome === "approval_pending" ||
+        normalizedApprovalState === "UNDER_REVIEW" ||
+        normalizedActivationState === "PENDING";
+
+      const defaultPublishMessage = isApprovalPending
+        ? "Your event has been sent for approval. It will go live once required approvals are complete."
+        : `Your event has been successfully ${
+            isEditMode && draftOnSubmit
+              ? "published"
+              : isEditMode
+              ? "updated"
+              : "published"
+          }.`;
+
+      setPublishFeedback({
+        mode: isApprovalPending ? "approval_pending" : "published",
+        message: String(submitResult?.message || defaultPublishMessage),
+      });
+
       setSuccessAction("publish");
       // Don't show modal yet — let the overlay finish its animation first
       setPendingSuccess("publish");
@@ -1747,6 +1862,7 @@ export default function EventForm({
 
     try {
       await onSubmitDraft(data);
+      setPublishFeedback(null);
       setSuccessAction("draft");
       setPendingSuccess("draft");
     } catch (error: any) {
@@ -1815,6 +1931,7 @@ export default function EventForm({
     setModalVisible(false);
     setSuccessAction("publish");
     setWasDraftOnSubmit(false);
+    setPublishFeedback(null);
     setTimeout(() => {
       setIsNavigating(true);
       router.push("/manage");
@@ -2102,6 +2219,8 @@ export default function EventForm({
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
                 {successAction === "draft"
                   ? "Draft Saved!"
+                  : publishFeedback?.mode === "approval_pending"
+                  ? "Sent for Approval!"
                   : `Event ${
                       isEditMode && wasDraftOnSubmit ? "Published!" : isEditMode ? "Updated!" : "Published!"
                     }`}
@@ -2109,7 +2228,8 @@ export default function EventForm({
               <p className="text-gray-600 mb-6 text-sm sm:text-base">
                 {successAction === "draft"
                   ? "Your event has been saved as a draft. It is hidden until you publish it."
-                  : `Your event has been successfully ${
+                  : publishFeedback?.message ||
+                    `Your event has been successfully ${
                       isEditMode && wasDraftOnSubmit ? "published" : isEditMode ? "updated" : "published"
                     }.`}
               </p>
@@ -2317,6 +2437,60 @@ export default function EventForm({
                   />
                 </div>
 
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <h3 className="text-sm sm:text-base font-semibold text-[#063168]">
+                      Approval workflow
+                    </h3>
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
+                        publishActionNeedsApproval
+                          ? "bg-amber-50 border-amber-200 text-amber-700"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      }`}
+                    >
+                      {publishActionNeedsApproval
+                        ? "Sent for approval on submit"
+                        : "Publishes directly on submit"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="text-gray-700">Dean approval</span>
+                      <span className={`font-semibold ${publishActionNeedsApproval ? "text-amber-700" : "text-emerald-700"}`}>
+                        {publishActionNeedsApproval ? "Required" : "Bypassed"}
+                      </span>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="text-gray-700">CFO approval</span>
+                      <span
+                        className={`font-semibold ${
+                          requiresCfoApprovalForPublish
+                            ? "text-amber-700"
+                            : publishActionNeedsApproval
+                            ? "text-gray-600"
+                            : "text-emerald-700"
+                        }`}
+                      >
+                        {requiresCfoApprovalForPublish
+                          ? "Required"
+                          : publishActionNeedsApproval
+                          ? "Not required"
+                          : "Bypassed"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs sm:text-sm text-gray-700">
+                    {hasFestSelected
+                      ? isFestWorkflowApproved
+                        ? "Selected fest is approved and active, so Dean/CFO approvals are bypassed for this event."
+                        : "Selected fest is not fully approved yet, so this event follows standalone approval rules (Dean mandatory, CFO only when claims/funds are enabled)."
+                      : "Standalone events always require Dean approval. CFO approval is added when claims/funds are enabled."}
+                  </p>
+                </div>
+
                 {hasFestSelected && (
                   <div
                     id="additionalRequests-section"
@@ -2327,8 +2501,8 @@ export default function EventForm({
                         Additional Requests
                       </h3>
                       <p className="text-xs text-gray-600 mt-1">
-                        Optional modules for fest-linked events. Selected modules
-                        must be completed before submission.
+                        Operational approvals for fest-linked events. Modules you
+                        enable below must be completed before submission.
                       </p>
                     </div>
 
@@ -3580,16 +3754,8 @@ export default function EventForm({
                     className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isSubmittingProp || rhfIsSubmitting
-                      ? isEditMode
-                        ? isDraft
-                          ? "Publishing..."
-                          : "Updating..."
-                        : "Publishing..."
-                      : isEditMode
-                      ? isDraft
-                        ? "Publish Event"
-                        : "Update Event"
-                      : "Publish Event"}
+                      ? primarySubmittingLabel
+                      : primarySubmitLabel}
                   </button>
                 </div>
               </form>

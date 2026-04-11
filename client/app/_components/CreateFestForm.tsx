@@ -3633,6 +3633,16 @@ function CreateFestForm(props?: CreateFestProps) {
                       <p className="text-sm text-gray-500 mb-4">
                         Select Yes to add budget requirements and amount details.
                       </p>
+                      <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                        <p className="font-semibold text-[#063168]">Approval route preview</p>
+                        <p className="mt-1 text-gray-700">
+                          Dean approval is mandatory for every fest.
+                          {" "}
+                          {requiresBudgetApproval
+                            ? "CFO approval is also required because budget approval is enabled."
+                            : "CFO approval is skipped because budget approval is disabled."}
+                        </p>
+                      </div>
                       <div className="flex flex-wrap gap-3">
                         <button
                           type="button"
