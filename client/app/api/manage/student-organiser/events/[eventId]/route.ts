@@ -286,11 +286,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Unable to resolve your profile." }, { status: 403 });
   }
 
-  const universityRole = normalizeLower(userProfile.university_role);
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isStudentOrganiser =
     hasAnyRoleCode(userProfile, ["ORGANIZER_STUDENT"]) ||
-    universityRole === "student_organiser";
+    Boolean((userProfile as GenericRecord).is_organiser_student);
 
   if (!isStudentOrganiser && !isMasterAdmin) {
     return NextResponse.json(

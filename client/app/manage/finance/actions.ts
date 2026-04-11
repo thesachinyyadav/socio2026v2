@@ -126,11 +126,9 @@ async function resolveFinanceSession() {
   }
 
   const profileRecord = profile as Record<string, unknown>;
-  const universityRole = normalizeLower(profileRecord.university_role);
   const isMasterAdmin = Boolean(profileRecord.is_masteradmin);
   const isFinanceOfficer =
     hasAnyRoleCode(profileRecord, ["ACCOUNTS"]) ||
-    universityRole === "finance_officer" ||
     Boolean(profileRecord.is_finance_officer);
   if (!isFinanceOfficer && !isMasterAdmin) {
     return {

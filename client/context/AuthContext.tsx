@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import CampusDetectionModal, { isCampusDismissedRecently } from "../app/_components/CampusDetectionModal";
+import { hasAnyRoleCode, hasRoleAlias } from "../lib/roleDashboards";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "";
@@ -422,8 +423,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isSupport = Boolean(userData?.is_support);
-  const isMasterAdmin = Boolean(userData?.is_masteradmin);
+  const userRecord = (userData as unknown as Record<string, unknown> | null) || null;
+  const universityRole = userData?.university_role;
+  const isSupport =
+    Boolean(userData?.is_support) ||
+    hasAnyRoleCode(userRecord, ["SUPPORT"]);
+  const isMasterAdmin =
+    Boolean(userData?.is_masteradmin) ||
+    hasAnyRoleCode(userRecord, ["MASTER_ADMIN"]) ||
+    hasRoleAlias(universityRole, ["masteradmin", "master admin"]);
 
   return (
     <AuthContext.Provider

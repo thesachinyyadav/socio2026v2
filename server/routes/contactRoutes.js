@@ -1,7 +1,12 @@
 import express from "express";
-import { insert, queryAll, queryOne } from "../config/database.js";
-import { authenticateUser } from "../middleware/authMiddleware.js";
+import { insert, queryAll } from "../config/database.js";
+import {
+  authenticateUser,
+  getUserInfo,
+  requireAnyRole,
+} from "../middleware/authMiddleware.js";
 import supabase from "../config/supabaseClient.js";
+import { ROLE_CODES } from "../utils/roleAccessService.js";
 
 const router = express.Router();
 
@@ -37,18 +42,13 @@ router.post("/contact", async (req, res) => {
   }
 });
 
-router.get("/support/messages", authenticateUser, async (req, res) => {
+router.get(
+  "/support/messages",
+  authenticateUser,
+  getUserInfo(),
+  requireAnyRole([ROLE_CODES.SUPPORT]),
+  async (req, res) => {
   try {
-    const authId = req.user?.id;
-    if (!authId) {
-      return res.status(401).json({ success: false, message: "Authentication required." });
-    }
-
-    const supportUser = await queryOne("users", { where: { auth_uuid: authId } });
-    if (!supportUser?.is_support) {
-      return res.status(403).json({ success: false, message: "Support privileges required." });
-    }
-
     const messages = await queryAll("contact_messages", {
       order: { column: "created_at", ascending: false }
     });
@@ -61,20 +61,16 @@ router.get("/support/messages", authenticateUser, async (req, res) => {
       message: "Unable to load messages right now."
     });
   }
-});
+}
+);
 
-router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
+router.patch(
+  "/support/messages/:id",
+  authenticateUser,
+  getUserInfo(),
+  requireAnyRole([ROLE_CODES.SUPPORT]),
+  async (req, res) => {
   try {
-    const authId = req.user?.id;
-    if (!authId) {
-      return res.status(401).json({ success: false, message: "Authentication required." });
-    }
-
-    const supportUser = await queryOne("users", { where: { auth_uuid: authId } });
-    if (!supportUser?.is_support) {
-      return res.status(403).json({ success: false, message: "Support privileges required." });
-    }
-
     const { id } = req.params;
     const { status } = req.body;
 
@@ -110,6 +106,7 @@ router.patch("/support/messages/:id", authenticateUser, async (req, res) => {
       message: "Unable to update status right now."
     });
   }
-});
+}
+);
 
 export default router;

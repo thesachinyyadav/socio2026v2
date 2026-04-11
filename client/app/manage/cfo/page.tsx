@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import CfoDashboardClient from "./_components/CfoDashboardClient";
 import { fetchCfoDashboardData } from "./_lib/cfoDashboardData";
-import { hasAnyRoleCode, hasRoleAlias } from "@/lib/roleDashboards";
+import { hasAnyRoleCode } from "@/lib/roleDashboards";
 import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
 export const dynamic = "force-dynamic";
@@ -81,12 +81,10 @@ export default async function CfoManagePage() {
     redirect("/error");
   }
 
-  const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isCfo =
     hasAnyRoleCode(userProfile, ["CFO"]) ||
-    Boolean(userProfile.is_cfo) ||
-    hasRoleAlias(universityRole, ["cfo"]);
+    Boolean(userProfile.is_cfo);
 
   if (!isMasterAdmin && !isCfo) {
     redirect("/manage");

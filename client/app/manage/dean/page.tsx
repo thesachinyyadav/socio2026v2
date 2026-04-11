@@ -81,12 +81,10 @@ export default async function DeanManagePage() {
     redirect("/error");
   }
 
-  const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isDeanUser =
     hasAnyRoleCode(userProfile, ["DEAN"]) ||
-    Boolean(userProfile.is_dean) ||
-    universityRole === "dean";
+    Boolean(userProfile.is_dean);
   if (!isDeanUser && !isMasterAdmin) {
     redirect("/manage");
   }

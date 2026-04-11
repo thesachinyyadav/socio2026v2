@@ -35,7 +35,6 @@ import {
 import {
   getAccessibleServiceRoleDashboards,
   hasAnyRoleCode,
-  hasRoleAlias,
 } from "@/lib/roleDashboards";
 
 // ─── TYPES & CONSTANTS ──────────────────────────────────────────────────────
@@ -456,30 +455,24 @@ export default function ManageDashboard() {
   const userRecord = (userData as Record<string, unknown> | null) || null;
   const isOrganiser =
     Boolean(userData?.is_organiser) || hasAnyRoleCode(userRecord, ["ORGANIZER_TEACHER"]);
-  const universityRole = (userData as any)?.university_role;
   const isStudentOrganiser =
-    hasAnyRoleCode(userRecord, ["ORGANIZER_STUDENT"]) ||
-    hasRoleAlias(universityRole, ["student organiser", "student_organiser"]);
+    Boolean((userData as any)?.is_organiser_student) ||
+    hasAnyRoleCode(userRecord, ["ORGANIZER_STUDENT"]);
   const isVolunteer =
     Boolean((userData as any)?.is_volunteer) ||
-    hasAnyRoleCode(userRecord, ["ORGANIZER_VOLUNTEER"]) ||
-    hasRoleAlias(universityRole, ["volunteer"]);
+    hasAnyRoleCode(userRecord, ["ORGANIZER_VOLUNTEER"]);
   const isHod =
     Boolean((userData as any)?.is_hod) ||
-    hasAnyRoleCode(userRecord, ["HOD"]) ||
-    hasRoleAlias(universityRole, ["hod"]);
+    hasAnyRoleCode(userRecord, ["HOD"]);
   const isDean =
     Boolean((userData as any)?.is_dean) ||
-    hasAnyRoleCode(userRecord, ["DEAN"]) ||
-    hasRoleAlias(universityRole, ["dean"]);
+    hasAnyRoleCode(userRecord, ["DEAN"]);
   const isCfo =
     Boolean((userData as any)?.is_cfo) ||
-    hasAnyRoleCode(userRecord, ["CFO"]) ||
-    hasRoleAlias(universityRole, ["cfo"]);
+    hasAnyRoleCode(userRecord, ["CFO"]);
   const isFinanceOfficer =
     Boolean((userData as any)?.is_finance_officer) ||
-    hasAnyRoleCode(userRecord, ["ACCOUNTS"]) ||
-    hasRoleAlias(universityRole, ["finance officer", "finance_officer"]);
+    hasAnyRoleCode(userRecord, ["ACCOUNTS"]);
   const accessibleServiceRoleDashboards = useMemo(
     () =>
       getAccessibleServiceRoleDashboards(

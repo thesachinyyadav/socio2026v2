@@ -61,11 +61,10 @@ export default async function StudentOrganiserManagePage() {
     redirect("/error");
   }
 
-  const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isStudentOrganiser =
     hasAnyRoleCode(userProfile, ["ORGANIZER_STUDENT"]) ||
-    universityRole === "student_organiser";
+    Boolean((userProfile as any).is_organiser_student);
 
   if (!isStudentOrganiser && !isMasterAdmin) {
     redirect("/manage");

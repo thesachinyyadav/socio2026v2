@@ -204,7 +204,7 @@ export function hasServiceRoleAccess(
     return true;
   }
 
-  return hasRoleAlias(userLike.university_role, roleConfig.aliases);
+  return false;
 }
 
 export function getAccessibleServiceRoleDashboards(

@@ -31,7 +31,7 @@ const statusBadgeStyles: Record<string, string> = {
 };
 
 const SupportInboxPage = () => {
-  const { session, userData, isSupport, isLoading } = useAuth();
+  const { session, userData, isSupport, isMasterAdmin, isLoading } = useAuth();
   const router = useRouter();
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [isFetching, setIsFetching] = useState<boolean>(false);
@@ -124,13 +124,13 @@ const SupportInboxPage = () => {
       return;
     }
 
-    if (!isSupport) {
+    if (!isSupport && !isMasterAdmin) {
       setError("You do not have permission to view the support inbox.");
       return;
     }
 
     fetchMessages();
-  }, [session, isSupport, isLoading, fetchMessages, router]);
+  }, [session, isSupport, isMasterAdmin, isLoading, fetchMessages, router]);
 
   const filteredMessages = useMemo(() => {
     if (filter === "all") {

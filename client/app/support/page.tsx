@@ -101,7 +101,8 @@ const SupportPage = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const { isSupport } = useAuth();
+  const { isSupport, isMasterAdmin } = useAuth();
+  const canAccessSupportInbox = isSupport || isMasterAdmin;
 
   const quickActions = useMemo(() => {
     const actions = [
@@ -164,7 +165,7 @@ const SupportPage = () => {
       }
     ];
 
-    if (isSupport) {
+    if (canAccessSupportInbox) {
       actions.unshift({
         title: "Review Support Inbox",
         description: "View and respond to new student messages.",
@@ -183,7 +184,7 @@ const SupportPage = () => {
     }
 
     return actions;
-  }, [isSupport]);
+  }, [canAccessSupportInbox]);
 
   return (
     <div className="min-h-screen bg-white">

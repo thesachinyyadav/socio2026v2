@@ -60,12 +60,10 @@ export default async function HodManagePage() {
     redirect("/error");
   }
 
-  const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isHodUser =
     hasAnyRoleCode(userProfile, ["HOD"]) ||
-    Boolean(userProfile.is_hod) ||
-    universityRole === "hod";
+    Boolean(userProfile.is_hod);
   if (!isHodUser && !isMasterAdmin) {
     redirect("/error");
   }

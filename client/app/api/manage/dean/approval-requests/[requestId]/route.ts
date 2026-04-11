@@ -119,12 +119,10 @@ export async function PATCH(
       return jsonError(403, "Unable to resolve user profile.");
     }
 
-    const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
     const isMasterAdmin = Boolean(userProfile.is_masteradmin);
     const isDeanUser =
       hasAnyRoleCode(userProfile, ["DEAN"]) ||
-      Boolean(userProfile.is_dean) ||
-      universityRole === "dean";
+      Boolean(userProfile.is_dean);
     if (!isDeanUser && !isMasterAdmin) {
       return jsonError(403, "Only Dean or Master Admin users can perform L2 actions.");
     }

@@ -4,7 +4,6 @@ import type { NextRequest } from "next/server";
 import {
   SERVICE_ROLE_DASHBOARDS,
   hasAnyRoleCode,
-  hasRoleAlias,
   hasServiceRoleAccess,
 } from "./lib/roleDashboards";
 
@@ -185,30 +184,25 @@ export async function middleware(req: NextRequest) {
       normalizedUserData,
       roleAssignments
     );
-    const universityRole = resolvedUserData?.university_role;
     const isMasterAdmin =
       Boolean(userData?.is_masteradmin) || hasAnyRoleCode(resolvedUserData, ["MASTER_ADMIN"]);
     const isOrganiser =
       Boolean(userData?.is_organiser) || hasAnyRoleCode(resolvedUserData, ["ORGANIZER_TEACHER"]);
     const isHod =
       Boolean((userData as any)?.is_hod) ||
-      hasAnyRoleCode(resolvedUserData, ["HOD"]) ||
-      hasRoleAlias(universityRole, ["hod"]);
+      hasAnyRoleCode(resolvedUserData, ["HOD"]);
     const isDean =
       Boolean((userData as any)?.is_dean) ||
-      hasAnyRoleCode(resolvedUserData, ["DEAN"]) ||
-      hasRoleAlias(universityRole, ["dean"]);
+      hasAnyRoleCode(resolvedUserData, ["DEAN"]);
     const isCfo =
       Boolean((userData as any)?.is_cfo) ||
-      hasAnyRoleCode(resolvedUserData, ["CFO"]) ||
-      hasRoleAlias(universityRole, ["cfo"]);
+      hasAnyRoleCode(resolvedUserData, ["CFO"]);
     const isStudentOrganiser =
-      hasAnyRoleCode(resolvedUserData, ["ORGANIZER_STUDENT"]) ||
-      hasRoleAlias(universityRole, ["student organiser", "student_organiser"]);
+      Boolean((userData as any)?.is_organiser_student) ||
+      hasAnyRoleCode(resolvedUserData, ["ORGANIZER_STUDENT"]);
     const isFinanceOfficer =
       Boolean((userData as any)?.is_finance_officer) ||
-      hasAnyRoleCode(resolvedUserData, ["ACCOUNTS"]) ||
-      hasRoleAlias(universityRole, ["finance officer", "finance_officer"]);
+      hasAnyRoleCode(resolvedUserData, ["ACCOUNTS"]);
     const hasServiceRole = SERVICE_ROLE_DASHBOARDS.some((roleConfig) =>
       hasServiceRoleAccess(resolvedUserData, roleConfig)
     );

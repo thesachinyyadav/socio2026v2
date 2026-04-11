@@ -118,12 +118,10 @@ export async function PATCH(
       return jsonError(403, "Unable to resolve user profile.");
     }
 
-    const universityRole = String(userProfile.university_role || "").toLowerCase().trim();
     const isMasterAdmin = Boolean(userProfile.is_masteradmin);
     const isCfo =
       hasAnyRoleCode(userProfile, ["CFO"]) ||
-      Boolean(userProfile.is_cfo) ||
-      universityRole === "cfo";
+      Boolean(userProfile.is_cfo);
     if (!isMasterAdmin && !isCfo) {
       return jsonError(403, "Only CFO or Master Admin users can perform L3 actions.");
     }

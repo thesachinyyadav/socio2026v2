@@ -157,38 +157,30 @@ function NavigationBar() {
   const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
   const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
   const userRecord = (userData as Record<string, unknown> | null) || null;
+  const universityRole = (userData as any)?.university_role;
   const isMasterAdmin =
-    Boolean((userData as any)?.is_masteradmin) || hasAnyRoleCode(userRecord, ["MASTER_ADMIN"]);
+    Boolean((userData as any)?.is_masteradmin) ||
+    hasAnyRoleCode(userRecord, ["MASTER_ADMIN"]) ||
+    hasRoleAlias(universityRole, ["masteradmin", "master admin"]);
   const isOrganiser =
     Boolean(userData?.is_organiser) || hasAnyRoleCode(userRecord, ["ORGANIZER_TEACHER"]);
   const isSupport =
-    Boolean(userData?.is_support) ||
-    hasAnyRoleCode(userRecord, ["SUPPORT"]) ||
-    hasRoleAlias((userData as any)?.university_role, ["support"]);
-  const universityRole = (userData as any)?.university_role;
+    Boolean(userData?.is_support) || hasAnyRoleCode(userRecord, ["SUPPORT"]);
   const isHod =
-    Boolean((userData as any)?.is_hod) ||
-    hasAnyRoleCode(userRecord, ["HOD"]) ||
-    hasRoleAlias(universityRole, ["hod"]);
+    Boolean((userData as any)?.is_hod) || hasAnyRoleCode(userRecord, ["HOD"]);
   const isDean =
-    Boolean((userData as any)?.is_dean) ||
-    hasAnyRoleCode(userRecord, ["DEAN"]) ||
-    hasRoleAlias(universityRole, ["dean"]);
+    Boolean((userData as any)?.is_dean) || hasAnyRoleCode(userRecord, ["DEAN"]);
   const isCfo =
-    Boolean((userData as any)?.is_cfo) ||
-    hasAnyRoleCode(userRecord, ["CFO"]) ||
-    hasRoleAlias(universityRole, ["cfo"]);
+    Boolean((userData as any)?.is_cfo) || hasAnyRoleCode(userRecord, ["CFO"]);
   const isStudentOrganiser =
-    hasAnyRoleCode(userRecord, ["ORGANIZER_STUDENT"]) ||
-    hasRoleAlias(universityRole, ["student organiser", "student_organiser"]);
+    Boolean((userData as any)?.is_organiser_student) ||
+    hasAnyRoleCode(userRecord, ["ORGANIZER_STUDENT"]);
   const isVolunteer =
     Boolean((userData as any)?.is_volunteer) ||
-    hasAnyRoleCode(userRecord, ["ORGANIZER_VOLUNTEER"]) ||
-    hasRoleAlias(universityRole, ["volunteer"]);
+    hasAnyRoleCode(userRecord, ["ORGANIZER_VOLUNTEER"]);
   const isFinanceOfficer =
     Boolean((userData as any)?.is_finance_officer) ||
-    hasAnyRoleCode(userRecord, ["ACCOUNTS"]) ||
-    hasRoleAlias(universityRole, ["finance officer", "finance_officer"]);
+    hasAnyRoleCode(userRecord, ["ACCOUNTS"]);
   const accessibleServiceRoleDashboards = getAccessibleServiceRoleDashboards(
     userRecord,
     isMasterAdmin
@@ -200,7 +192,7 @@ function NavigationBar() {
   const canOpenStudentOrganiserDashboard = isStudentOrganiser || isMasterAdmin;
   const canOpenFinanceDashboard = isFinanceOfficer || isMasterAdmin;
   const canOpenVolunteerDashboard = isVolunteer || isMasterAdmin;
-  const canOpenSupportDashboard = isSupport;
+  const canOpenSupportDashboard = isSupport || isMasterAdmin;
   const isManagementUser =
     isMasterAdmin ||
     isOrganiser ||
@@ -277,11 +269,11 @@ function NavigationBar() {
     "/manage/student-organiser",
     "/execution/volunteer",
     "/manage/stalls-misc",
-    "/manage/security",
     "/manage/it",
     "/manage/venue",
     "/manage/catering-vendors",
     "/support/inbox",
+    "/manage/security",
   ];
 
       const roleDashboardDisplayPriority = new Map(
@@ -314,17 +306,10 @@ function NavigationBar() {
     ]
   );
   const shouldGroupRoleDashboards = roleDashboardLinks.length > 2;
-  const primaryInlineRoleDashboardLink = useMemo(() => {
-    const manageLink = roleDashboardLinks.find((item) => item.href === "/manage");
-    if (manageLink) return manageLink;
-
-    const masterAdminLink = roleDashboardLinks.find(
-      (item) => item.href === "/masteradmin"
-    );
-    if (masterAdminLink) return masterAdminLink;
-
-    return roleDashboardLinks[0] || null;
-  }, [roleDashboardLinks]);
+  const primaryInlineRoleDashboardLink = useMemo(
+    () => roleDashboardLinks[0] || null,
+    [roleDashboardLinks]
+  );
   const inlineRoleDashboardLinks = useMemo(
     () =>
       shouldGroupRoleDashboards
