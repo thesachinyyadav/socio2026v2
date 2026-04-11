@@ -71,7 +71,6 @@ function PingPongMini() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Global mouse alignment: follow cursor anywhere, mapped into canvas space
@@ -289,7 +288,6 @@ function PingPongMini() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
