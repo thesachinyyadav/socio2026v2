@@ -330,7 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const fetchUserData = async (email: string) => {
+  const fetchUserData = async (email: string): Promise<UserData | null> => {
     if (!email) {
       setUserData(null);
       return null;
@@ -350,11 +350,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
     };
 
-    const normalizeUserRecord = (rawUser: Record<string, unknown>) => {
+    const normalizeUserRecord = (rawUser: Record<string, unknown>): UserData => {
       const normalizedRoleCodes = normalizeRoleCodes(rawUser.role_codes);
 
       return {
-        ...rawUser,
+        ...(rawUser as UserData),
         is_organiser: Boolean(rawUser.is_organiser),
         is_support: Boolean(rawUser.is_support),
         is_masteradmin: Boolean(rawUser.is_masteradmin),
