@@ -165,6 +165,7 @@ export default function CreateEventPage() {
     appendIfExists("event_time", dataFromHookForm.eventTime);
     appendIfExists("description", dataFromHookForm.detailedDescription);
 
+    appendIfExists("organizing_school", dataFromHookForm.organizingSchool);
     appendIfExists("organizing_dept", dataFromHookForm.organizingDept);
 
     appendJsonArrayOrObject("department_access", dataFromHookForm.department);

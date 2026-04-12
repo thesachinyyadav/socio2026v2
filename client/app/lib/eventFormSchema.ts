@@ -165,6 +165,7 @@ export const eventFormSchema = z
     department: z
       .array(z.string())
       .min(1, "At least one department is required"),
+    organizingSchool: z.string().min(1, "School is required"),
     organizingDept: z.string().min(1, "Organizing department is required"),
     category: z.string().min(1, "Category is required"),
     festEvent: z
@@ -597,6 +598,41 @@ export const departments = [
     label: "Department of International Studies, Political Science and History",
   },
   { value: "dept_media_studies", label: "Department of Media Studies" },
+];
+
+export const schools = [
+  {
+    value: "SCHOOL OF BUSINESS AND MANAGEMENT",
+    label: "SCHOOL OF BUSINESS AND MANAGEMENT",
+  },
+  {
+    value: "SCHOOL OF COMMERCE FINANCE AND ACCOUNTANCY",
+    label: "SCHOOL OF COMMERCE FINANCE AND ACCOUNTANCY",
+  },
+  {
+    value: "SCHOOL OF HUMANITIES AND PERFORMING ARTS",
+    label: "SCHOOL OF HUMANITIES AND PERFORMING ARTS",
+  },
+  {
+    value: "SCHOOL OF LAW",
+    label: "SCHOOL OF LAW",
+  },
+  {
+    value: "SCHOOL OF PSYCHOLOGICAL SCIENCES, EDUCATION AND SOCIAL WORK",
+    label: "SCHOOL OF PSYCHOLOGICAL SCIENCES, EDUCATION AND SOCIAL WORK",
+  },
+  {
+    value: "SCHOOL OF SCIENCES",
+    label: "SCHOOL OF SCIENCES",
+  },
+  {
+    value: "SCHOOL OF SOCIAL SCIENCES",
+    label: "SCHOOL OF SOCIAL SCIENCES",
+  },
+  {
+    value: "CLUBS AND CENTERS",
+    label: "CLUBS AND CENTERS",
+  },
 ];
 
 export const categories = [

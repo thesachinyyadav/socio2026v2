@@ -594,20 +594,20 @@ router.post("/", async (req, res) => {
           );
           
           if (matchingHead) {
-            console.log(`Found pending organiser access for ${newUser.email} in fest ${fest.fest_id}`);
+            console.log(`Found pending organiser-student access for ${newUser.email} in fest ${fest.fest_id}`);
             await supabase
               .from('users')
               .update({ 
-                is_organiser: true,
+                is_organiser_student: true,
                 organiser_expires_at: matchingHead.expiresAt || null
               })
               .eq('email', newUser.email);
-            console.log(`Granted pending organiser access to ${newUser.email}`);
+            console.log(`Granted pending organiser-student access to ${newUser.email}`);
             break;
           }
         }
       } catch (err) {
-        console.error('Error checking for pending organiser access:', err);
+        console.error('Error checking for pending organiser-student access:', err);
       }
     })();
 

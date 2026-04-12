@@ -832,6 +832,9 @@ router.post(
 
       // Basic validation
       const title = String(festData.festTitle || festData.title || "").trim();
+      const school = String(
+        festData.organizingSchool || festData.organizing_school || ""
+      ).trim();
       const dept = String(festData.organizingDept || festData.organizing_dept || "").trim();
       const contactEmail = normalizeEmail(
         pickDefined(festData.contactEmail, festData.contact_email)
@@ -847,9 +850,11 @@ router.post(
         ? eventHeads.map(normalizeEventHead).filter((head) => head.email)
         : [];
 
-      if (!title || !dept) {
+      if (!title || !school || !dept) {
         console.log("Validation failed. Received:", JSON.stringify(festData));
-        return res.status(400).json({ error: "Fest title and organizing department are required" });
+        return res.status(400).json({
+          error: "Fest title, organizing school, and organizing department are required",
+        });
       }
 
       if (!contactEmail) {
@@ -943,6 +948,7 @@ router.post(
         opening_date: openingDateValue,
         closing_date: closingDateValue,
         fest_image_url: festData.festImageUrl || festData.fest_image_url || null,
+        organizing_school: school,
         organizing_dept: dept,
         department_access: festData.departmentAccess || festData.department_access || [],
         category: festData.category || "",
@@ -1004,24 +1010,24 @@ router.post(
         }
       }
 
-      // Grant organiser access to event heads with expiration dates
+      // Grant organiser-student access to event heads with expiration dates
       for (const head of normalizedEventHeads) {
         if (head && head.email) {
           try {
             // Find the user by email
             const user = await queryOne("users", { where: { email: head.email } });
             if (user) {
-              // Update user's organiser status with expiration
+              // Update user's organiser-student status with expiration
               await update("users", {
-                is_organiser: true,
+                is_organiser_student: true,
                 organiser_expires_at: head.expiresAt || null
               }, { email: head.email });
-              console.log(`Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+              console.log(`Granted organiser-student access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
             } else {
-              console.log(`User ${head.email} not found, will be granted access when they sign up`);
+              console.log(`User ${head.email} not found, organiser-student access will be granted when they sign up`);
             }
           } catch (userError) {
-            console.error(`Error updating organiser status for ${head.email}:`, userError);
+            console.error(`Error updating organiser-student status for ${head.email}:`, userError);
           }
         }
       }
@@ -1114,11 +1120,21 @@ router.put(
       const departmentAccessInput = pickDefined(updateData.department_access, updateData.departmentAccess);
       const eventHeadsInput = pickDefined(updateData.event_heads, updateData.eventHeads);
       const customFieldsInput = pickDefined(updateData.custom_fields, updateData.customFields);
+      const organizingSchoolInput = pickDefined(updateData.organizing_school, updateData.organizingSchool);
+      const normalizedOrganizingSchool =
+        organizingSchoolInput !== undefined
+          ? String(organizingSchoolInput || "").trim()
+          : undefined;
       const organizingDeptInput = pickDefined(updateData.organizing_dept, updateData.organizingDept);
       const normalizedOrganizingDept =
         organizingDeptInput !== undefined
           ? String(organizingDeptInput || "").trim()
           : undefined;
+      const existingOrganizingSchool = String(existingFest.organizing_school || "").trim();
+      const effectiveOrganizingSchool =
+        normalizedOrganizingSchool !== undefined
+          ? normalizedOrganizingSchool
+          : existingOrganizingSchool;
       const contactEmailInput = pickDefined(updateData.contact_email, updateData.contactEmail);
       const normalizedContactEmail =
         contactEmailInput !== undefined
@@ -1167,6 +1183,12 @@ router.put(
       if (normalizedOrganizingDept !== undefined && !normalizedOrganizingDept) {
         return res.status(400).json({
           error: "Organizing department cannot be empty.",
+        });
+      }
+
+      if (!effectiveOrganizingSchool) {
+        return res.status(400).json({
+          error: "Organizing school is required.",
         });
       }
 
@@ -1261,6 +1283,7 @@ router.put(
         ["opening_date", incomingOpeningDate],
         ["closing_date", incomingClosingDate],
         ["fest_image_url", incomingImageUrl],
+        ["organizing_school", normalizedOrganizingSchool],
         ["organizing_dept", normalizedOrganizingDept],
         ["category", updateData.category],
         ["contact_email", normalizedContactEmail],
@@ -1419,7 +1442,7 @@ router.put(
         });
       }
 
-      // Grant organiser access to event heads with expiration dates
+      // Grant organiser-student access to event heads with expiration dates
       try {
         const eventHeads = hasEventHeadsUpdate ? normalizedEventHeadsInput : [];
         console.log(`[EventHeads] Processing ${eventHeads.length} event heads`);
@@ -1431,18 +1454,18 @@ router.put(
               // Find the user by email
               const user = await queryOne("users", { where: { email: head.email } });
               if (user) {
-                console.log(`[EventHeads] Found user, updating organiser status...`);
-                // Update user's organiser status with expiration
+                console.log(`[EventHeads] Found user, updating organiser-student status...`);
+                // Update user's organiser-student status with expiration
                 await update("users", {
-                  is_organiser: true,
+                  is_organiser_student: true,
                   organiser_expires_at: head.expiresAt || null
                 }, { email: head.email });
-                console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+                console.log(`✅ Granted organiser-student access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
               } else {
-                console.log(`[EventHeads] ⚠️ User ${head.email} not found, will be granted access when they sign up`);
+                console.log(`[EventHeads] ⚠️ User ${head.email} not found, organiser-student access will be granted when they sign up`);
               }
             } catch (userError) {
-              console.error(`❌ Error updating organiser status for ${head.email}:`, userError.message);
+              console.error(`❌ Error updating organiser-student status for ${head.email}:`, userError.message);
               // Continue processing other heads even if one fails
             }
           }

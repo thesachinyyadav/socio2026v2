@@ -1563,6 +1563,7 @@ router.post(
         category,
         claims_applicable,
         registration_fee,
+        organizing_school,
         organizing_dept,
         fest,
         fest_id,
@@ -1746,6 +1747,9 @@ router.post(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const organizingSchool = normalizeSingleStringField(
+        organizing_school || req.body.organizingSchool || ""
+      );
       const normalizedFestReference = normalizeFestReference(fest_id ?? fest);
       const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
@@ -1837,6 +1841,12 @@ router.post(
         });
       }
 
+      if (!organizingSchool) {
+        return res.status(400).json({
+          error: "Organizing school is required.",
+        });
+      }
+
       console.log("✅ JSON fields parsed successfully");
       console.log("About to insert event into database with:", {
         event_id,
@@ -1874,6 +1884,7 @@ router.post(
         organizer_email: organizerEmail,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
+        organizing_school: organizingSchool,
         organizing_dept: organizing_dept || null,
         fest_id: normalizedFestReference,
         created_by: req.userInfo?.email,
@@ -2288,6 +2299,7 @@ router.put(
         category,
         claims_applicable,
         registration_fee,
+        organizing_school,
         organizing_dept,
         fest,
         fest_id,
@@ -2409,6 +2421,9 @@ router.put(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const organizingSchool = normalizeSingleStringField(
+        organizing_school || req.body.organizingSchool || event.organizing_school || ""
+      );
       const normalizedFestReference = normalizeFestReference(fest_id ?? fest);
       const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
@@ -2473,6 +2488,12 @@ router.put(
         });
       }
 
+      if (!organizingSchool) {
+        return res.status(400).json({
+          error: "Organizing school is required.",
+        });
+      }
+
       // Prepare update payload
       // Note: Only include event_id if it's NOT changing (to avoid primary key update issues)
       const archiveOverridePayload = hasArchivePreference
@@ -2520,6 +2541,7 @@ router.put(
         organizer_email: resolvedOrganizerEmail,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
+        organizing_school: organizingSchool,
         organizing_dept: organizing_dept || null,
         fest_id: normalizedFestReference,
         registration_deadline: req.body.registration_deadline || null,

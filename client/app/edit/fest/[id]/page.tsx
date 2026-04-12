@@ -31,6 +31,7 @@ interface FestDataForEdit {
   contactEmail: string;
   contactPhone: string;
   eventHeads: { email: string; expiresAt: string | null }[];
+  organizingSchool: string;
   organizingDept: string;
   isDraft: boolean;
 }
@@ -105,6 +106,7 @@ const EditPage = () => {
               contactEmail: data.fest.contact_email || "",
               contactPhone: data.fest.contact_phone || "",
               eventHeads: transformedEventHeads,
+              organizingSchool: data.fest.organizing_school || "",
               organizingDept: data.fest.organizing_dept || "",
               isDraft:
                 data.fest.is_draft === true ||
@@ -186,6 +188,7 @@ const EditPage = () => {
       contactEmail={festData?.contactEmail}
       contactPhone={festData?.contactPhone}
       eventHeads={festData?.eventHeads}
+      organizingSchool={festData?.organizingSchool}
       organizingDept={festData?.organizingDept}
       isEditMode={true}
       existingImageFileUrl={existingImageFileUrl}

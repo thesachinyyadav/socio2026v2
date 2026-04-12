@@ -369,6 +369,7 @@ export default function EditEventPage() {
             detailedDescription: data.description || "",
             department: parsedDepartments,
             category: data.category || "",
+            organizingSchool: data.organizing_school || "",
             organizingDept: data.organizing_dept || "",
             festEvent: data.fest_id || data.fest || "",
             registrationDeadline: data.registration_deadline
@@ -591,6 +592,7 @@ export default function EditEventPage() {
     payload.append("event_time", formData.eventTime || "");
     payload.append("description", formData.detailedDescription);
     payload.append("category", formData.category);
+    payload.append("organizing_school", formData.organizingSchool || "");
     payload.append("organizing_dept", formData.organizingDept || "");
     // Only append fest_id if it's not "none"
     if (formData.festEvent && formData.festEvent !== "none") {

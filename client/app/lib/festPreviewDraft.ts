@@ -115,6 +115,7 @@ export interface FestPreviewFormInput {
   openingDate: string;
   closingDate: string;
   detailedDescription: string;
+  organizingSchool: string;
   organizingDept: string;
   category: string;
   contactEmail: string;
@@ -139,6 +140,7 @@ export interface FestPreviewData {
   sourcePath?: string;
   title: string;
   description: string;
+  organizingSchool: string;
   organizingDept: string;
   category?: string;
   openingDate: string;
@@ -244,6 +246,7 @@ export const buildFestPreviewData = (
     title: toCleanString(formData.title) || "Untitled Fest",
     description:
       toCleanString(formData.detailedDescription) || "No description provided.",
+    organizingSchool: toCleanString(formData.organizingSchool) || "General",
     organizingDept: toCleanString(formData.organizingDept) || "General",
     category: toCleanString(formData.category) || undefined,
     openingDate: formatDateFull(normalizedOpeningDate, "Date TBD"),

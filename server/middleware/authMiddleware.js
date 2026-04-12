@@ -93,12 +93,20 @@ export const checkRoleExpiration = async (req, res, next) => {
     if (user.organiser_expires_at) {
       const expiresAt = new Date(user.organiser_expires_at);
       if (expiresAt < now) {
-        updates.is_organiser = false;
+        if (user.is_organiser) {
+          updates.is_organiser = false;
+          user.is_organiser = false;
+        }
+
+        if (user.is_organiser_student) {
+          updates.is_organiser_student = false;
+          user.is_organiser_student = false;
+        }
+
         updates.organiser_expires_at = null;
-        user.is_organiser = false;
         user.organiser_expires_at = null;
         hasExpiredRoles = true;
-        console.log(`[RoleExpiration] Expired organiser role for ${user.email}`);
+        console.log(`[RoleExpiration] Expired organiser/organiser-student role for ${user.email}`);
       }
     }
 

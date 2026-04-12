@@ -18,6 +18,7 @@ import {
   EventFormData,
   eventFormSchema,
   departments as departmentOptions,
+  schools as schoolOptions,
   categories as categoryOptions,
   christCampuses,
   additionalRequestsDefaultValues,
@@ -755,6 +756,7 @@ interface FestOption {
   value: string;
   label: string;
   departmentAccess: string[];
+  organizingSchool: string;
   organizingDept: string;
   category: string;
   campusHostedAt: string;
@@ -960,6 +962,7 @@ const EVENT_ERROR_SCROLL_ORDER: string[] = [
   "outsiderMaxParticipants",
   "campusHostedAt",
   "allowedCampuses",
+  "organizingSchool",
   "organizingDept",
   "department",
   "category",
@@ -994,6 +997,7 @@ const EVENT_ERROR_SELECTOR_MAP: Record<string, string> = {
   outsiderMaxParticipants: "#outsiderMaxParticipants",
   campusHostedAt: "#campusHostedAt",
   allowedCampuses: "#allowedCampuses-group",
+  organizingSchool: "#organizingSchool",
   organizingDept: "#organizingDept",
   department: "#department",
   category: "#category",
@@ -1178,6 +1182,10 @@ export default function EventForm({
               value: normalizeFestOptionValue(f),
               label: normalizeFestOptionLabel(f),
               departmentAccess: normalizeDepartmentAccess(f.department_access),
+              organizingSchool:
+                typeof f.organizing_school === "string"
+                  ? f.organizing_school.trim()
+                  : "",
               organizingDept:
                 typeof f.organizing_dept === "string" ? f.organizing_dept.trim() : "",
               category: normalizeCategoryValue(f.category),
@@ -1198,6 +1206,7 @@ export default function EventForm({
               value: "none",
               label: "None",
               departmentAccess: [],
+              organizingSchool: "",
               organizingDept: "",
               category: "",
               campusHostedAt: "",
@@ -1242,6 +1251,7 @@ export default function EventForm({
       detailedDescription: "",
       department: [],
       category: "",
+      organizingSchool: "",
       organizingDept: "",
       festEvent: "",
       registrationDeadline: "",
@@ -1649,6 +1659,10 @@ export default function EventForm({
     }
 
     setValue("department", selectedFest.departmentAccess, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("organizingSchool", selectedFest.organizingSchool, {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -3357,6 +3371,16 @@ export default function EventForm({
                       <option key={dept.value} value={dept.label} />
                     ))}
                 </datalist>
+
+                <CustomDropdown
+                  name="organizingSchool"
+                  control={control}
+                  options={schoolOptions}
+                  placeholder="Select school"
+                  label="School:"
+                  error={errors.organizingSchool}
+                  required
+                />
 
                 <InputField
                   label="Organizing department / committee:"

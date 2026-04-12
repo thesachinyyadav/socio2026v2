@@ -4,7 +4,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
-import { departments as baseDepartments, christCampuses } from "../lib/eventFormSchema";
+import {
+  departments as baseDepartments,
+  christCampuses,
+  schools as schoolOptions,
+} from "../lib/eventFormSchema";
 import {
   buildFestPreviewData,
   saveFestPreviewDraft,
@@ -656,6 +660,7 @@ interface CreateFestState {
   contactEmail: string;
   contactPhone: string;
   eventHeads: { email: string; expiresAt: string | null; _uiKey?: string }[];
+  organizingSchool: string;
   organizingDept: string;
   venue: string;
   status: "draft" | "upcoming" | "ongoing" | "completed" | "cancelled" | "past";
@@ -936,6 +941,7 @@ interface CreateFestProps {
   scheduleItems?: { time: string; activity: string }[];
   rules?: string[];
   prizes?: string[];
+  organizingSchool?: string;
   organizingDept?: string;
   isEditMode?: boolean;
   existingImageFileUrl?: string | null;
@@ -993,6 +999,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const category = props?.category || "";
   const contactEmail = normalizeEmail(props?.contactEmail || "");
   const contactPhone = normalizePhone(props?.contactPhone || "");
+  const organizingSchool = props?.organizingSchool || "";
   const organizingDept = props?.organizingDept || "";
   const initialEventHeads = withClientUiKeys(
     (props?.eventHeads || []).map((head) => ({
@@ -1045,6 +1052,7 @@ function CreateFestForm(props?: CreateFestProps) {
     category,
     contactEmail,
     contactPhone,
+    organizingSchool,
     organizingDept,
     eventHeads: initialEventHeads,
     venue,
@@ -1186,6 +1194,7 @@ function CreateFestForm(props?: CreateFestProps) {
               contactEmail: normalizeEmail(data.fest.contact_email || ""),
               contactPhone: normalizePhone(data.fest.contact_phone || ""),
               eventHeads: transformedEventHeads,
+              organizingSchool: data.fest.organizing_school || "",
               organizingDept: data.fest.organizing_dept || "",
               venue: data.fest.venue || "",
               status: deriveFestStatusFromDates(loadedOpeningDate, loadedClosingDate),
@@ -1482,6 +1491,11 @@ function CreateFestForm(props?: CreateFestProps) {
               newErrors.contactPhone = "Must be 10-14 digits";
             else delete newErrors.contactPhone;
             break;
+          case "organizingSchool":
+            if (!(value as string).trim())
+              newErrors.organizingSchool = "School is required";
+            else delete newErrors.organizingSchool;
+            break;
           case "organizingDept":
             if (!(value as string).trim())
               newErrors.organizingDept = "Organizing department is required";
@@ -1529,6 +1543,7 @@ function CreateFestForm(props?: CreateFestProps) {
         "category",
         "contactEmail",
         "contactPhone",
+        "organizingSchool",
         "organizingDept",
         "campusHostedAt",
         "allowedCampuses",
@@ -1650,6 +1665,9 @@ function CreateFestForm(props?: CreateFestProps) {
             else if (!PHONE_REGEX.test(normalizePhone(value)))
               errorMsg = "Must be 10-14 digits";
             break;
+          case "organizingSchool":
+            if (!String(value).trim()) errorMsg = "School is required";
+            break;
           case "organizingDept":
             if (!String(value).trim()) errorMsg = "Organizing department is required";
             else if (String(value).length > 100) errorMsg = "Max 100 characters";
@@ -1716,6 +1734,7 @@ function CreateFestForm(props?: CreateFestProps) {
         "detailedDescription",
         "campusHostedAt",
         "allowedCampuses",
+        "organizingSchool",
         "organizingDept",
         "department",
         "category",
@@ -1734,6 +1753,7 @@ function CreateFestForm(props?: CreateFestProps) {
       if (firstKey === "department") selector = "#department-trigger";
       if (firstKey === "category") selector = "#category-trigger";
       if (firstKey === "allowedCampuses") selector = "#allowedCampuses-group";
+      if (firstKey === "organizingSchool") selector = "#organizingSchool";
       if (firstKey === "imageFile") selector = "#image-upload-input";
 
       if (firstKey.startsWith("eventHead_")) {
@@ -2061,6 +2081,7 @@ function CreateFestForm(props?: CreateFestProps) {
         contactEmail: normalizedContactEmail,
         contactPhone: normalizedContactPhone,
         eventHeads: sanitizedEventHeads,
+        organizingSchool: formData.organizingSchool,
         organizingDept: formData.organizingDept,
         createdBy: session.user.email,
         venue: formData.venue,
@@ -2077,6 +2098,7 @@ function CreateFestForm(props?: CreateFestProps) {
         allowed_campuses: formData.allowedCampuses || [],
         department_hosted_at: formData.departmentHostedAt || null,
         allow_outsiders: formData.allowOutsiders,
+        organizing_school: formData.organizingSchool,
         custom_fields: customFieldsWithBudgetAndTeam,
         // Always include festImageUrl so backend always updates the DB column
         festImageUrl: finalImageUrl,
@@ -2216,6 +2238,7 @@ function CreateFestForm(props?: CreateFestProps) {
           openingDate: formData.openingDate,
           closingDate: formData.closingDate,
           detailedDescription: formData.detailedDescription,
+          organizingSchool: formData.organizingSchool,
           organizingDept: formData.organizingDept,
           category: formData.category,
           contactEmail: formData.contactEmail,
@@ -2893,6 +2916,54 @@ function CreateFestForm(props?: CreateFestProps) {
                     </div>
 
                   </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="organizingSchool"
+                    className="block mb-2 text-sm font-medium text-gray-700"
+                  >
+                    School: <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="organizingSchool"
+                    value={formData.organizingSchool}
+                    onChange={(e) => {
+                      const selectedSchool = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        organizingSchool: selectedSchool,
+                      }));
+                      validateField("organizingSchool", selectedSchool);
+                    }}
+                    onBlur={(e) => validateField("organizingSchool", e.target.value)}
+                    required
+                    aria-describedby={
+                      errors.organizingSchool
+                        ? "organizingSchool-error"
+                        : undefined
+                    }
+                    className={`w-full px-4 py-3 sm:py-3.5 rounded-lg border ${
+                      errors.organizingSchool
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm sm:text-base`}
+                  >
+                    <option value="">Select school</option>
+                    {schoolOptions.map((school) => (
+                      <option key={school.value} value={school.value}>
+                        {school.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.organizingSchool && (
+                    <p
+                      id="organizingSchool-error"
+                      className="text-red-500 text-xs mt-1"
+                    >
+                      {errors.organizingSchool}
+                    </p>
+                  )}
                 </div>
 
                 <div>
