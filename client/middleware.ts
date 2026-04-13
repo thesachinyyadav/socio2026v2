@@ -91,6 +91,18 @@ function mergeUserDataWithAssignmentRoleCodes(
   };
 }
 
+function isRoleLookupBypassError(error: unknown): boolean {
+  const code = String((error as any)?.code || "").toUpperCase();
+  const message = String((error as any)?.message || "").toLowerCase();
+
+  return (
+    code === "42501" ||
+    message.includes("permission denied") ||
+    message.includes("row-level security") ||
+    message.includes("failed to fetch")
+  );
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -182,14 +194,33 @@ export async function middleware(req: NextRequest) {
       return redirect("/error");
     }
 
-    const { data: userData, error } = await supabase
+    const userByAuthUuidResponse = await supabase
       .from("users")
       .select("*")
-      .eq("email", user.email)
-      .single();
+      .eq("auth_uuid", user.id)
+      .maybeSingle();
+
+    let userData = userByAuthUuidResponse.data as Record<string, unknown> | null;
+    let error = userByAuthUuidResponse.error;
+
+    if (!userData) {
+      const userByEmailResponse = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", user.email)
+        .maybeSingle();
+
+      userData = userByEmailResponse.data as Record<string, unknown> | null;
+      error = userByEmailResponse.error || error;
+    }
+
+    if (!userData && error && isRoleLookupBypassError(error)) {
+      return res;
+    }
 
     const normalizedUserData = (userData as Record<string, unknown> | null) || null;
     let roleAssignments: Array<Record<string, unknown>> = [];
+    let hasRoleAssignmentLookupError = false;
 
     if (normalizedUserData?.id) {
       const { data: roleAssignmentsData, error: roleAssignmentsError } = await supabase
@@ -199,7 +230,13 @@ export async function middleware(req: NextRequest) {
 
       if (!roleAssignmentsError && Array.isArray(roleAssignmentsData)) {
         roleAssignments = roleAssignmentsData as Array<Record<string, unknown>>;
+      } else if (roleAssignmentsError && isRoleLookupBypassError(roleAssignmentsError)) {
+        hasRoleAssignmentLookupError = true;
       }
+    }
+
+    if (hasRoleAssignmentLookupError) {
+      return res;
     }
 
     const resolvedUserData = mergeUserDataWithAssignmentRoleCodes(

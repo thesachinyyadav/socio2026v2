@@ -117,9 +117,7 @@ export default async function HodManagePage() {
   }
 
   const hodDepartmentScope = resolveHodDepartmentScope(userProfile);
-  if (!isMasterAdmin && !hodDepartmentScope) {
-    redirect("/error");
-  }
+  const hasDepartmentScope = hodDepartmentScope.length > 0;
 
   const fallbackDashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = {
     queue: [],
@@ -132,17 +130,23 @@ export default async function HodManagePage() {
   let dashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = fallbackDashboardData;
   let dashboardErrorMessage: string | null = null;
 
+  if (!isMasterAdmin && !hasDepartmentScope) {
+    dashboardErrorMessage =
+      "No HOD department scope is configured for this account. Showing unscoped queue as fallback.";
+  }
+
   try {
     dashboardData = await fetchHodDashboardData({
       supabase,
-      departmentId: isMasterAdmin ? null : hodDepartmentScope,
+      departmentId: isMasterAdmin || !hasDepartmentScope ? null : hodDepartmentScope,
     });
   } catch (error) {
     dashboardErrorMessage =
       error instanceof Error ? error.message : "Unable to load HOD dashboard data right now.";
   }
 
-  const departmentName = isMasterAdmin ? "All Departments" : hodDepartmentScope;
+  const departmentName =
+    isMasterAdmin || !hasDepartmentScope ? "All Departments" : hodDepartmentScope;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

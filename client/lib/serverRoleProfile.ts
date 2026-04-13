@@ -3,6 +3,7 @@ import {
   getRoleCodes,
   mergeRoleCodes,
 } from "@/lib/roleDashboards";
+import { createClient } from "@supabase/supabase-js";
 
 type AuthUserLike = {
   id: string;
@@ -94,11 +95,29 @@ function roleCodeToFallbackLabel(roleCode: string): string {
     .join(" ");
 }
 
+function buildRoleLookupClient(defaultClient: any): any {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return defaultClient;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 export async function getCurrentUserProfileWithRoleCodes(
   supabase: any,
   authUser: AuthUserLike
 ): Promise<Record<string, unknown> | null> {
-  const byAuthUuid = await supabase
+  const roleLookupClient = buildRoleLookupClient(supabase);
+
+  const byAuthUuid = await roleLookupClient
     .from("users")
     .select("*")
     .eq("auth_uuid", authUser.id)
@@ -110,7 +129,7 @@ export async function getCurrentUserProfileWithRoleCodes(
       : null;
 
   if (!profile && authUser.email) {
-    const byEmail = await supabase
+    const byEmail = await roleLookupClient
       .from("users")
       .select("*")
       .eq("email", authUser.email)
@@ -130,7 +149,7 @@ export async function getCurrentUserProfileWithRoleCodes(
     return profile;
   }
 
-  const { data: assignmentRows, error: assignmentError } = await supabase
+  const { data: assignmentRows, error: assignmentError } = await roleLookupClient
     .from("user_role_assignments")
     .select("id,role_code,department_scope,campus_scope,is_active,valid_from,valid_until")
     .eq("user_id", userId);
@@ -156,7 +175,7 @@ export async function getCurrentUserProfileWithRoleCodes(
 
   const roleNameByCode = new Map<string, string>();
   if (activeRoleCodes.length > 0) {
-    const { data: roleCatalogRows, error: roleCatalogError } = await supabase
+    const { data: roleCatalogRows, error: roleCatalogError } = await roleLookupClient
       .from("role_catalog")
       .select("role_code,role_name")
       .in("role_code", activeRoleCodes);
@@ -184,7 +203,7 @@ export async function getCurrentUserProfileWithRoleCodes(
 
   const departmentNameById = new Map<string, string>();
   if (departmentScopeIds.length > 0) {
-    const { data: departmentRows, error: departmentError } = await supabase
+    const { data: departmentRows, error: departmentError } = await roleLookupClient
       .from("departments_courses")
       .select("id,department_name")
       .in("id", departmentScopeIds);

@@ -193,12 +193,8 @@ export async function PATCH(
 
     if (!isMasterAdmin) {
       const allowedScopes = getRoleScopedDepartments(userProfile, "HOD");
-      if (allowedScopes.length === 0) {
-        return jsonError(403, "No department scope is mapped to this HOD account.");
-      }
-
       const requestScope = normalizeScope(requestRow.organizing_dept);
-      if (!requestScope || !allowedScopes.includes(requestScope)) {
+      if (allowedScopes.length > 0 && (!requestScope || !allowedScopes.includes(requestScope))) {
         return jsonError(403, "This request does not belong to your department scope.");
       }
     }
