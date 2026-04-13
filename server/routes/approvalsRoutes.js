@@ -1,3 +1,27 @@
+// Helper: fetch approval request for a given event_id
+const getApprovalRequestForEvent = async (eventId) => {
+  if (!eventId) return null;
+  const event = await queryOne("events", { where: { event_id: eventId } });
+  if (!event || !event.approval_request_id) return null;
+  return await queryOne("approval_requests", { where: { id: event.approval_request_id } });
+};
+
+// Endpoint: GET /requests/by-event/:eventId
+router.get("/requests/by-event/:eventId", async (req, res) => {
+  try {
+    const eventId = String(req.params.eventId || "").trim();
+    if (!eventId) return res.status(400).json({ error: "Missing eventId" });
+    const approvalRequest = await getApprovalRequestForEvent(eventId);
+    if (!approvalRequest) return res.status(404).json({ error: "Approval request not found for event" });
+    return res.status(200).json({ approval_request: approvalRequest });
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return res.status(503).json({ error: "Approval workflow schema is not available yet. Run latest migrations first." });
+    }
+    console.error("Error fetching approval request for event:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 import express from "express";
 import {
   insert,
