@@ -1699,8 +1699,7 @@ export default function EventForm({
       String(additionalRequests?.catering?.description || "").trim() ||
       String(additionalRequests?.catering?.approximateCount || "").trim() ||
       Boolean(additionalRequests?.stalls?.canopySelected) ||
-      Boolean(additionalRequests?.stalls?.hardboardSelected) ||
-      String(additionalRequests?.security?.description || "").trim()
+      Boolean(additionalRequests?.stalls?.hardboardSelected)
   );
 
   const resolvedPublishMode = resolvePublishActionMode({
