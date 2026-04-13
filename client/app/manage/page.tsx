@@ -434,7 +434,7 @@ const MappedFestCard = ({
   );
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 ${
+    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible flex flex-col hover:shadow-md transition-all duration-300 ${
       isArchived
         ? "opacity-60 grayscale"
         : isDraft
@@ -443,7 +443,7 @@ const MappedFestCard = ({
             ? "opacity-70 grayscale-[0.35]"
             : ""
     }`}>
-      <div className="h-48 relative bg-slate-100">
+      <div className="h-48 relative bg-slate-100 overflow-hidden rounded-t-xl">
         <img
           src={fest.fest_image_url || process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!}
           alt={fest.fest_title}
@@ -608,7 +608,7 @@ const MappedEventCard = ({
     );
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 ${
+    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible flex flex-col hover:shadow-md transition-all duration-300 ${
       isArchived
         ? "opacity-60 grayscale"
         : isDraft
@@ -617,7 +617,7 @@ const MappedEventCard = ({
             ? "opacity-70 grayscale-[0.35]"
             : ""
     }`}>
-      <div className="h-48 relative bg-slate-100">
+      <div className="h-48 relative bg-slate-100 overflow-hidden rounded-t-xl">
         <img
           src={event.event_image_url || process.env.NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL!}
           alt={event.title}
