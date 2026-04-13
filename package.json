@@ -10,6 +10,7 @@
     "lucide-react": "^0.562.0"
   },
   "devDependencies": {
+    "@supabase/mcp-server-supabase": "^0.7.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "concurrently": "^8.2.2",
