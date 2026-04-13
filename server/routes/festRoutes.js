@@ -80,6 +80,27 @@ const normalizeFestLifecycleStatus = (festRecord, fallback) => {
   return normalizeLifecycleStatus(festRecord?.status, defaultStatus);
 };
 
+const isFestLiveForNotifications = (festRecord) => {
+  if (!festRecord) {
+    return false;
+  }
+
+  if (asBoolean(festRecord?.is_draft)) {
+    return false;
+  }
+
+  const activationState = normalizeWorkflowStatus(festRecord?.activation_state, "ACTIVE");
+  if (activationState !== "ACTIVE") {
+    return false;
+  }
+
+  const lifecycleStatus = normalizeFestLifecycleStatus(festRecord);
+  return (
+    lifecycleStatus === LIFECYCLE_STATUS.PUBLISHED ||
+    lifecycleStatus === LIFECYCLE_STATUS.APPROVED
+  );
+};
+
 const hasApprovedStepForCodes = (steps, requiredCodes) => {
   const requiredCodeSet = new Set(
     (requiredCodes || []).map((code) => normalizeWorkflowStatus(code)).filter(Boolean)
@@ -487,7 +508,10 @@ const parseComparableDate = (value) => {
 };
 
 const asBoolean = (value) =>
-  value === true || value === 1 || value === "1" || value === "true";
+  value === true ||
+  value === 1 ||
+  value === "1" ||
+  (typeof value === "string" && ["true", "yes", "on"].includes(value.trim().toLowerCase()));
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const PHONE_REGEX = /^\+?[\d\s-]{10,14}$/;
@@ -1273,8 +1297,10 @@ router.post(
         }
       }
 
+      const isFestReadyForNotifications = isFestLiveForNotifications(createdFest);
+
       // Send notifications to all users about the new fest (non-blocking)
-      if (shouldSendNotifications && shouldPublishNow) {
+      if (shouldSendNotifications && shouldPublishNow && isFestReadyForNotifications) {
         sendBroadcastNotification({
           title: 'New Fest Announced',
           message: `${festPayload.fest_title} — Don't miss this fest!`,
@@ -1317,9 +1343,7 @@ router.post(
         pending_hod_review: pendingHodApproval,
         pending_cfo_review: pendingCfoApproval,
         activation_state: activationState,
-        is_live:
-          shouldPublishNow &&
-          normalizeFestLifecycleStatus(createdFest) === LIFECYCLE_STATUS.PUBLISHED,
+        is_live: isFestReadyForNotifications,
       });
 
     } catch (error) {
@@ -1761,6 +1785,7 @@ router.put(
         activationState === "ACTIVE" &&
         !asBoolean(updatedFest?.is_draft) &&
         normalizeFestLifecycleStatus(updatedFest) === LIFECYCLE_STATUS.PUBLISHED;
+      const isFestReadyForNotifications = isFestLiveForNotifications(updatedFest);
 
       // Push to UniversityGated if outsiders are now enabled (non-blocking)
       if (isGatedEnabled() && updatedFest && canPublishNow) {
@@ -1778,7 +1803,7 @@ router.put(
         }
       }
 
-      if (shouldSendPublishNotifications && canPublishNow) {
+      if (shouldSendPublishNotifications && isFestReadyForNotifications) {
         sendBroadcastNotification({
           title: "Fest Published",
           message: `${updatedFest.fest_title} is now live!`,
@@ -1983,9 +2008,16 @@ router.post(
 
       const refreshedFest = await queryOne(festTable, { where: { fest_id: festId } });
       const publishedFest = refreshedFest || festRecord;
-      const shouldSendNotifications = req.body?.send_notifications !== false;
+      const sendNotificationsInput = req.body?.send_notifications;
+      const hasExplicitNotificationPreference =
+        sendNotificationsInput !== undefined &&
+        sendNotificationsInput !== null &&
+        String(sendNotificationsInput).trim() !== "";
+      const shouldSendNotifications =
+        !hasExplicitNotificationPreference || asBoolean(sendNotificationsInput);
+      const canSendPublishNotifications = isFestLiveForNotifications(publishedFest);
 
-      if (shouldSendNotifications) {
+      if (shouldSendNotifications && canSendPublishNotifications) {
         sendBroadcastNotification({
           title: "Fest Published",
           message: `${publishedFest.fest_title || "A fest"} is now live!`,
@@ -1996,6 +2028,8 @@ router.post(
         }).catch((notifError) => {
           console.error("❌ Failed to send fest publish notifications:", notifError);
         });
+      } else {
+        console.log(`ℹ️ Publish notification skipped for fest ${festId} (not live or notifications disabled).`);
       }
 
       if (isGatedEnabled() && (publishedFest.allow_outsiders === true || publishedFest.allow_outsiders === 'true')) {

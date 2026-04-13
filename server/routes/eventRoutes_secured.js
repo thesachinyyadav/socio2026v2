@@ -237,6 +237,27 @@ const normalizeEventLifecycleStatus = (eventRecord, fallback) => {
   return normalizeLifecycleStatus(eventRecord?.status, defaultStatus);
 };
 
+const isEventLiveForNotifications = (eventRecord) => {
+  if (!eventRecord) {
+    return false;
+  }
+
+  if (asBoolean(eventRecord?.is_draft)) {
+    return false;
+  }
+
+  const activationState = normalizeWorkflowStatus(eventRecord?.activation_state, "ACTIVE");
+  if (activationState !== "ACTIVE") {
+    return false;
+  }
+
+  const lifecycleStatus = normalizeEventLifecycleStatus(eventRecord);
+  return (
+    lifecycleStatus === LIFECYCLE_STATUS.PUBLISHED ||
+    lifecycleStatus === LIFECYCLE_STATUS.APPROVED
+  );
+};
+
 const isBudgetRelatedFromEventPayload = ({
   claimsApplicable,
   registrationFee,
@@ -1028,7 +1049,16 @@ const shouldAutoArchiveEvent = (event) => {
 };
 
 const asBoolean = (value) => {
-  return value === true || value === 1 || value === "1" || value === "true";
+  if (value === true || value === 1 || value === "1") {
+    return true;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "yes" || normalized === "on";
+  }
+
+  return false;
 };
 
 const ORGANIZER_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -2322,8 +2352,9 @@ router.post(
         !shouldSaveAsDraft &&
         !shouldArchiveOnCreate &&
         activationState === "ACTIVE";
+      const isEventReadyForNotifications = isEventLiveForNotifications(createdEventRecord);
       const shouldSendNotifications =
-        canGoLiveNow && shouldSendNotificationsByPreference;
+        shouldSendNotificationsByPreference && isEventReadyForNotifications;
 
       // Send notifications to all users about the new event (non-blocking)
       if (shouldSendNotifications) {
@@ -2340,7 +2371,7 @@ router.post(
           console.error('❌ Failed to send event notifications:', notifError);
         });
       } else {
-        console.log(`ℹ️ Notifications skipped for event ${event_id} (draft or notifications disabled).`);
+        console.log(`ℹ️ Notifications skipped for event ${event_id} (not live or notifications disabled).`);
       }
 
       // Push to UniversityGated if outsiders are enabled (non-blocking)
@@ -2389,7 +2420,7 @@ router.post(
         pending_service_roles: serviceWorkflow.requestedRoleCodes || [],
         activation_state: activationState,
         lifecycle_status: normalizeEventLifecycleStatus(createdEventRecord),
-        is_live: canGoLiveNow,
+        is_live: isEventReadyForNotifications,
       });
 
     } catch (error) {
@@ -3081,6 +3112,10 @@ router.put(
           return;
         }
 
+        if (!isEventLiveForNotifications(eventRecord)) {
+          return;
+        }
+
         const eventTitle = eventRecord?.title || title.trim() || "An event";
         const publishedEventId = eventRecord?.event_id || newEventId || eventId;
         sendBroadcastNotification({
@@ -3464,9 +3499,16 @@ router.post(
 
       const refreshedEvent =
         (await queryOne("events", { where: { event_id: eventId } })) || eventRecord;
-      const shouldSendNotifications = req.body?.send_notifications !== false;
+      const sendNotificationsInput = req.body?.send_notifications;
+      const hasExplicitNotificationPreference =
+        sendNotificationsInput !== undefined &&
+        sendNotificationsInput !== null &&
+        String(sendNotificationsInput).trim() !== "";
+      const shouldSendNotifications =
+        !hasExplicitNotificationPreference || asBoolean(sendNotificationsInput);
+      const canSendPublishNotifications = isEventLiveForNotifications(refreshedEvent);
 
-      if (shouldSendNotifications) {
+      if (shouldSendNotifications && canSendPublishNotifications) {
         sendBroadcastNotification({
           title: "Event Published",
           message: `${refreshedEvent?.title || "An event"} is now live! Check it out.`,
@@ -3477,6 +3519,8 @@ router.post(
         }).catch((notifError) => {
           console.error("❌ Failed to send publish notifications:", notifError);
         });
+      } else {
+        console.log(`ℹ️ Publish notification skipped for event ${eventId} (not live or notifications disabled).`);
       }
 
       if (isGatedEnabled() && !asBoolean(refreshedEvent?.is_draft)) {
