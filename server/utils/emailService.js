@@ -279,4 +279,206 @@ export async function sendRegistrationEmail(email, name, event, registrationId, 
   }
 }
 
-export default { sendWelcomeEmail, sendRegistrationEmail };
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Approval Workflow Email Templates
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Shared header/footer HTML blocks for consistency */
+const emailHeader = `
+  <!DOCTYPE html>
+  <html>
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+  <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f1f5f9;margin:0;padding:0;">
+  <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
+  <div style="background:linear-gradient(135deg,#063168 0%,#154CB3 100%);border-radius:16px 16px 0 0;padding:32px 36px;">
+    <h1 style="color:white;font-size:36px;font-weight:700;margin:0 0 4px 0;letter-spacing:-1px;">SOCIO</h1>
+    <p style="color:rgba(255,255,255,0.75);font-size:13px;margin:0;">Approval Workflow Notification</p>
+  </div>
+  <div style="background:white;padding:40px 36px;border-radius:0 0 16px 16px;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+`;
+const emailFooter = (appOrigin) => `
+  </div>
+  <div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px;">
+    <p style="margin:0;">SOCIO Team | <a href="${appOrigin}" style="color:#64748b;text-decoration:none;">${appOrigin}</a></p>
+  </div>
+  </div></body></html>
+`;
+
+const ctaButton = (label, href) =>
+  `<div style="text-align:center;margin:28px 0;">
+    <a href="${href}" style="display:inline-block;background:#154CB3;color:white;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:600;font-size:14px;">${label}</a>
+  </div>`;
+
+const entityChip = (type, label) => {
+  const color = type === 'fest' ? '#7c3aed' : '#154CB3';
+  return `<span style="background:${color}1a;color:${color};font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.08em;">${type}</span> <strong style="color:#1e293b;">${label}</strong>`;
+};
+
+const divider = `<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;">`;
+
+async function sendApprovalEmail(to, subject, htmlBody) {
+  if (!resend) { console.warn('⚠️ Resend not configured — skipping approval email'); return { success: true }; }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'SOCIO Approvals <hello@withsocio.com>',
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html: `${emailHeader}${htmlBody}${emailFooter(appOrigin)}`,
+      headers: { 'X-Entity-Ref-ID': `approval-${Date.now()}` },
+    });
+    if (error) { console.error('Approval email error:', error); return { success: false, error }; }
+    return { success: true, data };
+  } catch (err) {
+    console.error('Approval email exception:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Notify the HOD that a new request has been submitted for their review.
+ */
+export async function sendSubmittedToHodEmail({ hodEmail, entityType, entityTitle, organizerEmail, dashboardUrl }) {
+  const subject = `[Action Required] New ${entityType} Approval Request — ${entityTitle}`;
+  const body = `
+    <h2 style="color:#1e293b;font-size:20px;margin:0 0 8px 0;">New Approval Request</h2>
+    <p style="color:#64748b;font-size:14px;margin:0 0 24px 0;">You have a new Level 1 approval request waiting for your review.</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <p style="margin:0 0 8px 0;font-size:14px;">${entityChip(entityType, entityTitle)}</p>
+      <p style="margin:0;font-size:13px;color:#64748b;">Submitted by: <strong>${organizerEmail}</strong></p>
+    </div>
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 8px 0;">
+      Please review the request and take action from your dashboard. You may approve or return it for revision.
+    </p>
+    ${ctaButton('Review in HOD Dashboard', dashboardUrl || appLink('/manage/hod'))}
+    ${divider}
+    <p style="color:#94a3b8;font-size:12px;margin:0;">If you were not expecting this notification, please contact the SOCIO support team.</p>
+  `;
+  return sendApprovalEmail(hodEmail, subject, body);
+}
+
+/**
+ * Notify the Dean that the HOD has approved and forwarded the request.
+ */
+export async function sendSubmittedToDeanEmail({ deanEmail, entityType, entityTitle, hodEmail, dashboardUrl }) {
+  const subject = `[Action Required] L1 Approved — ${entityTitle} Awaits Your Review`;
+  const body = `
+    <h2 style="color:#1e293b;font-size:20px;margin:0 0 8px 0;">Ready for Dean Review</h2>
+    <p style="color:#64748b;font-size:14px;margin:0 0 24px 0;">HOD has approved the following request. It is now awaiting your Level 2 review.</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <p style="margin:0 0 8px 0;font-size:14px;">${entityChip(entityType, entityTitle)}</p>
+      <p style="margin:0;font-size:13px;color:#64748b;">HOD Approved by: <strong>${hodEmail}</strong></p>
+    </div>
+    ${ctaButton('Review in Dean Dashboard', dashboardUrl || appLink('/manage/dean'))}
+    ${divider}
+    <p style="color:#94a3b8;font-size:12px;margin:0;">If you were not expecting this notification, please contact the SOCIO support team.</p>
+  `;
+  return sendApprovalEmail(deanEmail, subject, body);
+}
+
+/**
+ * Notify the CFO that the Dean has approved and a budget review is required.
+ */
+export async function sendSubmittedToCfoEmail({ cfoEmail, entityType, entityTitle, estimatedBudget, dashboardUrl }) {
+  const budgetStr = estimatedBudget ? `₹${Number(estimatedBudget).toLocaleString('en-IN')}` : 'N/A';
+  const subject = `[Action Required] Budget Review — ${entityTitle}`;
+  const body = `
+    <h2 style="color:#1e293b;font-size:20px;margin:0 0 8px 0;">Budget Approval Required</h2>
+    <p style="color:#64748b;font-size:14px;margin:0 0 24px 0;">Dean has approved this request. It has been forwarded to you for financial sign-off.</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <p style="margin:0 0 8px 0;font-size:14px;">${entityChip(entityType, entityTitle)}</p>
+      <p style="margin:0;font-size:13px;color:#64748b;">Estimated Budget: <strong style="color:#059669;">${budgetStr}</strong></p>
+    </div>
+    ${ctaButton('Review in CFO Dashboard', dashboardUrl || appLink('/manage/cfo'))}
+    ${divider}
+    <p style="color:#94a3b8;font-size:12px;margin:0;">If you were not expecting this notification, please contact the SOCIO support team.</p>
+  `;
+  return sendApprovalEmail(cfoEmail, subject, body);
+}
+
+/**
+ * Notify the organiser that their request has been fully approved.
+ */
+export async function sendFullyApprovedEmail({ organizerEmail, entityType, entityTitle, manageUrl }) {
+  const subject = `🎉 Approved! Your ${entityType === 'fest' ? 'Fest' : 'Event'} is cleared — ${entityTitle}`;
+  const body = `
+    <h2 style="color:#1e293b;font-size:20px;margin:0 0 8px 0;">Congratulations! 🎉</h2>
+    <p style="color:#64748b;font-size:14px;margin:0 0 24px 0;">Your submission has passed all approval stages and is now fully approved.</p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <p style="margin:0 0 8px 0;font-size:14px;">${entityChip(entityType, entityTitle)}</p>
+      <p style="margin:0;font-size:13px;color:#065f46;font-weight:600;">Status: Fully Approved ✅</p>
+    </div>
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 8px 0;">
+      You can now proceed to activate your ${entityType} and manage service requests. Head to your dashboard to continue.
+    </p>
+    ${ctaButton('Go to My Dashboard', manageUrl || appLink('/manage'))}
+    ${divider}
+    <p style="color:#94a3b8;font-size:12px;margin:0;">Thank you for going through the approval process. — Team SOCIO</p>
+  `;
+  return sendApprovalEmail(organizerEmail, subject, body);
+}
+
+/**
+ * Notify the organiser that their request has been returned for revision.
+ */
+export async function sendReturnedForRevisionEmail({ organizerEmail, entityType, entityTitle, reviewerRole, revisionNote, manageUrl }) {
+  const subject = `[Revision Required] Your ${entityType === 'fest' ? 'Fest' : 'Event'} — ${entityTitle}`;
+  const body = `
+    <h2 style="color:#1e293b;font-size:20px;margin:0 0 8px 0;">Revision Requested</h2>
+    <p style="color:#64748b;font-size:14px;margin:0 0 24px 0;">Your submission has been reviewed and returned for revision by the ${reviewerRole || 'reviewer'}.</p>
+    <div style="background:#fef9f0;border:1px solid #fde68a;border-radius:12px;padding:20px;margin-bottom:20px;">
+      <p style="margin:0 0 8px 0;font-size:14px;">${entityChip(entityType, entityTitle)}</p>
+      <p style="margin:4px 0 0 0;font-size:13px;color:#92400e;font-weight:600;">Reviewed by: ${reviewerRole || 'Reviewer'}</p>
+    </div>
+    ${revisionNote ? `
+    <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:16px 20px;margin-bottom:24px;border-radius:0 8px 8px 0;">
+      <p style="color:#78350f;font-size:13px;font-weight:600;margin:0 0 6px 0;">Revision Notes:</p>
+      <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6;">${revisionNote}</p>
+    </div>` : ''}
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 8px 0;">
+      Please address the revision notes and resubmit from your dashboard. You have one resubmission opportunity per step.
+    </p>
+    ${ctaButton('Edit and Resubmit', manageUrl || appLink('/manage'))}
+    ${divider}
+    <p style="color:#94a3b8;font-size:12px;margin:0;">If you feel this was an error, please contact the relevant approver or SOCIO support.</p>
+  `;
+  return sendApprovalEmail(organizerEmail, subject, body);
+}
+
+/**
+ * Notify the organiser their request was finally rejected (no more resubmissions).
+ */
+export async function sendFinalRejectionEmail({ organizerEmail, entityType, entityTitle, reviewerRole, rejectionReason }) {
+  const subject = `[Important] Your ${entityType === 'fest' ? 'Fest' : 'Event'} could not be approved — ${entityTitle}`;
+  const body = `
+    <h2 style="color:#1e293b;font-size:20px;margin:0 0 8px 0;">Approval Declined</h2>
+    <p style="color:#64748b;font-size:14px;margin:0 0 24px 0;">After review and a resubmission attempt, your request has been declined.</p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;margin-bottom:20px;">
+      <p style="margin:0 0 8px 0;font-size:14px;">${entityChip(entityType, entityTitle)}</p>
+      <p style="margin:4px 0 0 0;font-size:13px;color:#991b1b;font-weight:600;">Declined by: ${reviewerRole || 'Reviewer'}</p>
+    </div>
+    ${rejectionReason ? `
+    <div style="background:#fff5f5;border-left:4px solid #f87171;padding:16px 20px;margin-bottom:24px;border-radius:0 8px 8px 0;">
+      <p style="color:#7f1d1d;font-size:13px;font-weight:600;margin:0 0 6px 0;">Reason:</p>
+      <p style="color:#991b1b;font-size:14px;margin:0;line-height:1.6;">${rejectionReason}</p>
+    </div>` : ''}
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 8px 0;">
+      You may create a new submission in the future. If you believe this is incorrect, contact the relevant dean or department head.
+    </p>
+    ${ctaButton('Go to Dashboard', appLink('/manage'))}
+    ${divider}
+    <p style="color:#94a3b8;font-size:12px;margin:0;">We apologize for the outcome. — Team SOCIO</p>
+  `;
+  return sendApprovalEmail(organizerEmail, subject, body);
+}
+
+export default {
+  sendWelcomeEmail,
+  sendRegistrationEmail,
+  sendSubmittedToHodEmail,
+  sendSubmittedToDeanEmail,
+  sendSubmittedToCfoEmail,
+  sendFullyApprovedEmail,
+  sendReturnedForRevisionEmail,
+  sendFinalRejectionEmail,
+};

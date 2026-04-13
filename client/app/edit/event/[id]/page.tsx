@@ -9,6 +9,8 @@ import {
   ScheduleItem as ScheduleItemType,
 } from "@/app/lib/eventFormSchema";
 import { useAuth } from "@/context/AuthContext";
+import { FileText, Wrench } from "lucide-react";
+import ServiceRequests from "@/app/_components/ServiceRequests";
 import toast from "react-hot-toast";
 
 const PENDING_WORKFLOW_STATUS_REGEX = /^pending_level_([1-4])$/;
@@ -82,13 +84,24 @@ export default function EditEventPage() {
   const [lifecycleStatus, setLifecycleStatus] = useState<string | null>(null);
   const [canEditLoadedEvent, setCanEditLoadedEvent] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<"details" | "services">("details");
+
   const isMasterAdminUser = Boolean((userData as any)?.is_masteradmin);
   const pendingApprovalLabel = getPendingApprovalLabel(workflowStatus);
   const isLifecyclePendingApproval =
     normalizeLifecycleStatus(lifecycleStatus, "draft") === "pending_approvals";
+  
+  // Service requests allowed if it's past HOD or Dean approval
+  // (pending_dean, dept_approved, pending_cfo, cfo_approved, fully_approved, live etc.)
+  const SERVICE_ALLOWED_STATUSES = [
+    'pending_dean', 'dept_approved', 'pending_cfo', 'cfo_approved', 
+    'pending_accounts', 'fully_approved', 'live', 'organiser_approved'
+  ];
+  const isUnlockedForServices = SERVICE_ALLOWED_STATUSES.includes(workflowStatus || '');
+
   const isPendingApprovalLocked =
     (Boolean(pendingApprovalLabel) || isLifecyclePendingApproval) &&
-    !isMasterAdminUser;
+    !isMasterAdminUser && activeTab === 'details';
 
   useEffect(() => {
     if (authIsLoading) return;
@@ -1068,53 +1081,100 @@ export default function EditEventPage() {
     );
   }
 
-  return initialData &&
-    session &&
-    userData &&
-    canEditLoadedEvent ? (
-    <>
-      {errorMessage && !isSubmitting && (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-12 pt-4">
-          <div className="p-4 my-2 text-sm text-red-700 bg-red-100 border border-red-400 rounded text-center">
-            <strong>Update Error:</strong> {errorMessage}
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* Tab Navigation header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8 h-16">
+            <button
+              onClick={() => setActiveTab("details")}
+              className={`flex items-center gap-2 h-full border-b-2 px-1 text-sm font-semibold transition-all ${
+                activeTab === "details"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Event Details
+            </button>
+            <button
+              onClick={() => setActiveTab("services")}
+              className={`flex items-center gap-2 h-full border-b-2 px-1 text-sm font-semibold transition-all ${
+                activeTab === "services"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Wrench className="w-4 h-4" />
+              Service Requests
+            </button>
           </div>
         </div>
-      )}
-      <EventForm
-        onSubmit={handleUpdateEvent}
-        onSubmitDraft={handleSaveDraft}
-        defaultValues={initialData}
-        isSubmittingProp={isSubmitting}
-        isEditMode={true}
-        lifecycleStatus={lifecycleStatus}
-        existingImageFileUrl={existingImageFileUrl}
-        existingBannerFileUrl={existingBannerFileUrl}
-        existingPdfFileUrl={existingPdfFileUrl}
-        isArchived={isArchived}
-        isDraft={isDraft}
-        isArchiveUpdating={isArchiveUpdating}
-        onToggleArchive={handleToggleArchive}
-      />
-    </>
-  ) : (
-    <div className="p-8 text-center">
-      <h2 className="text-xl font-semibold text-red-700 mb-4">
-        Access Denied or Data Error
-      </h2>
-      <p className="text-red-600">
-        {errorMessage ||
-          (!session || !userData
-            ? "You must be logged in and authorized to edit this event."
-            : !initialData
-            ? "Event data could not be loaded or is missing."
-            : "Unable to load the event editor. Please try again or contact support.")}
-      </p>
-      <button
-        onClick={() => router.push(!session ? "/login" : "/manage")}
-        className="mt-6 px-4 py-2 bg-[#154CB3] text-white rounded hover:bg-[#154cb3df]"
-      >
-        {!session ? "Go to Login" : "Back to Manage Events"}
-      </button>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === "details" ? (
+          initialData &&
+          session &&
+          userData &&
+          canEditLoadedEvent ? (
+            <>
+              {errorMessage && !isSubmitting && (
+                <div className="max-w-4xl mx-auto pt-4">
+                  <div className="p-4 my-2 text-sm text-red-700 bg-red-100 border border-red-400 rounded text-center">
+                    <strong>Update Error:</strong> {errorMessage}
+                  </div>
+                </div>
+              )}
+              <EventForm
+                onSubmit={handleUpdateEvent}
+                onSubmitDraft={handleSaveDraft}
+                defaultValues={initialData}
+                isSubmittingProp={isSubmitting}
+                isEditMode={true}
+                lifecycleStatus={lifecycleStatus}
+                existingImageFileUrl={existingImageFileUrl}
+                existingBannerFileUrl={existingBannerFileUrl}
+                existingPdfFileUrl={existingPdfFileUrl}
+                isArchived={isArchived}
+                isDraft={isDraft}
+                isArchiveUpdating={isArchiveUpdating}
+                onToggleArchive={handleToggleArchive}
+              />
+            </>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+              <h2 className="text-xl font-semibold text-red-700 mb-4">
+                Access Denied or Data Error
+              </h2>
+              <p className="text-red-600">
+                {errorMessage ||
+                  (!session || !userData
+                    ? "You must be logged in and authorized to edit this event."
+                    : !initialData
+                    ? "Event data could not be loaded or is missing."
+                    : "Unable to load the event editor. Please try again or contact support.")}
+              </p>
+              <button
+                onClick={() => router.push(!session ? "/login" : "/manage")}
+                className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                {!session ? "Go to Login" : "Back to Manage Events"}
+              </button>
+            </div>
+          )
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <ServiceRequests 
+              entityType="event"
+              entityId={eventIdSlug}
+              isUnlocked={isUnlockedForServices || isMasterAdminUser}
+              authToken={session?.access_token}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

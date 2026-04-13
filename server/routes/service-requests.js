@@ -84,6 +84,31 @@ router.post("/:requestId/action", async (req, res) => {
   }
 });
 
+// GET /api/service-requests/by-entity/:entityType/:entityId
+router.get("/by-entity/:entityType/:entityId", async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const requests = await queryAll('service_requests', {
+      where: { entity_type: entityType, entity_id: entityId }
+    });
+    return res.json(requests);
+  } catch (error) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/service-requests/my-requests
+router.get("/my-requests", async (req, res) => {
+  try {
+    const requests = await queryAll('service_requests', {
+      where: { requester_email: req.userInfo.email }
+    });
+    return res.json(requests);
+  } catch (error) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/service-requests/my-queue
 router.get("/my-queue", async (req, res) => {
   try {

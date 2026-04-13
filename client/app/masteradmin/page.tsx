@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -27,6 +27,7 @@ import {
   Settings,
   Eye,
   ChevronRight,
+  GitBranch,
 } from "lucide-react";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
 
@@ -229,7 +230,7 @@ export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "notifications" | "report" | "settings"
+    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "notifications" | "report" | "settings" | "pipeline"
   >("dashboard");
   const authToken = session?.access_token || null;
 
@@ -295,6 +296,23 @@ export default function MasterAdminPage() {
   const debouncedEventSearch = useDebounce(eventSearchQuery, 300);
   const debouncedFestSearch = useDebounce(festSearchQuery, 300);
 
+  // Approval pipeline state
+  type PipelineItem = {
+    id: string;
+    request_id?: string | null;
+    entity_type?: string | null;
+    entity_ref?: string | null;
+    status?: string | null;
+    submitted_at?: string | null;
+    requested_by_email?: string | null;
+    organizing_dept?: string | null;
+    is_budget_related?: boolean | null;
+  };
+  const [pipelineItems, setPipelineItems] = useState<PipelineItem[]>([]);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineFilter, setPipelineFilter] = useState<"all"|"UNDER_REVIEW"|"APPROVED"|"REJECTED">("all");
+  const [pipelineSearch, setPipelineSearch] = useState("");
+
   useEffect(() => {
     const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
     if (!authLoading && !isMasterAdmin && !isLocalhost) {
@@ -328,6 +346,8 @@ export default function MasterAdminPage() {
     } else if (activeTab === "report") {
       // Fetch events and fests for report tab
       fetchReportData();
+    } else if (activeTab === "pipeline") {
+      fetchPipeline();
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -608,6 +628,24 @@ export default function MasterAdminPage() {
       }
     } catch (error) {
       console.error("Error fetching report data:", error);
+    }
+  };
+
+  const fetchPipeline = async () => {
+    try {
+      setPipelineLoading(true);
+      const { data, error } = await supabase
+        .from("approval_requests")
+        .select("id,request_id,entity_type,entity_ref,status,submitted_at,requested_by_email,organizing_dept,is_budget_related")
+        .order("submitted_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setPipelineItems(data || []);
+    } catch (err) {
+      console.error("Pipeline fetch error:", err);
+      toast.error("Failed to load approval pipeline.");
+    } finally {
+      setPipelineLoading(false);
     }
   };
 
@@ -958,6 +996,7 @@ export default function MasterAdminPage() {
   const sidebarNav = [
     { id: "dashboard" as const, label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: "dataExplorer" as const, label: "Data Explorer", icon: <LineChart className="w-4 h-4" /> },
+    { id: "pipeline" as const, label: "Approval Pipeline", icon: <GitBranch className="w-4 h-4" /> },
     { id: "users" as const, label: "Users", icon: <Users className="w-4 h-4" />, count: users.length },
     { id: "events" as const, label: "Events", icon: <CalendarDays className="w-4 h-4" />, count: events.length },
     { id: "fests" as const, label: "Fests", icon: <Trophy className="w-4 h-4" />, count: fests.length },
@@ -1048,6 +1087,141 @@ export default function MasterAdminPage() {
 
       {/* â”€â”€ Main Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <main className="min-w-0 flex-1 bg-slate-50 overflow-y-auto">
+
+        {/* Approval Pipeline Tab */}
+        {activeTab === "pipeline" && (() => {
+          const statusColors: Record<string, string> = {
+            UNDER_REVIEW: "bg-amber-100 text-amber-800",
+            APPROVED: "bg-emerald-100 text-emerald-800",
+            REJECTED: "bg-red-100 text-red-800",
+            PENDING: "bg-slate-100 text-slate-600",
+          };
+          const filtered = pipelineItems.filter(item => {
+            const matchesStatus = pipelineFilter === "all" || String(item.status || "").toUpperCase() === pipelineFilter;
+            const searchLower = pipelineSearch.toLowerCase();
+            const matchesSearch = !pipelineSearch ||
+              String(item.entity_ref || "").toLowerCase().includes(searchLower) ||
+              String(item.requested_by_email || "").toLowerCase().includes(searchLower) ||
+              String(item.organizing_dept || "").toLowerCase().includes(searchLower) ||
+              String(item.entity_type || "").toLowerCase().includes(searchLower);
+            return matchesStatus && matchesSearch;
+          });
+          return (
+            <div className="p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">Approval Pipeline</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">Live view of all approval requests across fests and events.</p>
+                </div>
+                <button
+                  onClick={fetchPipeline}
+                  disabled={pipelineLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+                >
+                  {pipelineLoading ? <div className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" /> : <GitBranch className="w-4 h-4" />}
+                  Refresh
+                </button>
+              </div>
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3 mb-5">
+                <input
+                  type="text"
+                  placeholder="Search entity, submitter, dept…"
+                  value={pipelineSearch}
+                  onChange={e => setPipelineSearch(e.target.value)}
+                  className="flex-1 min-w-48 pl-4 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white"
+                />
+                {(["all","UNDER_REVIEW","APPROVED","REJECTED"] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setPipelineFilter(f)}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                      pipelineFilter === f
+                        ? "bg-[#154CB3] text-white border-[#154CB3]"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    {f === "all" ? "All" : f.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
+              {/* Table */}
+              {pipelineLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="w-10 h-10 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center">
+                  <GitBranch className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 font-medium">No approval requests found</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-100">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          {["Entity","Type","Dept","Submitter","Status","Budget","Date","Actions"].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {filtered.map(item => {
+                          const statusToken = String(item.status || "PENDING").toUpperCase();
+                          const isFest = String(item.entity_type || "").toUpperCase() === "FEST";
+                          const detailHref = isFest
+                            ? `/fest/${item.entity_ref}`
+                            : `/approvals/hod-dean/${item.entity_ref}`;
+                          return (
+                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-3 text-sm">
+                                <a href={detailHref} className="font-semibold text-slate-800 hover:text-blue-600 hover:underline">
+                                  {item.entity_ref || "—"}
+                                </a>
+                                <p className="text-[11px] text-slate-400 mt-0.5 font-mono">{item.request_id?.slice(0,12) || "—"}</p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                                  isFest ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                                }`}>
+                                  {item.entity_type || "—"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-slate-600">{item.organizing_dept || "—"}</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 max-w-[160px] truncate">{item.requested_by_email || "—"}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                  statusColors[statusToken] || "bg-slate-100 text-slate-600"
+                                }`}>
+                                  {statusToken.replace(/_/g, " ")}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-slate-600">
+                                {item.is_budget_related ? <span className="text-emerald-600 font-semibold">Yes</span> : "No"}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-slate-500">
+                                {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <a href={detailHref} className="text-xs font-semibold text-blue-600 hover:underline whitespace-nowrap">
+                                  View →
+                                </a>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-400">
+                    Showing {filtered.length} of {pipelineItems.length} requests
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Dashboard Tab */}
         {activeTab === "dashboard" && (

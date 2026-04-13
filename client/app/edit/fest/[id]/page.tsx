@@ -54,10 +54,14 @@ interface FestDataForEdit {
   isDraft: boolean;
 }
 
+import { FileText, Wrench } from "lucide-react";
+import ServiceRequests from "../../../_components/ServiceRequests";
+
 const EditPage = () => {
   const params = useParams();
   const festId = params?.id as string;
   const { session, userData, isLoading: authIsLoading } = useAuth();
+  const [activeTab, setActiveTab] = (useState<"details" | "services">("details"));
   const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
   const [festData, setFestData] = useState<FestDataForEdit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,9 +83,15 @@ const EditPage = () => {
   const pendingApprovalLabel = getPendingApprovalLabel(workflowStatus);
   const isLifecyclePendingApproval =
     normalizeLifecycleStatus(lifecycleStatus, "draft") === "pending_approvals";
+  
+  // Service requests allowed if it's past HOD/Dean stage (pending_cfo, pending_accounts, fully_approved, live)
+  const isUnlockedForServices = [
+    'pending_cfo', 'pending_accounts', 'fully_approved', 'live'
+  ].includes(workflowStatus || '');
+
   const isPendingApprovalLocked =
     (Boolean(pendingApprovalLabel) || isLifecyclePendingApproval) &&
-    !isMasterAdminUser;
+    !isMasterAdminUser && activeTab === 'details';
 
   useEffect(() => {
     if (festId && session?.access_token) {
@@ -211,25 +221,70 @@ const EditPage = () => {
   }
 
   return (
-    <CreateFestForm
-      title={festData?.title}
-      openingDate={festData?.openingDate}
-      closingDate={festData?.closingDate}
-      detailedDescription={festData?.detailedDescription}
-      department={festData?.department}
-      category={festData?.category}
-      contactEmail={festData?.contactEmail}
-      contactPhone={festData?.contactPhone}
-      eventHeads={festData?.eventHeads}
-      organizingSchool={festData?.organizingSchool}
-      organizingDept={festData?.organizingDept}
-      isEditMode={true}
-      existingImageFileUrl={existingImageFileUrl}
-      existingBannerFileUrl={existingBannerFileUrl}
-      existingPdfFileUrl={existingPdfFileUrl}
-      isDraft={Boolean(festData?.isDraft)}
-      lifecycleStatus={lifecycleStatus}
-    />
+    <div className="min-h-screen bg-slate-50">
+      {/* Tab Navigation header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8 h-16">
+            <button
+              onClick={() => setActiveTab("details")}
+              className={`flex items-center gap-2 h-full border-b-2 px-1 text-sm font-semibold transition-all ${
+                activeTab === "details"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Fest Details
+            </button>
+            <button
+              onClick={() => setActiveTab("services")}
+              className={`flex items-center gap-2 h-full border-b-2 px-1 text-sm font-semibold transition-all ${
+                activeTab === "services"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Wrench className="w-4 h-4" />
+              Service Requests
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === "details" ? (
+          <CreateFestForm
+            title={festData?.title}
+            openingDate={festData?.openingDate}
+            closingDate={festData?.closingDate}
+            detailedDescription={festData?.detailedDescription}
+            department={festData?.department}
+            category={festData?.category}
+            contactEmail={festData?.contactEmail}
+            contactPhone={festData?.contactPhone}
+            eventHeads={festData?.eventHeads}
+            organizingSchool={festData?.organizingSchool}
+            organizingDept={festData?.organizingDept}
+            isEditMode={true}
+            existingImageFileUrl={existingImageFileUrl}
+            existingBannerFileUrl={existingBannerFileUrl}
+            existingPdfFileUrl={existingPdfFileUrl}
+            isDraft={Boolean(festData?.isDraft)}
+            lifecycleStatus={lifecycleStatus}
+          />
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <ServiceRequests 
+              entityType="fest"
+              entityId={festId}
+              isUnlocked={isUnlockedForServices || isMasterAdminUser}
+              authToken={session?.access_token}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
