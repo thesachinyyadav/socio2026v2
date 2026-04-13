@@ -121,6 +121,8 @@ export default async function HodManagePage() {
     redirect("/error");
   }
 
+  const campusName = String(userProfile.campus || "").trim();
+
   const fallbackDashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = {
     queue: [],
     metrics: {
@@ -136,6 +138,7 @@ export default async function HodManagePage() {
     dashboardData = await fetchHodDashboardData({
       supabase,
       departmentId: isMasterAdmin ? null : hodDepartmentScope,
+      campusScope: isMasterAdmin ? null : campusName,
     });
   } catch (error) {
     dashboardErrorMessage =

@@ -9,8 +9,21 @@ type DecisionAction = "approve" | "return";
 type ApprovalRequestRow = {
   id?: string;
   request_id?: string | null;
+  entity_type?: string | null;
+  entity_ref?: string | null;
   status?: string | null;
   organizing_dept?: string | null;
+  campus_hosted_at?: string | null;
+};
+
+type EventScopeRow = {
+  organizing_school?: string | null;
+  campus_hosted_at?: string | null;
+};
+
+type FestScopeRow = {
+  organizing_school?: string | null;
+  campus_hosted_at?: string | null;
 };
 
 type ApprovalStepRow = {
@@ -89,6 +102,87 @@ function getRoleScopedDepartments(
   }
 
   return [];
+}
+
+function getRoleScopedCampuses(
+  userProfile: Record<string, unknown>,
+  roleCode: "HOD" | "DEAN"
+): string[] {
+  const roleAssignments = Array.isArray(userProfile.role_assignments)
+    ? (userProfile.role_assignments as Array<Record<string, unknown>>)
+    : [];
+
+  const scopedCampuses = roleAssignments
+    .filter(
+      (assignment) =>
+        String(assignment.role_code || "").trim().toUpperCase() === roleCode &&
+        isAssignmentActive(assignment)
+    )
+    .map((assignment) => normalizeScope(assignment.campus_scope))
+    .filter((scope) => scope.length > 0);
+
+  if (scopedCampuses.length > 0) {
+    return Array.from(new Set(scopedCampuses));
+  }
+
+  if (roleCode === "DEAN") {
+    const campus = normalizeScope(userProfile.campus);
+    return campus ? [campus] : [];
+  }
+
+  return [];
+}
+
+async function resolveRequestScopeFromEntity(
+  supabase: any,
+  requestRow: ApprovalRequestRow
+): Promise<{ schoolScope: string; campusScope: string }> {
+  const entityType = String(requestRow.entity_type || "").trim().toUpperCase();
+  const entityRef = String(requestRow.entity_ref || "").trim();
+
+  let schoolScope = "";
+  let campusScope = normalizeScope(requestRow.campus_hosted_at);
+
+  if (entityType === "FEST" && entityRef) {
+    const { data: festData } = await supabase
+      .from("fests")
+      .select("organizing_school,campus_hosted_at")
+      .eq("fest_id", entityRef)
+      .maybeSingle();
+
+    const festRow = (festData as FestScopeRow | null) || null;
+    schoolScope = normalizeScope(festRow?.organizing_school);
+    campusScope = campusScope || normalizeScope(festRow?.campus_hosted_at);
+
+    if (!schoolScope) {
+      const { data: legacyFestData } = await supabase
+        .from("fest")
+        .select("organizing_school,campus_hosted_at")
+        .eq("fest_id", entityRef)
+        .maybeSingle();
+
+      const legacyFestRow = (legacyFestData as FestScopeRow | null) || null;
+      schoolScope = normalizeScope(legacyFestRow?.organizing_school);
+      campusScope = campusScope || normalizeScope(legacyFestRow?.campus_hosted_at);
+    }
+  } else if (entityRef) {
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("organizing_school,campus_hosted_at")
+      .eq("event_id", entityRef)
+      .maybeSingle();
+
+    const eventRow = (eventData as EventScopeRow | null) || null;
+    schoolScope = normalizeScope(eventRow?.organizing_school);
+    campusScope = campusScope || normalizeScope(eventRow?.campus_hosted_at);
+  }
+
+  schoolScope = schoolScope || normalizeScope(requestRow.organizing_dept);
+
+  return {
+    schoolScope,
+    campusScope,
+  };
 }
 
 function jsonError(status: number, error: string) {
@@ -174,7 +268,7 @@ export async function PATCH(
 
     const { data: approvalData, error: approvalError } = await supabase
       .from("approval_requests")
-      .select("id,request_id,status,organizing_dept")
+      .select("id,request_id,entity_type,entity_ref,status,organizing_dept,campus_hosted_at")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -198,9 +292,22 @@ export async function PATCH(
         return jsonError(403, "No department scope is mapped to this Dean account.");
       }
 
-      const requestScope = normalizeScope(requestRow.organizing_dept);
-      if (!requestScope || !allowedScopes.includes(requestScope)) {
+      const allowedCampuses = getRoleScopedCampuses(userProfile, "DEAN");
+      if (allowedCampuses.length === 0) {
+        return jsonError(403, "No campus scope is mapped to this Dean account.");
+      }
+
+      const { schoolScope, campusScope } = await resolveRequestScopeFromEntity(
+        supabase,
+        requestRow
+      );
+
+      if (!schoolScope || !allowedScopes.includes(schoolScope)) {
         return jsonError(403, "This request does not belong to your department scope.");
+      }
+
+      if (!campusScope || !allowedCampuses.includes(campusScope)) {
+        return jsonError(403, "This request does not belong to your campus scope.");
       }
     }
 

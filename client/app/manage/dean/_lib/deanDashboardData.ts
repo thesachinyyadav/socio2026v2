@@ -12,6 +12,7 @@ type ApprovalRequestJoinRow = {
   entity_type?: string | null;
   entity_ref?: string | null;
   organizing_dept?: string | null;
+  campus_hosted_at?: string | null;
   status?: string | null;
   submitted_at?: string | null;
   created_at?: string | null;
@@ -37,6 +38,8 @@ type EventDetailRow = {
   title?: string | null;
   event_date?: string | null;
   organizing_dept?: string | null;
+  organizing_school?: string | null;
+  campus_hosted_at?: string | null;
   organizer_email?: string | null;
 };
 
@@ -45,6 +48,8 @@ type FestDetailRow = {
   fest_title?: string | null;
   opening_date?: string | null;
   organizing_dept?: string | null;
+  organizing_school?: string | null;
+  campus_hosted_at?: string | null;
   contact_email?: string | null;
 };
 
@@ -133,7 +138,7 @@ async function fetchFestRowsWithFallback(
     return [];
   }
 
-  const selectClause = "fest_id, fest_title, opening_date, organizing_dept, contact_email";
+  const selectClause = "fest_id, fest_title, opening_date, organizing_dept, organizing_school, campus_hosted_at, contact_email";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from("fests")
@@ -163,14 +168,17 @@ async function fetchFestRowsWithFallback(
 export async function fetchDeanDashboardData({
   supabase,
   schoolId,
+  campusScope,
   l1Threshold,
 }: {
   supabase: any;
   schoolId?: string | null;
+  campusScope?: string | null;
   l1Threshold: number;
 }): Promise<DeanDashboardData> {
   void l1Threshold;
   const normalizedSchoolId = normalizeText(schoolId).toLowerCase();
+  const normalizedCampusScope = normalizeText(campusScope).toLowerCase();
 
   let pendingStepsQuery = supabase
     .from("approval_steps")
@@ -187,6 +195,7 @@ export async function fetchDeanDashboardData({
           entity_type,
           entity_ref,
           organizing_dept,
+          campus_hosted_at,
           status,
           submitted_at,
           created_at
@@ -196,10 +205,6 @@ export async function fetchDeanDashboardData({
     .eq("role_code", "DEAN")
     .eq("status", "PENDING")
     .order("created_at", { ascending: true });
-
-  if (normalizedSchoolId) {
-    pendingStepsQuery = pendingStepsQuery.eq("approval_requests.organizing_dept", normalizedSchoolId);
-  }
 
   const { data: pendingStepsData, error: pendingStepsError } = await pendingStepsQuery;
 
@@ -237,7 +242,7 @@ export async function fetchDeanDashboardData({
   if (eventIds.length > 0) {
     const { data: eventData, error: eventError } = await supabase
       .from("events")
-      .select("event_id, title, event_date, organizing_dept, organizer_email")
+      .select("event_id, title, event_date, organizing_dept, organizing_school, campus_hosted_at, organizer_email")
       .in("event_id", eventIds);
 
     if (eventError) {
@@ -327,6 +332,23 @@ export async function fetchDeanDashboardData({
       const eventRow = !isFestEntity ? eventRowsById.get(entityRef) || null : null;
       const festRow = isFestEntity ? festRowsById.get(entityRef) || null : null;
       const budgetRow = !isFestEntity ? budgetsByEventId.get(entityRef) || null : null;
+
+      const scopeCandidate = normalizeText(
+        isFestEntity ? festRow?.organizing_school : eventRow?.organizing_school
+      ).toLowerCase() || normalizeText(requestRow.organizing_dept).toLowerCase();
+
+      if (normalizedSchoolId && scopeCandidate !== normalizedSchoolId) {
+        return null;
+      }
+
+      const campusCandidate =
+        normalizeText(requestRow.campus_hosted_at).toLowerCase() ||
+        normalizeText(isFestEntity ? festRow?.campus_hosted_at : eventRow?.campus_hosted_at).toLowerCase();
+
+      if (normalizedCampusScope && campusCandidate !== normalizedCampusScope) {
+        return null;
+      }
+
       const organizerEmail = normalizeText(
         isFestEntity ? festRow?.contact_email : eventRow?.organizer_email
       ).toLowerCase();

@@ -164,6 +164,7 @@ export default async function DeanManagePage() {
     dashboardData = await fetchDeanDashboardData({
       supabase,
       schoolId: isMasterAdmin ? null : deanDepartmentScope,
+      campusScope: isMasterAdmin ? null : campusName,
       l1Threshold,
     });
   } catch (error) {

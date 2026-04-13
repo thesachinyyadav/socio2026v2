@@ -1753,10 +1753,13 @@ export async function assignRoleMatrixEntry(
       return { ok: false, error: "Select the required role scope before assigning." };
     }
 
+    let selectedDepartmentLabel: string | null = null;
+    let selectedDepartmentSchool: string | null = null;
+
     if (roleValue === "hod") {
       const { data, error } = await adminClient
         .from("departments_courses")
-        .select("id")
+        .select("id,department_name,school")
         .eq("id", scopeValue)
         .maybeSingle();
 
@@ -1768,6 +1771,11 @@ export async function assignRoleMatrixEntry(
 
       if (!error && !data) {
         return { ok: false, error: "Selected department does not exist." };
+      }
+
+      if (!error && data) {
+        selectedDepartmentLabel = normalizeNullableText((data as any).department_name) || scopeValue;
+        selectedDepartmentSchool = normalizeNullableText((data as any).school);
       }
     }
 
@@ -1870,8 +1878,18 @@ export async function assignRoleMatrixEntry(
 
       usersUpdatePayload.department_id = roleValue === "hod" ? scopeValue : null;
       usersUpdatePayload.school_id = roleValue === "dean" ? scopeValue : null;
-      usersUpdatePayload.campus = roleValue === "cfo" ? campus : null;
+      usersUpdatePayload.campus = campus;
       usersUpdatePayload.venue_id = roleValue === "venue_service" ? scopeValue : null;
+
+      if (roleValue === "hod") {
+        usersUpdatePayload.department = selectedDepartmentLabel || scopeValue;
+        usersUpdatePayload.school = selectedDepartmentSchool;
+      }
+
+      if (roleValue === "dean") {
+        usersUpdatePayload.school = scopeValue;
+        usersUpdatePayload.department = scopeValue;
+      }
     }
 
     if (Object.keys(usersUpdatePayload).length > 0) {

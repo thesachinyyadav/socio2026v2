@@ -266,16 +266,16 @@ export async function getCurrentUserProfileWithRoleCodes(
     role_assignments: normalizedAssignments,
     role_codes: roleCodes,
     department_id:
-      normalizeNullableText(profile.department_id) ||
       normalizeNullableText(hodScope?.department_scope) ||
+      normalizeNullableText(profile.department_id) ||
       null,
     school_id:
-      normalizeNullableText(profile.school_id) ||
       normalizeNullableText(deanScope?.department_scope) ||
+      normalizeNullableText(profile.school_id) ||
       null,
     campus:
-      normalizeNullableText(profile.campus) ||
       normalizeNullableText(campusScope?.campus_scope) ||
+      normalizeNullableText(profile.campus) ||
       null,
   };
 

@@ -8,6 +8,7 @@ type ApprovalRequestJoinRow = {
   entity_type?: string | null;
   entity_ref?: string | null;
   organizing_dept?: string | null;
+  campus_hosted_at?: string | null;
   status?: string | null;
   submitted_at?: string | null;
   created_at?: string | null;
@@ -149,11 +150,14 @@ async function fetchFestRowsWithFallback(
 export async function fetchHodDashboardData({
   supabase,
   departmentId,
+  campusScope,
 }: {
   supabase: any;
   departmentId?: string | null;
+  campusScope?: string | null;
 }): Promise<HodDashboardData> {
   const normalizedDepartmentId = normalizeText(departmentId).toLowerCase();
+  const normalizedCampusScope = normalizeText(campusScope).toLowerCase();
 
   let pendingQuery = supabase
     .from("approval_steps")
@@ -170,6 +174,7 @@ export async function fetchHodDashboardData({
           entity_type,
           entity_ref,
           organizing_dept,
+          campus_hosted_at,
           status,
           submitted_at,
           created_at
@@ -182,6 +187,10 @@ export async function fetchHodDashboardData({
 
   if (normalizedDepartmentId) {
     pendingQuery = pendingQuery.eq("approval_requests.organizing_dept", normalizedDepartmentId);
+  }
+
+  if (normalizedCampusScope) {
+    pendingQuery = pendingQuery.eq("approval_requests.campus_hosted_at", normalizedCampusScope);
   }
 
   const { data: pendingData, error: pendingError } = await pendingQuery;
@@ -369,7 +378,8 @@ export async function fetchHodDashboardData({
         events!inner (
           event_id,
           event_date,
-          organizing_dept
+          organizing_dept,
+          campus_hosted_at
         )
       `
     )
@@ -378,6 +388,10 @@ export async function fetchHodDashboardData({
 
   if (normalizedDepartmentId) {
     ytdBudgetQuery = ytdBudgetQuery.eq("events.organizing_dept", normalizedDepartmentId);
+  }
+
+  if (normalizedCampusScope) {
+    ytdBudgetQuery = ytdBudgetQuery.eq("events.campus_hosted_at", normalizedCampusScope);
   }
 
   const { data: ytdBudgetData, error: ytdBudgetError } = await ytdBudgetQuery;

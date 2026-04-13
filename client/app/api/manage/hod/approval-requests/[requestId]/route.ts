@@ -9,8 +9,11 @@ type DecisionAction = "approve" | "return";
 type ApprovalRequestRow = {
   id?: string;
   request_id?: string | null;
+  entity_type?: string | null;
+  entity_ref?: string | null;
   status?: string | null;
   organizing_dept?: string | null;
+  campus_hosted_at?: string | null;
 };
 
 type ApprovalStepRow = {
@@ -85,6 +88,35 @@ function getRoleScopedDepartments(
         ].filter((scope) => scope.length > 0)
       )
     );
+  }
+
+  return [];
+}
+
+function getRoleScopedCampuses(
+  userProfile: Record<string, unknown>,
+  roleCode: "HOD" | "DEAN"
+): string[] {
+  const roleAssignments = Array.isArray(userProfile.role_assignments)
+    ? (userProfile.role_assignments as Array<Record<string, unknown>>)
+    : [];
+
+  const scopedCampuses = roleAssignments
+    .filter(
+      (assignment) =>
+        String(assignment.role_code || "").trim().toUpperCase() === roleCode &&
+        isAssignmentActive(assignment)
+    )
+    .map((assignment) => normalizeScope(assignment.campus_scope))
+    .filter((scope) => scope.length > 0);
+
+  if (scopedCampuses.length > 0) {
+    return Array.from(new Set(scopedCampuses));
+  }
+
+  if (roleCode === "HOD") {
+    const campus = normalizeScope(userProfile.campus);
+    return campus ? [campus] : [];
   }
 
   return [];
@@ -173,7 +205,7 @@ export async function PATCH(
 
     const { data: approvalData, error: approvalError } = await supabase
       .from("approval_requests")
-      .select("id,request_id,status,organizing_dept")
+      .select("id,request_id,entity_type,entity_ref,status,organizing_dept,campus_hosted_at")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -197,9 +229,19 @@ export async function PATCH(
         return jsonError(403, "No department scope is mapped to this HOD account.");
       }
 
+      const allowedCampuses = getRoleScopedCampuses(userProfile, "HOD");
+      if (allowedCampuses.length === 0) {
+        return jsonError(403, "No campus scope is mapped to this HOD account.");
+      }
+
       const requestScope = normalizeScope(requestRow.organizing_dept);
       if (!requestScope || !allowedScopes.includes(requestScope)) {
         return jsonError(403, "This request does not belong to your department scope.");
+      }
+
+      const requestCampusScope = normalizeScope(requestRow.campus_hosted_at);
+      if (!requestCampusScope || !allowedCampuses.includes(requestCampusScope)) {
+        return jsonError(403, "This request does not belong to your campus scope.");
       }
     }
 
