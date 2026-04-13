@@ -1080,6 +1080,7 @@ router.post(
         draftPreferenceInput !== null &&
         String(draftPreferenceInput).trim() !== "";
       const shouldSaveAsDraft = hasDraftPreference && asBoolean(draftPreferenceInput);
+      const requiresApprovalSubmission = !shouldSaveAsDraft;
       const sendNotificationsInput = pickDefined(
         festData.send_notifications,
         festData.sendNotifications
@@ -1219,7 +1220,7 @@ router.post(
         venue: festData.venue || null,
         status: shouldSaveAsDraft
           ? LIFECYCLE_STATUS.DRAFT
-          : LIFECYCLE_STATUS.PUBLISHED,
+          : LIFECYCLE_STATUS.PENDING_APPROVALS,
         registration_deadline: festData.registration_deadline || null,
         timeline: festData.timeline || [],
         sponsors: festData.sponsors || [],
@@ -1230,7 +1231,7 @@ router.post(
         allowed_campuses: festData.allowed_campuses || festData.allowedCampuses || [],
         department_hosted_at: festData.department_hosted_at || festData.departmentHostedAt || null,
         allow_outsiders: festData.allow_outsiders === true || festData.allow_outsiders === 'true' || festData.allowOutsiders === true || festData.allowOutsiders === 'true' ? true : false,
-        is_draft: shouldSaveAsDraft,
+        is_draft: true,
       };
 
       let inserted;
@@ -1249,13 +1250,13 @@ router.post(
       }
       let createdFest = inserted?.[0];
       let workflowApprovalRequest = null;
-      let activationState = "ACTIVE";
-      let shouldPublishNow = !shouldSaveAsDraft;
+      let activationState = requiresApprovalSubmission ? "PENDING" : "ACTIVE";
+      let shouldPublishNow = false;
       let pendingDeanApproval = false;
       let pendingHodApproval = false;
       let pendingCfoApproval = false;
 
-      if (!shouldSaveAsDraft) {
+      if (requiresApprovalSubmission) {
         workflowApprovalRequest = await createFestApprovalRequest({
           festRecord: {
             ...(createdFest || {}),
@@ -1267,16 +1268,16 @@ router.post(
           approvalWorkflow,
         });
 
-        if (workflowApprovalRequest) {
-          const workflowResult = await applyFestWorkflowState({
-            festTable,
-            festId: fest_id,
-            approvalRequestId: workflowApprovalRequest.id,
-            isBudgetRelated,
-          });
+        const workflowResult = await applyFestWorkflowState({
+          festTable,
+          festId: fest_id,
+          approvalRequestId: workflowApprovalRequest?.id || null,
+          isBudgetRelated,
+        });
 
-          activationState = workflowResult.activationState;
-          shouldPublishNow = false;
+        activationState = workflowResult.activationState;
+
+        if (workflowApprovalRequest) {
           const primaryRoleCode = normalizeWorkflowStatus(
             workflowApprovalRequest?.primary_role_code,
             ROLE_CODES.DEAN
@@ -1284,12 +1285,12 @@ router.post(
           pendingDeanApproval = primaryRoleCode === ROLE_CODES.DEAN;
           pendingHodApproval = primaryRoleCode === ROLE_CODES.HOD;
           pendingCfoApproval = Boolean(isBudgetRelated);
+        }
 
-          if (workflowResult.applied) {
-            const refreshedFest = await queryOne(festTable, { where: { fest_id } });
-            if (refreshedFest) {
-              createdFest = refreshedFest;
-            }
+        if (workflowResult.applied) {
+          const refreshedFest = await queryOne(festTable, { where: { fest_id } });
+          if (refreshedFest) {
+            createdFest = refreshedFest;
           }
         }
       }
@@ -1359,6 +1360,8 @@ router.post(
                   ? `Fest submitted successfully and routed to ${pendingHodApproval ? "HOD" : "Dean"} and CFO approvals`
                   : `Fest submitted successfully and routed to ${pendingHodApproval ? "HOD" : "Dean"} approval`)
               : "Fest submitted successfully and routed for approval")
+          : requiresApprovalSubmission
+            ? "Fest submitted successfully and pending approval"
           : "Fest created successfully",
         fest: mapFestResponse(createdFest),
         lifecycle_status: normalizeFestLifecycleStatus(createdFest),

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { LIFECYCLE_STATUS } from "../utils/lifecycleStatus.js";
 import {
+  isRecordLiveForNotifications,
   parseBooleanLike,
   shouldSendLifecycleNotification,
 } from "../utils/notificationLifecycle.js";
@@ -43,6 +44,36 @@ test("Publish after approvals complete -> notification sent", () => {
   });
 
   assert.equal(shouldSend, true);
+});
+
+test("Public visibility blocks draft event", () => {
+  const isVisible = isRecordLiveForNotifications({
+    is_draft: true,
+    activation_state: "ACTIVE",
+    status: LIFECYCLE_STATUS.DRAFT,
+  });
+
+  assert.equal(isVisible, false);
+});
+
+test("Public visibility blocks pending approval event", () => {
+  const isVisible = isRecordLiveForNotifications({
+    is_draft: false,
+    activation_state: "PENDING",
+    status: LIFECYCLE_STATUS.PENDING_APPROVALS,
+  });
+
+  assert.equal(isVisible, false);
+});
+
+test("Public visibility allows approved event", () => {
+  const isVisible = isRecordLiveForNotifications({
+    is_draft: false,
+    activation_state: "ACTIVE",
+    status: LIFECYCLE_STATUS.APPROVED,
+  });
+
+  assert.equal(isVisible, true);
 });
 
 test("Publish notification preference accepts mixed-case truthy strings", () => {
