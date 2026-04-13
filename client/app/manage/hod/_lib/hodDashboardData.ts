@@ -76,6 +76,27 @@ function normalizeEntityType(value: unknown): string {
   return normalizeText(value).toUpperCase();
 }
 
+function normalizeScope(value: unknown): string {
+  return normalizeText(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+function isMissingRelationError(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+  relationName: string
+): boolean {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").trim().toLowerCase();
+  const normalizedRelation = String(relationName || "").trim().toLowerCase();
+
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("could not find") &&
+      (normalizedRelation ? message.includes(normalizedRelation) : true)) ||
+    (message.includes("relation") && message.includes("does not exist"))
+  );
+}
+
 function toSingleRecord<T>(joined: T | T[] | null | undefined): T | null {
   if (!joined) {
     return null;
@@ -156,8 +177,8 @@ export async function fetchHodDashboardData({
   departmentId?: string | null;
   campusScope?: string | null;
 }): Promise<HodDashboardData> {
-  const normalizedDepartmentId = normalizeText(departmentId).toLowerCase();
-  const normalizedCampusScope = normalizeText(campusScope).toLowerCase();
+  const normalizedDepartmentScope = normalizeScope(departmentId);
+  const normalizedCampusScope = normalizeScope(campusScope);
 
   let pendingQuery = supabase
     .from("approval_steps")
@@ -184,14 +205,6 @@ export async function fetchHodDashboardData({
     .eq("role_code", "HOD")
     .eq("status", "PENDING")
     .order("created_at", { ascending: true });
-
-  if (normalizedDepartmentId) {
-    pendingQuery = pendingQuery.eq("approval_requests.organizing_dept", normalizedDepartmentId);
-  }
-
-  if (normalizedCampusScope) {
-    pendingQuery = pendingQuery.eq("approval_requests.campus_hosted_at", normalizedCampusScope);
-  }
 
   const { data: pendingData, error: pendingError } = await pendingQuery;
 
@@ -252,6 +265,44 @@ export async function fetchHodDashboardData({
     );
   }
 
+  const scopedPendingRows = pendingRows.filter((stepRow) => {
+    const requestRow = toSingleRecord(stepRow.approval_requests);
+    if (!requestRow) {
+      return false;
+    }
+
+    const entityType = normalizeEntityType(requestRow.entity_type);
+    const entityRef = normalizeText(requestRow.entity_ref);
+    const isFestEntity = entityType === "FEST";
+
+    const requestDepartmentScope = normalizeScope(requestRow.organizing_dept);
+    const fallbackDepartmentScope = normalizeScope(
+      isFestEntity
+        ? festRowsById.get(entityRef)?.organizing_dept
+        : eventRowsById.get(entityRef)?.organizing_dept
+    );
+    const effectiveDepartmentScope = requestDepartmentScope || fallbackDepartmentScope;
+
+    if (normalizedDepartmentScope && effectiveDepartmentScope !== normalizedDepartmentScope) {
+      return false;
+    }
+
+    const requestCampusScope = normalizeScope(requestRow.campus_hosted_at);
+    if (
+      normalizedCampusScope &&
+      requestCampusScope &&
+      requestCampusScope !== normalizedCampusScope
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const scopedRequestRows = scopedPendingRows
+    .map((row) => toSingleRecord(row.approval_requests))
+    .filter((row): row is ApprovalRequestJoinRow => Boolean(row));
+
   let budgetsByEventId = new Map<string, BudgetRow>();
   if (eventIds.length > 0) {
     const { data: budgetsData, error: budgetsError } = await supabase
@@ -260,20 +311,22 @@ export async function fetchHodDashboardData({
       .in("event_id", eventIds);
 
     if (budgetsError) {
-      throw new Error(`Failed to load event budget details: ${budgetsError.message}`);
+      if (!isMissingRelationError(budgetsError, "event_budgets")) {
+        throw new Error(`Failed to load event budget details: ${budgetsError.message}`);
+      }
+    } else {
+      const budgetRows = Array.isArray(budgetsData) ? (budgetsData as BudgetRow[]) : [];
+      budgetsByEventId = new Map(
+        budgetRows
+          .map((row) => [String(row.event_id || ""), row] as const)
+          .filter(([eventId]) => eventId.length > 0)
+      );
     }
-
-    const budgetRows = Array.isArray(budgetsData) ? (budgetsData as BudgetRow[]) : [];
-    budgetsByEventId = new Map(
-      budgetRows
-        .map((row) => [String(row.event_id || ""), row] as const)
-        .filter(([eventId]) => eventId.length > 0)
-    );
   }
 
   const organizerEmails = Array.from(
     new Set(
-      requestRows
+      scopedRequestRows
         .map((requestRow) => {
           const entityRef = normalizeText(requestRow.entity_ref);
           const entityType = normalizeEntityType(requestRow.entity_type);
@@ -311,7 +364,7 @@ export async function fetchHodDashboardData({
     }
   }
 
-  const queue: HodApprovalQueueItem[] = pendingRows
+  const queue: HodApprovalQueueItem[] = scopedPendingRows
     .map((stepRow) => {
       const requestRow = toSingleRecord(stepRow.approval_requests);
       if (!requestRow) {
@@ -386,8 +439,8 @@ export async function fetchHodDashboardData({
     .gte("events.event_date", startDate)
     .lte("events.event_date", endDate);
 
-  if (normalizedDepartmentId) {
-    ytdBudgetQuery = ytdBudgetQuery.eq("events.organizing_dept", normalizedDepartmentId);
+  if (normalizedDepartmentScope) {
+    ytdBudgetQuery = ytdBudgetQuery.eq("events.organizing_dept", normalizedDepartmentScope);
   }
 
   if (normalizedCampusScope) {
@@ -396,11 +449,14 @@ export async function fetchHodDashboardData({
 
   const { data: ytdBudgetData, error: ytdBudgetError } = await ytdBudgetQuery;
 
-  if (ytdBudgetError) {
+  if (ytdBudgetError && !isMissingRelationError(ytdBudgetError, "event_budgets")) {
     throw new Error(`Failed to load YTD department budget: ${ytdBudgetError.message}`);
   }
 
-  const ytdRows = Array.isArray(ytdBudgetData) ? (ytdBudgetData as BudgetRow[]) : [];
+  const ytdRows =
+    ytdBudgetError || !Array.isArray(ytdBudgetData)
+      ? []
+      : (ytdBudgetData as BudgetRow[]);
   const deptBudgetUsedYtd = ytdRows.reduce((sum, row) => {
     const actual = toNumber(row.total_actual_expense);
     const estimated = toNumber(row.total_estimated_expense);
