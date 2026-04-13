@@ -2254,54 +2254,54 @@ export default function ManageDashboard() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {isHod && (
-                <a href="/manage/hod" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-blue-300 transition-all">
+                <Link href="/manage/hod" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-blue-300 transition-all">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">HOD</div>
                     <h3 className="font-semibold text-slate-800">HOD Review Queue</h3>
                   </div>
                   <p className="text-sm text-slate-500 mb-4">Level 1 approvals for events and fests from your department.</p>
                   <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </a>
+                </Link>
               )}
               {isDean && (
-                <a href="/manage/dean" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-purple-300 transition-all">
+                <Link href="/manage/dean" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-purple-300 transition-all">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm">DEAN</div>
                     <h3 className="font-semibold text-slate-800">Dean Review Queue</h3>
                   </div>
                   <p className="text-sm text-slate-500 mb-4">Level 2 approvals across schools and campuses under your purview.</p>
                   <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </a>
+                </Link>
               )}
               {isCfo && (
-                <a href="/manage/cfo" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all">
+                <Link href="/manage/cfo" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">CFO</div>
                     <h3 className="font-semibold text-slate-800">CFO Budget Queue</h3>
                   </div>
                   <p className="text-sm text-slate-500 mb-4">Level 3 approvals for high-value budget events requiring financial sign-off.</p>
                   <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </a>
+                </Link>
               )}
               {isFinanceOfficer && (
-                <a href="/manage/finance" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-orange-300 transition-all">
+                <Link href="/manage/finance" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-orange-300 transition-all">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-sm">FIN</div>
                     <h3 className="font-semibold text-slate-800">Accounts / Finance Queue</h3>
                   </div>
                   <p className="text-sm text-slate-500 mb-4">Level 4 accounts review and payment authorizations.</p>
                   <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </a>
+                </Link>
               )}
               {isMasterAdmin && (
-                <a href="/masteradmin" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-slate-400 transition-all">
+                <Link href="/masteradmin" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-slate-400 transition-all">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs">ADMIN</div>
                     <h3 className="font-semibold text-slate-800">Master Admin Panel</h3>
                   </div>
                   <p className="text-sm text-slate-500 mb-4">Full pipeline view: all pending approvals across all roles and campuses.</p>
                   <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Panel <ArrowRight className="w-4 h-4" /></span>
-                </a>
+                </Link>
               )}
             </div>
           </div>
