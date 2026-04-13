@@ -142,7 +142,9 @@ export default async function DeanManagePage() {
   }
 
   const deanDepartmentScope = resolveDeanDepartmentScope(userProfile);
-  const hasDepartmentScope = deanDepartmentScope.length > 0;
+  if (!isMasterAdmin && !deanDepartmentScope) {
+    redirect("/error");
+  }
 
   const campusName = String(userProfile.campus || "").trim();
   const l1Threshold = await resolveL1Threshold(supabase, campusName);
@@ -158,16 +160,11 @@ export default async function DeanManagePage() {
   let dashboardData: Awaited<ReturnType<typeof fetchDeanDashboardData>> = fallbackDashboardData;
   let dashboardErrorMessage: string | null = null;
 
-  if (!isMasterAdmin && !hasDepartmentScope) {
-    dashboardErrorMessage =
-      "No Dean department scope is configured for this account. Showing unscoped queue as fallback.";
-  }
-
   try {
     dashboardData = await fetchDeanDashboardData({
       supabase,
-      schoolId: isMasterAdmin || !hasDepartmentScope ? null : deanDepartmentScope,
-    campusScope: isMasterAdmin ? null : campusName,
+      schoolId: isMasterAdmin ? null : deanDepartmentScope,
+      campusScope: isMasterAdmin ? null : campusName,
       l1Threshold,
     });
   } catch (error) {
@@ -183,7 +180,7 @@ export default async function DeanManagePage() {
         </div>
       ) : null}
       <DeanDashboardClient
-        schoolName={isMasterAdmin || !hasDepartmentScope ? "All Departments" : deanDepartmentScope}
+        schoolName={isMasterAdmin ? "All Departments" : deanDepartmentScope}
         l1Threshold={l1Threshold}
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}

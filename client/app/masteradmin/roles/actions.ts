@@ -368,6 +368,26 @@ function isMissingColumnError(error: { message?: string | null; details?: string
   );
 }
 
+function isUuidLike(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized);
+}
+
+function isUuidOrForeignKeyConstraintError(error: {
+  message?: string | null;
+  details?: string | null;
+}): boolean {
+  const text = `${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+  return (
+    text.includes("invalid input syntax for type uuid") ||
+    (text.includes("foreign key") && text.includes("constraint"))
+  );
+}
+
 function isMissingRelationError(error: {
   message?: string | null;
   details?: string | null;
@@ -1151,6 +1171,32 @@ async function applyUsersUpdateWithFallback(
       continue;
     }
 
+    if (isUuidOrForeignKeyConstraintError(error)) {
+      let removedAnyScopedId = false;
+
+      if (
+        Object.prototype.hasOwnProperty.call(payload, "department_id") &&
+        payload.department_id &&
+        !isUuidLike(payload.department_id)
+      ) {
+        delete payload.department_id;
+        removedAnyScopedId = true;
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(payload, "school_id") &&
+        payload.school_id &&
+        !isUuidLike(payload.school_id)
+      ) {
+        delete payload.school_id;
+        removedAnyScopedId = true;
+      }
+
+      if (removedAnyScopedId) {
+        continue;
+      }
+    }
+
     throw new Error(error.message || "Failed to update user access.");
   }
 
@@ -1888,13 +1934,37 @@ export async function assignRoleMatrixEntry(
 
       if (roleValue === "dean") {
         usersUpdatePayload.school = scopeValue;
-        usersUpdatePayload.department = scopeValue;
+        usersUpdatePayload.department = null;
       }
     }
 
     if (Object.keys(usersUpdatePayload).length > 0) {
       usersUpdatePayload.university_role = deriveUniversityRoleFromAccess(nextAccess);
       await applyUsersUpdateWithFallback(adminClient, targetUserId, usersUpdatePayload);
+
+      if (DOMAIN_EXCLUSIVE_MATRIX_ROLES.has(roleValue)) {
+        const canonicalDomainPatch: Record<string, unknown> = {
+          campus,
+          university_role: deriveUniversityRoleFromAccess(nextAccess),
+          is_hod: roleValue === "hod",
+          is_dean: roleValue === "dean",
+          is_cfo: roleValue === "cfo",
+          school:
+            roleValue === "dean"
+              ? scopeValue
+              : roleValue === "hod"
+                ? selectedDepartmentSchool
+                : null,
+          department:
+            roleValue === "hod"
+              ? selectedDepartmentLabel || scopeValue
+              : roleValue === "dean"
+                ? null
+                : null,
+        };
+
+        await applyUsersUpdateWithFallback(adminClient, targetUserId, canonicalDomainPatch);
+      }
     }
 
     if (DOMAIN_EXCLUSIVE_MATRIX_ROLES.has(roleValue)) {
