@@ -2,7 +2,6 @@
 import React, { useMemo, useState } from "react";
 import EventForm, { EventSubmitResult } from "@/app/_components/Admin/ManageEvent";
 import { EventFormData } from "@/app/lib/eventFormSchema";
-import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 
@@ -375,10 +374,14 @@ export default function CreateEventPage() {
     }
   };
 
-  const handleCreateEvent: SubmitHandler<EventFormData> = async (dataFromHookForm) =>
+  const handleCreateEvent = async (
+    dataFromHookForm: EventFormData
+  ): Promise<EventSubmitResult | void> =>
     submitEvent(dataFromHookForm, false);
 
-  const handleSaveDraft: SubmitHandler<EventFormData> = async (dataFromHookForm) =>
+  const handleSaveDraft = async (
+    dataFromHookForm: EventFormData
+  ): Promise<EventSubmitResult | void> =>
     submitEvent(dataFromHookForm, true);
 
   return (

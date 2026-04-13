@@ -8,7 +8,6 @@ import {
   departments as departmentOptions,
   ScheduleItem as ScheduleItemType,
 } from "@/app/lib/eventFormSchema";
-import { SubmitHandler } from "react-hook-form";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
@@ -903,10 +902,14 @@ export default function EditEventPage() {
     }
   };
 
-  const handleUpdateEvent: SubmitHandler<EventFormData> = async (formData) =>
+  const handleUpdateEvent = async (
+    formData: EventFormData
+  ): Promise<EventSubmitResult | void> =>
     submitEventUpdate(formData, { archiveAsDraft: false });
 
-  const handleSaveDraft: SubmitHandler<EventFormData> = async (formData) =>
+  const handleSaveDraft = async (
+    formData: EventFormData
+  ): Promise<EventSubmitResult | void> =>
     submitEventUpdate(formData, { archiveAsDraft: true });
 
   if (authIsLoading || (isLoading && !initialData && !errorMessage)) {
