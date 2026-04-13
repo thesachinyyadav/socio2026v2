@@ -943,22 +943,6 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
 
     return {
       academic: rows.filter((row) => row.role === "HOD" || row.role === "Dean" || row.role === "CFO"),
-      services: rows.filter(
-        (row) =>
-          row.role === "Venue" ||
-          row.role === "IT" ||
-          row.role === "Catering" ||
-          row.role === "Stall"
-      ),
-      governance: rows.filter(
-        (row) =>
-          row.role === "Master Admin" ||
-          row.role === "Organiser" ||
-          row.role === "Student Organizer" ||
-          row.role === "Volunteer" ||
-          row.role === "Support" ||
-          row.role === "Finance Officer"
-      ),
     };
   }, [data.departments, data.roleAssignments, departmentNameById, userById, users]);
 
@@ -1334,20 +1318,12 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-slate-900">Matrix Summary</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Complete role matrix grouped by academic, service, and governance ownership.
+                Snapshot of the current academic role matrix coverage.
               </p>
-              <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Rows</p>
                   <p className="mt-2 text-xl font-black text-slate-900">{matrixSections.academic.length}</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Service Rows</p>
-                  <p className="mt-2 text-xl font-black text-slate-900">{matrixSections.services.length}</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Governance Rows</p>
-                  <p className="mt-2 text-xl font-black text-slate-900">{matrixSections.governance.length}</p>
                 </div>
               </div>
             </div>
