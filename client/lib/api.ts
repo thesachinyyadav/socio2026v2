@@ -9,6 +9,9 @@ export async function getEvents() {
   const { data, error } = await supabase
     .from('events')
     .select('*')
+    .eq('status', 'published')
+    .eq('approval_state', 'APPROVED')
+    .is('fest_id', null)
     .order('created_at', { ascending: false });
   
   if (error) throw error;
@@ -20,6 +23,9 @@ export async function getUpcomingEvents(limit = 50) {
   const { data, error } = await supabase
     .from('events')
     .select('*')
+    .eq('status', 'published')
+    .eq('approval_state', 'APPROVED')
+    .is('fest_id', null)
     .gte('event_date', todayIso)
     .order('event_date', { ascending: true })
     .limit(limit);
@@ -142,7 +148,9 @@ export async function getFests() {
     ];
 
     for (const attempt of attempts) {
-      let query = supabase.from(tableName).select('*');
+      let query = supabase.from(tableName).select('*')
+        .eq('status', 'published')
+        .eq('approval_state', 'APPROVED');
 
       if (attempt.applyOrder) {
         query = query.order('created_at', { ascending: false });
@@ -183,7 +191,9 @@ export async function getUpcomingFests(limit = 50) {
     ];
 
     for (const attempt of attempts) {
-      let query = supabase.from(tableName).select('*');
+      let query = supabase.from(tableName).select('*')
+        .eq('status', 'published')
+        .eq('approval_state', 'APPROVED');
 
       if (attempt.useDateFilterInQuery) {
         query = query.gte('closing_date', todayIso);

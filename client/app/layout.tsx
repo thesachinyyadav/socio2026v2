@@ -237,6 +237,9 @@ async function fetchEventsFromSupabase() {
   const { data, error: supabaseError } = await supabase
     .from("events")
     .select("*")
+    .eq("status", "published")
+    .eq("approval_state", "APPROVED")
+    .is("fest_id", null)
     .order("created_at", { ascending: false });
 
   if (supabaseError) {
@@ -256,6 +259,9 @@ async function fetchUpcomingEventsFromSupabase() {
   const { data, error: supabaseError } = await supabase
     .from("events")
     .select("*")
+    .eq("status", "published")
+    .eq("approval_state", "APPROVED")
+    .is("fest_id", null)
     .gte("event_date", todayIso)
     .order("event_date", { ascending: true })
     .limit(12);
