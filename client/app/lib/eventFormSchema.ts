@@ -172,6 +172,8 @@ export const eventFormSchema = z
       .string()
       .trim()
       .min(1, "Please select a fest option or None"),
+    standaloneRequiresHodApproval: z.boolean().default(false),
+    standaloneRequiresDeanApproval: z.boolean().default(true),
     registrationDeadline: z.string().min(1, "Deadline is required"),
     location: z
       .string()
@@ -338,6 +340,18 @@ export const eventFormSchema = z
       typeof data.festEvent === "string" &&
       data.festEvent.trim() !== "" &&
       data.festEvent.trim().toLowerCase() !== "none";
+
+    if (
+      !hasFestSelected &&
+      !data.standaloneRequiresHodApproval &&
+      !data.standaloneRequiresDeanApproval
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["standaloneRequiresDeanApproval"],
+        message: "Select at least one standalone approval stage (HOD or Dean)",
+      });
+    }
 
     if (!hasFestSelected) {
       return;

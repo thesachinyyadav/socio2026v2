@@ -170,30 +170,9 @@ const parseBooleanWithFallback = (value: unknown, fallbackValue: boolean): boole
 };
 
 const normalizeFestApprovalSettings = (value: unknown): FestApprovalSettings => {
-  const candidate =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
-
-  const requiresHodApproval = parseBooleanWithFallback(
-    candidate.requiresHodApproval,
-    true
-  );
-  const requiresDeanApproval = parseBooleanWithFallback(
-    candidate.requiresDeanApproval,
-    true
-  );
-
-  if (!requiresHodApproval && !requiresDeanApproval) {
-    return {
-      requiresHodApproval: false,
-      requiresDeanApproval: true,
-    };
-  }
-
   return {
-    requiresHodApproval,
-    requiresDeanApproval,
+    requiresHodApproval: true,
+    requiresDeanApproval: true,
   };
 };
 
@@ -1119,16 +1098,12 @@ function CreateFestForm(props?: CreateFestProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDraftFest, setIsDraftFest] = useState(Boolean(props?.isDraft));
-  const [creationStep, setCreationStep] = useState<"details" | "budget">("details");
+  const [creationStep, setCreationStep] = useState<"details" | "approvals" | "budget">("details");
   const [requiresBudgetApproval, setRequiresBudgetApproval] = useState(
     initialBudgetSettings?.requiresBudgetApproval ?? false
   );
-  const [requiresHodApproval, setRequiresHodApproval] = useState(
-    initialApprovalSettings.requiresHodApproval
-  );
-  const [requiresDeanApproval, setRequiresDeanApproval] = useState(
-    initialApprovalSettings.requiresDeanApproval
-  );
+  const [requiresHodApproval, setRequiresHodApproval] = useState(true);
+  const [requiresDeanApproval, setRequiresDeanApproval] = useState(true);
   const [budgetItems, setBudgetItems] = useState<FestBudgetItem[]>(
     initialBudgetSettings?.items?.length
       ? withClientUiKeys(initialBudgetSettings.items, "budget")
@@ -1313,8 +1288,8 @@ function CreateFestForm(props?: CreateFestProps) {
               customFields: parsedCustomFields,
             });
             setRequiresBudgetApproval(parsedBudgetSettings?.requiresBudgetApproval ?? false);
-            setRequiresHodApproval(parsedApprovalSettings.requiresHodApproval);
-            setRequiresDeanApproval(parsedApprovalSettings.requiresDeanApproval);
+            setRequiresHodApproval(true);
+            setRequiresDeanApproval(true);
             setBudgetItems(
               parsedBudgetSettings?.items?.length
                 ? withClientUiKeys(parsedBudgetSettings.items, "budget")
@@ -1991,7 +1966,7 @@ function CreateFestForm(props?: CreateFestProps) {
     return null;
   }, [budgetItems, requiresBudgetApproval]);
 
-  const goToBudgetStep = useCallback(() => {
+  const goToApprovalsStep = useCallback(() => {
     setErrors((prev) => ({ ...prev, submit: undefined }));
     const currentValidationErrors = getValidationErrors({ validateImage: true });
 
@@ -2010,22 +1985,19 @@ function CreateFestForm(props?: CreateFestProps) {
       return;
     }
 
-    setCreationStep("budget");
+    setCreationStep("approvals");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [getValidationErrors, scrollToFirstFestError]);
+
+  const goToBudgetStep = useCallback(() => {
+    setErrors((prev) => ({ ...prev, submit: undefined }));
+    setCreationStep("budget");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   const submitFest = async (saveAsDraft: boolean) => {
     setErrors((prev) => ({ ...prev, submit: undefined }));
     setSubmitIntent(saveAsDraft ? "draft" : "publish");
-
-    if (!requiresHodApproval && !requiresDeanApproval) {
-      setErrors((prev) => ({
-        ...prev,
-        approvalWorkflow: "Select at least one approval stage (HOD or Dean).",
-        submit: "Please configure the approval workflow.",
-      }));
-      return;
-    }
 
     if (!saveAsDraft) {
       const budgetValidationError = validateBudgetForm();
@@ -2338,6 +2310,11 @@ function CreateFestForm(props?: CreateFestProps) {
     e.preventDefault();
 
     if (creationStep === "details") {
+      goToApprovalsStep();
+      return;
+    }
+
+    if (creationStep === "approvals") {
       goToBudgetStep();
       return;
     }
@@ -2793,16 +2770,29 @@ function CreateFestForm(props?: CreateFestProps) {
                 </span>
                 <span
                   className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                    creationStep === "approvals"
+                      ? "bg-blue-50 text-[#154CB3] border-blue-200"
+                      : "bg-gray-50 text-gray-500 border-gray-200"
+                  }`}
+                >
+                  2. Approvals
+                </span>
+                <span
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border ${
                     creationStep === "budget"
                       ? "bg-blue-50 text-[#154CB3] border-blue-200"
                       : "bg-gray-50 text-gray-500 border-gray-200"
                   }`}
                 >
-                  2. Budget approval
+                  3. Budget approval
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-6 sm:mb-8">
-                {creationStep === "details" ? "Fest details" : "Budget page"}
+                {creationStep === "details"
+                  ? "Fest details"
+                  : creationStep === "approvals"
+                  ? "Approvals page"
+                  : "Budget page"}
               </h2>
               <form
                 onSubmit={handleSubmit}
@@ -3833,7 +3823,7 @@ function CreateFestForm(props?: CreateFestProps) {
 
                 </div>
 
-                {creationStep === "budget" && (
+                {creationStep === "approvals" && (
                   <div className="space-y-6">
                     <div
                       id="approval-workflow-section"
@@ -3843,7 +3833,7 @@ function CreateFestForm(props?: CreateFestProps) {
                         Approval workflow
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
-                        Choose who must approve this fest before it goes live.
+                        Fest approvals are compulsory and always include both HOD and Dean.
                       </p>
 
                       <div className="space-y-3">
@@ -3851,17 +3841,7 @@ function CreateFestForm(props?: CreateFestProps) {
                           <input
                             type="checkbox"
                             checked={requiresHodApproval}
-                            onChange={(event) => {
-                              const nextHod = event.target.checked;
-                              setRequiresHodApproval(nextHod);
-                              setErrors((prev) => {
-                                const nextErrors = { ...prev };
-                                if (nextHod || requiresDeanApproval) {
-                                  delete nextErrors.approvalWorkflow;
-                                }
-                                return nextErrors;
-                              });
-                            }}
+                            disabled
                             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
                           />
                           <span>
@@ -3878,17 +3858,7 @@ function CreateFestForm(props?: CreateFestProps) {
                           <input
                             type="checkbox"
                             checked={requiresDeanApproval}
-                            onChange={(event) => {
-                              const nextDean = event.target.checked;
-                              setRequiresDeanApproval(nextDean);
-                              setErrors((prev) => {
-                                const nextErrors = { ...prev };
-                                if (requiresHodApproval || nextDean) {
-                                  delete nextErrors.approvalWorkflow;
-                                }
-                                return nextErrors;
-                              });
-                            }}
+                            disabled
                             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
                           />
                           <span>
@@ -3905,21 +3875,15 @@ function CreateFestForm(props?: CreateFestProps) {
                       <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-gray-700">
                         <p className="font-semibold text-[#063168]">Route preview</p>
                         <p className="mt-1">
-                          {requiresHodApproval && requiresDeanApproval
-                            ? "Fest will go to HOD first, then Dean."
-                            : requiresHodApproval
-                              ? "Fest will go to HOD approval."
-                              : requiresDeanApproval
-                                ? "Fest will go to Dean approval."
-                                : "Select at least one stage to continue."}
+                          Fest will go to HOD first, then Dean.
                         </p>
                       </div>
-
-                      {errors.approvalWorkflow ? (
-                        <p className="mt-2 text-xs text-red-500">{errors.approvalWorkflow}</p>
-                      ) : null}
                     </div>
+                  </div>
+                )}
 
+                {creationStep === "budget" && (
+                  <div className="space-y-6">
                     <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
                       <h3 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
                         Does this fest require a budget approval?
@@ -3930,14 +3894,7 @@ function CreateFestForm(props?: CreateFestProps) {
                       <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
                         <p className="font-semibold text-[#063168]">Approval route preview</p>
                         <p className="mt-1 text-gray-700">
-                          {requiresHodApproval && requiresDeanApproval
-                            ? "HOD and Dean approvals are enabled."
-                            : requiresHodApproval
-                              ? "HOD approval is enabled; Dean approval is disabled."
-                              : requiresDeanApproval
-                                ? "Dean approval is enabled; HOD approval is disabled."
-                                : "At least one approval stage is required."}
-                          {" "}
+                          HOD and Dean approvals are enabled. {" "}
                           {requiresBudgetApproval
                             ? "CFO approval is also required because budget approval is enabled."
                             : "CFO approval is skipped because budget approval is disabled."}
@@ -4232,7 +4189,9 @@ function CreateFestForm(props?: CreateFestProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setCreationStep("details");
+                          setCreationStep(
+                            creationStep === "budget" ? "approvals" : "details"
+                          );
                           setErrors((prev) => ({ ...prev, submit: undefined }));
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
@@ -4272,7 +4231,7 @@ function CreateFestForm(props?: CreateFestProps) {
                       </svg>
                     )}
                     <span>
-                      {creationStep === "details"
+                      {creationStep === "details" || creationStep === "approvals"
                         ? "NEXT"
                         : isUploadingImage
                         ? "Uploading image..."

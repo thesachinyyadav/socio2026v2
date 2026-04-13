@@ -174,6 +174,14 @@ export default function CreateEventPage() {
     if (dataFromHookForm.festEvent && dataFromHookForm.festEvent !== "none") {
       appendIfExists("fest_id", dataFromHookForm.festEvent);
     }
+    formData.append(
+      "requires_hod_approval",
+      String(Boolean(dataFromHookForm.standaloneRequiresHodApproval))
+    );
+    formData.append(
+      "requires_dean_approval",
+      String(Boolean(dataFromHookForm.standaloneRequiresDeanApproval))
+    );
     appendIfExists(
       "registration_deadline",
       dataFromHookForm.registrationDeadline

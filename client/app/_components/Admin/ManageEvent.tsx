@@ -952,6 +952,7 @@ const EVENT_ERROR_SCROLL_ORDER: string[] = [
   "registrationDeadline",
   "eventTime",
   "festEvent",
+  "standaloneRequiresDeanApproval",
   "additionalRequests",
   "isTeamEvent",
   "minParticipants",
@@ -987,6 +988,7 @@ const EVENT_ERROR_SELECTOR_MAP: Record<string, string> = {
   registrationDeadline: "#registrationDeadline",
   eventTime: "#eventTime",
   festEvent: "#festEvent",
+  standaloneRequiresDeanApproval: "#standaloneRequiresDeanApproval",
   additionalRequests: "#additionalRequests-section",
   isTeamEvent: "#isTeamEvent",
   minParticipants: "#minParticipants",
@@ -1254,6 +1256,8 @@ export default function EventForm({
       organizingSchool: "",
       organizingDept: "",
       festEvent: "",
+      standaloneRequiresHodApproval: false,
+      standaloneRequiresDeanApproval: true,
       registrationDeadline: "",
       location: "",
       registrationFee: "",
@@ -1481,6 +1485,14 @@ export default function EventForm({
           : [],
         campusHostedAt: normalizeCampusHostedAt(defaultValues.campusHostedAt),
         allowedCampuses: normalizeAllowedCampuses(defaultValues.allowedCampuses),
+        standaloneRequiresHodApproval:
+          typeof defaultValues.standaloneRequiresHodApproval === "boolean"
+            ? defaultValues.standaloneRequiresHodApproval
+            : false,
+        standaloneRequiresDeanApproval:
+          typeof defaultValues.standaloneRequiresDeanApproval === "boolean"
+            ? defaultValues.standaloneRequiresDeanApproval
+            : true,
         additionalRequests: mergeAdditionalRequests(defaultValues.additionalRequests),
       };
       reset(transformedDefaults);
@@ -1493,6 +1505,14 @@ export default function EventForm({
   const watchedMaxParticipants = useWatch({ control, name: "maxParticipants" });
   const watchedMinParticipants = useWatch({ control, name: "minParticipants" });
   const watchedFestEvent = useWatch({ control, name: "festEvent" });
+  const watchedStandaloneRequiresHodApproval = useWatch({
+    control,
+    name: "standaloneRequiresHodApproval",
+  });
+  const watchedStandaloneRequiresDeanApproval = useWatch({
+    control,
+    name: "standaloneRequiresDeanApproval",
+  });
   const watchedProvideClaims = useWatch({
     control,
     name: "provideClaims",
@@ -1563,8 +1583,22 @@ export default function EventForm({
     selectedFestApprovalState === "APPROVED" &&
     (!selectedFestActivationState || selectedFestActivationState === "ACTIVE");
 
+  const hasStandaloneApproverSelected =
+    Boolean(watchedStandaloneRequiresHodApproval) ||
+    Boolean(watchedStandaloneRequiresDeanApproval);
+
   const publishActionNeedsApproval =
-    (!isEditMode || Boolean(isDraft)) && !isFestWorkflowApproved;
+    (!isEditMode || Boolean(isDraft)) &&
+    !isFestWorkflowApproved &&
+    (hasFestSelected ? true : hasStandaloneApproverSelected);
+  const requiresHodApprovalForPublish =
+    publishActionNeedsApproval &&
+    !hasFestSelected &&
+    Boolean(watchedStandaloneRequiresHodApproval);
+  const requiresDeanApprovalForPublish =
+    publishActionNeedsApproval &&
+    !hasFestSelected &&
+    Boolean(watchedStandaloneRequiresDeanApproval);
   const requiresCfoApprovalForPublish =
     publishActionNeedsApproval && Boolean(watchedProvideClaims);
 
@@ -2517,11 +2551,102 @@ export default function EventForm({
                     </span>
                   </div>
 
+                  {!hasFestSelected ? (
+                    <div className="mt-4 rounded-lg border border-blue-200 bg-white px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Standalone Approval Stages
+                      </p>
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Controller
+                          name="standaloneRequiresHodApproval"
+                          control={control}
+                          render={({ field }) => (
+                            <label
+                              htmlFor="standaloneRequiresHodApproval"
+                              className="flex items-center gap-2 text-sm text-gray-700"
+                            >
+                              <input
+                                id="standaloneRequiresHodApproval"
+                                type="checkbox"
+                                checked={Boolean(field.value)}
+                                onChange={(event) => field.onChange(event.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                              />
+                              HOD approval
+                            </label>
+                          )}
+                        />
+                        <Controller
+                          name="standaloneRequiresDeanApproval"
+                          control={control}
+                          render={({ field }) => (
+                            <label
+                              htmlFor="standaloneRequiresDeanApproval"
+                              className="flex items-center gap-2 text-sm text-gray-700"
+                            >
+                              <input
+                                id="standaloneRequiresDeanApproval"
+                                type="checkbox"
+                                checked={Boolean(field.value)}
+                                onChange={(event) => field.onChange(event.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                              />
+                              Dean approval
+                            </label>
+                          )}
+                        />
+                      </div>
+                      {errors.standaloneRequiresDeanApproval ? (
+                        <p className="mt-2 text-xs text-red-600">
+                          {String(errors.standaloneRequiresDeanApproval.message || "")}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="text-gray-700">HOD approval</span>
+                      <span
+                        className={`font-semibold ${
+                          hasFestSelected
+                            ? "text-gray-600"
+                            : requiresHodApprovalForPublish
+                            ? "text-amber-700"
+                            : publishActionNeedsApproval
+                            ? "text-gray-600"
+                            : "text-emerald-700"
+                        }`}
+                      >
+                        {hasFestSelected
+                          ? "Bypassed"
+                          : requiresHodApprovalForPublish
+                          ? "Required"
+                          : publishActionNeedsApproval
+                          ? "Not required"
+                          : "Bypassed"}
+                      </span>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
                       <span className="text-gray-700">Dean approval</span>
-                      <span className={`font-semibold ${publishActionNeedsApproval ? "text-amber-700" : "text-emerald-700"}`}>
-                        {publishActionNeedsApproval ? "Required" : "Bypassed"}
+                      <span
+                        className={`font-semibold ${
+                          hasFestSelected
+                            ? "text-gray-600"
+                            : requiresDeanApprovalForPublish
+                            ? "text-amber-700"
+                            : publishActionNeedsApproval
+                            ? "text-gray-600"
+                            : "text-emerald-700"
+                        }`}
+                      >
+                        {hasFestSelected
+                          ? "Bypassed"
+                          : requiresDeanApprovalForPublish
+                          ? "Required"
+                          : publishActionNeedsApproval
+                          ? "Not required"
+                          : "Bypassed"}
                       </span>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
@@ -2547,9 +2672,9 @@ export default function EventForm({
                   <p className="mt-3 text-xs sm:text-sm text-gray-700">
                     {hasFestSelected
                       ? isFestWorkflowApproved
-                        ? "Selected fest is approved and active, so Dean/CFO approvals are bypassed for this event."
-                        : "Selected fest is not fully approved yet, so this event follows standalone approval rules (Dean mandatory, CFO only when claims/funds are enabled)."
-                      : "Standalone events always require Dean approval. CFO approval is added when claims/funds are enabled."}
+                        ? "Selected fest is approved and active, so standalone HOD/Dean/CFO approvals are bypassed for this event."
+                        : "Selected fest is not fully approved yet. Publish is blocked until fest workflow is approved."
+                      : "For standalone events, choose HOD and/or Dean approval stages. CFO approval is added when claims/funds are enabled."}
                   </p>
                 </div>
 

@@ -330,28 +330,50 @@ const createStandaloneApprovalRequestForEvent = async ({
   eventRecord,
   userInfo,
   isBudgetRelated,
+  requiresHodApproval = false,
+  requiresDeanApproval = true,
 }) => {
   const eventId = String(eventRecord?.event_id || "").trim();
   if (!eventId) {
     return null;
   }
 
-  const approvalSteps = [
-    {
+  const requiresHod = asBoolean(requiresHodApproval);
+  let requiresDean = asBoolean(requiresDeanApproval);
+
+  // Keep standalone event approvals compulsory by forcing at least one stage.
+  if (!requiresHod && !requiresDean) {
+    requiresDean = true;
+  }
+
+  const approvalSteps = [];
+
+  if (requiresHod) {
+    approvalSteps.push({
+      stepCode: "HOD",
+      roleCode: ROLE_CODES.HOD,
+      stepGroup: approvalSteps.length + 1,
+      sequenceOrder: approvalSteps.length + 1,
+      requiredCount: 1,
+    });
+  }
+
+  if (requiresDean) {
+    approvalSteps.push({
       stepCode: "DEAN",
       roleCode: ROLE_CODES.DEAN,
-      stepGroup: 1,
-      sequenceOrder: 1,
+      stepGroup: approvalSteps.length + 1,
+      sequenceOrder: approvalSteps.length + 1,
       requiredCount: 1,
-    },
-  ];
+    });
+  }
 
   if (Boolean(isBudgetRelated)) {
     approvalSteps.push({
       stepCode: "CFO",
       roleCode: ROLE_CODES.CFO,
-      stepGroup: 2,
-      sequenceOrder: 2,
+      stepGroup: approvalSteps.length + 1,
+      sequenceOrder: approvalSteps.length + 1,
       requiredCount: 1,
     });
   }
@@ -1599,6 +1621,26 @@ router.post(
       const parsedRegistrationFee = parseOptionalFloat(registration_fee);
       const claimsApplicable =
         claims_applicable === "true" || claims_applicable === true;
+      const standaloneHodApprovalRequested = asBoolean(
+        req.body.requires_hod_approval ??
+          req.body.requiresHodApproval ??
+          req.body.standaloneRequiresHodApproval
+      );
+      const standaloneDeanApprovalRaw =
+        req.body.requires_dean_approval ??
+        req.body.requiresDeanApproval ??
+        req.body.standaloneRequiresDeanApproval;
+      let standaloneDeanApprovalRequested =
+        standaloneDeanApprovalRaw === undefined ||
+        standaloneDeanApprovalRaw === null ||
+        String(standaloneDeanApprovalRaw).trim() === ""
+          ? true
+          : asBoolean(standaloneDeanApprovalRaw);
+
+      if (!standaloneHodApprovalRequested && !standaloneDeanApprovalRequested) {
+        standaloneDeanApprovalRequested = true;
+      }
+
       const isStandaloneBudgetRelated = isBudgetRelatedFromEventPayload({
         claimsApplicable,
         registrationFee: parsedRegistrationFee,
@@ -1757,7 +1799,6 @@ router.post(
       const parsedAllowedCampuses = normalizeStringListField(
         req.body.allowed_campuses
       );
-      const userIsOrganizerStudentOnly = isOrganizerStudentOnlyUser(req.userInfo);
 
       let parentFest = null;
       let childFestApproved = false;
@@ -1936,6 +1977,7 @@ router.post(
       const createdEventRecord = created[0];
       let primaryApprovalRequest = null;
       let approvalState = "APPROVED";
+      let pendingHodApproval = false;
       let pendingDeanApproval = false;
       let pendingCfoApproval = false;
 
@@ -1961,11 +2003,14 @@ router.post(
           eventRecord: createdEventRecord,
           userInfo: req.userInfo,
           isBudgetRelated: isStandaloneBudgetRelated,
+          requiresHodApproval: standaloneHodApprovalRequested,
+          requiresDeanApproval: standaloneDeanApprovalRequested,
         });
 
         if (primaryApprovalRequest) {
           approvalState = "UNDER_REVIEW";
-          pendingDeanApproval = true;
+          pendingHodApproval = Boolean(standaloneHodApprovalRequested);
+          pendingDeanApproval = Boolean(standaloneDeanApprovalRequested);
           pendingCfoApproval = Boolean(isStandaloneBudgetRelated);
         }
       }
@@ -2047,10 +2092,20 @@ router.post(
       let responseMessage = "Event created successfully";
       if (queueTeacherApproval && primaryApprovalRequest) {
         responseMessage = "Event submitted successfully and routed to Organizer Teacher approval";
-      } else if (pendingDeanApproval) {
-        responseMessage = pendingCfoApproval
-          ? "Event submitted successfully and routed to Dean and CFO approvals"
-          : "Event submitted successfully and routed to Dean approval";
+      } else if (pendingHodApproval || pendingDeanApproval) {
+        if (pendingHodApproval && pendingDeanApproval) {
+          responseMessage = pendingCfoApproval
+            ? "Event submitted successfully and routed to HOD, Dean, and CFO approvals"
+            : "Event submitted successfully and routed to HOD and Dean approvals";
+        } else if (pendingHodApproval) {
+          responseMessage = pendingCfoApproval
+            ? "Event submitted successfully and routed to HOD and CFO approvals"
+            : "Event submitted successfully and routed to HOD approval";
+        } else {
+          responseMessage = pendingCfoApproval
+            ? "Event submitted successfully and routed to Dean and CFO approvals"
+            : "Event submitted successfully and routed to Dean approval";
+        }
       } else if (!canGoLiveNow && (serviceWorkflow.createdCount || 0) > 0) {
         responseMessage = "Event submitted successfully and routed for service approvals";
       }
@@ -2060,6 +2115,7 @@ router.post(
         event_id,
         created_by: req.userInfo.email,
         pending_teacher_review: queueTeacherApproval && Boolean(primaryApprovalRequest),
+        pending_hod_review: pendingHodApproval,
         pending_dean_review: pendingDeanApproval,
         pending_cfo_review: pendingCfoApproval,
         approval_request_id: primaryApprovalRequest?.request_id || null,
@@ -2345,6 +2401,26 @@ router.put(
       const parsedRegistrationFee = parseOptionalFloat(registration_fee);
       const claimsApplicable =
         claims_applicable === "true" || claims_applicable === true;
+      const standaloneHodApprovalRequested = asBoolean(
+        req.body.requires_hod_approval ??
+          req.body.requiresHodApproval ??
+          req.body.standaloneRequiresHodApproval
+      );
+      const standaloneDeanApprovalRaw =
+        req.body.requires_dean_approval ??
+        req.body.requiresDeanApproval ??
+        req.body.standaloneRequiresDeanApproval;
+      let standaloneDeanApprovalRequested =
+        standaloneDeanApprovalRaw === undefined ||
+        standaloneDeanApprovalRaw === null ||
+        String(standaloneDeanApprovalRaw).trim() === ""
+          ? true
+          : asBoolean(standaloneDeanApprovalRaw);
+
+      if (!standaloneHodApprovalRequested && !standaloneDeanApprovalRequested) {
+        standaloneDeanApprovalRequested = true;
+      }
+
       const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
       const resolvedOrganizerEmail = normalizeEmailAddress(
         organizerEmailInput || event?.organizer_email || req.userInfo?.email || ""
@@ -2665,6 +2741,7 @@ router.put(
         updatedEvent?.service_approval_state
       );
       let workflowApprovalRequest = null;
+      let pendingHodApproval = false;
       let pendingDeanApproval = false;
       let pendingCfoApproval = false;
 
@@ -2693,11 +2770,14 @@ router.put(
             eventRecord: updatedEvent,
             userInfo: req.userInfo,
             isBudgetRelated: standaloneBudgetRelated,
+            requiresHodApproval: standaloneHodApprovalRequested,
+            requiresDeanApproval: standaloneDeanApprovalRequested,
           });
 
           if (workflowApprovalRequest) {
+            pendingHodApproval = Boolean(standaloneHodApprovalRequested);
             nextApprovalState = "UNDER_REVIEW";
-            pendingDeanApproval = true;
+            pendingDeanApproval = Boolean(standaloneDeanApprovalRequested);
             pendingCfoApproval = Boolean(standaloneBudgetRelated);
           }
         }
@@ -2760,10 +2840,20 @@ router.put(
       }
 
       let responseMessage = "Event updated successfully";
-      if (isPublishTransition && pendingDeanApproval) {
-        responseMessage = pendingCfoApproval
-          ? "Event submitted successfully and routed to Dean and CFO approvals"
-          : "Event submitted successfully and routed to Dean approval";
+      if (isPublishTransition && (pendingHodApproval || pendingDeanApproval)) {
+        if (pendingHodApproval && pendingDeanApproval) {
+          responseMessage = pendingCfoApproval
+            ? "Event submitted successfully and routed to HOD, Dean, and CFO approvals"
+            : "Event submitted successfully and routed to HOD and Dean approvals";
+        } else if (pendingHodApproval) {
+          responseMessage = pendingCfoApproval
+            ? "Event submitted successfully and routed to HOD and CFO approvals"
+            : "Event submitted successfully and routed to HOD approval";
+        } else {
+          responseMessage = pendingCfoApproval
+            ? "Event submitted successfully and routed to Dean and CFO approvals"
+            : "Event submitted successfully and routed to Dean approval";
+        }
       } else if (isPublishTransition && activationState !== "ACTIVE") {
         responseMessage = "Event submitted successfully and routed for approval";
       }
@@ -2774,6 +2864,7 @@ router.put(
         event_id: newEventId,
         id_changed: newEventId !== eventId,
         activation_state: activationState,
+        pending_hod_review: pendingHodApproval,
         pending_dean_review: pendingDeanApproval,
         pending_cfo_review: pendingCfoApproval,
         approval_request_id: workflowApprovalRequest?.request_id || null,

@@ -396,6 +396,8 @@ export default function EditEventPage() {
             organizingSchool: data.organizing_school || "",
             organizingDept: data.organizing_dept || "",
             festEvent: data.fest_id || data.fest || "",
+            standaloneRequiresHodApproval: false,
+            standaloneRequiresDeanApproval: true,
             registrationDeadline: data.registration_deadline
               ? dayjs(data.registration_deadline).format("YYYY-MM-DD")
               : "",
@@ -631,6 +633,14 @@ export default function EditEventPage() {
     if (formData.festEvent && formData.festEvent !== "none") {
       payload.append("fest_id", formData.festEvent);
     }
+    payload.append(
+      "requires_hod_approval",
+      String(Boolean(formData.standaloneRequiresHodApproval))
+    );
+    payload.append(
+      "requires_dean_approval",
+      String(Boolean(formData.standaloneRequiresDeanApproval))
+    );
     payload.append("registration_deadline", formData.registrationDeadline || "");
     payload.append("venue", formData.location);
     payload.append("registration_fee", formData.registrationFee || "0");

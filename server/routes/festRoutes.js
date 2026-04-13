@@ -106,28 +106,9 @@ const parseBooleanWithFallback = (value, fallbackValue) => {
 };
 
 const normalizeFestApprovalWorkflow = (value) => {
-  const candidate =
-    value && typeof value === "object" && !Array.isArray(value) ? value : {};
-
-  const requiresHodApproval = parseBooleanWithFallback(
-    candidate.requiresHodApproval ?? candidate.requires_hod_approval,
-    true
-  );
-  const requiresDeanApproval = parseBooleanWithFallback(
-    candidate.requiresDeanApproval ?? candidate.requires_dean_approval,
-    true
-  );
-
-  if (!requiresHodApproval && !requiresDeanApproval) {
-    return {
-      requiresHodApproval: false,
-      requiresDeanApproval: true,
-    };
-  }
-
   return {
-    requiresHodApproval,
-    requiresDeanApproval,
+    requiresHodApproval: true,
+    requiresDeanApproval: true,
   };
 };
 
