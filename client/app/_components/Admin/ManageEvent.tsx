@@ -1656,6 +1656,11 @@ export default function EventForm({
   const hasStandaloneApproverSelected =
     Boolean(watchedStandaloneRequiresHodApproval) ||
     Boolean(watchedStandaloneRequiresDeanApproval);
+  const showStandaloneFlowStepper = !hasFestSelected;
+  const standaloneFlowStepIndex = STANDALONE_FLOW_STEPS.findIndex(
+    (step) => step.key === standaloneFlowStep
+  );
+  const standaloneFlowIsFinalStep = standaloneFlowStep === "budget";
 
   const publishActionNeedsApproval =
     (!isEditMode || Boolean(isDraft)) &&
@@ -1692,6 +1697,64 @@ export default function EventForm({
     ? "Sending for Approval..."
     : "Publishing...";
 
+  const standalonePrimaryActionLabel =
+    standaloneFlowStep === "details"
+      ? "Next: Approvals"
+      : standaloneFlowStep === "approvals"
+      ? "Next: Budget"
+      : primarySubmitLabel;
+
+  const standalonePrimarySubmittingLabel =
+    standaloneFlowStep === "details"
+      ? "Opening approvals..."
+      : standaloneFlowStep === "approvals"
+      ? "Opening budget..."
+      : primarySubmittingLabel;
+
+  const scrollToStandaloneStepTarget = React.useCallback(
+    (step: StandaloneFlowStep) => {
+      if (typeof document === "undefined") return;
+
+      const targetIdByStep: Record<StandaloneFlowStep, string> = {
+        details: "eventTitle",
+        approvals: "standalone-approval-step",
+        budget: "standalone-budget-step",
+      };
+
+      const targetElement = document.getElementById(targetIdByStep[step]);
+      if (!targetElement) return;
+
+      targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      const focusable = targetElement as HTMLElement;
+      if (typeof focusable.focus === "function") {
+        focusable.focus({ preventScroll: true });
+      }
+    },
+    []
+  );
+
+  const goToStandaloneFlowStep = React.useCallback(
+    (step: StandaloneFlowStep) => {
+      setStandaloneFlowStep(step);
+
+      if (typeof window === "undefined") return;
+      window.requestAnimationFrame(() => {
+        scrollToStandaloneStepTarget(step);
+      });
+    },
+    [scrollToStandaloneStepTarget]
+  );
+
+  const handleStandaloneFlowBack = React.useCallback(() => {
+    if (standaloneFlowStep === "budget") {
+      goToStandaloneFlowStep("approvals");
+      return;
+    }
+    if (standaloneFlowStep === "approvals") {
+      goToStandaloneFlowStep("details");
+    }
+  }, [goToStandaloneFlowStep, standaloneFlowStep]);
+
   const lastAutoFilledFestRef = useRef<string | null>(null);
   const prevHasFestSelectedRef = useRef(hasFestSelected);
   const prevItEnabledRef = useRef(Boolean(watchedItEnabled));
@@ -1700,6 +1763,12 @@ export default function EventForm({
   const prevStallsEnabledRef = useRef(Boolean(watchedStallsEnabled));
   const prevCanopySelectedRef = useRef(Boolean(watchedCanopySelected));
   const prevHardboardSelectedRef = useRef(Boolean(watchedHardboardSelected));
+
+  useEffect(() => {
+    if (hasFestSelected && standaloneFlowStep !== "details") {
+      setStandaloneFlowStep("details");
+    }
+  }, [hasFestSelected, standaloneFlowStep]);
 
   useEffect(() => {
     if (!watchedIsTeamEvent) {
@@ -2040,6 +2109,35 @@ export default function EventForm({
       );
     }
   };
+
+  const handleStepperAwareSubmit = React.useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      if (showStandaloneFlowStepper && !standaloneFlowIsFinalStep) {
+        event.preventDefault();
+
+        if (standaloneFlowStep === "details") {
+          goToStandaloneFlowStep("approvals");
+          return;
+        }
+
+        if (standaloneFlowStep === "approvals") {
+          goToStandaloneFlowStep("budget");
+          return;
+        }
+      }
+
+      void handleSubmit(processSubmit, handleInvalidSubmit)(event);
+    },
+    [
+      goToStandaloneFlowStep,
+      handleInvalidSubmit,
+      handleSubmit,
+      processSubmit,
+      showStandaloneFlowStepper,
+      standaloneFlowIsFinalStep,
+      standaloneFlowStep,
+    ]
+  );
 
   const handlePreview = async () => {
     if (isSubmittingProp || rhfIsSubmitting || isDeleting || isOpeningPreview) {
@@ -2464,8 +2562,49 @@ export default function EventForm({
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-6 sm:mb-8">
                 Event details
               </h2>
+              {showStandaloneFlowStepper && (
+                <div className="mb-6 sm:mb-8 rounded-xl border border-blue-100 bg-blue-50/70 p-4 sm:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-700">
+                    Standalone workflow
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {STANDALONE_FLOW_STEPS.map((step, index) => {
+                      const isActive = step.key === standaloneFlowStep;
+                      const isCompleted = index < standaloneFlowStepIndex;
+
+                      return (
+                        <React.Fragment key={step.key}>
+                          <button
+                            type="button"
+                            onClick={() => goToStandaloneFlowStep(step.key)}
+                            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                              isActive
+                                ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                                : isCompleted
+                                ? "border-green-600 bg-green-50 text-green-700"
+                                : "border-blue-200 bg-white text-blue-700 hover:border-blue-400"
+                            }`}
+                            aria-current={isActive ? "step" : undefined}
+                          >
+                            <span className="inline-flex h-5 w-5 items-center justify-center">
+                              {renderStandaloneFlowStepIcon(step.key)}
+                            </span>
+                            <span>{step.label}</span>
+                          </button>
+                          {index < STANDALONE_FLOW_STEPS.length - 1 && (
+                            <span className="h-[1px] w-6 bg-blue-200" aria-hidden="true" />
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-blue-700">
+                    Complete approvals and budget details before final publish.
+                  </p>
+                </div>
+              )}
               <form
-                onSubmit={handleSubmit(processSubmit, handleInvalidSubmit)}
+                onSubmit={handleStepperAwareSubmit}
                 onKeyDown={handleFormKeyDown}
                 className="space-y-6 sm:space-y-8"
                 noValidate
@@ -2603,7 +2742,15 @@ export default function EventForm({
                   />
                 </div>
 
-                <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5">
+                <div
+                  id="standalone-approval-step"
+                  tabIndex={-1}
+                  className={`rounded-2xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5 transition-shadow ${
+                    showStandaloneFlowStepper && standaloneFlowStep === "approvals"
+                      ? "ring-2 ring-blue-400"
+                      : ""
+                  }`}
+                >
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <h3 className="text-sm sm:text-base font-semibold text-[#063168]">
                       Approval workflow
@@ -3232,7 +3379,15 @@ export default function EventForm({
                   </div>
                 )}
 
-                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
+                <div
+                  id="standalone-budget-step"
+                  tabIndex={-1}
+                  className={`bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5 transition-shadow ${
+                    showStandaloneFlowStepper && standaloneFlowStep === "budget"
+                      ? "ring-2 ring-blue-300"
+                      : ""
+                  }`}
+                >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-3">
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <label
@@ -3855,6 +4010,22 @@ export default function EventForm({
                   </button>
                   
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    {showStandaloneFlowStepper && standaloneFlowStep !== "details" && (
+                      <button
+                        type="button"
+                        onClick={handleStandaloneFlowBack}
+                        disabled={
+                          isSubmittingProp ||
+                          rhfIsSubmitting ||
+                          isDeleting ||
+                          isOpeningPreview
+                        }
+                        className="w-full sm:w-auto px-5 py-2.5 border border-slate-300 text-slate-700 bg-white text-sm font-medium rounded-md hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Back: {standaloneFlowStep === "budget" ? "Approvals" : "Details"}
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={handlePreview}
@@ -3969,7 +4140,11 @@ export default function EventForm({
                     className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isSubmittingProp || rhfIsSubmitting
-                      ? primarySubmittingLabel
+                      ? showStandaloneFlowStepper
+                        ? standalonePrimarySubmittingLabel
+                        : primarySubmittingLabel
+                      : showStandaloneFlowStepper
+                      ? standalonePrimaryActionLabel
                       : primarySubmitLabel}
                   </button>
                 </div>
