@@ -6,6 +6,10 @@ import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
 export const dynamic = "force-dynamic";
 
+function resolveSupabaseUrl(): string | null {
+  return process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || null;
+}
+
 function getBearerTokenFromRequest(request: Request): string | null {
   const authorizationHeader = request.headers.get("authorization") || "";
   if (!authorizationHeader.toLowerCase().startsWith("bearer ")) {
@@ -17,15 +21,15 @@ function getBearerTokenFromRequest(request: Request): string | null {
 }
 
 function hasSupabaseConfig(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return Boolean(resolveSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 function hasServiceRoleConfig(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(resolveSupabaseUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 async function buildSupabaseServerClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseUrl = resolveSupabaseUrl()!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const cookieStore = await cookies();
 
@@ -44,7 +48,7 @@ async function buildSupabaseServerClient() {
 }
 
 function buildSupabaseAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseUrl = resolveSupabaseUrl()!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
   return createClient(supabaseUrl, serviceRoleKey, {

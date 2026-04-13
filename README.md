@@ -258,6 +258,7 @@ npm run dev
 ```
 SUPABASE_URL=<your-supabase-url>
 SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+SUPABASE_ANON_KEY=<optional-anon-key-fallback>
 SUPABASE_DB_URL=postgresql://postgres:<password>@<host>:5432/postgres?sslmode=require
 DB_SSL=true
 RESEND_API_KEY=<your-resend-key>
@@ -268,8 +269,14 @@ APP_URL=http://localhost:3000
 
 **Client** -- create `.env.local` in `/client`:
 ```
+# Public browser-safe keys
 NEXT_PUBLIC_SUPABASE_URL=<your-supabase-url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-supabase-anon-key>
+
+# Server-only keys for Next route handlers/server actions (do not prefix with NEXT_PUBLIC)
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
 NEXT_PUBLIC_PWA_URL=<your-pwa-url>
 NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL=https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image
@@ -277,6 +284,11 @@ NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL=https://placehold.co/1200x400/e2e8f0/64
 NEXT_PUBLIC_GOOGLE_CALENDAR_BASE_URL=https://calendar.google.com/calendar/render?action=TEMPLATE
 NEXT_PUBLIC_REMOTE_IMAGE_HOSTS=lh3.googleusercontent.com,*.googleusercontent.com,img.recraft.ai,placehold.co,vkappuaapscvteexogtp.supabase.co,*.supabase.co,christuniversity.in,*.christuniversity.in
 ```
+
+Security note:
+- Never commit `.env` or `.env.local` files with real keys.
+- Only `NEXT_PUBLIC_*` variables are exposed to browser bundles.
+- Keep service-role credentials in server-only variables.
 
 ---
 

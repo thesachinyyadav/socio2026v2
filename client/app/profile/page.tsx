@@ -124,8 +124,8 @@ const UNIVERSITY_ROLE_TO_ROLE_CODES: Record<string, string[]> = {
   organizer_teacher: ["ORGANIZER_TEACHER"],
   hod: ["HOD"],
   dean: ["DEAN"],
-  cfo: ["CFO"],
-  finance_officer: ["FINANCE_OFFICER", "ACCOUNTS"],
+  cfo: ["CFO", "ACCOUNTS"],
+  finance_officer: ["FINANCE_OFFICER"],
   accounts: ["ACCOUNTS", "FINANCE_OFFICER"],
   organiser_student: ["ORGANIZER_STUDENT"],
   organizer_student: ["ORGANIZER_STUDENT"],
@@ -336,10 +336,12 @@ const resolveProfileRoleTags = (userData: UserData | null): string[] => {
   if (userData.is_masteradmin) addRoleTag("Master Admin");
   if (userData.is_hod) addRoleTag("HOD");
   if (userData.is_dean) addRoleTag("Dean");
-  if (userData.is_cfo) addRoleTag("CFO");
+  if (userData.is_cfo) {
+    addRoleTag("CFO");
+    addRoleTag("Accounts");
+  }
   if (userData.is_finance_officer || userData.is_finance_office) {
     addRoleTag("Finance Officer");
-    addRoleTag("Accounts");
   }
   if (userData.is_organiser_student || userData.is_student_organiser || userData.is_student_organizer) {
     addRoleTag("Student Organizer");
@@ -354,6 +356,10 @@ const resolveProfileRoleTags = (userData: UserData | null): string[] => {
     addRoleTag("Stalls/Misc");
   }
   if (userData.is_service_security) addRoleTag("Security");
+
+  if (!userData.is_cfo) {
+    tags.delete(normalizeRoleTagKey("Accounts"));
+  }
 
   return Array.from(tags.values());
 };

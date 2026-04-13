@@ -8,16 +8,13 @@ import { createBrowserClient } from '@supabase/ssr';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
-
-if (!hasSupabaseConfig) {
-  console.warn('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Using a placeholder Supabase client until env vars are configured.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Configure these variables before running the client.'
+  );
 }
 
-const resolvedSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co';
-const resolvedSupabaseAnonKey = supabaseAnonKey || 'placeholder-anon-key';
-
 // Create Supabase client for browser
-export const supabase = createBrowserClient(resolvedSupabaseUrl, resolvedSupabaseAnonKey);
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
 export default supabase;
