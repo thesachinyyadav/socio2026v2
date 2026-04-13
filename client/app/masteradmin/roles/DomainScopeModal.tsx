@@ -5,6 +5,11 @@ import type { DepartmentOption, SchoolOption, VenueOption } from "./types";
 
 export type DomainScopeMode = "hod" | "dean" | "cfo" | "venue_manager";
 
+export type DomainSelection = {
+  scopeValue: string | null;
+  campusValue: string | null;
+};
+
 type DomainScopeModalProps = {
   isOpen: boolean;
   mode: DomainScopeMode;
@@ -13,9 +18,10 @@ type DomainScopeModalProps = {
   schools: SchoolOption[];
   campuses: string[];
   venues: VenueOption[];
-  initialValue: string | null;
+  initialScopeValue: string | null;
+  initialCampusValue: string | null;
   onCancel: () => void;
-  onConfirm: (selectedValue: string) => void;
+  onConfirm: (selection: DomainSelection) => void;
 };
 
 type SelectOption = {
@@ -31,7 +37,8 @@ export default function DomainScopeModal({
   schools,
   campuses,
   venues,
-  initialValue,
+  initialScopeValue,
+  initialCampusValue,
   onCancel,
   onConfirm,
 }: DomainScopeModalProps) {
@@ -65,37 +72,41 @@ export default function DomainScopeModal({
     }));
   }, [mode, departments, schools, campuses, venues]);
 
-  const [selectedValue, setSelectedValue] = useState<string>("");
+  const [selectedScope, setSelectedScope] = useState<string>("");
+  const [selectedCampus, setSelectedCampus] = useState<string>("");
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
 
-    if (initialValue) {
-      setSelectedValue(initialValue);
+    if (mode === "cfo") {
+      const cfoCampus = initialCampusValue || initialScopeValue || options[0]?.id || "";
+      setSelectedScope(cfoCampus);
+      setSelectedCampus(cfoCampus);
       return;
     }
 
-    setSelectedValue(options[0]?.id || "");
-  }, [isOpen, initialValue, options]);
+    setSelectedScope(initialScopeValue || options[0]?.id || "");
+    setSelectedCampus(initialCampusValue || campuses[0] || "");
+  }, [isOpen, initialScopeValue, initialCampusValue, options, campuses, mode]);
 
   if (!isOpen) {
     return null;
   }
 
   const titleByMode: Record<DomainScopeMode, string> = {
-    hod: "Assign Department",
-    dean: "Assign School",
+    hod: "Assign Department & Campus",
+    dean: "Assign School & Campus",
     cfo: "Assign Campus",
-    venue_manager: "Assign Venue",
+    venue_manager: "Assign Venue & Campus",
   };
 
   const helperByMode: Record<DomainScopeMode, string> = {
-    hod: `Select a department for ${userName} before enabling HOD.`,
-    dean: `Select a school for ${userName} before enabling Dean.`,
+    hod: `Select department and campus for ${userName} before enabling HOD.`,
+    dean: `Select school and campus for ${userName} before enabling Dean.`,
     cfo: `Select a campus for ${userName} before enabling CFO.`,
-    venue_manager: `Select a venue for ${userName} before enabling Venue Manager.`,
+    venue_manager: `Select venue and campus for ${userName} before enabling Venue Manager.`,
   };
 
   const labelByMode: Record<DomainScopeMode, string> = {
@@ -120,9 +131,16 @@ export default function DomainScopeModal({
           </label>
           <select
             id="domain-select"
-            value={selectedValue}
-            onChange={(event) => setSelectedValue(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            value={selectedScope}
+            onChange={(event) => {
+              const nextScope = event.target.value;
+              setSelectedScope(nextScope);
+
+              if (mode === "cfo") {
+                setSelectedCampus(nextScope);
+              }
+            }}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#154CB3] focus:outline-none focus:ring-2 focus:ring-blue-100"
           >
             {options.length === 0 ? (
               <option value="">No options available</option>
@@ -136,6 +154,33 @@ export default function DomainScopeModal({
           </select>
         </div>
 
+        {mode !== "cfo" && (
+          <div className="mt-4">
+            <label
+              htmlFor="campus-select"
+              className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500"
+            >
+              Campus
+            </label>
+            <select
+              id="campus-select"
+              value={selectedCampus}
+              onChange={(event) => setSelectedCampus(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#154CB3] focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              {campuses.length === 0 ? (
+                <option value="">No campuses available</option>
+              ) : (
+                campuses.map((campus) => (
+                  <option key={campus} value={campus}>
+                    {campus}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
+
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
             type="button"
@@ -146,9 +191,14 @@ export default function DomainScopeModal({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(selectedValue)}
-            disabled={!selectedValue}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            onClick={() =>
+              onConfirm({
+                scopeValue: selectedScope || null,
+                campusValue: mode === "cfo" ? selectedScope || null : selectedCampus || null,
+              })
+            }
+            disabled={!selectedScope || (mode !== "cfo" && !selectedCampus)}
+            className="rounded-lg bg-[#154CB3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#154cb3df] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             Confirm
           </button>
