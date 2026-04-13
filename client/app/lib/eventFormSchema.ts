@@ -172,7 +172,7 @@ export const eventFormSchema = z
       .string()
       .trim()
       .min(1, "Please select a fest option or None"),
-    standaloneRequiresHodApproval: z.boolean().default(false),
+    standaloneRequiresHodApproval: z.boolean().default(true),
     standaloneRequiresDeanApproval: z.boolean().default(true),
     registrationDeadline: z.string().min(1, "Deadline is required"),
     location: z

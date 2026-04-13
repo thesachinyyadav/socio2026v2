@@ -1324,7 +1324,7 @@ export default function EventForm({
       organizingSchool: "",
       organizingDept: "",
       festEvent: "",
-      standaloneRequiresHodApproval: false,
+      standaloneRequiresHodApproval: true,
       standaloneRequiresDeanApproval: true,
       registrationDeadline: "",
       location: "",
@@ -1558,7 +1558,7 @@ export default function EventForm({
         standaloneRequiresHodApproval:
           typeof defaultValues.standaloneRequiresHodApproval === "boolean"
             ? defaultValues.standaloneRequiresHodApproval
-            : false,
+            : true,
         standaloneRequiresDeanApproval:
           typeof defaultValues.standaloneRequiresDeanApproval === "boolean"
             ? defaultValues.standaloneRequiresDeanApproval
@@ -2821,78 +2821,48 @@ export default function EventForm({
                     </div>
                   ) : null}
 
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
-                      <span className="text-gray-700">HOD approval</span>
-                      <span
-                        className={`font-semibold ${
-                          hasFestSelected
-                            ? "text-gray-600"
-                            : requiresHodApprovalForPublish
-                            ? "text-amber-700"
-                            : publishActionNeedsApproval
-                            ? "text-gray-600"
-                            : "text-emerald-700"
-                        }`}
-                      >
-                        {hasFestSelected
-                          ? "Bypassed"
-                          : requiresHodApprovalForPublish
-                          ? "Required"
-                          : publishActionNeedsApproval
-                          ? "Not required"
-                          : "Bypassed"}
-                      </span>
-                    </div>
-                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
-                      <span className="text-gray-700">Dean approval</span>
-                      <span
-                        className={`font-semibold ${
-                          hasFestSelected
-                            ? "text-gray-600"
-                            : requiresDeanApprovalForPublish
-                            ? "text-amber-700"
-                            : publishActionNeedsApproval
-                            ? "text-gray-600"
-                            : "text-emerald-700"
-                        }`}
-                      >
-                        {hasFestSelected
-                          ? "Bypassed"
-                          : requiresDeanApprovalForPublish
-                          ? "Required"
-                          : publishActionNeedsApproval
-                          ? "Not required"
-                          : "Bypassed"}
-                      </span>
-                    </div>
-                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
-                      <span className="text-gray-700">CFO approval</span>
-                      <span
-                        className={`font-semibold ${
-                          requiresCfoApprovalForPublish
-                            ? "text-amber-700"
-                            : publishActionNeedsApproval
-                            ? "text-gray-600"
-                            : "text-emerald-700"
-                        }`}
-                      >
-                        {requiresCfoApprovalForPublish
-                          ? "Required"
-                          : publishActionNeedsApproval
-                          ? "Not required"
-                          : "Bypassed"}
-                      </span>
-                    </div>
-                  </div>
+                  {hasFestSelected ? (
+                    <>
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                          <span className="text-gray-700">HOD approval</span>
+                          <span className="font-semibold text-gray-600">Bypassed</span>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                          <span className="text-gray-700">Dean approval</span>
+                          <span className="font-semibold text-gray-600">Bypassed</span>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                          <span className="text-gray-700">CFO approval</span>
+                          <span
+                            className={`font-semibold ${
+                              requiresCfoApprovalForPublish
+                                ? "text-amber-700"
+                                : publishActionNeedsApproval
+                                ? "text-gray-600"
+                                : "text-emerald-700"
+                            }`}
+                          >
+                            {requiresCfoApprovalForPublish
+                              ? "Required"
+                              : publishActionNeedsApproval
+                              ? "Not required"
+                              : "Bypassed"}
+                          </span>
+                        </div>
+                      </div>
 
-                  <p className="mt-3 text-xs sm:text-sm text-gray-700">
-                    {hasFestSelected
-                      ? isFestWorkflowApproved
-                        ? "Selected fest is approved and active, so standalone HOD/Dean/CFO approvals are bypassed for this event."
-                        : "Selected fest is not fully approved yet. Publish is blocked until fest workflow is approved."
-                      : "For standalone events, choose HOD and/or Dean approval stages. CFO approval is added when claims/funds are enabled."}
-                  </p>
+                      <p className="mt-3 text-xs sm:text-sm text-gray-700">
+                        {isFestWorkflowApproved
+                          ? "Selected fest is approved and active, so standalone HOD/Dean/CFO approvals are bypassed for this event."
+                          : "Selected fest is not fully approved yet. Publish is blocked until fest workflow is approved."}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-xs sm:text-sm text-gray-700">
+                      For standalone events, HOD and Dean approvals are selected by default. CFO approval is added when claims/funds are enabled.
+                    </p>
+                  )}
                 </div>
 
                 {hasFestSelected && (

@@ -381,6 +381,20 @@ export default function EditEventPage() {
             };
           };
 
+          const parseBooleanWithFallback = (
+            value: unknown,
+            fallback: boolean
+          ): boolean => {
+            if (typeof value === "boolean") return value;
+            if (typeof value === "number") return value !== 0;
+            if (typeof value === "string") {
+              const normalized = value.trim().toLowerCase();
+              if (["true", "1", "yes", "y"].includes(normalized)) return true;
+              if (["false", "0", "no", "n"].includes(normalized)) return false;
+            }
+            return fallback;
+          };
+
           const transformedData: Partial<EventFormData> = {
             eventTitle: data.title || "",
             eventDate: data.event_date
@@ -396,8 +410,14 @@ export default function EditEventPage() {
             organizingSchool: data.organizing_school || "",
             organizingDept: data.organizing_dept || "",
             festEvent: data.fest_id || data.fest || "",
-            standaloneRequiresHodApproval: false,
-            standaloneRequiresDeanApproval: true,
+            standaloneRequiresHodApproval: parseBooleanWithFallback(
+              data.requires_hod_approval,
+              true
+            ),
+            standaloneRequiresDeanApproval: parseBooleanWithFallback(
+              data.requires_dean_approval,
+              true
+            ),
             registrationDeadline: data.registration_deadline
               ? dayjs(data.registration_deadline).format("YYYY-MM-DD")
               : "",
