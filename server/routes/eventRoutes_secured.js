@@ -21,7 +21,12 @@ import {
 import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { ROLE_CODES, hasAnyRoleCode } from "../utils/roleAccessService.js";
-import { resolveDepartmentApproverRole } from "../utils/departmentApprovalRouting.js";
+import {
+  LIFECYCLE_STATUS,
+  deriveLifecycleStatus,
+  normalizeLifecycleStatus,
+  shouldEntityRemainDraft,
+} from "../utils/lifecycleStatus.js";
 
 const router = express.Router();
 const debugRoutesEnabled = process.env.NODE_ENV !== "production";
@@ -109,6 +114,28 @@ const isFestApprovedForChildEvent = (festRecord) => {
   }
 
   if (asBoolean(festRecord.is_archived)) {
+    return false;
+  }
+
+  const lifecycleStatus = normalizeLifecycleStatus(
+    festRecord.status,
+    asBoolean(festRecord.is_draft)
+      ? LIFECYCLE_STATUS.DRAFT
+      : LIFECYCLE_STATUS.PUBLISHED
+  );
+
+  if (
+    lifecycleStatus === LIFECYCLE_STATUS.PUBLISHED ||
+    lifecycleStatus === LIFECYCLE_STATUS.APPROVED
+  ) {
+    return true;
+  }
+
+  if (
+    lifecycleStatus === LIFECYCLE_STATUS.DRAFT ||
+    lifecycleStatus === LIFECYCLE_STATUS.PENDING_APPROVALS ||
+    lifecycleStatus === LIFECYCLE_STATUS.REVISION_REQUESTED
+  ) {
     return false;
   }
 
@@ -336,29 +363,19 @@ const createStandaloneApprovalRequestForEvent = async ({
   if (!eventId) {
     return null;
   }
-
-  const routingResult = await resolveDepartmentApproverRole({
-    organizingDept: eventRecord?.organizing_dept || null,
-  });
-
-  if (!routingResult?.ok) {
-    const routingError = new Error(
-      routingResult?.errorMessage ||
-        "Department approver routing is not configured for this event."
-    );
-    routingError.statusCode = 400;
-    throw routingError;
-  }
-
-  const primaryRoleCode = routingResult.approverRoleCode;
-  const primaryStepCode = primaryRoleCode === ROLE_CODES.HOD ? "HOD" : "DEAN";
-
   const approvalSteps = [
     {
-      stepCode: primaryStepCode,
-      roleCode: primaryRoleCode,
+      stepCode: "HOD",
+      roleCode: ROLE_CODES.HOD,
       stepGroup: 1,
       sequenceOrder: 1,
+      requiredCount: 1,
+    },
+    {
+      stepCode: "DEAN",
+      roleCode: ROLE_CODES.DEAN,
+      stepGroup: 2,
+      sequenceOrder: 2,
       requiredCount: 1,
     },
   ];
@@ -367,8 +384,8 @@ const createStandaloneApprovalRequestForEvent = async ({
     approvalSteps.push({
       stepCode: "CFO",
       roleCode: ROLE_CODES.CFO,
-      stepGroup: 2,
-      sequenceOrder: 2,
+      stepGroup: 3,
+      sequenceOrder: 3,
       requiredCount: 1,
     });
   }
@@ -384,11 +401,6 @@ const createStandaloneApprovalRequestForEvent = async ({
     steps: approvalSteps,
   });
 
-  if (approvalRequest) {
-    approvalRequest.primary_role_code = primaryRoleCode;
-    approvalRequest.primary_step_code = primaryStepCode;
-  }
-
   return approvalRequest;
 };
 
@@ -398,6 +410,7 @@ const applyEventWorkflowState = async ({
   serviceApprovalState,
   approvalRequestId,
   isBudgetRelated,
+  lifecycleStatus,
 }) => {
   const normalizedEventId = String(eventId || "").trim();
   if (!normalizedEventId) {
@@ -406,6 +419,7 @@ const applyEventWorkflowState = async ({
       activationState: "ACTIVE",
       normalizedApprovalState: "APPROVED",
       normalizedServiceState: "APPROVED",
+      normalizedLifecycleStatus: LIFECYCLE_STATUS.DRAFT,
     };
   }
 
@@ -415,12 +429,22 @@ const applyEventWorkflowState = async ({
     normalizedApprovalState,
     normalizedServiceState
   );
+  const normalizedLifecycleStatus = normalizeLifecycleStatus(
+    lifecycleStatus,
+    deriveLifecycleStatus({
+      currentStatus: LIFECYCLE_STATUS.DRAFT,
+      approvalState: normalizedApprovalState,
+      serviceApprovalState: normalizedServiceState,
+      isDraft: true,
+    })
+  );
 
   const workflowPayload = {
     approval_state: normalizedApprovalState,
     service_approval_state: normalizedServiceState,
     activation_state: activationState,
-    is_draft: activationState !== "ACTIVE",
+    status: normalizedLifecycleStatus,
+    is_draft: shouldEntityRemainDraft(normalizedLifecycleStatus),
     updated_at: new Date().toISOString(),
   };
 
@@ -439,6 +463,7 @@ const applyEventWorkflowState = async ({
       activationState,
       normalizedApprovalState,
       normalizedServiceState,
+      normalizedLifecycleStatus,
     };
   } catch (error) {
     const missingWorkflowColumns =
@@ -446,7 +471,8 @@ const applyEventWorkflowState = async ({
       isMissingColumnError(error, "service_approval_state") ||
       isMissingColumnError(error, "activation_state") ||
       isMissingColumnError(error, "approval_request_id") ||
-      isMissingColumnError(error, "is_budget_related");
+      isMissingColumnError(error, "is_budget_related") ||
+      isMissingColumnError(error, "status");
 
     if (missingWorkflowColumns) {
       console.warn("[EventWorkflow] Workflow state columns missing; skipping workflow-state persistence.");
@@ -455,6 +481,7 @@ const applyEventWorkflowState = async ({
         activationState,
         normalizedApprovalState,
         normalizedServiceState,
+        normalizedLifecycleStatus,
       };
     }
 
@@ -562,6 +589,214 @@ const createServiceRequestsForEvent = async ({ eventRecord, userInfo, approvalRe
     throw error;
   }
 };
+
+const findLatestApprovalRequestByEntityRef = async ({ entityRef, entityTypes }) => {
+  const normalizedEntityRef = String(entityRef || "").trim();
+  if (!normalizedEntityRef) {
+    return null;
+  }
+
+  const allowedEntityTypes = new Set(
+    (entityTypes || [])
+      .map((entityType) => normalizeWorkflowStatus(entityType))
+      .filter(Boolean)
+  );
+
+  if (allowedEntityTypes.size === 0) {
+    return null;
+  }
+
+  const rows = await queryAll("approval_requests", {
+    where: { entity_ref: normalizedEntityRef },
+    order: { column: "created_at", ascending: false },
+  });
+
+  return (
+    (rows || []).find((row) =>
+      allowedEntityTypes.has(normalizeWorkflowStatus(row?.entity_type))
+    ) || null
+  );
+};
+
+const hasApprovedStepForCodes = (steps, requiredCodes) => {
+  const requiredCodeSet = new Set(
+    (requiredCodes || []).map((code) => normalizeWorkflowStatus(code)).filter(Boolean)
+  );
+
+  if (requiredCodeSet.size === 0) {
+    return true;
+  }
+
+  return (steps || []).some((step) => {
+    const stepCode = normalizeWorkflowStatus(step?.step_code);
+    const roleCode = normalizeWorkflowStatus(step?.role_code);
+    const stepStatus = normalizeWorkflowStatus(step?.status);
+
+    if (stepStatus !== "APPROVED") {
+      return false;
+    }
+
+    return requiredCodeSet.has(stepCode) || requiredCodeSet.has(roleCode);
+  });
+};
+
+const isNoFinancialRequirementsRequested = (value) => {
+  if (value === true || value === 1 || value === "1") return true;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "yes" || normalized === "on";
+  }
+  return false;
+};
+
+const validateStandaloneApprovalChainForPublish = async ({ eventRecord }) => {
+  const eventId = String(eventRecord?.event_id || "").trim();
+  if (!eventId) {
+    return { ok: false, reason: "Event id missing" };
+  }
+
+  const approvalRequest = await findLatestApprovalRequestByEntityRef({
+    entityRef: eventId,
+    entityTypes: ["STANDALONE_EVENT", "EVENT"],
+  });
+
+  if (!approvalRequest) {
+    return { ok: false, reason: "Approval request not found" };
+  }
+
+  const requestStatus = normalizeWorkflowStatus(approvalRequest.status);
+  if (requestStatus !== "APPROVED") {
+    return { ok: false, reason: "Approval request is not approved" };
+  }
+
+  const steps = await queryAll("approval_steps", {
+    where: { approval_request_id: approvalRequest.id },
+    order: { column: "sequence_order", ascending: true },
+  });
+
+  const hasHodApproval = hasApprovedStepForCodes(steps, ["HOD", ROLE_CODES.HOD]);
+  const hasDeanApproval = hasApprovedStepForCodes(steps, ["DEAN", ROLE_CODES.DEAN]);
+  const isBudgetRelated =
+    asBoolean(eventRecord?.is_budget_related) ||
+    isBudgetRelatedFromEventPayload({
+      claimsApplicable: eventRecord?.claims_applicable,
+      registrationFee: eventRecord?.registration_fee,
+    });
+
+  const hasFinanceApproval = !isBudgetRelated
+    ? true
+    : hasApprovedStepForCodes(steps, [
+        "CFO",
+        "FINANCE",
+        "ACCOUNTS",
+        ROLE_CODES.CFO,
+        ROLE_CODES.ACCOUNTS,
+      ]);
+
+  return {
+    ok: hasHodApproval && hasDeanApproval && hasFinanceApproval,
+    reason: hasHodApproval
+      ? hasDeanApproval
+        ? hasFinanceApproval
+          ? ""
+          : "Finance approval missing"
+        : "Dean approval missing"
+      : "HOD approval missing",
+  };
+};
+
+const validateLegacyLogisticsTableStatus = async ({ tableName, eventId }) => {
+  try {
+    const rows = await queryAll(tableName, {
+      where: { event_id: eventId },
+      select: "status",
+    });
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return true;
+    }
+
+    return rows.every(
+      (row) => normalizeWorkflowStatus(row?.status) === "APPROVED"
+    );
+  } catch (error) {
+    if (isMissingRelationError(error) || isMissingColumnError(error, "event_id")) {
+      return true;
+    }
+
+    throw error;
+  }
+};
+
+const validateSubEventLogisticsForPublish = async ({ eventRecord }) => {
+  const eventId = String(eventRecord?.event_id || "").trim();
+  if (!eventId) {
+    return { ok: false, reason: "Event id missing" };
+  }
+
+  const normalizedFestId = normalizeFestReference(eventRecord?.fest_id);
+  if (!normalizedFestId) {
+    return { ok: false, reason: "fest_id missing for sub-event" };
+  }
+
+  const parentFest = await queryFestById(normalizedFestId);
+  if (!parentFest) {
+    return { ok: false, reason: "Parent fest not found" };
+  }
+
+  const additionalRequests = sanitizeAdditionalRequests(eventRecord?.additional_requests);
+  const requiredServiceRoles = collectRequestedServiceRoleCodes(additionalRequests);
+  const serviceRequests = await queryAll("service_requests", {
+    where: { event_id: eventId },
+    order: { column: "created_at", ascending: false },
+  }).catch((error) => {
+    if (isMissingRelationError(error)) {
+      return [];
+    }
+
+    throw error;
+  });
+
+  const serviceRows = Array.isArray(serviceRequests) ? serviceRequests : [];
+
+  for (const roleCode of requiredServiceRoles) {
+    const roleRows = serviceRows.filter(
+      (row) =>
+        normalizeWorkflowStatus(row?.service_role_code) ===
+        normalizeWorkflowStatus(roleCode)
+    );
+
+    if (roleRows.length === 0) {
+      return { ok: false, reason: `Missing service approvals for ${roleCode}` };
+    }
+
+    const hasPendingOrRejected = roleRows.some((row) => {
+      const status = normalizeWorkflowStatus(row?.status, "PENDING");
+      return status !== "APPROVED";
+    });
+
+    if (hasPendingOrRejected) {
+      return { ok: false, reason: `Service approvals incomplete for ${roleCode}` };
+    }
+  }
+
+  const [venueBookingsOk, eventResourcesOk] = await Promise.all([
+    validateLegacyLogisticsTableStatus({ tableName: "venue_bookings", eventId }),
+    validateLegacyLogisticsTableStatus({ tableName: "event_resources", eventId }),
+  ]);
+
+  if (!venueBookingsOk || !eventResourcesOk) {
+    return { ok: false, reason: "Legacy logistics approvals are incomplete" };
+  }
+
+  return { ok: true, reason: "" };
+};
+
+const getIncompleteApprovalErrorPayload = (reason) => ({
+  error: "403 Forbidden: Incomplete Approval Chain",
+  code: "INCOMPLETE_APPROVAL_CHAIN",
+  reason: reason || "Required approvals are incomplete",
+});
 
 // HEALTH CHECK - Verify Supabase connection
 router.get("/debug/health", async (req, res) => {
