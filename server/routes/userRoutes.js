@@ -46,6 +46,49 @@ function isMissingRoleAssignmentsTableError(error) {
   );
 }
 
+function normalizeNullableText(value) {
+  const normalized = String(value || "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+async function resolveDepartmentMetadataForUser(user) {
+  const departmentId = normalizeNullableText(user?.department_id);
+  if (!departmentId) {
+    return {
+      department: normalizeNullableText(user?.department),
+      school: normalizeNullableText(user?.school),
+    };
+  }
+
+  try {
+    const departmentRow = await queryOne("departments_courses", {
+      where: { id: departmentId },
+    });
+
+    if (!departmentRow) {
+      return {
+        department: normalizeNullableText(user?.department),
+        school: normalizeNullableText(user?.school),
+      };
+    }
+
+    return {
+      department:
+        normalizeNullableText(departmentRow.department_name) ||
+        normalizeNullableText(user?.department),
+      school:
+        normalizeNullableText(departmentRow.school) ||
+        normalizeNullableText(user?.school),
+    };
+  } catch (error) {
+    console.warn("Unable to resolve department metadata for user profile response:", error);
+    return {
+      department: normalizeNullableText(user?.department),
+      school: normalizeNullableText(user?.school),
+    };
+  }
+}
+
 // Get all users with optional search and role filter (master admin only)
 router.get(
   "/",
@@ -227,8 +270,11 @@ router.get("/:email", async (req, res) => {
 
     const roleCodes = combineRoleCodes(roleCodesFromUserRecord, assignmentFallbackRoleCodes);
     const legacyRoleFlags = deriveLegacyFlagsFromRoleCodes(roleCodes, user);
+    const departmentMetadata = await resolveDepartmentMetadataForUser(user);
     const enrichedUser = {
       ...user,
+      department: departmentMetadata.department,
+      school: departmentMetadata.school,
       ...legacyRoleFlags,
       role_codes: roleCodes,
     };
