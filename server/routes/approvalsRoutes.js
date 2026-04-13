@@ -16,6 +16,11 @@ import {
   isServiceRoleCode,
   normalizeRoleCode,
 } from "../utils/roleAccessService.js";
+import {
+  LIFECYCLE_STATUS,
+  normalizeLifecycleStatus,
+  shouldEntityRemainDraft,
+} from "../utils/lifecycleStatus.js";
 
 const router = express.Router();
 
@@ -77,6 +82,33 @@ const resolveActivationState = (approvalState, serviceState) => {
   return "ACTIVE";
 };
 
+const resolveLifecycleStatusFromWorkflow = ({
+  currentStatus,
+  approvalState,
+  serviceApprovalState,
+}) => {
+  const normalizedApprovalState = normalizeWorkflowStatus(approvalState, "PENDING");
+  const normalizedServiceState = normalizeWorkflowStatus(serviceApprovalState, "APPROVED");
+
+  if (normalizedApprovalState === "REJECTED" || normalizedServiceState === "REJECTED") {
+    return LIFECYCLE_STATUS.REVISION_REQUESTED;
+  }
+
+  if (
+    normalizedApprovalState === "UNDER_REVIEW" ||
+    normalizedApprovalState === "PENDING" ||
+    normalizedServiceState === "PENDING"
+  ) {
+    return LIFECYCLE_STATUS.PENDING_APPROVALS;
+  }
+
+  if (normalizedApprovalState === "APPROVED" && normalizedServiceState === "APPROVED") {
+    return LIFECYCLE_STATUS.APPROVED;
+  }
+
+  return normalizeLifecycleStatus(currentStatus, LIFECYCLE_STATUS.DRAFT);
+};
+
 const recomputeEventServiceApprovalState = async (eventId) => {
   if (!eventId) {
     return "APPROVED";
@@ -132,13 +164,22 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
 
     const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
     const serviceApprovalState = await recomputeEventServiceApprovalState(eventId);
+    const resolvedActivationState = resolveActivationState(
+      normalizedRequestStatus,
+      serviceApprovalState
+    );
+    const lifecycleStatus = resolveLifecycleStatusFromWorkflow({
+      currentStatus: eventRecord?.status,
+      approvalState: normalizedRequestStatus,
+      serviceApprovalState,
+    });
 
     const updates = {
       approval_state: normalizedRequestStatus,
       service_approval_state: serviceApprovalState,
-      activation_state: resolveActivationState(normalizedRequestStatus, serviceApprovalState),
-      is_draft:
-        resolveActivationState(normalizedRequestStatus, serviceApprovalState) !== "ACTIVE",
+      activation_state: resolvedActivationState,
+      status: lifecycleStatus,
+      is_draft: shouldEntityRemainDraft(lifecycleStatus),
       updated_at: nowIso,
     };
 
@@ -165,7 +206,8 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
       isMissingColumnError(error, "approval_state") ||
       isMissingColumnError(error, "activation_state") ||
       isMissingColumnError(error, "service_approval_state") ||
-      isMissingColumnError(error, "is_draft")
+      isMissingColumnError(error, "is_draft") ||
+      isMissingColumnError(error, "status")
     ) {
       return;
     }
@@ -182,29 +224,6 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
 
   const nowIso = new Date().toISOString();
   const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
-  const updates = {
-    approval_state: normalizedRequestStatus,
-    activation_state: normalizedRequestStatus === "APPROVED" ? "ACTIVE" : normalizedRequestStatus === "REJECTED" ? "REJECTED" : "PENDING",
-    is_draft:
-      (normalizedRequestStatus === "APPROVED" ? "ACTIVE" : normalizedRequestStatus === "REJECTED" ? "REJECTED" : "PENDING") !== "ACTIVE",
-    updated_at: nowIso,
-  };
-
-  if (normalizedRequestStatus === "APPROVED") {
-    updates.approved_at = nowIso;
-    updates.approved_by = decidedByEmail || null;
-    updates.rejected_at = null;
-    updates.rejected_by = null;
-    updates.rejection_reason = null;
-  }
-
-  if (normalizedRequestStatus === "REJECTED") {
-    updates.rejected_at = nowIso;
-    updates.rejected_by = decidedByEmail || null;
-    updates.rejection_reason = comment || "Rejected in approval workflow";
-    updates.approved_at = null;
-    updates.approved_by = null;
-  }
 
   for (const tableName of ["fests", "fest"]) {
     try {
@@ -214,6 +233,41 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
 
       if (!festRecord) {
         continue;
+      }
+
+      const resolvedActivationState =
+        normalizedRequestStatus === "APPROVED"
+          ? "ACTIVE"
+          : normalizedRequestStatus === "REJECTED"
+          ? "REJECTED"
+          : "PENDING";
+      const lifecycleStatus = resolveLifecycleStatusFromWorkflow({
+        currentStatus: festRecord?.status,
+        approvalState: normalizedRequestStatus,
+        serviceApprovalState: "APPROVED",
+      });
+      const updates = {
+        approval_state: normalizedRequestStatus,
+        activation_state: resolvedActivationState,
+        status: lifecycleStatus,
+        is_draft: shouldEntityRemainDraft(lifecycleStatus),
+        updated_at: nowIso,
+      };
+
+      if (normalizedRequestStatus === "APPROVED") {
+        updates.approved_at = nowIso;
+        updates.approved_by = decidedByEmail || null;
+        updates.rejected_at = null;
+        updates.rejected_by = null;
+        updates.rejection_reason = null;
+      }
+
+      if (normalizedRequestStatus === "REJECTED") {
+        updates.rejected_at = nowIso;
+        updates.rejected_by = decidedByEmail || null;
+        updates.rejection_reason = comment || "Rejected in approval workflow";
+        updates.approved_at = null;
+        updates.approved_by = null;
       }
 
       await update(tableName, updates, { fest_id: festId });
@@ -226,7 +280,8 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
       if (
         isMissingColumnError(error, "approval_state") ||
         isMissingColumnError(error, "activation_state") ||
-        isMissingColumnError(error, "is_draft")
+        isMissingColumnError(error, "is_draft") ||
+        isMissingColumnError(error, "status")
       ) {
         return;
       }
@@ -271,12 +326,21 @@ const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comme
 
     const serviceApprovalState = await recomputeEventServiceApprovalState(eventId);
     const currentApprovalState = normalizeWorkflowStatus(eventRecord.approval_state, "APPROVED");
+    const resolvedActivationState = resolveActivationState(
+      currentApprovalState,
+      serviceApprovalState
+    );
+    const lifecycleStatus = resolveLifecycleStatusFromWorkflow({
+      currentStatus: eventRecord?.status,
+      approvalState: currentApprovalState,
+      serviceApprovalState,
+    });
 
     const updates = {
       service_approval_state: serviceApprovalState,
-      activation_state: resolveActivationState(currentApprovalState, serviceApprovalState),
-      is_draft:
-        resolveActivationState(currentApprovalState, serviceApprovalState) !== "ACTIVE",
+      activation_state: resolvedActivationState,
+      status: lifecycleStatus,
+      is_draft: shouldEntityRemainDraft(lifecycleStatus),
       updated_at: nowIso,
     };
 
@@ -300,7 +364,8 @@ const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comme
       isMissingRelationError(error) ||
       isMissingColumnError(error, "service_approval_state") ||
       isMissingColumnError(error, "activation_state") ||
-      isMissingColumnError(error, "is_draft")
+      isMissingColumnError(error, "is_draft") ||
+      isMissingColumnError(error, "status")
     ) {
       return;
     }

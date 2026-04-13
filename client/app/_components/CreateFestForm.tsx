@@ -15,6 +15,11 @@ import {
 } from "../lib/festPreviewDraft";
 import toast from "react-hot-toast";
 import PublishingOverlay from "./UI/PublishingOverlay";
+import {
+  getPublishActionLabel,
+  getPublishSubmittingLabel,
+  resolvePublishActionMode,
+} from "./PublishActionButton";
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const ALLOWED_FEST_IMAGE_TYPES = [
   "image/jpeg",
@@ -1027,6 +1032,7 @@ interface CreateFestProps {
   social_links?: { platform: string; url: string }[];
   faqs?: { question: string; answer: string }[];
   customFields?: any[];
+  lifecycleStatus?: string | null;
 }
 
 const FullPageSpinner: React.FC<{ text: string }> = ({ text }) => (
@@ -1098,6 +1104,9 @@ function CreateFestForm(props?: CreateFestProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDraftFest, setIsDraftFest] = useState(Boolean(props?.isDraft));
+  const [lifecycleStatus, setLifecycleStatus] = useState<string | null>(
+    props?.lifecycleStatus ?? (props?.isDraft ? "draft" : null)
+  );
   const [creationStep, setCreationStep] = useState<"details" | "approvals" | "budget">("details");
   const [requiresBudgetApproval, setRequiresBudgetApproval] = useState(
     initialBudgetSettings?.requiresBudgetApproval ?? false
@@ -1198,6 +1207,17 @@ function CreateFestForm(props?: CreateFestProps) {
       setIsDraftFest(props.isDraft);
     }
   }, [props?.isDraft]);
+
+  useEffect(() => {
+    if (typeof props?.lifecycleStatus === "string" && props.lifecycleStatus.trim()) {
+      setLifecycleStatus(props.lifecycleStatus.trim().toLowerCase());
+      return;
+    }
+
+    if (typeof props?.isDraft === "boolean") {
+      setLifecycleStatus(props.isDraft ? "draft" : "published");
+    }
+  }, [props?.isDraft, props?.lifecycleStatus]);
 
   useEffect(() => {
     if (isEditModeFromPath && festIdFromPath && session?.access_token) {
@@ -1301,6 +1321,19 @@ function CreateFestForm(props?: CreateFestProps) {
                 data.fest.is_draft === 1 ||
                 data.fest.is_draft === "1" ||
                 data.fest.is_draft === "true"
+            );
+            setLifecycleStatus(
+              String(
+                data.fest.status ||
+                  (data.fest.is_draft === true ||
+                  data.fest.is_draft === 1 ||
+                  data.fest.is_draft === "1" ||
+                  data.fest.is_draft === "true"
+                    ? "draft"
+                    : "published")
+              )
+                .trim()
+                .toLowerCase()
             );
           } else {
             throw new Error("Fest data not found in response.");
@@ -2254,11 +2287,20 @@ function CreateFestForm(props?: CreateFestProps) {
 
       // Handle response - check if fest_id changed
       if (responseData?.fest) {
-        setIsDraftFest(
+        const draftState =
           responseData.fest.is_draft === true ||
             responseData.fest.is_draft === 1 ||
             responseData.fest.is_draft === "1" ||
-            responseData.fest.is_draft === "true"
+            responseData.fest.is_draft === "true";
+        setIsDraftFest(draftState);
+        setLifecycleStatus(
+          String(
+            responseData.lifecycle_status ||
+              responseData.fest.status ||
+              (draftState ? "draft" : "published")
+          )
+            .trim()
+            .toLowerCase()
         );
       }
       
@@ -2321,6 +2363,12 @@ function CreateFestForm(props?: CreateFestProps) {
 
     await submitFest(false);
   };
+
+  const resolvedFestPublishMode = resolvePublishActionMode({
+    lifecycleStatus: lifecycleStatus || (isDraftFest ? "draft" : "published"),
+    requiresApproval: true,
+    defaultDraftMode: "send_for_approval",
+  });
 
   const handlePreview = async () => {
     if (isSubmitting || isNavigating || isUploadingImage || isOpeningPreview) {
@@ -4236,10 +4284,8 @@ function CreateFestForm(props?: CreateFestProps) {
                         : isUploadingImage
                         ? "Uploading image..."
                         : isSubmitting
-                        ? submitIntent === "draft"
-                          ? "Saving Draft..."
-                          : "Sending for approval..."
-                        : "Send for approval"}
+                        ? getPublishSubmittingLabel(resolvedFestPublishMode, "fest")
+                        : getPublishActionLabel(resolvedFestPublishMode, "fest")}
                     </span>
                   </button>
                 </div>

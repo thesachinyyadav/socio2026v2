@@ -21,6 +21,24 @@ const getPendingApprovalLabel = (workflowStatus?: string | null) => {
   return `Awaiting ${levelLabel} approval`;
 };
 
+const normalizeLifecycleStatus = (
+  value: unknown,
+  fallback: "draft" | "published" = "draft"
+): "draft" | "pending_approvals" | "revision_requested" | "approved" | "published" => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (
+    normalized === "draft" ||
+    normalized === "pending_approvals" ||
+    normalized === "revision_requested" ||
+    normalized === "approved" ||
+    normalized === "published"
+  ) {
+    return normalized;
+  }
+
+  return fallback;
+};
+
 interface FestDataForEdit {
   title: string;
   openingDate: string;
@@ -45,6 +63,7 @@ const EditPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [workflowStatus, setWorkflowStatus] = useState<string | null>(null);
+  const [lifecycleStatus, setLifecycleStatus] = useState<string | null>(null);
 
   const [existingImageFileUrl, setExistingImageFileUrl] = useState<
     string | null
@@ -58,7 +77,11 @@ const EditPage = () => {
 
   const isMasterAdminUser = Boolean((userData as any)?.is_masteradmin);
   const pendingApprovalLabel = getPendingApprovalLabel(workflowStatus);
-  const isPendingApprovalLocked = Boolean(pendingApprovalLabel) && !isMasterAdminUser;
+  const isLifecyclePendingApproval =
+    normalizeLifecycleStatus(lifecycleStatus, "draft") === "pending_approvals";
+  const isPendingApprovalLocked =
+    (Boolean(pendingApprovalLabel) || isLifecyclePendingApproval) &&
+    !isMasterAdminUser;
 
   useEffect(() => {
     if (festId && session?.access_token) {
@@ -82,6 +105,16 @@ const EditPage = () => {
           if (data.fest) {
             const normalizedWorkflowStatus = String(data.fest.workflow_status || "").trim().toLowerCase();
             setWorkflowStatus(normalizedWorkflowStatus || null);
+            const normalizedLifecycleStatus = normalizeLifecycleStatus(
+              data.fest.status,
+              data.fest.is_draft === true ||
+                data.fest.is_draft === 1 ||
+                data.fest.is_draft === "1" ||
+                data.fest.is_draft === "true"
+                ? "draft"
+                : "published"
+            );
+            setLifecycleStatus(normalizedLifecycleStatus);
 
             // Transform event_heads to new format
             const eventHeadsData = data.fest.event_heads || [];
@@ -195,6 +228,7 @@ const EditPage = () => {
       existingBannerFileUrl={existingBannerFileUrl}
       existingPdfFileUrl={existingPdfFileUrl}
       isDraft={Boolean(festData?.isDraft)}
+      lifecycleStatus={lifecycleStatus}
     />
   );
 };

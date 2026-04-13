@@ -399,6 +399,7 @@ export default function CreateEventPage() {
         onSubmitDraft={handleSaveDraft}
         isSubmittingProp={isSubmitting}
         isEditMode={false}
+        lifecycleStatus="draft"
         existingImageFileUrl={null}
         existingBannerFileUrl={null}
         existingPdfFileUrl={null}

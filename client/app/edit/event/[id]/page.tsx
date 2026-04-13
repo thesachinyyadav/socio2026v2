@@ -28,6 +28,24 @@ const getPendingApprovalLabel = (workflowStatus?: string | null) => {
   return `Awaiting ${levelLabel} approval`;
 };
 
+const normalizeLifecycleStatus = (
+  value: unknown,
+  fallback: "draft" | "published" = "draft"
+): "draft" | "pending_approvals" | "revision_requested" | "approved" | "published" => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (
+    normalized === "draft" ||
+    normalized === "pending_approvals" ||
+    normalized === "revision_requested" ||
+    normalized === "approved" ||
+    normalized === "published"
+  ) {
+    return normalized;
+  }
+
+  return fallback;
+};
+
 export default function EditEventPage() {
   const params = useParams();
   const eventIdSlug = params?.id as string;
@@ -61,11 +79,16 @@ export default function EditEventPage() {
   const [isDraft, setIsDraft] = useState(false);
   const [isArchiveUpdating, setIsArchiveUpdating] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<string | null>(null);
+  const [lifecycleStatus, setLifecycleStatus] = useState<string | null>(null);
   const [canEditLoadedEvent, setCanEditLoadedEvent] = useState(false);
 
   const isMasterAdminUser = Boolean((userData as any)?.is_masteradmin);
   const pendingApprovalLabel = getPendingApprovalLabel(workflowStatus);
-  const isPendingApprovalLocked = Boolean(pendingApprovalLabel) && !isMasterAdminUser;
+  const isLifecyclePendingApproval =
+    normalizeLifecycleStatus(lifecycleStatus, "draft") === "pending_approvals";
+  const isPendingApprovalLocked =
+    (Boolean(pendingApprovalLabel) || isLifecyclePendingApproval) &&
+    !isMasterAdminUser;
 
   useEffect(() => {
     if (authIsLoading) return;
@@ -147,6 +170,16 @@ export default function EditEventPage() {
 
           const normalizedWorkflowStatus = String(data.workflow_status || "").trim().toLowerCase();
           setWorkflowStatus(normalizedWorkflowStatus || null);
+          const normalizedLifecycle = normalizeLifecycleStatus(
+            data.status,
+            data.is_draft === true ||
+              data.is_draft === 1 ||
+              data.is_draft === "1" ||
+              data.is_draft === "true"
+              ? "draft"
+              : "published"
+          );
+          setLifecycleStatus(normalizedLifecycle);
 
           let parsedDepartments: string[] = [];
           const dbDepartmentAccess = data.department_access;
@@ -526,6 +559,11 @@ export default function EditEventPage() {
       if (!response.ok) {
         if (payload?.error_code === "PENDING_APPROVAL_BLOCK") {
           setWorkflowStatus(String(payload?.workflow_status || workflowStatus || "").trim().toLowerCase() || null);
+          if (payload?.lifecycle_status) {
+            setLifecycleStatus(
+              normalizeLifecycleStatus(payload.lifecycle_status, "draft")
+            );
+          }
           throw new Error(payload?.message || "This event is awaiting approval and is locked.");
         }
         throw new Error(payload?.error || "Failed to update archive status.");
@@ -818,6 +856,11 @@ export default function EditEventPage() {
 
         if (errorData?.error_code === "PENDING_APPROVAL_BLOCK") {
           setWorkflowStatus(String(errorData?.workflow_status || workflowStatus || "").trim().toLowerCase() || null);
+          if (errorData?.lifecycle_status) {
+            setLifecycleStatus(
+              normalizeLifecycleStatus(errorData.lifecycle_status, "draft")
+            );
+          }
         }
 
         setErrorMessage(`Update error: ${apiErrorMsg}`);
@@ -837,6 +880,12 @@ export default function EditEventPage() {
           setWorkflowStatus(String(latestWorkflowStatus).trim().toLowerCase() || null);
         }
 
+        const latestLifecycleStatus =
+          resultJson?.lifecycle_status || resultJson?.event?.status || null;
+        if (latestLifecycleStatus !== null && latestLifecycleStatus !== undefined) {
+          setLifecycleStatus(normalizeLifecycleStatus(latestLifecycleStatus, "draft"));
+        }
+
         if (resultJson.event) {
           setExistingImageFileUrl(resultJson.event.event_image_url || null);
           setExistingBannerFileUrl(resultJson.event.banner_url || null);
@@ -853,6 +902,12 @@ export default function EditEventPage() {
             resultJson.event.is_draft === "true";
           setIsArchived(Boolean(stillArchived));
           setIsDraft(Boolean(stillDraft));
+          setLifecycleStatus(
+            normalizeLifecycleStatus(
+              resultJson?.lifecycle_status || resultJson?.event?.status,
+              stillDraft ? "draft" : "published"
+            )
+          );
         }
 
         const successMessage = archiveAsDraft
@@ -1031,6 +1086,7 @@ export default function EditEventPage() {
         defaultValues={initialData}
         isSubmittingProp={isSubmitting}
         isEditMode={true}
+        lifecycleStatus={lifecycleStatus}
         existingImageFileUrl={existingImageFileUrl}
         existingBannerFileUrl={existingBannerFileUrl}
         existingPdfFileUrl={existingPdfFileUrl}

@@ -41,6 +41,11 @@ import { useAuth } from "@/context/AuthContext";
 import LoadingIndicator from "@/app/_components/UI/LoadingIndicator";
 import PublishingOverlay from "@/app/_components/UI/PublishingOverlay";
 import {
+  getPublishActionLabel,
+  getPublishSubmittingLabel,
+  resolvePublishActionMode,
+} from "@/app/_components/PublishActionButton";
+import {
   buildEventPreviewData,
   saveEventPreviewDraft,
 } from "@/app/lib/eventPreviewDraft";
@@ -743,6 +748,7 @@ interface EventFormProps {
   isDraft?: boolean;
   isArchiveUpdating?: boolean;
   onToggleArchive?: () => void;
+  lifecycleStatus?: string | null;
 }
 
 const baseButtonClasses =
@@ -1238,6 +1244,7 @@ export default function EventForm({
   isDraft,
   isArchiveUpdating,
   onToggleArchive,
+  lifecycleStatus,
 }: EventFormProps) {
   const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
 
@@ -1676,40 +1683,32 @@ export default function EventForm({
     Boolean(watchedStandaloneRequiresDeanApproval);
   const requiresCfoApprovalForPublish =
     publishActionNeedsApproval && Boolean(watchedProvideClaims);
+  const additionalRequests = watch("additionalRequests");
+  const hasAnyLogisticsSelected = Boolean(
+    watchedItEnabled ||
+      watchedVenueEnabled ||
+      watchedCateringEnabled ||
+      watchedStallsEnabled
+  );
+  const hasAnyLogisticsDetails = Boolean(
+    String(additionalRequests?.it?.description || "").trim() ||
+      String(additionalRequests?.venue?.selectedVenue || "").trim() ||
+      String(additionalRequests?.venue?.customVenue || "").trim() ||
+      String(additionalRequests?.venue?.startTime || "").trim() ||
+      String(additionalRequests?.venue?.endTime || "").trim() ||
+      String(additionalRequests?.catering?.description || "").trim() ||
+      String(additionalRequests?.catering?.approximateCount || "").trim() ||
+      Boolean(additionalRequests?.stalls?.canopySelected) ||
+      Boolean(additionalRequests?.stalls?.hardboardSelected) ||
+      String(additionalRequests?.security?.description || "").trim()
+  );
 
-  const primarySubmitLabel = isEditMode
-    ? isDraft
-      ? publishActionNeedsApproval
-        ? "Send for Approval"
-        : "Publish Event"
-      : "Update Event"
-    : publishActionNeedsApproval
-    ? "Send for Approval"
-    : "Publish Event";
-
-  const primarySubmittingLabel = isEditMode
-    ? isDraft
-      ? publishActionNeedsApproval
-        ? "Sending for Approval..."
-        : "Publishing..."
-      : "Updating..."
-    : publishActionNeedsApproval
-    ? "Sending for Approval..."
-    : "Publishing...";
-
-  const standalonePrimaryActionLabel =
-    standaloneFlowStep === "details"
-      ? "Next: Approvals"
-      : standaloneFlowStep === "approvals"
-      ? "Next: Budget"
-      : primarySubmitLabel;
-
-  const standalonePrimarySubmittingLabel =
-    standaloneFlowStep === "details"
-      ? "Opening approvals..."
-      : standaloneFlowStep === "approvals"
-      ? "Opening budget..."
-      : primarySubmittingLabel;
+  const resolvedPublishMode = resolvePublishActionMode({
+    lifecycleStatus: lifecycleStatus || null,
+    requiresApproval: publishActionNeedsApproval,
+    requiresLogisticsSubmission: Boolean(hasFestSelected && hasAnyLogisticsSelected && !hasAnyLogisticsDetails),
+    defaultDraftMode: publishActionNeedsApproval ? "send_for_approval" : "publish",
+  });
 
   const scrollToStandaloneStepTarget = React.useCallback(
     (step: StandaloneFlowStep) => {
@@ -4109,13 +4108,13 @@ export default function EventForm({
                     }
                     className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    {isSubmittingProp || rhfIsSubmitting
-                      ? showStandaloneFlowStepper
-                        ? standalonePrimarySubmittingLabel
-                        : primarySubmittingLabel
-                      : showStandaloneFlowStepper
-                      ? standalonePrimaryActionLabel
-                      : primarySubmitLabel}
+                    {showStandaloneFlowStepper && !standaloneFlowIsFinalStep
+                      ? standaloneFlowStep === "details"
+                        ? "Next: Approvals"
+                        : "Next: Budget"
+                      : isSubmittingProp || rhfIsSubmitting
+                      ? getPublishSubmittingLabel(resolvedPublishMode, "event")
+                      : getPublishActionLabel(resolvedPublishMode, "event")}
                   </button>
                 </div>
               </form>

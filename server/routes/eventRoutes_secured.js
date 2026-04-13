@@ -228,9 +228,74 @@ const resolveActivationState = (approvalState, serviceState) => {
   return "ACTIVE";
 };
 
-const isBudgetRelatedFromEventPayload = ({ claimsApplicable, registrationFee }) => {
+const normalizeEventLifecycleStatus = (eventRecord, fallback) => {
+  const defaultStatus = fallback ||
+    (asBoolean(eventRecord?.is_draft)
+      ? LIFECYCLE_STATUS.DRAFT
+      : LIFECYCLE_STATUS.PUBLISHED);
+
+  return normalizeLifecycleStatus(eventRecord?.status, defaultStatus);
+};
+
+const isBudgetRelatedFromEventPayload = ({
+  claimsApplicable,
+  registrationFee,
+  noFinancialRequirements,
+}) => {
+  if (Boolean(noFinancialRequirements)) {
+    return false;
+  }
+
   const parsedFee = Number(registrationFee || 0);
   return Boolean(claimsApplicable) || (Number.isFinite(parsedFee) && parsedFee > 0);
+};
+
+const parseCustomFieldsForNoFinancialRequirements = (customFieldsValue) => {
+  const parsed = parseJsonField(customFieldsValue, []);
+  return Array.isArray(parsed) ? parsed : [];
+};
+
+const hasNoFinancialRequirementsInCustomFields = (customFieldsValue) => {
+  const customFields = parseCustomFieldsForNoFinancialRequirements(customFieldsValue);
+
+  return customFields.some((field) => {
+    if (!field || typeof field !== "object" || Array.isArray(field)) {
+      return false;
+    }
+
+    const normalizedKey = String(field.key || field.label || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_");
+
+    if (!normalizedKey.includes("financial")) {
+      return false;
+    }
+
+    const rawValue = field.value;
+
+    if (isNoFinancialRequirementsRequested(rawValue)) {
+      return true;
+    }
+
+    if (rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)) {
+      return (
+        isNoFinancialRequirementsRequested(rawValue.noFinancialRequirements) ||
+        isNoFinancialRequirementsRequested(rawValue.no_financial_requirements) ||
+        isNoFinancialRequirementsRequested(rawValue.enabled)
+      );
+    }
+
+    return false;
+  });
+};
+
+const eventHasNoFinancialRequirements = (eventRecord = {}) => {
+  return (
+    isNoFinancialRequirementsRequested(eventRecord?.no_financial_requirements) ||
+    isNoFinancialRequirementsRequested(eventRecord?.noFinancialRequirements) ||
+    hasNoFinancialRequirementsInCustomFields(eventRecord?.custom_fields)
+  );
 };
 
 const findActiveApprovalRequestForEntity = async ({ entityType, entityRef }) => {
@@ -676,11 +741,13 @@ const validateStandaloneApprovalChainForPublish = async ({ eventRecord }) => {
 
   const hasHodApproval = hasApprovedStepForCodes(steps, ["HOD", ROLE_CODES.HOD]);
   const hasDeanApproval = hasApprovedStepForCodes(steps, ["DEAN", ROLE_CODES.DEAN]);
+  const noFinancialRequirements = eventHasNoFinancialRequirements(eventRecord);
   const isBudgetRelated =
-    asBoolean(eventRecord?.is_budget_related) ||
+    (!noFinancialRequirements && asBoolean(eventRecord?.is_budget_related)) ||
     isBudgetRelatedFromEventPayload({
       claimsApplicable: eventRecord?.claims_applicable,
       registrationFee: eventRecord?.registration_fee,
+      noFinancialRequirements,
     });
 
   const hasFinanceApproval = !isBudgetRelated
@@ -1858,9 +1925,11 @@ router.post(
       const parsedRegistrationFee = parseOptionalFloat(registration_fee);
       const claimsApplicable =
         claims_applicable === "true" || claims_applicable === true;
+      const noFinancialRequirementsRequested = eventHasNoFinancialRequirements(req.body || {});
       const isStandaloneBudgetRelated = isBudgetRelatedFromEventPayload({
         claimsApplicable,
         registrationFee: parsedRegistrationFee,
+        noFinancialRequirements: noFinancialRequirementsRequested,
       });
 
       let parentFest = null;
@@ -2120,6 +2189,9 @@ router.post(
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
         is_draft: shouldSaveAsDraft,
+        status: shouldSaveAsDraft
+          ? LIFECYCLE_STATUS.DRAFT
+          : LIFECYCLE_STATUS.PUBLISHED,
         is_archived: shouldArchiveOnCreate,
         archived_at: shouldArchiveOnCreate ? new Date().toISOString() : null,
         archived_by: shouldArchiveOnCreate
@@ -2141,17 +2213,21 @@ router.post(
       try {
         created = await insert("events", [eventInsertPayload]);
       } catch (insertError) {
-        if (!isMissingAdditionalRequestsColumnError(insertError)) {
+        const hasMissingLifecycleStatusColumn = isMissingColumnError(insertError, "status");
+        if (!isMissingAdditionalRequestsColumnError(insertError) && !hasMissingLifecycleStatusColumn) {
           throw insertError;
         }
 
         console.warn(
-          "[EventCreate] 'additional_requests' column missing; retrying create without additional_requests payload."
+          "[EventCreate] Missing optional columns on events table; retrying create without unsupported payload fields."
         );
         const fallbackInsertPayload = {
           ...eventInsertPayload,
         };
         delete fallbackInsertPayload.additional_requests;
+        if (hasMissingLifecycleStatusColumn) {
+          delete fallbackInsertPayload.status;
+        }
         created = await insert("events", [fallbackInsertPayload]);
       }
 
@@ -2161,7 +2237,7 @@ router.post(
 
       console.log("✅ Event inserted successfully:", event_id);
 
-      const createdEventRecord = created[0];
+      let createdEventRecord = created[0];
       let primaryApprovalRequest = null;
       let approvalState = "APPROVED";
       let pendingDeanApproval = false;
@@ -2230,6 +2306,16 @@ router.post(
         });
 
         activationState = workflowResult.activationState;
+
+        if (workflowResult.applied) {
+          const refreshedEvent = await queryOne("events", {
+            where: { event_id },
+          });
+
+          if (refreshedEvent) {
+            createdEventRecord = refreshedEvent;
+          }
+        }
       }
 
       const canGoLiveNow =
@@ -2302,6 +2388,7 @@ router.post(
         pending_service_approvals: serviceWorkflow.createdCount || 0,
         pending_service_roles: serviceWorkflow.requestedRoleCodes || [],
         activation_state: activationState,
+        lifecycle_status: normalizeEventLifecycleStatus(createdEventRecord),
         is_live: canGoLiveNow,
       });
 
@@ -2564,6 +2651,11 @@ router.put(
         save_as_draft
       } = req.body;
 
+      const userIsMasterAdmin = isMasterAdminUser(req.userInfo);
+      const userIsOrganizerTeacher = isOrganizerTeacherUser(req.userInfo);
+      const userIsOrganizerStudentOnly = isOrganizerStudentOnlyUser(req.userInfo);
+      const normalizedFestReference = normalizeFestReference(fest_id ?? fest);
+
       const rawArchivePreference =
         is_archived !== undefined && is_archived !== null && String(is_archived).trim() !== ""
           ? is_archived
@@ -2587,14 +2679,37 @@ router.put(
         send_notifications !== null &&
         String(send_notifications).trim() !== "";
       const wasDraftBeforeUpdate = asBoolean(event?.is_draft);
+      const currentLifecycleStatus = normalizeEventLifecycleStatus(
+        event,
+        wasDraftBeforeUpdate ? LIFECYCLE_STATUS.DRAFT : undefined
+      );
+      const wantsPublishIntent = hasDraftPreference && !shouldDraftFromRequest;
+      const isApprovalResubmissionIntent =
+        wantsPublishIntent &&
+        (currentLifecycleStatus === LIFECYCLE_STATUS.DRAFT ||
+          currentLifecycleStatus === LIFECYCLE_STATUS.REVISION_REQUESTED);
+      const isApprovedLifecyclePublishIntent =
+        wantsPublishIntent && currentLifecycleStatus === LIFECYCLE_STATUS.APPROVED;
+      const isPendingLifecyclePublishIntent =
+        wantsPublishIntent &&
+        currentLifecycleStatus === LIFECYCLE_STATUS.PENDING_APPROVALS;
       const isPublishTransition =
-        hasDraftPreference && !shouldDraftFromRequest && wasDraftBeforeUpdate;
+        isApprovalResubmissionIntent || isApprovedLifecyclePublishIntent;
       let shouldSendPublishNotifications =
-        isPublishTransition &&
+        wantsPublishIntent &&
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
       const parsedRegistrationFee = parseOptionalFloat(registration_fee);
       const claimsApplicable =
         claims_applicable === "true" || claims_applicable === true;
+      const noFinancialRequirementsRequested = eventHasNoFinancialRequirements({
+        ...event,
+        ...req.body,
+      });
+      const isStandaloneBudgetRelated = isBudgetRelatedFromEventPayload({
+        claimsApplicable,
+        registrationFee: parsedRegistrationFee,
+        noFinancialRequirements: noFinancialRequirementsRequested,
+      });
       const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
       const resolvedOrganizerEmail = normalizeEmailAddress(
         organizerEmailInput || event?.organizer_email || req.userInfo?.email || ""
@@ -2674,7 +2789,6 @@ router.put(
       const organizingSchool = normalizeSingleStringField(
         organizing_school || req.body.organizingSchool || event.organizing_school || ""
       );
-      const normalizedFestReference = normalizeFestReference(fest_id ?? fest);
       const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
       );
@@ -2744,6 +2858,45 @@ router.put(
         });
       }
 
+      let parentFest = null;
+      let childFestApproved = false;
+
+      if (normalizedFestReference) {
+        parentFest = await queryFestById(normalizedFestReference);
+
+        if (!parentFest) {
+          return res.status(404).json({
+            error: "Selected parent fest was not found.",
+          });
+        }
+
+        childFestApproved = isFestApprovedForChildEvent(parentFest);
+      }
+
+      if (userIsOrganizerStudentOnly && !normalizedFestReference) {
+        return res.status(403).json({
+          error: "Organizer Student can only update events under an approved fest.",
+        });
+      }
+
+      if (userIsOrganizerStudentOnly && !childFestApproved) {
+        return res.status(403).json({
+          error: "Organizer Student can only update events under an approved fest.",
+        });
+      }
+
+      if (wantsPublishIntent && normalizedFestReference && !childFestApproved) {
+        return res.status(403).json({
+          error: "Events can be published under a fest only after the parent fest is approved.",
+        });
+      }
+
+      if (isPendingLifecyclePublishIntent) {
+        return res.status(403).json(
+          getIncompleteApprovalErrorPayload("Approvals are still pending")
+        );
+      }
+
       // Prepare update payload
       // Note: Only include event_id if it's NOT changing (to avoid primary key update issues)
       const archiveOverridePayload = hasArchivePreference
@@ -2758,16 +2911,55 @@ router.put(
           ? { is_archived: false, archived_at: null, archived_by: null }
           : {};
 
-      const draftOverridePayload = hasDraftPreference
-        ? shouldDraftFromRequest
-          ? { is_draft: true, is_archived: false, archived_at: null, archived_by: null }
-          : {
-              is_draft: false,
-              ...(wasDraftBeforeUpdate
-                ? { is_archived: false, archived_at: null, archived_by: null }
-                : {}),
-            }
-        : {};
+      const previousRegistrationFee = Number(event?.registration_fee || 0);
+      const nextRegistrationFee = Number(parsedRegistrationFee || 0);
+      const hasBudgetIncrease =
+        Number.isFinite(previousRegistrationFee) &&
+        Number.isFinite(nextRegistrationFee) &&
+        nextRegistrationFee > previousRegistrationFee;
+      const claimsFlagRaised =
+        !asBoolean(event?.claims_applicable) && claimsApplicable;
+      const shouldRevertApprovedToDraft =
+        !hasDraftPreference &&
+        currentLifecycleStatus === LIFECYCLE_STATUS.APPROVED &&
+        (hasBudgetIncrease || claimsFlagRaised);
+
+      let draftOverridePayload = {};
+
+      if (hasDraftPreference && shouldDraftFromRequest) {
+        draftOverridePayload = {
+          is_draft: true,
+          status: LIFECYCLE_STATUS.DRAFT,
+          is_archived: false,
+          archived_at: null,
+          archived_by: null,
+        };
+      }
+
+      if (hasDraftPreference && wantsPublishIntent && wasDraftBeforeUpdate) {
+        draftOverridePayload = {
+          ...draftOverridePayload,
+          is_archived: false,
+          archived_at: null,
+          archived_by: null,
+        };
+      }
+
+      if (shouldRevertApprovedToDraft) {
+        draftOverridePayload = {
+          ...draftOverridePayload,
+          is_draft: true,
+          status: LIFECYCLE_STATUS.DRAFT,
+          approval_state: "PENDING",
+          activation_state: "PENDING",
+          approval_request_id: null,
+          approved_at: null,
+          approved_by: null,
+          rejected_at: null,
+          rejected_by: null,
+          rejection_reason: null,
+        };
+      }
 
       const updateData = {
         title: title.trim(),
@@ -2850,17 +3042,41 @@ router.put(
       try {
         updated = await update("events", updateData, { event_id: eventId });
       } catch (updateError) {
-        if (!isMissingAdditionalRequestsColumnError(updateError)) {
+        const fallbackColumnsToDrop = [];
+
+        if (isMissingAdditionalRequestsColumnError(updateError)) {
+          fallbackColumnsToDrop.push("additional_requests");
+        }
+
+        [
+          "status",
+          "approval_state",
+          "activation_state",
+          "approval_request_id",
+          "approved_at",
+          "approved_by",
+          "rejected_at",
+          "rejected_by",
+          "rejection_reason",
+        ].forEach((columnName) => {
+          if (isMissingColumnError(updateError, columnName)) {
+            fallbackColumnsToDrop.push(columnName);
+          }
+        });
+
+        if (fallbackColumnsToDrop.length === 0) {
           throw updateError;
         }
 
         console.warn(
-          "[EventUpdate] 'additional_requests' column missing; retrying update without additional_requests payload."
+          `[EventUpdate] Missing optional columns (${fallbackColumnsToDrop.join(", ")}); retrying update without unsupported payload fields.`
         );
         const fallbackUpdateData = {
           ...updateData,
         };
-        delete fallbackUpdateData.additional_requests;
+        fallbackColumnsToDrop.forEach((columnName) => {
+          delete fallbackUpdateData[columnName];
+        });
         updated = await update("events", fallbackUpdateData, { event_id: eventId });
       }
 
@@ -2918,8 +3134,9 @@ router.put(
       let pendingDeanApproval = false;
       let pendingHodApproval = false;
       let pendingCfoApproval = false;
+      let eventPublishedNow = false;
 
-      if (isPublishTransition) {
+      if (isApprovalResubmissionIntent) {
         const isStandalonePublish = !normalizedFestReference;
         let nextApprovalState = normalizeWorkflowStatus(updatedEvent?.approval_state, "APPROVED");
         let nextServiceState = normalizeWorkflowStatus(updatedEvent?.service_approval_state, "APPROVED");
@@ -2935,10 +3152,7 @@ router.put(
             nextApprovalState = "UNDER_REVIEW";
           }
         } else if (isStandalonePublish) {
-          standaloneBudgetRelated = isBudgetRelatedFromEventPayload({
-            claimsApplicable,
-            registrationFee: parsedRegistrationFee,
-          });
+          standaloneBudgetRelated = isStandaloneBudgetRelated;
 
           workflowApprovalRequest = await createStandaloneApprovalRequestForEvent({
             eventRecord: updatedEvent,
@@ -2969,20 +3183,83 @@ router.put(
           nextServiceState = "PENDING";
         }
 
-        const workflowResult = await applyEventWorkflowState({
+        const hasWorkflowToAwait =
+          Boolean(workflowApprovalRequest) ||
+          (serviceWorkflowOnPublish.requestedRoleCodes || []).length > 0;
+
+        if (hasWorkflowToAwait) {
+          const workflowResult = await applyEventWorkflowState({
+            eventId: String(updatedEvent?.event_id || newEventId || eventId),
+            approvalState: nextApprovalState,
+            serviceApprovalState: nextServiceState,
+            approvalRequestId:
+              workflowApprovalRequest?.id || updatedEvent?.approval_request_id || null,
+            isBudgetRelated: isStandalonePublish ? standaloneBudgetRelated : false,
+            lifecycleStatus: LIFECYCLE_STATUS.PENDING_APPROVALS,
+          });
+
+          activationState = workflowResult.activationState;
+          shouldSendPublishNotifications = false;
+
+          if (workflowResult.applied) {
+            const refreshedEvent = await queryOne("events", {
+              where: { event_id: String(updatedEvent?.event_id || newEventId || eventId) },
+            });
+
+            if (refreshedEvent) {
+              updatedEvent = refreshedEvent;
+            }
+          }
+        } else {
+          const publishResult = await applyEventWorkflowState({
+            eventId: String(updatedEvent?.event_id || newEventId || eventId),
+            approvalState: "APPROVED",
+            serviceApprovalState: "APPROVED",
+            approvalRequestId: updatedEvent?.approval_request_id || null,
+            isBudgetRelated: false,
+            lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
+          });
+
+          activationState = publishResult.activationState;
+          eventPublishedNow = true;
+
+          if (publishResult.applied) {
+            const refreshedEvent = await queryOne("events", {
+              where: { event_id: String(updatedEvent?.event_id || newEventId || eventId) },
+            });
+
+            if (refreshedEvent) {
+              updatedEvent = refreshedEvent;
+            }
+          }
+        }
+      } else if (isApprovedLifecyclePublishIntent) {
+        const publishValidation = normalizedFestReference
+          ? await validateSubEventLogisticsForPublish({ eventRecord: updatedEvent })
+          : await validateStandaloneApprovalChainForPublish({ eventRecord: updatedEvent });
+
+        if (!publishValidation.ok) {
+          return res.status(403).json(
+            getIncompleteApprovalErrorPayload(publishValidation.reason)
+          );
+        }
+
+        const publishResult = await applyEventWorkflowState({
           eventId: String(updatedEvent?.event_id || newEventId || eventId),
-          approvalState: nextApprovalState,
-          serviceApprovalState: nextServiceState,
-          approvalRequestId:
-            workflowApprovalRequest?.id || updatedEvent?.approval_request_id || null,
-          isBudgetRelated: isStandalonePublish ? standaloneBudgetRelated : false,
+          approvalState: normalizeWorkflowStatus(updatedEvent?.approval_state, "APPROVED"),
+          serviceApprovalState: normalizeWorkflowStatus(
+            updatedEvent?.service_approval_state,
+            "APPROVED"
+          ),
+          approvalRequestId: updatedEvent?.approval_request_id || null,
+          isBudgetRelated: !normalizedFestReference ? isStandaloneBudgetRelated : undefined,
+          lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
         });
 
-        activationState = workflowResult.activationState;
-        shouldSendPublishNotifications =
-          shouldSendPublishNotifications && activationState === "ACTIVE";
+        activationState = publishResult.activationState;
+        eventPublishedNow = true;
 
-        if (workflowResult.applied) {
+        if (publishResult.applied) {
           const refreshedEvent = await queryOne("events", {
             where: { event_id: String(updatedEvent?.event_id || newEventId || eventId) },
           });
@@ -2991,6 +3268,10 @@ router.put(
             updatedEvent = refreshedEvent;
           }
         }
+      }
+
+      if (!eventPublishedNow) {
+        shouldSendPublishNotifications = false;
       }
 
       notifyPublishIfNeeded(updatedEvent);
@@ -3016,14 +3297,23 @@ router.put(
       }
 
       let responseMessage = "Event updated successfully";
-      if (isPublishTransition && (pendingDeanApproval || pendingHodApproval)) {
+      if (shouldRevertApprovedToDraft) {
+        responseMessage =
+          "Budget-related changes detected. Event moved back to draft for resubmission.";
+      } else if (hasDraftPreference && shouldDraftFromRequest) {
+        responseMessage = "Event saved as draft successfully";
+      } else if (isApprovalResubmissionIntent && (pendingDeanApproval || pendingHodApproval)) {
         const primaryApproverLabel = pendingHodApproval ? "HOD" : "Dean";
         responseMessage = pendingCfoApproval
           ? `Event submitted successfully and routed to ${primaryApproverLabel} and CFO approvals`
           : `Event submitted successfully and routed to ${primaryApproverLabel} approval`;
-      } else if (isPublishTransition && activationState !== "ACTIVE") {
+      } else if (isApprovalResubmissionIntent && !eventPublishedNow) {
         responseMessage = "Event submitted successfully and routed for approval";
+      } else if (eventPublishedNow) {
+        responseMessage = "Event published successfully";
       }
+
+      const lifecycleStatus = normalizeEventLifecycleStatus(updatedEvent, currentLifecycleStatus);
 
       return res.status(200).json({ 
         message: responseMessage,
@@ -3031,11 +3321,15 @@ router.put(
         event_id: newEventId,
         id_changed: newEventId !== eventId,
         activation_state: activationState,
+        lifecycle_status: lifecycleStatus,
         pending_dean_review: pendingDeanApproval,
         pending_hod_review: pendingHodApproval,
         pending_cfo_review: pendingCfoApproval,
         approval_request_id: workflowApprovalRequest?.request_id || null,
-        is_live: activationState === "ACTIVE" && !asBoolean(updatedEvent?.is_draft),
+        is_live:
+          activationState === "ACTIVE" &&
+          !asBoolean(updatedEvent?.is_draft) &&
+          lifecycleStatus === LIFECYCLE_STATUS.PUBLISHED,
       });
 
     } catch (error) {
@@ -3081,6 +3375,153 @@ router.put(
           userId: req.userId,
           timestamp: new Date().toISOString()
         }
+      });
+    }
+  }
+);
+
+// POST publish event - REQUIRES AUTHENTICATION + OWNERSHIP + ORGANISER PRIVILEGES
+router.post(
+  "/:eventId/publish",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireOrganiser,
+  requireOwnership("events", "eventId", "auth_uuid"),
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const eventRecord = req.resource;
+
+      if (!eventRecord) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      if (asBoolean(eventRecord?.is_archived)) {
+        return res.status(400).json({
+          error: "Archived events cannot be published. Unarchive before publishing.",
+        });
+      }
+
+      const lifecycleStatus = normalizeEventLifecycleStatus(eventRecord);
+      if (lifecycleStatus === LIFECYCLE_STATUS.PUBLISHED && !asBoolean(eventRecord?.is_draft)) {
+        return res.status(200).json({
+          message: "Event is already published",
+          event: eventRecord,
+          lifecycle_status: lifecycleStatus,
+          activation_state: normalizeWorkflowStatus(eventRecord?.activation_state, "ACTIVE"),
+          is_live: true,
+        });
+      }
+
+      if (lifecycleStatus === LIFECYCLE_STATUS.PENDING_APPROVALS) {
+        return res.status(403).json(
+          getIncompleteApprovalErrorPayload("Approvals are still pending")
+        );
+      }
+
+      const normalizedFestId = normalizeFestReference(eventRecord?.fest_id);
+      let publishValidation;
+
+      if (normalizedFestId) {
+        const parentFest = await queryFestById(normalizedFestId);
+        if (!parentFest || !isFestApprovedForChildEvent(parentFest)) {
+          return res.status(403).json(
+            getIncompleteApprovalErrorPayload(
+              "Parent fest must be approved before publishing this event"
+            )
+          );
+        }
+
+        publishValidation = await validateSubEventLogisticsForPublish({
+          eventRecord,
+        });
+      } else {
+        publishValidation = await validateStandaloneApprovalChainForPublish({
+          eventRecord,
+        });
+      }
+
+      if (!publishValidation.ok) {
+        return res.status(403).json(
+          getIncompleteApprovalErrorPayload(publishValidation.reason)
+        );
+      }
+
+      await applyEventWorkflowState({
+        eventId,
+        approvalState: normalizeWorkflowStatus(eventRecord?.approval_state, "APPROVED"),
+        serviceApprovalState: normalizeWorkflowStatus(
+          eventRecord?.service_approval_state,
+          "APPROVED"
+        ),
+        approvalRequestId: eventRecord?.approval_request_id || null,
+        isBudgetRelated: !normalizedFestId
+          ? isBudgetRelatedFromEventPayload({
+              claimsApplicable: eventRecord?.claims_applicable,
+              registrationFee: eventRecord?.registration_fee,
+              noFinancialRequirements: eventHasNoFinancialRequirements(eventRecord),
+            })
+          : undefined,
+        lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
+      });
+
+      const refreshedEvent =
+        (await queryOne("events", { where: { event_id: eventId } })) || eventRecord;
+      const shouldSendNotifications = req.body?.send_notifications !== false;
+
+      if (shouldSendNotifications) {
+        sendBroadcastNotification({
+          title: "Event Published",
+          message: `${refreshedEvent?.title || "An event"} is now live! Check it out.",
+          type: "info",
+          event_id: eventId,
+          event_title: refreshedEvent?.title || null,
+          action_url: `/event/${eventId}`,
+        }).catch((notifError) => {
+          console.error("❌ Failed to send publish notifications:", notifError);
+        });
+      }
+
+      if (isGatedEnabled() && !asBoolean(refreshedEvent?.is_draft)) {
+        shouldPushEventToGated(refreshedEvent, queryOne)
+          .then(async (shouldPush) => {
+            if (!shouldPush) return;
+
+            try {
+              await pushEventToGated(
+                refreshedEvent,
+                req.userInfo?.email || refreshedEvent?.organizer_email,
+                req.userInfo?.name || "SOCIO Organiser"
+              );
+            } catch (gatedError) {
+              console.error("❌ Failed to push published event to Gated:", gatedError.message);
+            }
+          })
+          .catch((gatedError) => {
+            console.error("❌ Failed to evaluate Gated sync for published event:", gatedError.message);
+          });
+      }
+
+      const resolvedActivationState = normalizeWorkflowStatus(
+        refreshedEvent?.activation_state,
+        "ACTIVE"
+      );
+
+      return res.status(200).json({
+        message: "Event published successfully",
+        event: refreshedEvent,
+        lifecycle_status: normalizeEventLifecycleStatus(
+          refreshedEvent,
+          LIFECYCLE_STATUS.PUBLISHED
+        ),
+        activation_state: resolvedActivationState,
+        is_live: resolvedActivationState === "ACTIVE" && !asBoolean(refreshedEvent?.is_draft),
+      });
+    } catch (error) {
+      console.error("Server error POST /api/events/:eventId/publish:", error);
+      return res.status(500).json({
+        error: "Internal server error while publishing event.",
       });
     }
   }
