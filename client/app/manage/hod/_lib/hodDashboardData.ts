@@ -2,6 +2,13 @@ import "server-only";
 
 import { HodApprovalQueueItem, HodDashboardMetrics } from "../types";
 
+type ApprovalJoinRow = {
+  id?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  approval_level?: string | null;
+};
+
 type EventJoinRow = {
   event_id?: string | null;
   title?: string | null;
@@ -9,13 +16,44 @@ type EventJoinRow = {
   organizing_dept?: string | null;
   fest_id?: string | null;
   organizer_email?: string | null;
+  approval_request_id?: string | null;
+  approval_requests?: ApprovalJoinRow[] | ApprovalJoinRow | null;
 };
 
-type ApprovalRequestRow = {
+type ApprovalStepRow = {
+  approval_request_id?: string | null;
+  status?: string | null;
+};
+
+type ApprovalRequestStatusRow = {
+  id?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+type PendingEventRow = {
+  requestId: string;
+  eventId: string;
+  eventName: string;
+  eventDate: string | null;
+  organizerEmail: string | null;
+  requestedAt: string | null;
+};
+
+type LegacyApprovalRequestRow = {
   id?: string;
   event_id?: string | null;
   created_at?: string | null;
   events?: EventJoinRow | EventJoinRow[] | null;
+};
+
+type LegacyEventJoinRow = {
+  event_id?: string | null;
+  title?: string | null;
+  event_date?: string | null;
+  organizing_dept?: string | null;
+  fest_id?: string | null;
+  organizer_email?: string | null;
 };
 
 type BudgetRow = {
@@ -47,7 +85,26 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
-function toSingleEventJoin(joined: EventJoinRow | EventJoinRow[] | null | undefined): EventJoinRow | null {
+function toRecordArray<T>(value: T[] | T | null | undefined): T[] {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  return [value];
+}
+
+function toSingleRecord<T>(value: T[] | T | null | undefined): T | null {
+  const rows = toRecordArray(value);
+  return rows[0] ?? null;
+}
+
+function toSingleLegacyEventJoin(
+  joined: LegacyEventJoinRow | LegacyEventJoinRow[] | null | undefined
+): LegacyEventJoinRow | null {
   if (!joined) {
     return null;
   }
@@ -57,6 +114,195 @@ function toSingleEventJoin(joined: EventJoinRow | EventJoinRow[] | null | undefi
   }
 
   return joined;
+}
+
+function normalizeText(value: unknown): string {
+  return String(value || "").trim();
+}
+
+function isSchemaMismatchError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("could not find a relationship") ||
+    normalized.includes("approval_level") ||
+    normalized.includes("event_id")
+  );
+}
+
+function isMissingResourceError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("does not exist") ||
+    normalized.includes("could not find") ||
+    normalized.includes("schema cache")
+  );
+}
+
+function isPendingRequestStatus(value: unknown): boolean {
+  const normalized = normalizeText(value).toLowerCase().replace(/\s+/g, "_");
+  return normalized === "pending" || normalized === "under_review";
+}
+
+function mapLegacyPendingRows(rows: LegacyApprovalRequestRow[]): PendingEventRow[] {
+  return rows
+    .map((row) => {
+      const event = toSingleLegacyEventJoin(row.events);
+      const requestId = normalizeText(row.id);
+      const eventId = normalizeText(row.event_id || event?.event_id);
+
+      if (!requestId || !eventId) {
+        return null;
+      }
+
+      return {
+        requestId,
+        eventId,
+        eventName: normalizeText(event?.title) || "Untitled Event",
+        eventDate: normalizeText(event?.event_date) || null,
+        organizerEmail: normalizeText(event?.organizer_email) || null,
+        requestedAt: normalizeText(row.created_at) || null,
+      };
+    })
+    .filter((row): row is PendingEventRow => row !== null);
+}
+
+async function fetchLegacyPendingHodRows(
+  supabase: any,
+  normalizedDepartmentId: string
+): Promise<{ rows: PendingEventRow[]; errorMessage: string | null }> {
+  let pendingQuery = supabase
+    .from("approval_requests")
+    .select(
+      `
+        id,
+        event_id,
+        created_at,
+        events:event_id (
+          event_id,
+          title,
+          event_date,
+          organizing_dept,
+          fest_id,
+          organizer_email
+        )
+      `
+    )
+    .eq("status", "pending")
+    .eq("approval_level", "L1_HOD")
+    .is("events.fest_id", null)
+    .order("created_at", { ascending: true });
+
+  if (normalizedDepartmentId) {
+    pendingQuery = pendingQuery.eq("events.organizing_dept", normalizedDepartmentId);
+  }
+
+  const { data: pendingData, error: pendingError } = await pendingQuery;
+
+  if (pendingError) {
+    return {
+      rows: [],
+      errorMessage: pendingError.message,
+    };
+  }
+
+  const pendingRows = Array.isArray(pendingData) ? (pendingData as LegacyApprovalRequestRow[]) : [];
+  return {
+    rows: mapLegacyPendingRows(pendingRows),
+    errorMessage: null,
+  };
+}
+
+async function fetchWorkflowPendingHodRows(
+  supabase: any,
+  normalizedDepartmentId: string
+): Promise<PendingEventRow[]> {
+  const { data: stepData, error: stepError } = await supabase
+    .from("approval_steps")
+    .select("approval_request_id, status")
+    .eq("role_code", "HOD")
+    .eq("status", "PENDING");
+
+  if (stepError) {
+    throw new Error(`Failed to load HOD approvals: ${stepError.message}`);
+  }
+
+  const stepRows = Array.isArray(stepData) ? (stepData as ApprovalStepRow[]) : [];
+  const requestIds = Array.from(
+    new Set(
+      stepRows
+        .map((row) => normalizeText(row.approval_request_id))
+        .filter((id) => id.length > 0)
+    )
+  );
+
+  if (requestIds.length === 0) {
+    return [];
+  }
+
+  const { data: requestData, error: requestError } = await supabase
+    .from("approval_requests")
+    .select("id, status, created_at")
+    .in("id", requestIds);
+
+  if (requestError) {
+    throw new Error(`Failed to load HOD approvals: ${requestError.message}`);
+  }
+
+  const requestRows = Array.isArray(requestData) ? (requestData as ApprovalRequestStatusRow[]) : [];
+  const activeRequestRows = requestRows.filter((row) => isPendingRequestStatus(row.status));
+  const activeRequestIds = activeRequestRows
+    .map((row) => normalizeText(row.id))
+    .filter((id) => id.length > 0);
+
+  if (activeRequestIds.length === 0) {
+    return [];
+  }
+
+  const requestById = new Map(
+    activeRequestRows
+      .map((row) => [normalizeText(row.id), row] as const)
+      .filter(([id]) => id.length > 0)
+  );
+
+  let eventsQuery = supabase
+    .from("events")
+    .select("event_id, title, event_date, organizing_dept, fest_id, organizer_email, approval_request_id")
+    .in("approval_request_id", activeRequestIds)
+    .is("fest_id", null)
+    .order("created_at", { ascending: true });
+
+  if (normalizedDepartmentId) {
+    eventsQuery = eventsQuery.eq("organizing_dept", normalizedDepartmentId);
+  }
+
+  const { data: eventsData, error: eventsError } = await eventsQuery;
+
+  if (eventsError) {
+    throw new Error(`Failed to load HOD approvals: ${eventsError.message}`);
+  }
+
+  const eventRows = Array.isArray(eventsData) ? (eventsData as EventJoinRow[]) : [];
+  return eventRows
+    .map((row) => {
+      const requestId = normalizeText(row.approval_request_id);
+      const eventId = normalizeText(row.event_id);
+
+      if (!requestId || !eventId) {
+        return null;
+      }
+
+      const requestRow = requestById.get(requestId) || null;
+
+      return {
+        requestId,
+        eventId,
+        eventName: normalizeText(row.title) || "Untitled Event",
+        eventDate: normalizeText(row.event_date) || null,
+        organizerEmail: normalizeText(row.organizer_email) || null,
+        requestedAt: normalizeText(requestRow?.created_at) || null,
+      };
+    })
+    .filter((row): row is PendingEventRow => row !== null);
 }
 
 function deriveCoordinatorName(email: string | null | undefined, displayName: string | null | undefined): string {
@@ -92,41 +338,23 @@ export async function fetchHodDashboardData({
 }): Promise<HodDashboardData> {
   const normalizedDepartmentId = String(departmentId || "").trim();
 
-  let pendingQuery = supabase
-    .from("approval_requests")
-    .select(
-      `
-        id,
-        event_id,
-        created_at,
-        events:event_id (
-          event_id,
-          title,
-          event_date,
-          organizing_dept,
-          fest_id,
-          organizer_email
-        )
-      `
-    )
-    .eq("status", "pending")
-    .eq("approval_level", "L1_HOD")
-    .is("events.fest_id", null)
-    .order("created_at", { ascending: true });
+  const {
+    rows: legacyPendingRows,
+    errorMessage: legacyErrorMessage,
+  } = await fetchLegacyPendingHodRows(supabase, normalizedDepartmentId);
 
-  if (normalizedDepartmentId) {
-    pendingQuery = pendingQuery.eq("events.organizing_dept", normalizedDepartmentId);
+  let pendingRows = legacyPendingRows;
+
+  if (legacyErrorMessage) {
+    if (isSchemaMismatchError(legacyErrorMessage)) {
+      pendingRows = await fetchWorkflowPendingHodRows(supabase, normalizedDepartmentId);
+    } else {
+      throw new Error(`Failed to load HOD approvals: ${legacyErrorMessage}`);
+    }
   }
 
-  const { data: pendingData, error: pendingError } = await pendingQuery;
-
-  if (pendingError) {
-    throw new Error(`Failed to load HOD approvals: ${pendingError.message}`);
-  }
-
-  const pendingRows = Array.isArray(pendingData) ? (pendingData as ApprovalRequestRow[]) : [];
   const eventIds = pendingRows
-    .map((row) => String(row.event_id || "").trim())
+    .map((row) => row.eventId)
     .filter((id) => id.length > 0);
 
   const uniqueEventIds = Array.from(new Set(eventIds));
@@ -139,21 +367,23 @@ export async function fetchHodDashboardData({
       .in("event_id", uniqueEventIds);
 
     if (budgetsError) {
-      throw new Error(`Failed to load event budget details: ${budgetsError.message}`);
+      if (!isMissingResourceError(budgetsError.message)) {
+        throw new Error(`Failed to load event budget details: ${budgetsError.message}`);
+      }
+    } else {
+      const budgetRows = Array.isArray(budgetsData) ? (budgetsData as BudgetRow[]) : [];
+      budgetsByEventId = new Map(
+        budgetRows
+          .map((row) => [String(row.event_id || ""), row] as const)
+          .filter(([eventId]) => eventId.length > 0)
+      );
     }
-
-    const budgetRows = Array.isArray(budgetsData) ? (budgetsData as BudgetRow[]) : [];
-    budgetsByEventId = new Map(
-      budgetRows
-        .map((row) => [String(row.event_id || ""), row] as const)
-        .filter(([eventId]) => eventId.length > 0)
-    );
   }
 
   const organizerEmails = Array.from(
     new Set(
       pendingRows
-        .map((row) => toSingleEventJoin(row.events)?.organizer_email)
+        .map((row) => row.organizerEmail)
         .map((email) => (typeof email === "string" ? email.trim() : ""))
         .filter((email) => email.length > 0)
     )
@@ -183,23 +413,22 @@ export async function fetchHodDashboardData({
   }
 
   const queue: HodApprovalQueueItem[] = pendingRows.map((row) => {
-    const event = toSingleEventJoin(row.events);
-    const eventId = String(row.event_id || event?.event_id || "").trim();
+    const eventId = row.eventId;
     const eventBudget = budgetsByEventId.get(eventId);
-    const organizerEmail = String(event?.organizer_email || "").trim();
+    const organizerEmail = String(row.organizerEmail || "").trim();
     const coordinatorName = deriveCoordinatorName(
       organizerEmail,
       organizerEmail ? userNamesByEmail.get(organizerEmail) : null
     );
 
     return {
-      id: String(row.id || ""),
+      id: row.requestId,
       eventId,
-      eventName: String(event?.title || "Untitled Event"),
+      eventName: row.eventName,
       totalBudget: toNumber(eventBudget?.total_estimated_expense),
       coordinatorName,
-      eventDate: event?.event_date ? String(event.event_date) : null,
-      requestedAt: row.created_at ? String(row.created_at) : null,
+      eventDate: row.eventDate,
+      requestedAt: row.requestedAt,
     };
   });
 
@@ -228,11 +457,15 @@ export async function fetchHodDashboardData({
 
   const { data: ytdBudgetData, error: ytdBudgetError } = await ytdBudgetQuery;
 
-  if (ytdBudgetError) {
+  if (ytdBudgetError && !isMissingResourceError(ytdBudgetError.message)) {
     throw new Error(`Failed to load YTD department budget: ${ytdBudgetError.message}`);
   }
 
-  const ytdRows = Array.isArray(ytdBudgetData) ? (ytdBudgetData as BudgetRow[]) : [];
+  const ytdRows = ytdBudgetError
+    ? []
+    : Array.isArray(ytdBudgetData)
+      ? (ytdBudgetData as BudgetRow[])
+      : [];
   const deptBudgetUsedYtd = ytdRows.reduce((sum, row) => {
     const actual = toNumber(row.total_actual_expense);
     const estimated = toNumber(row.total_estimated_expense);
