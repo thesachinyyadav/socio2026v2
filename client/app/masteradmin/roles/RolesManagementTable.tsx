@@ -87,7 +87,7 @@ type PaginationState = {
   hasPrev: boolean;
 };
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 5;
 
 const roleOptions: RoleOption[] = [
   { value: "hod", label: "HOD" },
@@ -959,8 +959,12 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
     });
   }, [users, searchText]);
 
+  const visibleUsers = useMemo(() => {
+    return filteredUsers.slice(0, ITEMS_PER_PAGE);
+  }, [filteredUsers]);
+
   const userPagination = useMemo<PaginationState>(() => {
-    const totalItems = filteredUsers.length;
+    const totalItems = visibleUsers.length;
     const totalPages = Math.max(Math.ceil(totalItems / ITEMS_PER_PAGE), 1);
     const page = Math.min(userPage, totalPages);
 
@@ -972,12 +976,12 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       hasNext: page < totalPages,
       hasPrev: page > 1,
     };
-  }, [filteredUsers.length, userPage]);
+  }, [visibleUsers.length, userPage]);
 
   const paginatedUsers = useMemo(() => {
     const startIndex = (userPagination.page - 1) * userPagination.pageSize;
-    return filteredUsers.slice(startIndex, startIndex + userPagination.pageSize);
-  }, [filteredUsers, userPagination.page, userPagination.pageSize]);
+    return visibleUsers.slice(startIndex, startIndex + userPagination.pageSize);
+  }, [visibleUsers, userPagination.page, userPagination.pageSize]);
 
   useEffect(() => {
     setUserPage(1);
