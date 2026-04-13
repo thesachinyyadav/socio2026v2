@@ -2651,8 +2651,6 @@ router.put(
         save_as_draft
       } = req.body;
 
-      const userIsMasterAdmin = isMasterAdminUser(req.userInfo);
-      const userIsOrganizerTeacher = isOrganizerTeacherUser(req.userInfo);
       const userIsOrganizerStudentOnly = isOrganizerStudentOnlyUser(req.userInfo);
       const normalizedFestReference = normalizeFestReference(fest_id ?? fest);
 
@@ -2693,8 +2691,6 @@ router.put(
       const isPendingLifecyclePublishIntent =
         wantsPublishIntent &&
         currentLifecycleStatus === LIFECYCLE_STATUS.PENDING_APPROVALS;
-      const isPublishTransition =
-        isApprovalResubmissionIntent || isApprovedLifecyclePublishIntent;
       let shouldSendPublishNotifications =
         wantsPublishIntent &&
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
@@ -3473,7 +3469,7 @@ router.post(
       if (shouldSendNotifications) {
         sendBroadcastNotification({
           title: "Event Published",
-          message: `${refreshedEvent?.title || "An event"} is now live! Check it out.",
+          message: `${refreshedEvent?.title || "An event"} is now live! Check it out.`,
           type: "info",
           event_id: eventId,
           event_title: refreshedEvent?.title || null,

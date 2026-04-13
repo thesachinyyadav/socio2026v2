@@ -1699,7 +1699,7 @@ export default function EventForm({
       String(additionalRequests?.catering?.description || "").trim() ||
       String(additionalRequests?.catering?.approximateCount || "").trim() ||
       Boolean(additionalRequests?.stalls?.canopySelected) ||
-      Boolean(additionalRequests?.stalls?.hardboardSelected)
+        Boolean(additionalRequests?.stalls?.hardboardSelected)
   );
 
   const resolvedPublishMode = resolvePublishActionMode({
@@ -1708,6 +1708,9 @@ export default function EventForm({
     requiresLogisticsSubmission: Boolean(hasFestSelected && hasAnyLogisticsSelected && !hasAnyLogisticsDetails),
     defaultDraftMode: publishActionNeedsApproval ? "send_for_approval" : "publish",
   });
+  const shouldDisableLifecyclePrimaryAction =
+    resolvedPublishMode === "awaiting_approvals" &&
+    (!showStandaloneFlowStepper || standaloneFlowIsFinalStep);
 
   const scrollToStandaloneStepTarget = React.useCallback(
     (step: StandaloneFlowStep) => {
@@ -4103,7 +4106,8 @@ export default function EventForm({
                       isSubmittingProp ||
                       rhfIsSubmitting ||
                       isDeleting ||
-                      isOpeningPreview
+                      isOpeningPreview ||
+                      shouldDisableLifecyclePrimaryAction
                     }
                     className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >

@@ -505,12 +505,13 @@ const FestPage = () => {
                     <div className="min-w-0">
                       <h3 className="text-xs sm:text-sm font-medium text-gray-700">Status</h3>
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        status === 'ongoing' ? 'bg-green-100 text-green-700' :
-                        status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
-                        status === 'completed' ? 'bg-gray-100 text-gray-700' :
-                        status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                        status === 'published' || status === 'ongoing' ? 'bg-green-100 text-green-700' :
+                        status === 'approved' || status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
+                        status === 'pending_approvals' ? 'bg-amber-100 text-amber-700' :
+                        status === 'revision_requested' || status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                        status === 'draft' || status === 'completed' ? 'bg-gray-100 text-gray-700' :
                         'bg-yellow-100 text-yellow-700'
-                      }`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                      }`}>{status.split('_').join(' ').replace(/\b\w/g, (ch) => ch.toUpperCase())}</span>
                     </div>
                   </div>
                 )}

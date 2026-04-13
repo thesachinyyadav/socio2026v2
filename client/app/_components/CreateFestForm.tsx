@@ -2365,10 +2365,13 @@ function CreateFestForm(props?: CreateFestProps) {
   };
 
   const resolvedFestPublishMode = resolvePublishActionMode({
-    lifecycleStatus: lifecycleStatus || (isDraftFest ? "draft" : "published"),
+    lifecycleStatus:
+      lifecycleStatus || (finalIsEditMode ? (isDraftFest ? "draft" : "published") : "draft"),
     requiresApproval: true,
     defaultDraftMode: "send_for_approval",
   });
+  const shouldDisableFestLifecycleAction =
+    creationStep === "budget" && resolvedFestPublishMode === "awaiting_approvals";
 
   const handlePreview = async () => {
     if (isSubmitting || isNavigating || isUploadingImage || isOpeningPreview) {
@@ -2717,6 +2720,8 @@ function CreateFestForm(props?: CreateFestProps) {
               >
                 {successAction === "draft"
                   ? "Draft Saved!"
+                  : lifecycleStatus === "published"
+                  ? "Fest Published!"
                   : "Sent for approval!"}
               </h2>
               <p
@@ -2725,6 +2730,8 @@ function CreateFestForm(props?: CreateFestProps) {
               >
                 {successAction === "draft"
                   ? "Your fest has been saved as a draft. It is hidden until you publish it."
+                  : lifecycleStatus === "published"
+                  ? "Your fest is now live and visible to users."
                   : (
                     <>
                       Your fest has been successfully sent for approval.<br />
@@ -4253,7 +4260,12 @@ function CreateFestForm(props?: CreateFestProps) {
                   
                   <button
                     type="submit"
-                    disabled={isSubmitting || isNavigating || isOpeningPreview}
+                    disabled={
+                      isSubmitting ||
+                      isNavigating ||
+                      isOpeningPreview ||
+                      shouldDisableFestLifecycleAction
+                    }
                     className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                   >
                     {(creationStep === "budget" && (isSubmitting || isUploadingImage)) && (
