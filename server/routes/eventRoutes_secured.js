@@ -1792,43 +1792,13 @@ router.post(
       const organizingSchool = normalizeSingleStringField(
         organizing_school || req.body.organizingSchool || ""
       );
-      const normalizedFestReference = normalizeFestReference(fest_id ?? fest);
+      const normalizedFestReference = normalizedFestId;
       const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
       );
       const parsedAllowedCampuses = normalizeStringListField(
         req.body.allowed_campuses
       );
-
-      let parentFest = null;
-      let childFestApproved = false;
-      if (normalizedFestReference) {
-        parentFest = await queryFestById(normalizedFestReference);
-        if (!parentFest) {
-          return res.status(404).json({
-            error: "Selected parent fest was not found.",
-          });
-        }
-        childFestApproved = isFestApprovedForChildEvent(parentFest);
-      }
-
-      if (userIsOrganizerStudentOnly && !normalizedFestReference) {
-        return res.status(403).json({
-          error: "Organizer Student can only create or publish events under an approved fest.",
-        });
-      }
-
-      if (userIsOrganizerStudentOnly && !childFestApproved) {
-        return res.status(403).json({
-          error: "Organizer Student can only create or publish events under an approved fest.",
-        });
-      }
-
-      if (isPublishTransition && normalizedFestReference && !childFestApproved) {
-        return res.status(403).json({
-          error: "Events can be published under a fest only after the parent fest is approved.",
-        });
-      }
 
       const additionalRequestsValidation = validateAdditionalRequestsPayload({
         additionalRequestsRaw: req.body.additional_requests,
