@@ -1803,6 +1803,15 @@ export async function assignRoleMatrixEntry(
     let selectedDepartmentSchool: string | null = null;
 
     if (roleValue === "hod") {
+      const fallbackDepartment = FALLBACK_DEPARTMENT_OPTIONS.find(
+        (option) => normalizeNullableText(option.id) === scopeValue
+      );
+
+      if (fallbackDepartment) {
+        selectedDepartmentLabel = normalizeNullableText(fallbackDepartment.department_name) || scopeValue;
+        selectedDepartmentSchool = normalizeNullableText(fallbackDepartment.school);
+      }
+
       const { data, error } = await adminClient
         .from("departments_courses")
         .select("id,department_name,school")
