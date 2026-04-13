@@ -1,27 +1,3 @@
-// Helper: fetch approval request for a given event_id
-const getApprovalRequestForEvent = async (eventId) => {
-  if (!eventId) return null;
-  const event = await queryOne("events", { where: { event_id: eventId } });
-  if (!event || !event.approval_request_id) return null;
-  return await queryOne("approval_requests", { where: { id: event.approval_request_id } });
-};
-
-// Endpoint: GET /requests/by-event/:eventId
-router.get("/requests/by-event/:eventId", async (req, res) => {
-  try {
-    const eventId = String(req.params.eventId || "").trim();
-    if (!eventId) return res.status(400).json({ error: "Missing eventId" });
-    const approvalRequest = await getApprovalRequestForEvent(eventId);
-    if (!approvalRequest) return res.status(404).json({ error: "Approval request not found for event" });
-    return res.status(200).json({ approval_request: approvalRequest });
-  } catch (error) {
-    if (isMissingRelationError(error)) {
-      return res.status(503).json({ error: "Approval workflow schema is not available yet. Run latest migrations first." });
-    }
-    console.error("Error fetching approval request for event:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
 import express from "express";
 import {
   insert,
@@ -490,6 +466,131 @@ const isMasterAdminRequest = (req) => {
   return Boolean(req.userInfo?.is_masteradmin) || hasAnyRoleCode(getUserRoleCodes(req), [ROLE_CODES.MASTER_ADMIN]);
 };
 
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+
+const getApprovalRequestForEvent = async (eventId) => {
+  const normalizedEventId = String(eventId || "").trim();
+  if (!normalizedEventId) {
+    return null;
+  }
+
+  const event = await queryOne("events", {
+    where: { event_id: normalizedEventId },
+    select: "event_id,approval_request_id,created_by,organizer_email,organiser_email",
+  });
+
+  if (!event || !event.approval_request_id) {
+    return null;
+  }
+
+  const approvalRequest = await queryOne("approval_requests", {
+    where: { id: event.approval_request_id },
+  });
+
+  if (!approvalRequest) {
+    return null;
+  }
+
+  return { approvalRequest, event };
+};
+
+const canReadApprovalRequest = async (req, approvalRequest, steps = []) => {
+  if (!approvalRequest) {
+    return false;
+  }
+
+  if (isMasterAdminRequest(req)) {
+    return true;
+  }
+
+  const currentUserId = String(req.userInfo?.id || "").trim();
+  const currentUserEmail = normalizeEmail(req.userInfo?.email);
+
+  if (currentUserId && String(approvalRequest.requested_by_user_id || "").trim() === currentUserId) {
+    return true;
+  }
+
+  if (
+    currentUserEmail &&
+    normalizeEmail(approvalRequest.requested_by_email) === currentUserEmail
+  ) {
+    return true;
+  }
+
+  const userRoleCodes = getUserRoleCodes(req);
+  const stepRoleCodes = (steps || [])
+    .map((step) => normalizeRoleCode(step?.role_code))
+    .filter(Boolean);
+
+  if (stepRoleCodes.length > 0 && hasAnyRoleCode(userRoleCodes, stepRoleCodes)) {
+    return true;
+  }
+
+  const entityType = normalizeWorkflowStatus(approvalRequest.entity_type);
+  const entityRef = String(approvalRequest.entity_ref || "").trim();
+
+  if (!currentUserEmail || !entityRef) {
+    return false;
+  }
+
+  try {
+    if (["EVENT", "STANDALONE_EVENT", "FEST_CHILD_EVENT"].includes(entityType)) {
+      const event = await queryOne("events", {
+        where: { event_id: entityRef },
+        select: "event_id,created_by,organizer_email,organiser_email",
+      });
+
+      if (!event) {
+        return false;
+      }
+
+      const ownerCandidates = [
+        normalizeEmail(event.created_by),
+        normalizeEmail(event.organizer_email),
+        normalizeEmail(event.organiser_email),
+      ].filter(Boolean);
+
+      return ownerCandidates.includes(currentUserEmail);
+    }
+
+    if (entityType === "FEST") {
+      for (const tableName of ["fests", "fest"]) {
+        try {
+          const fest = await queryOne(tableName, {
+            where: { fest_id: entityRef },
+            select: "fest_id,created_by,contact_email",
+          });
+
+          if (!fest) {
+            continue;
+          }
+
+          const ownerCandidates = [
+            normalizeEmail(fest.created_by),
+            normalizeEmail(fest.contact_email),
+          ].filter(Boolean);
+
+          return ownerCandidates.includes(currentUserEmail);
+        } catch (error) {
+          if (isMissingRelationError(error)) {
+            continue;
+          }
+
+          throw error;
+        }
+      }
+    }
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+
+  return false;
+};
+
 const ensureQueueAccess = async (req, res, roleCode, approvalRequest = null) => {
   const normalizedRoleCode = normalizeRoleCode(roleCode);
 
@@ -584,6 +685,134 @@ router.get("/me/roles", async (req, res) => {
     role_codes: roleCodes,
     role_assignments: Array.isArray(req.userInfo?.role_assignments) ? req.userInfo.role_assignments : [],
   });
+});
+
+router.get("/requests/by-event/:eventId", async (req, res) => {
+  try {
+    const eventId = String(req.params.eventId || "").trim();
+    if (!eventId) {
+      return res.status(400).json({ error: "Missing eventId" });
+    }
+
+    const payload = await getApprovalRequestForEvent(eventId);
+    if (!payload?.approvalRequest) {
+      return res.status(404).json({ error: "Approval request not found for event" });
+    }
+
+    const hasAccess = await canReadApprovalRequest(req, payload.approvalRequest, []);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied: approval request visibility not permitted" });
+    }
+
+    return res.status(200).json({ approval_request: payload.approvalRequest });
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return res.status(503).json({
+        error: "Approval workflow schema is not available yet. Run latest migrations first.",
+      });
+    }
+
+    console.error("Error fetching approval request for event:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/requests/timeline", async (req, res) => {
+  try {
+    const rawRequestIds =
+      String(req.query.requestIds || req.query.request_ids || "").trim();
+
+    const requestIds = Array.from(
+      new Set(
+        rawRequestIds
+          .split(",")
+          .map((value) => String(value || "").trim())
+          .filter((value) => UUID_REGEX.test(value))
+      )
+    );
+
+    if (requestIds.length === 0) {
+      return res.status(400).json({
+        error: "Provide at least one UUID request id via requestIds query param.",
+      });
+    }
+
+    if (requestIds.length > 30) {
+      return res.status(400).json({ error: "Maximum 30 request ids are allowed per call." });
+    }
+
+    const requests = [];
+    const missingRequestIds = [];
+
+    for (const requestId of requestIds) {
+      const approvalRequest = await queryOne("approval_requests", {
+        where: { id: requestId },
+        select:
+          "id,request_id,entity_type,entity_ref,parent_fest_ref,requested_by_user_id,requested_by_email,organizing_dept,campus_hosted_at,is_budget_related,status,submitted_at,decided_at,latest_comment,created_at,updated_at",
+      });
+
+      if (!approvalRequest) {
+        missingRequestIds.push(requestId);
+        continue;
+      }
+
+      const steps = await queryAll("approval_steps", {
+        where: { approval_request_id: approvalRequest.id },
+        select:
+          "id,approval_request_id,step_code,role_code,step_group,sequence_order,required_count,status,decided_at,created_at,updated_at",
+        order: { column: "sequence_order", ascending: true },
+      });
+
+      const hasAccess = await canReadApprovalRequest(req, approvalRequest, steps);
+      if (!hasAccess) {
+        continue;
+      }
+
+      const decisions = await queryAll("approval_decisions", {
+        where: { approval_request_id: approvalRequest.id },
+        select:
+          "id,approval_step_id,decided_by_user_id,decided_by_email,role_code,decision,comment,created_at",
+        order: { column: "created_at", ascending: false },
+      });
+
+      const latestDecisionByStepId = new Map();
+      for (const decision of decisions || []) {
+        const stepId = String(decision?.approval_step_id || "").trim();
+        if (!stepId || latestDecisionByStepId.has(stepId)) {
+          continue;
+        }
+
+        latestDecisionByStepId.set(stepId, decision);
+      }
+
+      const mappedSteps = (steps || []).map((step) => {
+        const latestDecision = latestDecisionByStepId.get(step.id) || null;
+        return {
+          ...step,
+          latest_decision: latestDecision,
+        };
+      });
+
+      requests.push({
+        ...approvalRequest,
+        steps: mappedSteps,
+      });
+    }
+
+    return res.status(200).json({
+      requests,
+      missing_request_ids: missingRequestIds,
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return res.status(503).json({
+        error: "Approval workflow schema is not available yet. Run latest migrations first.",
+      });
+    }
+
+    console.error("Error loading approval timeline requests:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.get("/queues/:roleCode", async (req, res) => {

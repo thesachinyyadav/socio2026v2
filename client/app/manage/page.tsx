@@ -7,10 +7,13 @@ import {
   FetchedEvent as ContextEvent,
 } from "../../context/EventContext";
 import { useRouter } from "next/navigation";
-import { formatDateFull, formatTime } from "@/lib/dateUtils";
+import { formatDateFull } from "@/lib/dateUtils";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { toast } from "sonner";
+import ApprovalStatusPopover, {
+  ApprovalStatusRow,
+} from "@/app/manage/_components/ApprovalStatusPopover";
 import {
   addThemedChartsSheet,
   addStructuredSummarySheet,
@@ -54,6 +57,42 @@ interface Fest {
   is_archived?: boolean;
   archived_at?: string | null;
   workflow_status?: string | null;
+  approval_request_id?: string | null;
+  is_budget_related?: boolean | null;
+}
+
+interface ApprovalTimelineDecision {
+  id: string;
+  approval_step_id: string;
+  decided_by_email?: string | null;
+  decision?: string | null;
+  comment?: string | null;
+  created_at?: string | null;
+}
+
+interface ApprovalTimelineStep {
+  id: string;
+  step_code?: string | null;
+  role_code?: string | null;
+  sequence_order?: number | null;
+  status?: string | null;
+  decided_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  latest_decision?: ApprovalTimelineDecision | null;
+}
+
+interface ApprovalTimelineRequest {
+  id: string;
+  request_id?: string | null;
+  status?: string | null;
+  submitted_at?: string | null;
+  decided_at?: string | null;
+  latest_comment?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  is_budget_related?: boolean | null;
+  steps: ApprovalTimelineStep[];
 }
 
 const ITEMS_PER_PAGE = 12;
@@ -83,6 +122,203 @@ const APPROVAL_LEVEL_LABEL_BY_NUMBER: Record<number, string> = {
   2: "Level 2 (Dean/Director)",
   3: "Level 3 (CFO/Campus Director)",
   4: "Level 4 (Accounts)",
+};
+
+const APPROVAL_ROLES_WITH_CFO = ["CFO", "DEAN"] as const;
+const APPROVAL_ROLES_WITHOUT_CFO = ["DEAN", "HOD"] as const;
+
+const APPROVAL_ROLE_LABELS: Record<string, string> = {
+  CFO: "CFO",
+  DEAN: "Dean",
+  HOD: "HoD",
+};
+
+const normalizeRoleToken = (value?: string | null) =>
+  String(value || "")
+    .trim()
+    .toUpperCase();
+
+const inferRoleFromStep = (step?: ApprovalTimelineStep | null) => {
+  const stepCode = normalizeRoleToken(step?.step_code);
+  const roleCode = normalizeRoleToken(step?.role_code);
+  const roleToken = `${stepCode} ${roleCode}`;
+
+  if (roleToken.includes("CFO")) return "CFO";
+  if (roleToken.includes("DEAN")) return "DEAN";
+  if (roleToken.includes("HOD")) return "HOD";
+  return "";
+};
+
+const formatApprovalDateTime = (value?: string | null) => {
+  if (!value) return "date/time not available";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "date/time not available";
+  }
+
+  return parsed.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const extractRevisionText = (value?: string | null) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const prefix = "RETURN_FOR_REVISION:";
+  if (raw.toUpperCase().startsWith(prefix)) {
+    return raw.slice(prefix.length).trim();
+  }
+
+  return raw;
+};
+
+const resolveFallbackStatus = (workflowStatus?: string | null): ApprovalStatusRow["status"] => {
+  const normalized = normalizeWorkflowStatus(workflowStatus);
+
+  if (normalized.includes("rejected") || normalized.includes("return")) {
+    return "rejected";
+  }
+
+  if (normalized.includes("approved") || normalized.includes("active")) {
+    return "approved";
+  }
+
+  return "pending";
+};
+
+const isCfoHintedByWorkflowStatus = (workflowStatus?: string | null) => {
+  const normalized = normalizeWorkflowStatus(workflowStatus);
+  return normalized.includes("level_3") || normalized.includes("cfo");
+};
+
+const resolveRowStatus = (
+  step: ApprovalTimelineStep | null,
+  requestStatus?: string | null
+): ApprovalStatusRow["status"] => {
+  const requestToken = normalizeRoleToken(requestStatus);
+
+  if (!step) {
+    if (requestToken === "APPROVED") return "approved";
+    if (requestToken === "REJECTED") return "rejected";
+    return "pending";
+  }
+
+  const stepStatus = normalizeRoleToken(step.status);
+  const decisionToken = normalizeRoleToken(step.latest_decision?.decision);
+  const commentToken = normalizeRoleToken(step.latest_decision?.comment);
+
+  if (
+    decisionToken === "APPROVED" ||
+    stepStatus === "APPROVED"
+  ) {
+    return "approved";
+  }
+
+  if (
+    decisionToken === "REJECTED" ||
+    stepStatus === "REJECTED" ||
+    commentToken.startsWith("RETURN_FOR_REVISION")
+  ) {
+    return "rejected";
+  }
+
+  if (requestToken === "REJECTED" && stepStatus === "SKIPPED") {
+    return "rejected";
+  }
+
+  return "pending";
+};
+
+const getApprovalRows = (
+  timeline: ApprovalTimelineRequest | null,
+  workflowStatus?: string | null
+): ApprovalStatusRow[] => {
+  if (!timeline) {
+    const fallbackStatus = resolveFallbackStatus(workflowStatus);
+    const roles = isCfoHintedByWorkflowStatus(workflowStatus)
+      ? APPROVAL_ROLES_WITH_CFO
+      : APPROVAL_ROLES_WITHOUT_CFO;
+    return roles.map((roleCode) => {
+      const roleLabel = APPROVAL_ROLE_LABELS[roleCode];
+      const details =
+        fallbackStatus === "approved"
+          ? `Approved by ${roleLabel} on ${formatApprovalDateTime(null)}`
+          : fallbackStatus === "rejected"
+            ? `Rejected and sent for revision by ${roleLabel}`
+            : `Pending with ${roleLabel}`;
+
+      return {
+        id: `fallback-${roleCode}`,
+        roleLabel,
+        status: fallbackStatus,
+        summary: details,
+        details,
+        timestampLabel: "Sent date/time not available",
+      };
+    });
+  }
+
+  const stepByRole = new Map<string, ApprovalTimelineStep>();
+  for (const step of timeline.steps || []) {
+    const roleCode = inferRoleFromStep(step);
+    if (!roleCode || stepByRole.has(roleCode)) {
+      continue;
+    }
+
+    stepByRole.set(roleCode, step);
+  }
+
+  const hasCfo =
+    Boolean(timeline.is_budget_related) ||
+    Array.from(stepByRole.keys()).includes("CFO");
+  const orderedRoles = hasCfo ? APPROVAL_ROLES_WITH_CFO : APPROVAL_ROLES_WITHOUT_CFO;
+
+  return orderedRoles.map((roleCode) => {
+    const roleLabel = APPROVAL_ROLE_LABELS[roleCode];
+    const step = stepByRole.get(roleCode) || null;
+    const status = resolveRowStatus(step, timeline.status);
+    const decision = step?.latest_decision || null;
+    const actedBy = decision?.decided_by_email || roleLabel;
+    const statusTime =
+      decision?.created_at ||
+      step?.decided_at ||
+      step?.updated_at ||
+      timeline.decided_at ||
+      timeline.updated_at ||
+      timeline.submitted_at ||
+      timeline.created_at ||
+      null;
+    const sentTime = step?.created_at || timeline.submitted_at || timeline.created_at || null;
+
+    const approvedText = `Approved by ${actedBy} on ${formatApprovalDateTime(statusTime)}`;
+    const pendingText = `Pending with ${roleLabel} since ${formatApprovalDateTime(statusTime)}`;
+    const revisionText = extractRevisionText(decision?.comment || timeline.latest_comment);
+    const rejectedText = revisionText
+      ? `${revisionText}`
+      : `Rejected by ${actedBy} on ${formatApprovalDateTime(statusTime)}`;
+
+    let details = pendingText;
+    if (status === "approved") {
+      details = approvedText;
+    } else if (status === "rejected") {
+      details = rejectedText;
+    }
+
+    return {
+      id: `${timeline.id}-${roleCode}`,
+      roleLabel,
+      status,
+      summary: details,
+      details,
+      timestampLabel: `Sent ${formatApprovalDateTime(sentTime)}`,
+    };
+  });
 };
 
 const normalizeWorkflowStatus = (workflowStatus?: string | null) =>
@@ -170,9 +406,18 @@ interface MappedFestCardProps {
   baseUrl: string;
   isArchiveUpdating?: boolean;
   onArchiveToggle?: (festId: string, shouldArchive: boolean) => void;
+  approvalTimeline?: ApprovalTimelineRequest | null;
+  isApprovalTimelineLoading?: boolean;
 }
 
-const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveToggle }: MappedFestCardProps) => {
+const MappedFestCard = ({
+  fest,
+  baseUrl,
+  isArchiveUpdating = false,
+  onArchiveToggle,
+  approvalTimeline,
+  isApprovalTimelineLoading = false,
+}: MappedFestCardProps) => {
   const isPast = fest.closing_date ? new Date(fest.closing_date) < new Date() : false;
   const isArchived = fest.is_archived ?? false;
   const isDraft =
@@ -183,6 +428,10 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
   const pendingApprovalLabel = getPendingApprovalLabel(fest.workflow_status);
   const isApprovalPending = Boolean(pendingApprovalLabel);
   const isEditLocked = isApprovalPending && !isDraft;
+  const approvalRows = getApprovalRows(approvalTimeline || null, fest.workflow_status);
+  const approvalSubmittedLabel = formatApprovalDateTime(
+    approvalTimeline?.submitted_at || approvalTimeline?.created_at || null
+  );
 
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 ${
@@ -245,24 +494,45 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
           {formatDateFull(fest.opening_date, "TBD")}
         </div>
         {isDraft ? (
-          <Link href={`/${baseUrl}/${fest.fest_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
-            Edit <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <ApprovalStatusPopover
+              rows={approvalRows}
+              submittedLabel={approvalSubmittedLabel}
+              loading={isApprovalTimelineLoading}
+            />
+            <Link href={`/${baseUrl}/${fest.fest_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
+              Edit <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         ) : isEditLocked ? (
-          <span className="text-sm font-semibold text-slate-400" title="Fest is locked while approval is pending.">
-            Editing locked
-          </span>
+          <div className="flex items-center gap-2">
+            <ApprovalStatusPopover
+              rows={approvalRows}
+              submittedLabel={approvalSubmittedLabel}
+              loading={isApprovalTimelineLoading}
+            />
+            <span className="text-sm font-semibold text-slate-400" title="Fest is locked while approval is pending.">
+              Editing locked
+            </span>
+          </div>
         ) : isArchived ? (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onArchiveToggle?.(fest.fest_id, false);
-            }}
-            disabled={isArchiveUpdating}
-            className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isArchiveUpdating ? "Restoring..." : "Restore"} <History className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <ApprovalStatusPopover
+              rows={approvalRows}
+              submittedLabel={approvalSubmittedLabel}
+              loading={isApprovalTimelineLoading}
+            />
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onArchiveToggle?.(fest.fest_id, false);
+              }}
+              disabled={isArchiveUpdating}
+              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isArchiveUpdating ? "Restoring..." : "Restore"} <History className="w-4 h-4" />
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <button
@@ -275,6 +545,11 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
             >
               {isArchiveUpdating ? "Archiving..." : "Archive"} <History className="w-4 h-4" />
             </button>
+            <ApprovalStatusPopover
+              rows={approvalRows}
+              submittedLabel={approvalSubmittedLabel}
+              loading={isApprovalTimelineLoading}
+            />
             <Link href={`/${baseUrl}/${fest.fest_id}`} className="flex items-center gap-1.5 text-[#154cb3] font-semibold text-sm hover:underline">
               Manage <ArrowRight className="w-4 h-4" />
             </Link>
@@ -291,10 +566,11 @@ const MappedEventCard = ({
   event,
   baseUrl,
   isArchived,
-  archiveSource,
   onToggleArchive,
   isArchiveActionLoading,
   authToken,
+  approvalTimeline,
+  isApprovalTimelineLoading,
 }: {
   event: ContextEvent;
   baseUrl: string;
@@ -304,6 +580,8 @@ const MappedEventCard = ({
   onToggleArchive: (eventId: string, shouldArchive: boolean) => void;
   isArchiveActionLoading: boolean;
   authToken?: string | null;
+  approvalTimeline?: ApprovalTimelineRequest | null;
+  isApprovalTimelineLoading?: boolean;
 }) => {
   const isPast = event.event_date ? new Date(event.event_date) < new Date() : false;
   const isDraft =
@@ -324,6 +602,10 @@ const MappedEventCard = ({
       : isPast
         ? "bg-[#333333] text-white"
         : "bg-white text-emerald-600";
+    const approvalRows = getApprovalRows(approvalTimeline || null, event.workflow_status);
+    const approvalSubmittedLabel = formatApprovalDateTime(
+      approvalTimeline?.submitted_at || approvalTimeline?.created_at || null
+    );
 
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 ${
@@ -405,6 +687,11 @@ const MappedEventCard = ({
               </button>
             </>
           )}
+          <ApprovalStatusPopover
+            rows={approvalRows}
+            submittedLabel={approvalSubmittedLabel}
+            loading={Boolean(isApprovalTimelineLoading)}
+          />
           <Link
             href={isEditLocked ? "#" : `/${baseUrl}/${event.event_id}`}
             onClick={(e) => {
@@ -508,6 +795,8 @@ export default function ManageDashboard() {
   const [festArchiveOverrides, setFestArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null }>>({});
   const [festArchiveUpdatingIds, setFestArchiveUpdatingIds] = useState<Set<string>>(new Set());
   const [localFestArchivedIds, setLocalFestArchivedIds] = useState<Set<string>>(new Set());
+  const [approvalTimelineByRequestId, setApprovalTimelineByRequestId] = useState<Record<string, ApprovalTimelineRequest>>({});
+  const [approvalTimelineLoadingIds, setApprovalTimelineLoadingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!userData) {
@@ -668,6 +957,12 @@ export default function ManageDashboard() {
         is_archived: fest.is_archived === true,
         archived_at: fest.archived_at || null,
         workflow_status: fest.workflow_status || null,
+        approval_request_id: fest.approval_request_id || null,
+        is_budget_related:
+          fest.is_budget_related === true ||
+          fest.is_budget_related === 1 ||
+          fest.is_budget_related === "1" ||
+          fest.is_budget_related === "true",
       }));
 
       const userSpecificFests = mappedFests.filter(
@@ -908,6 +1203,105 @@ export default function ManageDashboard() {
 
   const paginatedFests = paginateArray(searchedUserFests, festsPage);
   const paginatedEvents = paginateArray(searchedUserEvents, eventsPage);
+
+  const visibleApprovalRequestIds = useMemo(() => {
+    const sourceIds =
+      activeTab === "events"
+        ? paginatedEvents.items.map((event) => String((event as any).approval_request_id || "").trim())
+        : paginatedFests.items.map((fest) => String(fest.approval_request_id || "").trim());
+
+    return Array.from(new Set(sourceIds.filter(Boolean)));
+  }, [activeTab, paginatedEvents.items, paginatedFests.items]);
+
+  const visibleApprovalRequestIdsKey = visibleApprovalRequestIds.join(",");
+
+  useEffect(() => {
+    if (!authToken || !visibleApprovalRequestIdsKey) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestedIds = visibleApprovalRequestIdsKey
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (requestedIds.length === 0) {
+      return;
+    }
+
+    const fetchApprovalTimeline = async () => {
+      setApprovalTimelineLoadingIds((prev) => {
+        const next = new Set(prev);
+        requestedIds.forEach((id) => next.add(id));
+        return next;
+      });
+
+      try {
+        const queryValue = encodeURIComponent(requestedIds.join(","));
+        const response = await fetch(
+          `${API_URL}/api/approvals/requests/timeline?requestIds=${queryValue}`,
+          {
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+            cache: "no-store",
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch approval timeline (status: ${response.status})`);
+        }
+
+        const payload = await response.json();
+        const timelineRequests = Array.isArray(payload?.requests)
+          ? payload.requests
+          : [];
+
+        if (!cancelled) {
+          setApprovalTimelineByRequestId((prev) => {
+            const next: Record<string, ApprovalTimelineRequest> = { ...prev };
+
+            timelineRequests.forEach((requestRow: any) => {
+              const requestId = String(requestRow?.id || "").trim();
+              if (!requestId) {
+                return;
+              }
+
+              next[requestId] = {
+                ...requestRow,
+                id: requestId,
+                steps: Array.isArray(requestRow?.steps) ? requestRow.steps : [],
+              } as ApprovalTimelineRequest;
+            });
+
+            return next;
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching approval timeline:", error);
+      } finally {
+        if (!cancelled) {
+          setApprovalTimelineLoadingIds((prev) => {
+            const next = new Set(prev);
+            requestedIds.forEach((id) => next.delete(id));
+            return next;
+          });
+        }
+      }
+    };
+
+    fetchApprovalTimeline();
+
+    return () => {
+      cancelled = true;
+      setApprovalTimelineLoadingIds((prev) => {
+        const next = new Set(prev);
+        requestedIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    };
+  }, [API_URL, authToken, visibleApprovalRequestIdsKey]);
 
   const scrollToTop = () => {
     const performScroll = () => {
@@ -1621,6 +2015,7 @@ export default function ManageDashboard() {
                       const festWithOverride = archiveOverride
                         ? { ...fest, ...archiveOverride }
                         : fest;
+                      const festApprovalRequestId = String(festWithOverride.approval_request_id || "").trim();
                       return (
                         <MappedFestCard
                           key={fest.fest_id}
@@ -1628,6 +2023,16 @@ export default function ManageDashboard() {
                           baseUrl="edit/fest"
                           isArchiveUpdating={festArchiveUpdatingIds.has(fest.fest_id)}
                           onArchiveToggle={handleToggleArchiveFest}
+                          approvalTimeline={
+                            festApprovalRequestId
+                              ? approvalTimelineByRequestId[festApprovalRequestId] || null
+                              : null
+                          }
+                          isApprovalTimelineLoading={
+                            festApprovalRequestId
+                              ? approvalTimelineLoadingIds.has(festApprovalRequestId)
+                              : false
+                          }
                         />
                       );
                     })}
@@ -1650,6 +2055,7 @@ export default function ManageDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {paginatedEvents.items.map((event) => {
                         const archiveState = getEffectiveArchiveState(event);
+                        const eventApprovalRequestId = String((event as any).approval_request_id || "").trim();
                         return (
                           <MappedEventCard
                             key={event.event_id}
@@ -1660,6 +2066,16 @@ export default function ManageDashboard() {
                             onToggleArchive={handleToggleArchive}
                             isArchiveActionLoading={archiveUpdatingIds.has(event.event_id)}
                             authToken={authToken}
+                            approvalTimeline={
+                              eventApprovalRequestId
+                                ? approvalTimelineByRequestId[eventApprovalRequestId] || null
+                                : null
+                            }
+                            isApprovalTimelineLoading={
+                              eventApprovalRequestId
+                                ? approvalTimelineLoadingIds.has(eventApprovalRequestId)
+                                : false
+                            }
                           />
                         );
                     })}

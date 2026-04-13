@@ -6,7 +6,6 @@ interface DeanApprovalTableProps {
   rows: DeanApprovalQueueItem[];
   activeRequestId: string | null;
   onApprove: (requestId: string) => void;
-  onReject: (requestId: string) => void;
   onReturn: (requestId: string) => void;
 }
 
@@ -37,7 +36,6 @@ export default function DeanApprovalTable({
   rows,
   activeRequestId,
   onApprove,
-  onReject,
   onReturn,
 }: DeanApprovalTableProps) {
   if (rows.length === 0) {
@@ -85,6 +83,9 @@ export default function DeanApprovalTable({
               return (
                 <tr key={row.id} className="hover:bg-slate-50/70">
                   <td className="px-5 py-4 align-top">
+                    <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-700">
+                      {row.entityType}
+                    </span>
                     <p className="text-sm font-semibold text-slate-900">{row.eventName}</p>
                     <p className="mt-1 text-xs text-slate-500">ID: {row.eventId}</p>
                   </td>
@@ -107,14 +108,6 @@ export default function DeanApprovalTable({
                         className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onReject(row.id)}
-                        disabled={isWorking}
-                        className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Reject
                       </button>
                       <button
                         type="button"

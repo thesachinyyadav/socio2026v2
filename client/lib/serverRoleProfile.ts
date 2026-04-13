@@ -54,18 +54,10 @@ function normalizeRoleCode(value: unknown): string {
   return normalizeText(value).toUpperCase();
 }
 
-function firstNonEmptyText(...values: unknown[]): string | null {
-  for (const value of values) {
-    const normalized = normalizeNullableText(value);
-    if (normalized) {
-      return normalized;
-    }
-  }
-
-  return null;
-}
-
-function isRoleAssignmentActive(assignment: RoleAssignmentRow, nowDate: Date = new Date()): boolean {
+function isAssignmentActive(
+  assignment: RoleAssignmentRow,
+  nowDate: Date = new Date()
+): boolean {
   if (!assignment || assignment.is_active === false) {
     return false;
   }
@@ -112,9 +104,10 @@ export async function getCurrentUserProfileWithRoleCodes(
     .eq("auth_uuid", authUser.id)
     .maybeSingle();
 
-  let profile = !byAuthUuid.error && byAuthUuid.data
-    ? (byAuthUuid.data as Record<string, unknown>)
-    : null;
+  let profile =
+    !byAuthUuid.error && byAuthUuid.data
+      ? (byAuthUuid.data as Record<string, unknown>)
+      : null;
 
   if (!profile && authUser.email) {
     const byEmail = await supabase
@@ -139,16 +132,17 @@ export async function getCurrentUserProfileWithRoleCodes(
 
   const { data: assignmentRows, error: assignmentError } = await supabase
     .from("user_role_assignments")
-    .select("role_code,department_scope,campus_scope,is_active,valid_from,valid_until")
+    .select("id,role_code,department_scope,campus_scope,is_active,valid_from,valid_until")
     .eq("user_id", userId);
 
-  const assignmentRowsSafe: RoleAssignmentRow[] =
+  const normalizedAssignments: RoleAssignmentRow[] =
     !assignmentError && Array.isArray(assignmentRows)
-      ? (assignmentRows as RoleAssignmentRow[])
+      ? (assignmentRows as RoleAssignmentRow[]).filter((assignment) =>
+          isAssignmentActive(assignment)
+        )
       : [];
 
-  const activeAssignments: ActiveRoleAssignment[] = assignmentRowsSafe
-    .filter((assignment) => isRoleAssignmentActive(assignment))
+  const activeAssignments: ActiveRoleAssignment[] = normalizedAssignments
     .map((assignment) => ({
       role_code: normalizeRoleCode(assignment.role_code),
       department_scope: normalizeNullableText(assignment.department_scope),
@@ -159,7 +153,6 @@ export async function getCurrentUserProfileWithRoleCodes(
   const activeRoleCodes = Array.from(
     new Set(activeAssignments.map((assignment) => assignment.role_code))
   );
-  const profileDepartmentId = normalizeNullableText(profile.department_id);
 
   const roleNameByCode = new Map<string, string>();
   if (activeRoleCodes.length > 0) {
@@ -179,33 +172,29 @@ export async function getCurrentUserProfileWithRoleCodes(
     }
   }
 
-  const departmentLookupIds = Array.from(
-    new Set([
-      ...activeAssignments
+  const departmentScopeIds = Array.from(
+    new Set(
+      activeAssignments
         .map((assignment) => normalizeNullableText(assignment.department_scope))
-        .filter((departmentScope): departmentScope is string => Boolean(departmentScope)),
-      ...(profileDepartmentId ? [profileDepartmentId] : []),
-    ])
+        .filter(
+          (departmentScope): departmentScope is string => Boolean(departmentScope)
+        )
+    )
   );
 
   const departmentNameById = new Map<string, string>();
-  const schoolByDepartmentId = new Map<string, string>();
-  if (departmentLookupIds.length > 0) {
+  if (departmentScopeIds.length > 0) {
     const { data: departmentRows, error: departmentError } = await supabase
       .from("departments_courses")
-      .select("id,department_name,school")
-      .in("id", departmentLookupIds);
+      .select("id,department_name")
+      .in("id", departmentScopeIds);
 
     if (!departmentError && Array.isArray(departmentRows)) {
       departmentRows.forEach((row: any) => {
         const departmentId = normalizeText(row?.id);
         const departmentName = normalizeText(row?.department_name);
-        const schoolName = normalizeText(row?.school);
         if (departmentId && departmentName) {
           departmentNameById.set(departmentId, departmentName);
-        }
-        if (departmentId && schoolName) {
-          schoolByDepartmentId.set(departmentId, schoolName);
         }
       });
     }
@@ -215,10 +204,12 @@ export async function getCurrentUserProfileWithRoleCodes(
     new Map(
       activeAssignments.map((assignment) => {
         const departmentLabel = assignment.department_scope
-          ? departmentNameById.get(assignment.department_scope) || assignment.department_scope
+          ? departmentNameById.get(assignment.department_scope) ||
+            assignment.department_scope
           : null;
         const roleTag =
-          roleNameByCode.get(assignment.role_code) || roleCodeToFallbackLabel(assignment.role_code);
+          roleNameByCode.get(assignment.role_code) ||
+          roleCodeToFallbackLabel(assignment.role_code);
 
         const roleAssignmentSummary = {
           role_code: assignment.role_code,
@@ -228,7 +219,9 @@ export async function getCurrentUserProfileWithRoleCodes(
           campus_scope: assignment.campus_scope,
         };
 
-        const key = `${assignment.role_code}|${assignment.department_scope || ""}|${assignment.campus_scope || ""}`;
+        const key = `${assignment.role_code}|${
+          assignment.department_scope || ""
+        }|${assignment.campus_scope || ""}`;
         return [key, roleAssignmentSummary] as const;
       })
     ).values()
@@ -244,53 +237,47 @@ export async function getCurrentUserProfileWithRoleCodes(
 
   const roleMatrixDepartment =
     uniqueRoleMatrixAssignments
-      .map((assignment) =>
-        normalizeNullableText(assignment.department_label) ||
-        normalizeNullableText(assignment.department_scope)
+      .map(
+        (assignment) =>
+          normalizeNullableText(assignment.department_label) ||
+          normalizeNullableText(assignment.department_scope)
       )
       .find((department): department is string => Boolean(department)) || null;
 
-  const fallbackDepartmentByProfileId = profileDepartmentId
-    ? departmentNameById.get(profileDepartmentId) || null
-    : null;
-  const fallbackSchoolByProfileId = profileDepartmentId
-    ? schoolByDepartmentId.get(profileDepartmentId) || null
-    : null;
-  const resolvedDepartment = firstNonEmptyText(
-    roleMatrixDepartment,
-    fallbackDepartmentByProfileId,
-    profile.department
-  );
-  const resolvedSchool = firstNonEmptyText(fallbackSchoolByProfileId, profile.school);
-
   const roleCodes = mergeRoleCodes(
     getRoleCodes(profile),
-    getActiveRoleCodesFromAssignments(assignmentRowsSafe as Array<Record<string, unknown>>)
+    getActiveRoleCodesFromAssignments(
+      normalizedAssignments as Array<Record<string, unknown>>
+    )
   );
 
-  const hasRoleEnrichment =
-    roleCodes.length > 0 || uniqueRoleMatrixAssignments.length > 0;
-  const hasDepartmentEnrichment = Boolean(resolvedDepartment || resolvedSchool);
-
-  if (!hasRoleEnrichment && !hasDepartmentEnrichment) {
-    return profile;
-  }
+  const hodScope = normalizedAssignments.find(
+    (assignment) => normalizeRoleCode(assignment.role_code) === "HOD"
+  );
+  const deanScope = normalizedAssignments.find(
+    (assignment) => normalizeRoleCode(assignment.role_code) === "DEAN"
+  );
+  const campusScope = normalizedAssignments.find((assignment) =>
+    normalizeText(assignment.campus_scope)
+  );
 
   const enrichedProfile: Record<string, unknown> = {
     ...profile,
+    role_assignments: normalizedAssignments,
+    role_codes: roleCodes,
+    department_id:
+      normalizeNullableText(profile.department_id) ||
+      normalizeNullableText(hodScope?.department_scope) ||
+      null,
+    school_id:
+      normalizeNullableText(profile.school_id) ||
+      normalizeNullableText(deanScope?.department_scope) ||
+      null,
+    campus:
+      normalizeNullableText(profile.campus) ||
+      normalizeNullableText(campusScope?.campus_scope) ||
+      null,
   };
-
-  if (resolvedDepartment) {
-    enrichedProfile.department = resolvedDepartment;
-  }
-
-  if (resolvedSchool) {
-    enrichedProfile.school = resolvedSchool;
-  }
-
-  if (roleCodes.length > 0) {
-    enrichedProfile.role_codes = roleCodes;
-  }
 
   if (uniqueRoleMatrixAssignments.length > 0) {
     enrichedProfile.role_matrix_assignments = uniqueRoleMatrixAssignments;

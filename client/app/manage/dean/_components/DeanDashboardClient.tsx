@@ -24,7 +24,6 @@ interface DeanDashboardClientProps {
 type ModalState = {
   requestId: string;
   eventName: string;
-  action: "reject" | "return";
   note: string;
   errorMessage: string | null;
 };
@@ -35,18 +34,14 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
 });
 
-const NOTE_MIN_CHARS = 20;
+const NOTE_MIN_CHARS = 1;
 
 function decisionMessage(action: DeanApprovalAction): string {
   if (action === "approve") {
     return "Approval recorded";
   }
 
-  if (action === "return") {
-    return "Request returned for revision";
-  }
-
-  return "Request rejected";
+  return "Request returned for revision";
 }
 
 function getProgressWidthClass(percent: number): string {
@@ -173,7 +168,7 @@ export default function DeanDashboardClient({
     }
   };
 
-  const openDecisionModal = (requestId: string, action: "reject" | "return") => {
+  const openDecisionModal = (requestId: string) => {
     const row = queue.find((item) => item.id === requestId);
     if (!row) {
       return;
@@ -182,7 +177,6 @@ export default function DeanDashboardClient({
     setModalState({
       requestId,
       eventName: row.eventName,
-      action,
       note: "",
       errorMessage: null,
     });
@@ -192,7 +186,7 @@ export default function DeanDashboardClient({
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900">Dean Approval Dashboard</h1>
-        <p className="mt-2 text-sm text-slate-600">School Scope: {schoolName || "My School"}</p>
+        <p className="mt-2 text-sm text-slate-600">Department Scope: {schoolName || "My Department"}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -227,7 +221,7 @@ export default function DeanDashboardClient({
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Pending L2 Queue</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Includes standalone events only (fest bypass applied).
+              Includes event and fest requests routed to your department scope.
             </p>
           </div>
 
@@ -261,11 +255,8 @@ export default function DeanDashboardClient({
         onApprove={(requestId) => {
           void submitAction({ requestId, action: "approve" });
         }}
-        onReject={(requestId) => {
-          openDecisionModal(requestId, "reject");
-        }}
         onReturn={(requestId) => {
-          openDecisionModal(requestId, "return");
+          openDecisionModal(requestId);
         }}
       />
 
@@ -275,7 +266,7 @@ export default function DeanDashboardClient({
             Budget Requested vs Approved by Department
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Comparison uses L2 dean approval statuses in your school scope.
+            Comparison uses dean approval outcomes in your department scope.
           </p>
         </div>
 
@@ -319,7 +310,7 @@ export default function DeanDashboardClient({
 
       <ApprovalDecisionModal
         isOpen={Boolean(modalState)}
-        mode={modalState?.action || "reject"}
+        mode="return"
         eventName={modalState?.eventName || ""}
         note={modalState?.note || ""}
         minCharacters={NOTE_MIN_CHARS}
@@ -348,7 +339,7 @@ export default function DeanDashboardClient({
               previous
                 ? {
                     ...previous,
-                    errorMessage: `Please enter at least ${NOTE_MIN_CHARS} characters.`,
+                    errorMessage: "Revision description is required.",
                   }
                 : previous
             );
@@ -357,7 +348,7 @@ export default function DeanDashboardClient({
 
           void submitAction({
             requestId: modalState.requestId,
-            action: modalState.action,
+            action: "return",
             note: trimmedNote,
           });
         }}

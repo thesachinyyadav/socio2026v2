@@ -4,36 +4,90 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRoleCode } from "@/lib/roleDashboards";
 import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
-type DecisionAction = "approve" | "reject" | "return";
-
-type EventJoinRow = {
-  event_id?: string | null;
-  organizing_dept?: string | null;
-  fest_id?: string | null;
-};
+type DecisionAction = "approve" | "return";
 
 type ApprovalRequestRow = {
   id?: string;
-  approval_level?: string | null;
+  request_id?: string | null;
   status?: string | null;
-  approver_email?: string | null;
-  events?: EventJoinRow | EventJoinRow[] | null;
+  organizing_dept?: string | null;
 };
 
-function asSingleEvent(joined: EventJoinRow | EventJoinRow[] | null | undefined): EventJoinRow | null {
-  if (!joined) {
-    return null;
-  }
+type ApprovalStepRow = {
+  id?: string;
+  step_code?: string | null;
+  status?: string | null;
+};
 
-  return Array.isArray(joined) ? joined[0] || null : joined;
+function normalizeScope(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
 }
 
 function parseAction(value: unknown): DecisionAction | null {
-  if (value === "approve" || value === "reject" || value === "return") {
+  if (value === "approve" || value === "return") {
     return value;
   }
 
   return null;
+}
+
+function isAssignmentActive(assignment: Record<string, unknown>, nowDate: Date = new Date()): boolean {
+  if (!assignment || assignment.is_active === false) {
+    return false;
+  }
+
+  const now = nowDate.getTime();
+  const validFrom = assignment.valid_from
+    ? new Date(String(assignment.valid_from)).getTime()
+    : null;
+  const validUntil = assignment.valid_until
+    ? new Date(String(assignment.valid_until)).getTime()
+    : null;
+
+  if (Number.isFinite(validFrom) && (validFrom as number) > now) {
+    return false;
+  }
+
+  if (Number.isFinite(validUntil) && (validUntil as number) <= now) {
+    return false;
+  }
+
+  return true;
+}
+
+function getRoleScopedDepartments(
+  userProfile: Record<string, unknown>,
+  roleCode: "HOD" | "DEAN"
+): string[] {
+  const roleAssignments = Array.isArray(userProfile.role_assignments)
+    ? (userProfile.role_assignments as Array<Record<string, unknown>>)
+    : [];
+
+  const scopedDepartments = roleAssignments
+    .filter(
+      (assignment) =>
+        String(assignment.role_code || "").trim().toUpperCase() === roleCode &&
+        isAssignmentActive(assignment)
+    )
+    .map((assignment) => normalizeScope(assignment.department_scope))
+    .filter((scope) => scope.length > 0);
+
+  if (scopedDepartments.length > 0) {
+    return Array.from(new Set(scopedDepartments));
+  }
+
+  if (roleCode === "HOD") {
+    return Array.from(
+      new Set(
+        [
+          normalizeScope(userProfile.department_id),
+          normalizeScope(userProfile.department),
+        ].filter((scope) => scope.length > 0)
+      )
+    );
+  }
+
+  return [];
 }
 
 function jsonError(status: number, error: string) {
@@ -110,28 +164,16 @@ export async function PATCH(
     const note = typeof body?.note === "string" ? body.note.trim() : "";
 
     if (!action) {
-      return jsonError(400, "Invalid action. Expected approve, reject, or return.");
+      return jsonError(400, "Invalid action. Expected approve or return.");
     }
 
-    if ((action === "reject" || action === "return") && note.length < 20) {
-      return jsonError(400, "A rejection note of at least 20 characters is required.");
+    if (action === "return" && note.length === 0) {
+      return jsonError(400, "Revision description is required for return action.");
     }
 
     const { data: approvalData, error: approvalError } = await supabase
       .from("approval_requests")
-      .select(
-        `
-          id,
-          approval_level,
-          status,
-          approver_email,
-          events:event_id (
-            event_id,
-            organizing_dept,
-            fest_id
-          )
-        `
-      )
+      .select("id,request_id,status,organizing_dept")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -144,57 +186,99 @@ export async function PATCH(
     }
 
     const requestRow = approvalData as ApprovalRequestRow;
-    const eventRow = asSingleEvent(requestRow.events);
-
-    if (!eventRow) {
-      return jsonError(400, "Approval request is not linked to a valid event.");
-    }
-
-    if (String(requestRow.approval_level || "") !== "L1_HOD") {
-      return jsonError(400, "Only L1_HOD approval requests can be modified here.");
-    }
-
-    if (String(requestRow.status || "") !== "pending") {
+    const requestStatus = String(requestRow.status || "").trim().toUpperCase();
+    if (!["UNDER_REVIEW", "PENDING"].includes(requestStatus)) {
       return jsonError(409, "This request is no longer pending.");
     }
 
-    if (eventRow.fest_id !== null && eventRow.fest_id !== undefined && String(eventRow.fest_id).trim() !== "") {
-      return jsonError(400, "Fest-linked events bypass L1 HOD approval.");
+    if (!isMasterAdmin) {
+      const allowedScopes = getRoleScopedDepartments(userProfile, "HOD");
+      if (allowedScopes.length === 0) {
+        return jsonError(403, "No department scope is mapped to this HOD account.");
+      }
+
+      const requestScope = normalizeScope(requestRow.organizing_dept);
+      if (!requestScope || !allowedScopes.includes(requestScope)) {
+        return jsonError(403, "This request does not belong to your department scope.");
+      }
     }
 
-    const status = action === "approve" ? "approved" : "rejected";
-    const comments =
-      action === "approve"
-        ? null
-        : action === "return"
-          ? `RETURN_FOR_REVISION: ${note}`
-          : note;
+    const approvalRequestDbId = String(requestRow.id || "").trim();
+    if (!approvalRequestDbId) {
+      return jsonError(400, "Approval request is missing internal identifier.");
+    }
 
-    const { data: updatedData, error: updateError } = await supabase
-      .from("approval_requests")
-      .update({
-        status,
-        comments,
-        approver_email: user.email || requestRow.approver_email || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", requestId)
-      .eq("status", "pending")
-      .select("id, status, comments, resolved_at")
+    const { data: pendingStepData, error: pendingStepError } = await supabase
+      .from("approval_steps")
+      .select("id,step_code,status")
+      .eq("approval_request_id", approvalRequestDbId)
+      .eq("role_code", "HOD")
+      .eq("status", "PENDING")
+      .order("sequence_order", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
-    if (updateError) {
-      return jsonError(500, `Failed to update approval request: ${updateError.message}`);
+    if (pendingStepError) {
+      return jsonError(500, `Failed to load pending HOD step: ${pendingStepError.message}`);
     }
 
-    if (!updatedData) {
-      return jsonError(409, "Approval request was already handled by another user.");
+    if (!pendingStepData) {
+      return jsonError(409, "No pending HOD step exists for this request.");
+    }
+
+    const requestIdentifier = String(requestRow.request_id || "").trim();
+    const stepCode = String((pendingStepData as ApprovalStepRow).step_code || "").trim();
+
+    if (!requestIdentifier || !stepCode) {
+      return jsonError(400, "Approval request is missing workflow identifiers.");
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      return jsonError(401, "Authentication session is unavailable. Please sign in again.");
+    }
+
+    const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+    if (!apiBaseUrl) {
+      return jsonError(500, "NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
+    }
+
+    const upstreamResponse = await fetch(
+      `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          decision: action === "approve" ? "APPROVED" : "REJECTED",
+          comment: action === "return" ? `RETURN_FOR_REVISION: ${note}` : null,
+        }),
+        cache: "no-store",
+      }
+    );
+
+    const upstreamPayload = await upstreamResponse.json().catch(() => null);
+
+    if (!upstreamResponse.ok) {
+      return jsonError(
+        upstreamResponse.status,
+        upstreamPayload?.error || "Unable to update approval decision."
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: "Approval request updated successfully.",
-      data: updatedData,
+      message:
+        action === "approve"
+          ? "Approval request approved successfully."
+          : "Approval request returned for revision.",
+      data: upstreamPayload,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected server error.";

@@ -2,6 +2,7 @@ export interface DeanApprovalQueueItem {
   id: string;
   eventId: string;
   eventName: string;
+  entityType: "event" | "fest";
   totalBudget: number;
   coordinatorName: string;
   eventDate: string | null;
@@ -20,4 +21,4 @@ export interface DeanDashboardMetrics {
   pendingBudgetTotal: number;
 }
 
-export type DeanApprovalAction = "approve" | "reject" | "return";
+export type DeanApprovalAction = "approve" | "return";

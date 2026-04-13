@@ -9,6 +9,23 @@ import {
 
 const publicPaths = ["/", "/auth/callback", "/error", "/about", "/auth", "/events", "/event/*", "/fests", "/fest/*", "/clubs", "/club/*", "/Discover", "/contact", "/faq", "/privacy", "/terms", "/cookies", "/pricing", "/solutions", "/support", "/support/*", "/about/*", "/app-download", "/prototype-website", "/prototype-website/*"];
 
+const isLocalOrigin = (value?: string | null) =>
+  /https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(String(value || ""));
+
+function resolveRequestOrigin(params: {
+  headerOrigin: string | null;
+  requestOrigin: string;
+  appUrl?: string | null;
+}): string {
+  const { headerOrigin, requestOrigin, appUrl } = params;
+
+  if (isLocalOrigin(headerOrigin) || isLocalOrigin(requestOrigin)) {
+    return headerOrigin || requestOrigin;
+  }
+
+  return headerOrigin || appUrl || requestOrigin;
+}
+
 function normalizeRoleCode(value: unknown): string {
   return String(value || "").trim().toUpperCase();
 }
@@ -116,7 +133,12 @@ export async function middleware(req: NextRequest) {
   // 4. Robust origin detection for redirects
   const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
   const protocol = req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(':', '');
-  const origin = host ? `${protocol}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin);
+  const headerOrigin = host ? `${protocol}://${host}` : null;
+  const origin = resolveRequestOrigin({
+    headerOrigin,
+    requestOrigin: req.nextUrl.origin,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+  });
 
   // Helper to maintain cookies on redirect
   const redirect = (path: string) => {

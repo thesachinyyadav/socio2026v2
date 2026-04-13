@@ -2,58 +2,40 @@ import "server-only";
 
 import { HodApprovalQueueItem, HodDashboardMetrics } from "../types";
 
-type ApprovalJoinRow = {
+type ApprovalRequestJoinRow = {
   id?: string | null;
+  request_id?: string | null;
+  entity_type?: string | null;
+  entity_ref?: string | null;
+  organizing_dept?: string | null;
   status?: string | null;
+  submitted_at?: string | null;
   created_at?: string | null;
-  approval_level?: string | null;
 };
 
-type EventJoinRow = {
+type ApprovalStepQueueRow = {
+  id?: string | null;
+  step_code?: string | null;
+  role_code?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  approval_requests?: ApprovalRequestJoinRow[] | ApprovalRequestJoinRow | null;
+};
+
+type EventDetailRow = {
   event_id?: string | null;
   title?: string | null;
   event_date?: string | null;
   organizing_dept?: string | null;
-  fest_id?: string | null;
   organizer_email?: string | null;
-  approval_request_id?: string | null;
-  approval_requests?: ApprovalJoinRow[] | ApprovalJoinRow | null;
 };
 
-type ApprovalStepRow = {
-  approval_request_id?: string | null;
-  status?: string | null;
-};
-
-type ApprovalRequestStatusRow = {
-  id?: string | null;
-  status?: string | null;
-  created_at?: string | null;
-};
-
-type PendingEventRow = {
-  requestId: string;
-  eventId: string;
-  eventName: string;
-  eventDate: string | null;
-  organizerEmail: string | null;
-  requestedAt: string | null;
-};
-
-type LegacyApprovalRequestRow = {
-  id?: string;
-  event_id?: string | null;
-  created_at?: string | null;
-  events?: EventJoinRow | EventJoinRow[] | null;
-};
-
-type LegacyEventJoinRow = {
-  event_id?: string | null;
-  title?: string | null;
-  event_date?: string | null;
+type FestDetailRow = {
+  fest_id?: string | null;
+  fest_title?: string | null;
+  opening_date?: string | null;
   organizing_dept?: string | null;
-  fest_id?: string | null;
-  organizer_email?: string | null;
+  contact_email?: string | null;
 };
 
 type BudgetRow = {
@@ -85,26 +67,15 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
-function toRecordArray<T>(value: T[] | T | null | undefined): T[] {
-  if (!value) {
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  return [value];
+function normalizeText(value: unknown): string {
+  return String(value || "").trim();
 }
 
-function toSingleRecord<T>(value: T[] | T | null | undefined): T | null {
-  const rows = toRecordArray(value);
-  return rows[0] ?? null;
+function normalizeEntityType(value: unknown): string {
+  return normalizeText(value).toUpperCase();
 }
 
-function toSingleLegacyEventJoin(
-  joined: LegacyEventJoinRow | LegacyEventJoinRow[] | null | undefined
-): LegacyEventJoinRow | null {
+function toSingleRecord<T>(joined: T | T[] | null | undefined): T | null {
   if (!joined) {
     return null;
   }
@@ -114,195 +85,6 @@ function toSingleLegacyEventJoin(
   }
 
   return joined;
-}
-
-function normalizeText(value: unknown): string {
-  return String(value || "").trim();
-}
-
-function isSchemaMismatchError(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("could not find a relationship") ||
-    normalized.includes("approval_level") ||
-    normalized.includes("event_id")
-  );
-}
-
-function isMissingResourceError(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("does not exist") ||
-    normalized.includes("could not find") ||
-    normalized.includes("schema cache")
-  );
-}
-
-function isPendingRequestStatus(value: unknown): boolean {
-  const normalized = normalizeText(value).toLowerCase().replace(/\s+/g, "_");
-  return normalized === "pending" || normalized === "under_review";
-}
-
-function mapLegacyPendingRows(rows: LegacyApprovalRequestRow[]): PendingEventRow[] {
-  return rows
-    .map((row) => {
-      const event = toSingleLegacyEventJoin(row.events);
-      const requestId = normalizeText(row.id);
-      const eventId = normalizeText(row.event_id || event?.event_id);
-
-      if (!requestId || !eventId) {
-        return null;
-      }
-
-      return {
-        requestId,
-        eventId,
-        eventName: normalizeText(event?.title) || "Untitled Event",
-        eventDate: normalizeText(event?.event_date) || null,
-        organizerEmail: normalizeText(event?.organizer_email) || null,
-        requestedAt: normalizeText(row.created_at) || null,
-      };
-    })
-    .filter((row): row is PendingEventRow => row !== null);
-}
-
-async function fetchLegacyPendingHodRows(
-  supabase: any,
-  normalizedDepartmentId: string
-): Promise<{ rows: PendingEventRow[]; errorMessage: string | null }> {
-  let pendingQuery = supabase
-    .from("approval_requests")
-    .select(
-      `
-        id,
-        event_id,
-        created_at,
-        events:event_id (
-          event_id,
-          title,
-          event_date,
-          organizing_dept,
-          fest_id,
-          organizer_email
-        )
-      `
-    )
-    .eq("status", "pending")
-    .eq("approval_level", "L1_HOD")
-    .is("events.fest_id", null)
-    .order("created_at", { ascending: true });
-
-  if (normalizedDepartmentId) {
-    pendingQuery = pendingQuery.eq("events.organizing_dept", normalizedDepartmentId);
-  }
-
-  const { data: pendingData, error: pendingError } = await pendingQuery;
-
-  if (pendingError) {
-    return {
-      rows: [],
-      errorMessage: pendingError.message,
-    };
-  }
-
-  const pendingRows = Array.isArray(pendingData) ? (pendingData as LegacyApprovalRequestRow[]) : [];
-  return {
-    rows: mapLegacyPendingRows(pendingRows),
-    errorMessage: null,
-  };
-}
-
-async function fetchWorkflowPendingHodRows(
-  supabase: any,
-  normalizedDepartmentId: string
-): Promise<PendingEventRow[]> {
-  const { data: stepData, error: stepError } = await supabase
-    .from("approval_steps")
-    .select("approval_request_id, status")
-    .eq("role_code", "HOD")
-    .eq("status", "PENDING");
-
-  if (stepError) {
-    throw new Error(`Failed to load HOD approvals: ${stepError.message}`);
-  }
-
-  const stepRows = Array.isArray(stepData) ? (stepData as ApprovalStepRow[]) : [];
-  const requestIds = Array.from(
-    new Set(
-      stepRows
-        .map((row) => normalizeText(row.approval_request_id))
-        .filter((id) => id.length > 0)
-    )
-  );
-
-  if (requestIds.length === 0) {
-    return [];
-  }
-
-  const { data: requestData, error: requestError } = await supabase
-    .from("approval_requests")
-    .select("id, status, created_at")
-    .in("id", requestIds);
-
-  if (requestError) {
-    throw new Error(`Failed to load HOD approvals: ${requestError.message}`);
-  }
-
-  const requestRows = Array.isArray(requestData) ? (requestData as ApprovalRequestStatusRow[]) : [];
-  const activeRequestRows = requestRows.filter((row) => isPendingRequestStatus(row.status));
-  const activeRequestIds = activeRequestRows
-    .map((row) => normalizeText(row.id))
-    .filter((id) => id.length > 0);
-
-  if (activeRequestIds.length === 0) {
-    return [];
-  }
-
-  const requestById = new Map(
-    activeRequestRows
-      .map((row) => [normalizeText(row.id), row] as const)
-      .filter(([id]) => id.length > 0)
-  );
-
-  let eventsQuery = supabase
-    .from("events")
-    .select("event_id, title, event_date, organizing_dept, fest_id, organizer_email, approval_request_id")
-    .in("approval_request_id", activeRequestIds)
-    .is("fest_id", null)
-    .order("created_at", { ascending: true });
-
-  if (normalizedDepartmentId) {
-    eventsQuery = eventsQuery.eq("organizing_dept", normalizedDepartmentId);
-  }
-
-  const { data: eventsData, error: eventsError } = await eventsQuery;
-
-  if (eventsError) {
-    throw new Error(`Failed to load HOD approvals: ${eventsError.message}`);
-  }
-
-  const eventRows = Array.isArray(eventsData) ? (eventsData as EventJoinRow[]) : [];
-  return eventRows
-    .map((row) => {
-      const requestId = normalizeText(row.approval_request_id);
-      const eventId = normalizeText(row.event_id);
-
-      if (!requestId || !eventId) {
-        return null;
-      }
-
-      const requestRow = requestById.get(requestId) || null;
-
-      return {
-        requestId,
-        eventId,
-        eventName: normalizeText(row.title) || "Untitled Event",
-        eventDate: normalizeText(row.event_date) || null,
-        organizerEmail: normalizeText(row.organizer_email) || null,
-        requestedAt: normalizeText(requestRow?.created_at) || null,
-      };
-    })
-    .filter((row): row is PendingEventRow => row !== null);
 }
 
 function deriveCoordinatorName(email: string | null | undefined, displayName: string | null | undefined): string {
@@ -329,6 +111,41 @@ function getYearDateBounds(now: Date): { startDate: string; endDate: string } {
   };
 }
 
+async function fetchFestRowsWithFallback(
+  supabase: any,
+  festIds: string[]
+): Promise<FestDetailRow[]> {
+  if (festIds.length === 0) {
+    return [];
+  }
+
+  const selectClause = "fest_id, fest_title, opening_date, organizing_dept, contact_email";
+
+  const { data: primaryData, error: primaryError } = await supabase
+    .from("fests")
+    .select(selectClause)
+    .in("fest_id", festIds);
+
+  if (!primaryError && Array.isArray(primaryData)) {
+    return primaryData as FestDetailRow[];
+  }
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from("fest")
+    .select(selectClause)
+    .in("fest_id", festIds);
+
+  if (!fallbackError && Array.isArray(fallbackData)) {
+    return fallbackData as FestDetailRow[];
+  }
+
+  if (primaryError && fallbackError) {
+    throw new Error(`Failed to load fest details: ${primaryError.message}`);
+  }
+
+  return [];
+}
+
 export async function fetchHodDashboardData({
   supabase,
   departmentId,
@@ -336,55 +153,128 @@ export async function fetchHodDashboardData({
   supabase: any;
   departmentId?: string | null;
 }): Promise<HodDashboardData> {
-  const normalizedDepartmentId = String(departmentId || "").trim();
+  const normalizedDepartmentId = normalizeText(departmentId).toLowerCase();
 
-  const {
-    rows: legacyPendingRows,
-    errorMessage: legacyErrorMessage,
-  } = await fetchLegacyPendingHodRows(supabase, normalizedDepartmentId);
+  let pendingQuery = supabase
+    .from("approval_steps")
+    .select(
+      `
+        id,
+        step_code,
+        role_code,
+        status,
+        created_at,
+        approval_requests!inner (
+          id,
+          request_id,
+          entity_type,
+          entity_ref,
+          organizing_dept,
+          status,
+          submitted_at,
+          created_at
+        )
+      `
+    )
+    .eq("role_code", "HOD")
+    .eq("status", "PENDING")
+    .order("created_at", { ascending: true });
 
-  let pendingRows = legacyPendingRows;
-
-  if (legacyErrorMessage) {
-    if (isSchemaMismatchError(legacyErrorMessage)) {
-      pendingRows = await fetchWorkflowPendingHodRows(supabase, normalizedDepartmentId);
-    } else {
-      throw new Error(`Failed to load HOD approvals: ${legacyErrorMessage}`);
-    }
+  if (normalizedDepartmentId) {
+    pendingQuery = pendingQuery.eq("approval_requests.organizing_dept", normalizedDepartmentId);
   }
 
-  const eventIds = pendingRows
-    .map((row) => row.eventId)
-    .filter((id) => id.length > 0);
+  const { data: pendingData, error: pendingError } = await pendingQuery;
 
-  const uniqueEventIds = Array.from(new Set(eventIds));
+  if (pendingError) {
+    throw new Error(`Failed to load HOD approvals: ${pendingError.message}`);
+  }
+
+  const pendingRows = Array.isArray(pendingData) ? (pendingData as ApprovalStepQueueRow[]) : [];
+
+  const requestRows = pendingRows
+    .map((row) => toSingleRecord(row.approval_requests))
+    .filter((row): row is ApprovalRequestJoinRow => Boolean(row));
+
+  const eventIds = Array.from(
+    new Set(
+      requestRows
+        .filter((requestRow) => normalizeEntityType(requestRow.entity_type) !== "FEST")
+        .map((requestRow) => normalizeText(requestRow.entity_ref))
+        .filter((entityRef) => entityRef.length > 0)
+    )
+  );
+
+  const festIds = Array.from(
+    new Set(
+      requestRows
+        .filter((requestRow) => normalizeEntityType(requestRow.entity_type) === "FEST")
+        .map((requestRow) => normalizeText(requestRow.entity_ref))
+        .filter((entityRef) => entityRef.length > 0)
+    )
+  );
+
+  let eventRowsById = new Map<string, EventDetailRow>();
+  if (eventIds.length > 0) {
+    const { data: eventData, error: eventError } = await supabase
+      .from("events")
+      .select("event_id, title, event_date, organizing_dept, organizer_email")
+      .in("event_id", eventIds);
+
+    if (eventError) {
+      throw new Error(`Failed to load event details: ${eventError.message}`);
+    }
+
+    const eventRows = Array.isArray(eventData) ? (eventData as EventDetailRow[]) : [];
+    eventRowsById = new Map(
+      eventRows
+        .map((row) => [normalizeText(row.event_id), row] as const)
+        .filter(([eventId]) => eventId.length > 0)
+    );
+  }
+
+  let festRowsById = new Map<string, FestDetailRow>();
+  if (festIds.length > 0) {
+    const festRows = await fetchFestRowsWithFallback(supabase, festIds);
+    festRowsById = new Map(
+      festRows
+        .map((row) => [normalizeText(row.fest_id), row] as const)
+        .filter(([festId]) => festId.length > 0)
+    );
+  }
 
   let budgetsByEventId = new Map<string, BudgetRow>();
-  if (uniqueEventIds.length > 0) {
+  if (eventIds.length > 0) {
     const { data: budgetsData, error: budgetsError } = await supabase
       .from("event_budgets")
       .select("event_id, total_estimated_expense, total_actual_expense")
-      .in("event_id", uniqueEventIds);
+      .in("event_id", eventIds);
 
     if (budgetsError) {
-      if (!isMissingResourceError(budgetsError.message)) {
-        throw new Error(`Failed to load event budget details: ${budgetsError.message}`);
-      }
-    } else {
-      const budgetRows = Array.isArray(budgetsData) ? (budgetsData as BudgetRow[]) : [];
-      budgetsByEventId = new Map(
-        budgetRows
-          .map((row) => [String(row.event_id || ""), row] as const)
-          .filter(([eventId]) => eventId.length > 0)
-      );
+      throw new Error(`Failed to load event budget details: ${budgetsError.message}`);
     }
+
+    const budgetRows = Array.isArray(budgetsData) ? (budgetsData as BudgetRow[]) : [];
+    budgetsByEventId = new Map(
+      budgetRows
+        .map((row) => [String(row.event_id || ""), row] as const)
+        .filter(([eventId]) => eventId.length > 0)
+    );
   }
 
   const organizerEmails = Array.from(
     new Set(
-      pendingRows
-        .map((row) => row.organizerEmail)
-        .map((email) => (typeof email === "string" ? email.trim() : ""))
+      requestRows
+        .map((requestRow) => {
+          const entityRef = normalizeText(requestRow.entity_ref);
+          const entityType = normalizeEntityType(requestRow.entity_type);
+
+          if (entityType === "FEST") {
+            return normalizeText(festRowsById.get(entityRef)?.contact_email).toLowerCase();
+          }
+
+          return normalizeText(eventRowsById.get(entityRef)?.organizer_email).toLowerCase();
+        })
         .filter((email) => email.length > 0)
     )
   );
@@ -399,7 +289,7 @@ export async function fetchHodDashboardData({
     if (!userRowsError && Array.isArray(userRowsData)) {
       const userRows = userRowsData as UserNameRow[];
       const userNameEntries = userRows.reduce<Array<[string, string]>>((entries, row) => {
-        const email = String(row.email || "").trim();
+        const email = String(row.email || "").trim().toLowerCase();
         if (!email) {
           return entries;
         }
@@ -412,25 +302,60 @@ export async function fetchHodDashboardData({
     }
   }
 
-  const queue: HodApprovalQueueItem[] = pendingRows.map((row) => {
-    const eventId = row.eventId;
-    const eventBudget = budgetsByEventId.get(eventId);
-    const organizerEmail = String(row.organizerEmail || "").trim();
-    const coordinatorName = deriveCoordinatorName(
-      organizerEmail,
-      organizerEmail ? userNamesByEmail.get(organizerEmail) : null
-    );
+  const queue: HodApprovalQueueItem[] = pendingRows
+    .map((stepRow) => {
+      const requestRow = toSingleRecord(stepRow.approval_requests);
+      if (!requestRow) {
+        return null;
+      }
 
-    return {
-      id: row.requestId,
-      eventId,
-      eventName: row.eventName,
-      totalBudget: toNumber(eventBudget?.total_estimated_expense),
-      coordinatorName,
-      eventDate: row.eventDate,
-      requestedAt: row.requestedAt,
-    };
-  });
+      const entityType = normalizeEntityType(requestRow.entity_type);
+      const entityRef = normalizeText(requestRow.entity_ref);
+      const isFestEntity = entityType === "FEST";
+
+      const eventRow = !isFestEntity ? eventRowsById.get(entityRef) || null : null;
+      const festRow = isFestEntity ? festRowsById.get(entityRef) || null : null;
+
+      const organizerEmail = normalizeText(
+        isFestEntity ? festRow?.contact_email : eventRow?.organizer_email
+      ).toLowerCase();
+
+      const coordinatorName = deriveCoordinatorName(
+        organizerEmail,
+        organizerEmail ? userNamesByEmail.get(organizerEmail) : null
+      );
+
+      const eventBudget = !isFestEntity ? budgetsByEventId.get(entityRef) : null;
+      const displayName = isFestEntity
+        ? normalizeText(festRow?.fest_title) || "Untitled Fest"
+        : normalizeText(eventRow?.title) || "Untitled Event";
+
+      const displayDate = isFestEntity
+        ? normalizeText(festRow?.opening_date) || null
+        : normalizeText(eventRow?.event_date) || null;
+
+      const departmentName =
+        normalizeText(requestRow.organizing_dept) ||
+        normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept) ||
+        "Unknown Department";
+
+      return {
+        id: normalizeText(requestRow.id),
+        eventId: entityRef,
+        eventName: displayName,
+        entityType: isFestEntity ? "fest" : "event",
+        totalBudget: toNumber(eventBudget?.total_estimated_expense),
+        coordinatorName,
+        departmentName,
+        eventDate: displayDate,
+        requestedAt:
+          normalizeText(requestRow.submitted_at) ||
+          normalizeText(requestRow.created_at) ||
+          normalizeText(stepRow.created_at) ||
+          null,
+      } as HodApprovalQueueItem;
+    })
+    .filter((row): row is HodApprovalQueueItem => Boolean(row && row.id.length > 0));
 
   const { startDate, endDate } = getYearDateBounds(new Date());
 
@@ -457,15 +382,11 @@ export async function fetchHodDashboardData({
 
   const { data: ytdBudgetData, error: ytdBudgetError } = await ytdBudgetQuery;
 
-  if (ytdBudgetError && !isMissingResourceError(ytdBudgetError.message)) {
+  if (ytdBudgetError) {
     throw new Error(`Failed to load YTD department budget: ${ytdBudgetError.message}`);
   }
 
-  const ytdRows = ytdBudgetError
-    ? []
-    : Array.isArray(ytdBudgetData)
-      ? (ytdBudgetData as BudgetRow[])
-      : [];
+  const ytdRows = Array.isArray(ytdBudgetData) ? (ytdBudgetData as BudgetRow[]) : [];
   const deptBudgetUsedYtd = ytdRows.reduce((sum, row) => {
     const actual = toNumber(row.total_actual_expense);
     const estimated = toNumber(row.total_estimated_expense);

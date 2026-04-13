@@ -14,6 +14,7 @@ import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushFestToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { getFestTableForDatabase } from "../utils/festTableResolver.js";
 import { ROLE_CODES } from "../utils/roleAccessService.js";
+import { resolveDepartmentApproverRole } from "../utils/departmentApprovalRouting.js";
 
 const router = express.Router();
 
@@ -220,7 +221,21 @@ export const createFestApprovalRequest = async ({
     return null;
   }
 
-  const normalizedApprovalWorkflow = normalizeFestApprovalWorkflow(approvalWorkflow);
+  const routingResult = await resolveDepartmentApproverRole({
+    organizingDept: festRecord?.organizing_dept || null,
+  });
+
+  if (!routingResult?.ok) {
+    const routingError = new Error(
+      routingResult?.errorMessage ||
+        "Department approver routing is not configured for this fest."
+    );
+    routingError.statusCode = 400;
+    throw routingError;
+  }
+
+  const primaryRoleCode = routingResult.approverRoleCode;
+  const primaryStepCode = primaryRoleCode === ROLE_CODES.HOD ? "HOD" : "DEAN";
 
   const existingRequest = await findActiveApprovalRequestForEntity({
     entityType: "FEST",
@@ -255,48 +270,33 @@ export const createFestApprovalRequest = async ({
       return null;
     }
 
-    const approvalSteps = [];
-    let stepOrder = 1;
-
-    if (normalizedApprovalWorkflow.requiresHodApproval) {
-      approvalSteps.push({
+    const approvalSteps = [
+      {
         approval_request_id: approvalRequest.id,
-        step_code: "HOD",
-        role_code: ROLE_CODES.HOD,
-        step_group: stepOrder,
-        sequence_order: stepOrder,
+        step_code: primaryStepCode,
+        role_code: primaryRoleCode,
+        step_group: 1,
+        sequence_order: 1,
         required_count: 1,
         status: "PENDING",
-      });
-      stepOrder += 1;
-    }
-
-    if (normalizedApprovalWorkflow.requiresDeanApproval) {
-      approvalSteps.push({
-        approval_request_id: approvalRequest.id,
-        step_code: "DEAN",
-        role_code: ROLE_CODES.DEAN,
-        step_group: stepOrder,
-        sequence_order: stepOrder,
-        required_count: 1,
-        status: "PENDING",
-      });
-      stepOrder += 1;
-    }
+      },
+    ];
 
     if (Boolean(isBudgetRelated)) {
       approvalSteps.push({
         approval_request_id: approvalRequest.id,
         step_code: "CFO",
         role_code: ROLE_CODES.CFO,
-        step_group: stepOrder,
-        sequence_order: stepOrder,
+        step_group: 2,
+        sequence_order: 2,
         required_count: 1,
         status: "PENDING",
       });
     }
 
     await insert("approval_steps", approvalSteps);
+    approvalRequest.primary_role_code = primaryRoleCode;
+    approvalRequest.primary_step_code = primaryStepCode;
     return approvalRequest;
   } catch (error) {
     if (isMissingRelationError(error)) {
@@ -1086,6 +1086,9 @@ router.post(
       let workflowApprovalRequest = null;
       let activationState = "ACTIVE";
       let shouldPublishNow = !shouldSaveAsDraft;
+      let pendingDeanApproval = false;
+      let pendingHodApproval = false;
+      let pendingCfoApproval = false;
 
       if (!shouldSaveAsDraft) {
         workflowApprovalRequest = await createFestApprovalRequest({
@@ -1109,6 +1112,13 @@ router.post(
 
           activationState = workflowResult.activationState;
           shouldPublishNow = false;
+          const primaryRoleCode = normalizeWorkflowStatus(
+            workflowApprovalRequest?.primary_role_code,
+            ROLE_CODES.DEAN
+          );
+          pendingDeanApproval = primaryRoleCode === ROLE_CODES.DEAN;
+          pendingHodApproval = primaryRoleCode === ROLE_CODES.HOD;
+          pendingCfoApproval = Boolean(isBudgetRelated);
 
           if (workflowResult.applied) {
             const refreshedFest = await queryOne(festTable, { where: { fest_id } });
@@ -1172,13 +1182,17 @@ router.post(
 
       return res.status(201).json({
         message: workflowApprovalRequest
-          ? `Fest submitted successfully and routed to ${formatApprovalPathLabel({
-              approvalWorkflow,
-              isBudgetRelated,
-            })}`
+          ? ((pendingDeanApproval || pendingHodApproval)
+              ? (pendingCfoApproval
+                  ? `Fest submitted successfully and routed to ${pendingHodApproval ? "HOD" : "Dean"} and CFO approvals`
+                  : `Fest submitted successfully and routed to ${pendingHodApproval ? "HOD" : "Dean"} approval`)
+              : "Fest submitted successfully and routed for approval")
           : "Fest created successfully",
         fest: mapFestResponse(createdFest),
         approval_request_id: workflowApprovalRequest?.request_id || null,
+        pending_dean_review: pendingDeanApproval,
+        pending_hod_review: pendingHodApproval,
+        pending_cfo_review: pendingCfoApproval,
         activation_state: activationState,
         is_live: shouldPublishNow,
       });
@@ -1195,6 +1209,11 @@ router.post(
           error:
             "Database migration required: fests.custom_fields is missing. Run server migrations before creating fests with custom fields.",
         });
+      }
+
+      const statusCode = Number(error?.statusCode || error?.status);
+      if (Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 500) {
+        return res.status(statusCode).json({ error: error.message || "Invalid approval routing configuration." });
       }
 
       return res.status(500).json({ error: "Internal server error while creating fest." });
@@ -1489,6 +1508,8 @@ router.put(
 
       let workflowApprovalRequest = null;
       let activationState = normalizeWorkflowStatus(updatedFest?.activation_state, "ACTIVE");
+      let pendingDeanApproval = false;
+      let pendingHodApproval = false;
       let pendingCfoApproval = false;
 
       if (isPublishTransition) {
@@ -1512,6 +1533,12 @@ router.put(
           });
 
           activationState = workflowResult.activationState;
+          const primaryRoleCode = normalizeWorkflowStatus(
+            workflowApprovalRequest?.primary_role_code,
+            ROLE_CODES.DEAN
+          );
+          pendingDeanApproval = primaryRoleCode === ROLE_CODES.DEAN;
+          pendingHodApproval = primaryRoleCode === ROLE_CODES.HOD;
           pendingCfoApproval = Boolean(isBudgetRelated);
           shouldSendPublishNotifications = false;
 
@@ -1592,10 +1619,11 @@ router.put(
 
       console.log(`[response] About to send success response for fest ${festId}`);
       const responseMessage = workflowApprovalRequest
-        ? `Fest submitted successfully and routed to ${formatApprovalPathLabel({
-            approvalWorkflow,
-            isBudgetRelated: pendingCfoApproval,
-          })}`
+        ? ((pendingDeanApproval || pendingHodApproval)
+          ? (pendingCfoApproval
+            ? `Fest submitted successfully and routed to ${pendingHodApproval ? "HOD" : "Dean"} and CFO approvals`
+            : `Fest submitted successfully and routed to ${pendingHodApproval ? "HOD" : "Dean"} approval`)
+          : "Fest submitted successfully and routed for approval")
         : "Fest updated successfully";
 
       return res.status(200).json({
@@ -1604,6 +1632,9 @@ router.put(
         fest_id: festId,
         id_changed: false,
         approval_request_id: workflowApprovalRequest?.request_id || null,
+        pending_dean_review: pendingDeanApproval,
+        pending_hod_review: pendingHodApproval,
+        pending_cfo_review: pendingCfoApproval,
         activation_state: activationState,
         is_live: canPublishNow,
       });
@@ -1630,6 +1661,11 @@ router.put(
           error:
             "Database migration required: fests.custom_fields is missing. Run server migrations before updating fest custom fields.",
         });
+      }
+
+      const statusCode = Number(error?.statusCode || error?.status);
+      if (Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 500) {
+        return res.status(statusCode).json({ error: error.message || "Invalid approval routing configuration." });
       }
 
       return res.status(500).json({ 

@@ -4,8 +4,13 @@ import type { NextConfig } from "next";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const fallbackAppUrl = "https://sociodev.vercel.app";
-const fallbackApiUrl = "https://sociodevserver.vercel.app/api";
+const isProduction = process.env.NODE_ENV === "production";
+const fallbackAppUrl = isProduction
+  ? "https://sociodev.vercel.app"
+  : "http://localhost:3000";
+const fallbackApiUrl = isProduction
+  ? "https://sociodevserver.vercel.app/api"
+  : "http://localhost:8000/api";
 
 const remoteImageHosts = (process.env.NEXT_PUBLIC_REMOTE_IMAGE_HOSTS || "")
   .split(",")

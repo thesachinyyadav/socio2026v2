@@ -9,6 +9,54 @@ import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
 export const dynamic = "force-dynamic";
 
+function normalizeScope(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isAssignmentActive(assignment: Record<string, unknown>, nowDate: Date = new Date()): boolean {
+  if (!assignment || assignment.is_active === false) {
+    return false;
+  }
+
+  const now = nowDate.getTime();
+  const validFrom = assignment.valid_from
+    ? new Date(String(assignment.valid_from)).getTime()
+    : null;
+  const validUntil = assignment.valid_until
+    ? new Date(String(assignment.valid_until)).getTime()
+    : null;
+
+  if (Number.isFinite(validFrom) && (validFrom as number) > now) {
+    return false;
+  }
+
+  if (Number.isFinite(validUntil) && (validUntil as number) <= now) {
+    return false;
+  }
+
+  return true;
+}
+
+function resolveHodDepartmentScope(userProfile: Record<string, unknown>): string {
+  const assignmentRows = Array.isArray(userProfile.role_assignments)
+    ? (userProfile.role_assignments as Array<Record<string, unknown>>)
+    : [];
+
+  const scopedDepartment = assignmentRows.find(
+    (assignment) =>
+      String(assignment.role_code || "").trim().toUpperCase() === "HOD" &&
+      isAssignmentActive(assignment) &&
+      normalizeScope(assignment.department_scope).length > 0
+  );
+
+  const assignmentScope = normalizeScope(scopedDepartment?.department_scope);
+  if (assignmentScope) {
+    return assignmentScope;
+  }
+
+  return normalizeScope(userProfile.department_id) || normalizeScope(userProfile.department);
+}
+
 function hasSupabaseConfig(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
@@ -68,6 +116,11 @@ export default async function HodManagePage() {
     redirect("/error");
   }
 
+  const hodDepartmentScope = resolveHodDepartmentScope(userProfile);
+  if (!isMasterAdmin && !hodDepartmentScope) {
+    redirect("/error");
+  }
+
   const fallbackDashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = {
     queue: [],
     metrics: {
@@ -82,14 +135,14 @@ export default async function HodManagePage() {
   try {
     dashboardData = await fetchHodDashboardData({
       supabase,
-      departmentId: null,
+      departmentId: isMasterAdmin ? null : hodDepartmentScope,
     });
   } catch (error) {
     dashboardErrorMessage =
       error instanceof Error ? error.message : "Unable to load HOD dashboard data right now.";
   }
 
-  const departmentName = "All Departments";
+  const departmentName = isMasterAdmin ? "All Departments" : hodDepartmentScope;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

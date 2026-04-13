@@ -1,10 +1,13 @@
 import supabase from "../config/supabaseClient.js";
-import { queryOne, update } from "../config/database.js";
+import { queryAll, queryOne, update } from "../config/database.js";
 import {
   ROLE_CODES,
+  combineRoleCodes,
+  deriveRoleCodesFromAssignments,
   deriveLegacyFlagsFromRoleCodes,
   deriveRoleCodesFromUserRecord,
   hasAnyRoleCode,
+  isRoleAssignmentActive,
 } from "../utils/roleAccessService.js";
 
 const getRoleCodes = (userInfo) => (Array.isArray(userInfo?.role_codes) ? userInfo.role_codes : []);
@@ -58,18 +61,70 @@ const hasLegacyFlagForRole = (userInfo, roleCode) => {
   }
 };
 
+const isMissingRelationError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
+};
+
+const isMissingColumnError = (error, columnName) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  const normalizedColumn = String(columnName || "").toLowerCase();
+
+  if (!normalizedColumn) {
+    return false;
+  }
+
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes(`column \"${normalizedColumn}\"`) ||
+    message.includes(`${normalizedColumn} does not exist`) ||
+    (message.includes("could not find") && message.includes(normalizedColumn))
+  );
+};
+
 const enrichUserInfoWithRoles = async (userRecord) => {
   if (!userRecord?.id) {
     return userRecord;
   }
 
-  const roleCodes = deriveRoleCodesFromUserRecord(userRecord);
+  let roleAssignments = [];
+
+  try {
+    const assignmentRows = await queryAll("user_role_assignments", {
+      where: { user_id: userRecord.id, is_active: true },
+    });
+
+    roleAssignments = (assignmentRows || []).filter((assignment) =>
+      isRoleAssignmentActive(assignment)
+    );
+  } catch (error) {
+    if (
+      !isMissingRelationError(error) &&
+      !isMissingColumnError(error, "role_code")
+    ) {
+      throw error;
+    }
+  }
+
+  const roleCodes = combineRoleCodes(
+    deriveRoleCodesFromUserRecord(userRecord),
+    deriveRoleCodesFromAssignments(roleAssignments)
+  );
   const legacyRoleFlags = deriveLegacyFlagsFromRoleCodes(roleCodes, userRecord);
 
   return {
     ...userRecord,
     ...legacyRoleFlags,
-    role_assignments: [],
+    role_assignments: roleAssignments,
     role_codes: roleCodes,
   };
 };

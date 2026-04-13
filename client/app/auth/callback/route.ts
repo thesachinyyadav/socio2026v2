@@ -6,6 +6,23 @@ import type { NextRequest } from "next/server";
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
+const isLocalOrigin = (value?: string | null) =>
+  /https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(String(value || ""));
+
+function resolveRedirectOrigin(params: {
+  headerOrigin: string | null;
+  requestOrigin: string;
+  appUrl?: string | null;
+}): string {
+  const { headerOrigin, requestOrigin, appUrl } = params;
+
+  if (isLocalOrigin(headerOrigin) || isLocalOrigin(requestOrigin)) {
+    return headerOrigin || requestOrigin;
+  }
+
+  return headerOrigin || requestOrigin || appUrl || "http://localhost:3000";
+}
+
 // Helper to determine organization type
 const getOrganizationType = (email: string): 'christ_member' | 'outsider' => {
   const lowerEmail = email.toLowerCase();
@@ -95,7 +112,11 @@ export async function GET(request: NextRequest) {
   const protocol = request.headers.get('x-forwarded-proto') || requestUrl.protocol.replace(':', '');
   const headerOrigin = host ? `${protocol}://${host}` : null;
 
-  const origin = APP_URL || headerOrigin || requestUrl.origin;
+  const origin = resolveRedirectOrigin({
+    headerOrigin,
+    requestOrigin: requestUrl.origin,
+    appUrl: APP_URL,
+  });
 
   const code = requestUrl.searchParams.get("code");
 

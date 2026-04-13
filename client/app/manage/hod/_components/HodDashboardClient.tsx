@@ -19,7 +19,6 @@ interface HodDashboardClientProps {
 type ModalState = {
   requestId: string;
   eventName: string;
-  action: "reject" | "return";
   note: string;
   errorMessage: string | null;
 };
@@ -30,18 +29,14 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
 });
 
-const NOTE_MIN_CHARS = 20;
+const NOTE_MIN_CHARS = 1;
 
 function decisionMessage(action: HodApprovalAction): string {
   if (action === "approve") {
     return "Approval recorded";
   }
 
-  if (action === "return") {
-    return "Request returned for revision";
-  }
-
-  return "Request rejected";
+  return "Request returned for revision";
 }
 
 export default function HodDashboardClient({
@@ -117,7 +112,7 @@ export default function HodDashboardClient({
     }
   };
 
-  const openDecisionModal = (requestId: string, action: "reject" | "return") => {
+  const openDecisionModal = (requestId: string) => {
     const row = queue.find((item) => item.id === requestId);
     if (!row) {
       return;
@@ -126,7 +121,6 @@ export default function HodDashboardClient({
     setModalState({
       requestId,
       eventName: row.eventName,
-      action,
       note: "",
       errorMessage: null,
     });
@@ -159,17 +153,14 @@ export default function HodDashboardClient({
         onApprove={(requestId) => {
           void submitAction({ requestId, action: "approve" });
         }}
-        onReject={(requestId) => {
-          openDecisionModal(requestId, "reject");
-        }}
         onReturn={(requestId) => {
-          openDecisionModal(requestId, "return");
+          openDecisionModal(requestId);
         }}
       />
 
       <ApprovalDecisionModal
         isOpen={Boolean(modalState)}
-        mode={modalState?.action || "reject"}
+        mode="return"
         eventName={modalState?.eventName || ""}
         note={modalState?.note || ""}
         minCharacters={NOTE_MIN_CHARS}
@@ -194,7 +185,7 @@ export default function HodDashboardClient({
               previous
                 ? {
                     ...previous,
-                    errorMessage: `Please enter at least ${NOTE_MIN_CHARS} characters.`,
+                    errorMessage: "Revision description is required.",
                   }
                 : previous
             );
@@ -203,7 +194,7 @@ export default function HodDashboardClient({
 
           void submitAction({
             requestId: modalState.requestId,
-            action: modalState.action,
+            action: "return",
             note: trimmedNote,
           });
         }}

@@ -11,6 +11,58 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_L1_THRESHOLD = 25000;
 
+function normalizeScope(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isAssignmentActive(assignment: Record<string, unknown>, nowDate: Date = new Date()): boolean {
+  if (!assignment || assignment.is_active === false) {
+    return false;
+  }
+
+  const now = nowDate.getTime();
+  const validFrom = assignment.valid_from
+    ? new Date(String(assignment.valid_from)).getTime()
+    : null;
+  const validUntil = assignment.valid_until
+    ? new Date(String(assignment.valid_until)).getTime()
+    : null;
+
+  if (Number.isFinite(validFrom) && (validFrom as number) > now) {
+    return false;
+  }
+
+  if (Number.isFinite(validUntil) && (validUntil as number) <= now) {
+    return false;
+  }
+
+  return true;
+}
+
+function resolveDeanDepartmentScope(userProfile: Record<string, unknown>): string {
+  const assignmentRows = Array.isArray(userProfile.role_assignments)
+    ? (userProfile.role_assignments as Array<Record<string, unknown>>)
+    : [];
+
+  const scopedDepartment = assignmentRows.find(
+    (assignment) =>
+      String(assignment.role_code || "").trim().toUpperCase() === "DEAN" &&
+      isAssignmentActive(assignment) &&
+      normalizeScope(assignment.department_scope).length > 0
+  );
+
+  const assignmentScope = normalizeScope(scopedDepartment?.department_scope);
+  if (assignmentScope) {
+    return assignmentScope;
+  }
+
+  return (
+    normalizeScope(userProfile.school_id) ||
+    normalizeScope(userProfile.department_id) ||
+    normalizeScope(userProfile.department)
+  );
+}
+
 function hasSupabaseConfig(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
@@ -89,6 +141,11 @@ export default async function DeanManagePage() {
     redirect("/manage");
   }
 
+  const deanDepartmentScope = resolveDeanDepartmentScope(userProfile);
+  if (!isMasterAdmin && !deanDepartmentScope) {
+    redirect("/error");
+  }
+
   const campusName = String(userProfile.campus || "").trim();
   const l1Threshold = await resolveL1Threshold(supabase, campusName);
 
@@ -106,7 +163,7 @@ export default async function DeanManagePage() {
   try {
     dashboardData = await fetchDeanDashboardData({
       supabase,
-      schoolId: null,
+      schoolId: isMasterAdmin ? null : deanDepartmentScope,
       l1Threshold,
     });
   } catch (error) {
@@ -122,7 +179,7 @@ export default async function DeanManagePage() {
         </div>
       ) : null}
       <DeanDashboardClient
-        schoolName="All Schools"
+        schoolName={isMasterAdmin ? "All Departments" : deanDepartmentScope}
         l1Threshold={l1Threshold}
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}
