@@ -1513,7 +1513,8 @@ export async function getRolesAnalyticsData(): Promise<RolesAnalytics> {
 
 export async function updateUserAccess(
   userId: string | number,
-  rolePayload: UserAccessPayload
+  rolePayload: UserAccessPayload,
+  changedRole?: string | null
 ): Promise<UpdateUserAccessActionResult> {
   try {
     const { adminClient, actingUser } = await assertMasterAdmin();
@@ -1534,14 +1535,17 @@ export async function updateUserAccess(
     if (payload.is_hod && !payload.department_id) {
       return { ok: false, error: "Select a department before enabling HOD." };
     }
+    if (payload.is_hod && !payload.campus) {
+      return { ok: false, error: "Select a campus before enabling HOD." };
+    }
     if (payload.is_dean && !payload.school_id) {
       return { ok: false, error: "Select a school before enabling Dean." };
     }
+    if (payload.is_dean && !payload.campus) {
+      return { ok: false, error: "Select a campus before enabling Dean." };
+    }
     if (payload.is_cfo && !payload.campus) {
       return { ok: false, error: "Select a campus before enabling CFO." };
-    }
-    if (payload.is_cfo && payload.campus && !CAMPUS_OPTIONS.includes(payload.campus)) {
-      return { ok: false, error: "Invalid campus selection." };
     }
     if (payload.is_venue_manager && !payload.venue_id) {
       return { ok: false, error: "Select a venue before enabling Venue Manager." };
@@ -1583,7 +1587,7 @@ export async function updateUserAccess(
 
     const { data: existingUser, error: existingUserError } = await adminClient
       .from("users")
-      .select("id,email,is_masteradmin,university_role")
+      .select("id,email,is_masteradmin,university_role,department_id,school_id,campus,venue_id")
       .eq("id", targetUserId)
       .maybeSingle();
 
@@ -1615,10 +1619,22 @@ export async function updateUserAccess(
       }
     }
 
-    const strictDepartmentId = payload.is_hod ? payload.department_id : null;
-    const strictSchoolId = payload.is_dean ? payload.school_id : null;
-    const strictCampus = payload.is_cfo ? payload.campus : null;
-    const strictVenueId = payload.is_venue_manager ? payload.venue_id : null;
+    const strictDepartmentId =
+      payload.is_hod
+        ? payload.department_id
+        : normalizeNullableText((existingUser as any)?.department_id);
+    const strictSchoolId =
+      payload.is_dean
+        ? payload.school_id
+        : normalizeNullableText((existingUser as any)?.school_id);
+    const strictCampus =
+      payload.is_hod || payload.is_dean || payload.is_cfo || payload.is_venue_manager
+        ? payload.campus
+        : normalizeNullableText((existingUser as any)?.campus);
+    const strictVenueId =
+      payload.is_venue_manager
+        ? payload.venue_id
+        : normalizeNullableText((existingUser as any)?.venue_id);
 
     const nextUniversityRole: UniversityRoleKey = payload.is_hod
       ? "hod"
@@ -1660,92 +1676,233 @@ export async function updateUserAccess(
       university_role: nextUniversityRole,
     });
 
-    await Promise.all([
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_MASTER_ADMIN,
-        enabled: payload.is_masteradmin,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_HOD,
-        enabled: payload.is_hod,
-        assignedBy: actingUser.email,
-        departmentScope: strictDepartmentId,
-        campusScope: payload.campus,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_DEAN,
-        enabled: payload.is_dean,
-        assignedBy: actingUser.email,
-        departmentScope: strictSchoolId,
-        campusScope: payload.campus,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_CFO,
-        enabled: payload.is_cfo,
-        assignedBy: actingUser.email,
-        campusScope: strictCampus,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_ORGANIZER_TEACHER,
-        enabled: payload.is_organiser,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_ORGANIZER_STUDENT,
-        enabled: payload.is_student_organiser,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_ORGANIZER_VOLUNTEER,
-        enabled: payload.is_volunteer,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_SUPPORT,
-        enabled: payload.is_support,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_FINANCE_OFFICER,
-        enabled: payload.is_finance_officer,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_SERVICE_VENUE,
-        enabled: payload.is_venue_manager,
-        assignedBy: actingUser.email,
-        departmentScope: strictVenueId,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_SERVICE_IT,
-        enabled: payload.is_it_service,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_SERVICE_CATERING,
-        enabled: payload.is_catering_vendors,
-        assignedBy: actingUser.email,
-      }),
-      syncRoleAssignment(adminClient, {
-        userId: targetUserId,
-        roleCode: ROLE_CODE_SERVICE_STALLS,
-        enabled: payload.is_stalls_misc,
-        assignedBy: actingUser.email,
-      }),
-    ]);
+    const syncTasks: Promise<void>[] = [];
+
+    const queueSync = (roleCode: string) => {
+      if (roleCode === ROLE_CODE_MASTER_ADMIN) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_masteradmin,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_HOD) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_hod,
+            assignedBy: actingUser.email,
+            departmentScope: strictDepartmentId,
+            campusScope: strictCampus,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_DEAN) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_dean,
+            assignedBy: actingUser.email,
+            departmentScope: strictSchoolId,
+            campusScope: strictCampus,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_CFO) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_cfo,
+            assignedBy: actingUser.email,
+            campusScope: strictCampus,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_ORGANIZER_TEACHER) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_organiser,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_ORGANIZER_STUDENT) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_student_organiser,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_ORGANIZER_VOLUNTEER) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_volunteer,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_SUPPORT) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_support,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_FINANCE_OFFICER) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_finance_officer,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_SERVICE_VENUE) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_venue_manager,
+            assignedBy: actingUser.email,
+            departmentScope: strictVenueId,
+            campusScope: strictCampus,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_SERVICE_IT) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_it_service,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_SERVICE_CATERING) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_catering_vendors,
+            assignedBy: actingUser.email,
+          })
+        );
+        return;
+      }
+
+      if (roleCode === ROLE_CODE_SERVICE_STALLS) {
+        syncTasks.push(
+          syncRoleAssignment(adminClient, {
+            userId: targetUserId,
+            roleCode,
+            enabled: payload.is_stalls_misc,
+            assignedBy: actingUser.email,
+          })
+        );
+      }
+    };
+
+    const changedRoleValue = String(changedRole || "").trim();
+    if (!changedRoleValue) {
+      [
+        ROLE_CODE_MASTER_ADMIN,
+        ROLE_CODE_HOD,
+        ROLE_CODE_DEAN,
+        ROLE_CODE_CFO,
+        ROLE_CODE_ORGANIZER_TEACHER,
+        ROLE_CODE_ORGANIZER_STUDENT,
+        ROLE_CODE_ORGANIZER_VOLUNTEER,
+        ROLE_CODE_SUPPORT,
+        ROLE_CODE_FINANCE_OFFICER,
+        ROLE_CODE_SERVICE_VENUE,
+        ROLE_CODE_SERVICE_IT,
+        ROLE_CODE_SERVICE_CATERING,
+        ROLE_CODE_SERVICE_STALLS,
+      ].forEach(queueSync);
+    } else if (
+      changedRoleValue === "hod" ||
+      changedRoleValue === "dean" ||
+      changedRoleValue === "cfo" ||
+      changedRoleValue === "venue_manager"
+    ) {
+      [ROLE_CODE_HOD, ROLE_CODE_DEAN, ROLE_CODE_CFO, ROLE_CODE_SERVICE_VENUE].forEach(queueSync);
+    } else if (changedRoleValue === "master_admin") {
+      queueSync(ROLE_CODE_MASTER_ADMIN);
+    } else if (changedRoleValue === "organiser") {
+      queueSync(ROLE_CODE_ORGANIZER_TEACHER);
+    } else if (changedRoleValue === "student_organiser") {
+      queueSync(ROLE_CODE_ORGANIZER_STUDENT);
+    } else if (changedRoleValue === "volunteer") {
+      queueSync(ROLE_CODE_ORGANIZER_VOLUNTEER);
+    } else if (changedRoleValue === "support") {
+      queueSync(ROLE_CODE_SUPPORT);
+    } else if (changedRoleValue === "finance") {
+      queueSync(ROLE_CODE_FINANCE_OFFICER);
+    } else if (changedRoleValue === "it_service") {
+      queueSync(ROLE_CODE_SERVICE_IT);
+    } else if (changedRoleValue === "catering_vendors") {
+      queueSync(ROLE_CODE_SERVICE_CATERING);
+    } else if (changedRoleValue === "stalls_misc") {
+      queueSync(ROLE_CODE_SERVICE_STALLS);
+    } else {
+      [
+        ROLE_CODE_MASTER_ADMIN,
+        ROLE_CODE_HOD,
+        ROLE_CODE_DEAN,
+        ROLE_CODE_CFO,
+        ROLE_CODE_ORGANIZER_TEACHER,
+        ROLE_CODE_ORGANIZER_STUDENT,
+        ROLE_CODE_ORGANIZER_VOLUNTEER,
+        ROLE_CODE_SUPPORT,
+        ROLE_CODE_FINANCE_OFFICER,
+        ROLE_CODE_SERVICE_VENUE,
+        ROLE_CODE_SERVICE_IT,
+        ROLE_CODE_SERVICE_CATERING,
+        ROLE_CODE_SERVICE_STALLS,
+      ].forEach(queueSync);
+    }
+
+    await Promise.all(syncTasks);
 
     const [updatedRow, assignmentFallbackMap] = await Promise.all([
       fetchSingleUserWithFallback(adminClient, targetUserId),
@@ -2033,9 +2190,24 @@ export async function assignRoleMatrixEntry(
     revalidatePath("/manage");
     revalidatePath("/execution");
 
+    const [nextUsersRows, nextRoleAssignments] = await Promise.all([
+      fetchUsersWithFallback(adminClient),
+      fetchRoleAssignments(adminClient),
+    ]);
+
+    const nextFallbackMap = buildAssignmentFallbackMap(
+      nextRoleAssignments,
+      nextUsersRows.map((row: any) => row.id)
+    );
+
     return {
       ok: true,
-      data: await getRolesTableData(),
+      data: {
+        users: nextUsersRows.map((row: any) =>
+          normalizeUserRecord(row, nextFallbackMap.get(String(row.id)))
+        ),
+        roleAssignments: nextRoleAssignments,
+      },
       message: `${ROLE_MATRIX_ROLE_LABELS[roleValue]} assigned to ${normalizedTarget.email}.`,
     };
   } catch (error: any) {

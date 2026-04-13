@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { assignRoleMatrixEntry, deleteUserAccount, getRolesAnalyticsData, updateUserAccess } from "./actions";
-import DomainScopeModal, { type DomainScopeMode } from "./DomainScopeModal";
+import DomainScopeModal, { type DomainScopeMode, type DomainSelection } from "./DomainScopeModal";
 import type {
   RoleMatrixAssignableRole,
   RoleMatrixAssignment,
@@ -39,7 +39,8 @@ type DomainModalState = {
   role: DomainScopeMode;
   userId: string | number;
   userName: string;
-  initialValue: string | null;
+  initialScopeValue: string | null;
+  initialCampusValue: string | null;
 };
 
 const domainRoleSet = new Set<MatrixRole>(["venue_manager", "hod", "dean", "cfo"]);
@@ -334,14 +335,15 @@ function emptyModalState(): DomainModalState {
     role: "hod",
     userId: "",
     userName: "",
-    initialValue: null,
+    initialScopeValue: null,
+    initialCampusValue: null,
   };
 }
 
 function buildNextAccessPayload(
   current: UserAccessPayload,
   role: MatrixRole,
-  domainSelection?: string | null
+  domainSelection?: DomainSelection | null
 ): UserAccessPayload {
   const next: UserAccessPayload = {
     ...current,
@@ -394,6 +396,14 @@ function buildNextAccessPayload(
 
   const shouldEnable = !isRoleEnabled(current, role);
 
+  if (!shouldEnable) {
+    next.is_hod = false;
+    next.is_dean = false;
+    next.is_cfo = false;
+    next.is_venue_manager = false;
+    return next;
+  }
+
   next.is_hod = false;
   next.is_dean = false;
   next.is_cfo = false;
@@ -403,60 +413,77 @@ function buildNextAccessPayload(
   next.campus = null;
   next.venue_id = null;
 
-  if (!shouldEnable) {
-    return next;
-  }
+  const selectedScope = domainSelection?.scopeValue || null;
+  const selectedCampus = domainSelection?.campusValue || null;
 
   if (role === "hod") {
     next.is_hod = true;
-    next.department_id = domainSelection || null;
+    next.department_id = selectedScope;
+    next.campus = selectedCampus;
   }
 
   if (role === "dean") {
     next.is_dean = true;
-    next.school_id = domainSelection || null;
+    next.school_id = selectedScope;
+    next.campus = selectedCampus;
   }
 
   if (role === "cfo") {
     next.is_cfo = true;
-    next.campus = domainSelection || null;
+    next.campus = selectedScope || selectedCampus;
   }
 
   if (role === "venue_manager") {
     next.is_venue_manager = true;
-    next.venue_id = domainSelection || null;
+    next.venue_id = selectedScope;
+    next.campus = selectedCampus;
   }
 
   return next;
 }
 
-function domainValueForRole(access: UserAccessPayload, role: MatrixRole): string | null {
+function domainValueForRole(access: UserAccessPayload, role: MatrixRole): DomainSelection {
   if (role === "hod") {
-    return access.department_id;
+    return {
+      scopeValue: access.department_id,
+      campusValue: access.campus,
+    };
   }
 
   if (role === "dean") {
-    return access.school_id;
+    return {
+      scopeValue: access.school_id,
+      campusValue: access.campus,
+    };
   }
 
   if (role === "cfo") {
-    return access.campus;
+    return {
+      scopeValue: access.campus,
+      campusValue: access.campus,
+    };
   }
 
   if (role === "venue_manager") {
-    return access.venue_id;
+    return {
+      scopeValue: access.venue_id,
+      campusValue: access.campus,
+    };
   }
 
-  return null;
+  return {
+    scopeValue: null,
+    campusValue: null,
+  };
 }
 
 function hasScopeOptions(data: RolesPageData, role: MatrixRole): boolean {
   if (role === "hod") {
-    return data.departments.length > 0;
+    return data.departments.length > 0 && data.campuses.length > 0;
   }
 
   if (role === "dean") {
-    return data.schools.length > 0;
+    return data.schools.length > 0 && data.campuses.length > 0;
   }
 
   if (role === "cfo") {
@@ -464,7 +491,7 @@ function hasScopeOptions(data: RolesPageData, role: MatrixRole): boolean {
   }
 
   if (role === "venue_manager") {
-    return data.venues.length > 0;
+    return data.venues.length > 0 && data.campuses.length > 0;
   }
 
   return true;
@@ -641,6 +668,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
   const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | number | null>(null);
   const [pendingUpdateUserId, setPendingUpdateUserId] = useState<string | number | null>(null);
   const [userPage, setUserPage] = useState(1);
+  const [assignmentPage, setAssignmentPage] = useState(1);
   const [assignmentEmail, setAssignmentEmail] = useState("");
   const [assignmentCampus, setAssignmentCampus] = useState("");
   const [assignmentRole, setAssignmentRole] = useState<RoleMatrixAssignableRole>("hod");
@@ -1047,6 +1075,26 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
     });
   }, [activeAssignments, searchText, userById]);
 
+  const assignmentPagination = useMemo<PaginationState>(() => {
+    const totalItems = filteredAssignmentRows.length;
+    const totalPages = Math.max(Math.ceil(totalItems / ITEMS_PER_PAGE), 1);
+    const page = Math.min(assignmentPage, totalPages);
+
+    return {
+      page,
+      pageSize: ITEMS_PER_PAGE,
+      totalItems,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+  }, [filteredAssignmentRows.length, assignmentPage]);
+
+  const paginatedAssignmentRows = useMemo(() => {
+    const startIndex = (assignmentPagination.page - 1) * assignmentPagination.pageSize;
+    return filteredAssignmentRows.slice(startIndex, startIndex + assignmentPagination.pageSize);
+  }, [filteredAssignmentRows, assignmentPagination.page, assignmentPagination.pageSize]);
+
   const userPagination = useMemo<PaginationState>(() => {
     const totalItems = filteredUsers.length;
     const totalPages = Math.max(Math.ceil(totalItems / ITEMS_PER_PAGE), 1);
@@ -1069,6 +1117,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
 
   useEffect(() => {
     setUserPage(1);
+    setAssignmentPage(1);
   }, [searchText, roleFilter, campusFilter]);
 
   useEffect(() => {
@@ -1076,6 +1125,28 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       setUserPage(userPagination.page);
     }
   }, [userPagination.page, userPage]);
+
+  useEffect(() => {
+    if (assignmentPagination.page !== assignmentPage) {
+      setAssignmentPage(assignmentPagination.page);
+    }
+  }, [assignmentPagination.page, assignmentPage]);
+
+  const copyUserEmailToAssignment = async (email: string) => {
+    const normalized = String(email || "").trim();
+    if (!normalized) {
+      return;
+    }
+
+    setAssignmentEmail(normalized);
+
+    try {
+      await navigator.clipboard.writeText(normalized);
+      toast.success("Email copied and prefilled in assignment panel.");
+    } catch {
+      toast.success("Email prefilled in assignment panel.");
+    }
+  };
 
   const loadAnalytics = async (force = false) => {
     if (isAnalyticsLoading) {
@@ -1105,11 +1176,16 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
     }
   };
 
-  const runAccessUpdate = (user: UserRoleRow, nextAccess: UserAccessPayload, successMessage: string) => {
+  const runAccessUpdate = (
+    user: UserRoleRow,
+    nextAccess: UserAccessPayload,
+    successMessage: string,
+    changedRole?: MatrixRole
+  ) => {
     setPendingUpdateUserId(user.id);
 
     startTransition(async () => {
-      const response = await updateUserAccess(user.id, nextAccess);
+      const response = await updateUserAccess(user.id, nextAccess, changedRole);
       setPendingUpdateUserId(null);
 
       if (!response.ok) {
@@ -1127,7 +1203,6 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       }));
 
       toast.success(successMessage);
-      router.refresh();
     });
   };
 
@@ -1165,8 +1240,15 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       }
 
       setData((previous) => ({
-        ...response.data,
-        analytics: hasAnalyticsData(response.data.analytics) ? response.data.analytics : previous.analytics,
+        ...previous,
+        users: response.data.users,
+        roleAssignments: response.data.roleAssignments,
+        campuses: Array.from(
+          new Set(
+            [...previous.campuses, ...response.data.users.map((user) => String(user.campus || "").trim())]
+              .filter((campus) => campus.length > 0)
+          )
+        ),
       }));
       setUsers(response.data.users);
       setAssignmentScope("");
@@ -1176,7 +1258,6 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       }
 
       toast.success(response.message);
-      router.refresh();
     });
   };
 
@@ -1196,16 +1277,17 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
         role: mode,
         userId: user.id,
         userName: user.name || user.email,
-        initialValue: domainValueForRole(user.access, role),
+        initialScopeValue: domainValueForRole(user.access, role).scopeValue,
+        initialCampusValue: domainValueForRole(user.access, role).campusValue,
       });
       return;
     }
 
     const nextAccess = buildNextAccessPayload(user.access, role);
-    runAccessUpdate(user, nextAccess, `${roleLabel(role)} access updated.`);
+    runAccessUpdate(user, nextAccess, `${roleLabel(role)} access updated.`, role);
   };
 
-  const handleDomainConfirm = (selectedValue: string) => {
+  const handleDomainConfirm = (selection: DomainSelection) => {
     if (!domainModal.isOpen || !pendingModalRole) {
       return;
     }
@@ -1218,10 +1300,10 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
       return;
     }
 
-    const nextAccess = buildNextAccessPayload(user.access, pendingModalRole, selectedValue);
+    const nextAccess = buildNextAccessPayload(user.access, pendingModalRole, selection);
     setDomainModal(emptyModalState());
     setPendingModalRole(null);
-    runAccessUpdate(user, nextAccess, `${roleLabel(pendingModalRole)} access updated.`);
+    runAccessUpdate(user, nextAccess, `${roleLabel(pendingModalRole)} access updated.`, pendingModalRole);
   };
 
   const requestDelete = (user: UserRoleRow) => {
@@ -1247,7 +1329,6 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
         users: previous.users.filter((row) => !sameUserId(row.id, user.id)),
       }));
       toast.success("User deleted successfully.");
-      router.refresh();
     });
   };
 
@@ -1381,7 +1462,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
               type="button"
               disabled={isPending}
               onClick={handleAssignRoleMatrix}
-              className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="w-full rounded-lg bg-[#154CB3] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#154cb3df] disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {isPending ? "Assigning..." : "Assign Role"}
             </button>
@@ -1407,7 +1488,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                 onClick={() => setActiveTab("users")}
                 className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
                   activeTab === "users"
-                    ? "bg-blue-700 text-white"
+                    ? "bg-[#154CB3] text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
@@ -1418,7 +1499,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                 onClick={() => setActiveTab("assignments")}
                 className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
                   activeTab === "assignments"
-                    ? "bg-blue-700 text-white"
+                    ? "bg-[#154CB3] text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
@@ -1432,7 +1513,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                 }}
                 className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
                   activeTab === "analytics"
-                    ? "bg-blue-700 text-white"
+                    ? "bg-[#154CB3] text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
@@ -1509,7 +1590,14 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                         <tr key={`${user.id}-${user.email}`} className="border-t border-slate-200 align-top">
                           <td className="px-4 py-4">
                             <p className="text-sm font-semibold text-slate-900">{user.name || "Unnamed User"}</p>
-                            <p className="text-xs text-slate-500">{user.email}</p>
+                            <button
+                              type="button"
+                              onClick={() => copyUserEmailToAssignment(user.email)}
+                              className="text-left text-xs text-[#154CB3] underline-offset-2 transition hover:underline"
+                              title="Copy email and prefill assignment panel"
+                            >
+                              {user.email}
+                            </button>
                           </td>
                           <td className="px-4 py-4 text-sm text-slate-700">
                             <p>{user.campus || "-"}</p>
@@ -1520,7 +1608,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                               {userRoleTags(user).map((tag) => (
                                 <span
                                   key={`${user.id}-${tag}`}
-                                  className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700"
+                                  className="rounded-full bg-[#154CB3]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#154CB3]"
                                 >
                                   {tag}
                                 </span>
@@ -1610,7 +1698,7 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAssignmentRows.map((assignment) => {
+                    {paginatedAssignmentRows.map((assignment) => {
                       const user = userById.get(String(assignment.user_id));
                       return (
                         <tr
@@ -1636,6 +1724,18 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
                   </tbody>
                 </table>
               </div>
+
+              {filteredAssignmentRows.length > 0 && (
+                <PaginationControls
+                  currentPage={assignmentPagination.page}
+                  totalPages={assignmentPagination.totalPages}
+                  hasNext={assignmentPagination.hasNext}
+                  hasPrev={assignmentPagination.hasPrev}
+                  onNext={() => setAssignmentPage((previous) => previous + 1)}
+                  onPrev={() => setAssignmentPage((previous) => previous - 1)}
+                  totalItems={assignmentPagination.totalItems}
+                />
+              )}
             </div>
           )}
 
@@ -1653,7 +1753,8 @@ export default function RolesManagementTable({ initialData }: RolesManagementTab
         schools={data.schools}
         campuses={data.campuses}
         venues={data.venues}
-        initialValue={domainModal.initialValue}
+        initialScopeValue={domainModal.initialScopeValue}
+        initialCampusValue={domainModal.initialCampusValue}
         onCancel={() => {
           setDomainModal(emptyModalState());
           setPendingModalRole(null);

@@ -132,7 +132,10 @@ export type DeleteUserActionResult =
 export type AssignRoleMatrixActionResult =
   | {
       ok: true;
-      data: RolesPageData;
+      data: {
+        users: UserRoleRow[];
+        roleAssignments: RoleMatrixAssignment[];
+      };
       message: string;
     }
   | {
