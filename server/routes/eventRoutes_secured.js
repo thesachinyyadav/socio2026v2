@@ -51,6 +51,14 @@ const isOrganizerStudentOnlyUser = (userInfo) => {
   return hasStudentRole && !isOrganizerTeacherUser(userInfo) && !isMasterAdminUser(userInfo);
 };
 
+const canViewNonPublicEvents = (userInfo) => {
+  return Boolean(
+    isMasterAdminUser(userInfo) ||
+    isOrganizerTeacherUser(userInfo) ||
+    isOrganizerStudentOnlyUser(userInfo)
+  );
+};
+
 const isMissingRelationError = (error) => {
   const code = String(error?.code || "").toUpperCase();
   const message = String(error?.message || "").toLowerCase();
@@ -1746,11 +1754,8 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const includeDraftsRequested =
       typeof include_drafts === "string" && include_drafts.toLowerCase() === "true";
-    const canViewDrafts = Boolean(
-      isMasterAdminUser(req.userInfo) ||
-      isOrganizerTeacherUser(req.userInfo) ||
-      isOrganizerStudentOnlyUser(req.userInfo)
-    );
+    const canViewDrafts = canViewNonPublicEvents(req.userInfo);
+    const canAccessNonPublicEvents = canViewNonPublicEvents(req.userInfo);
     const shouldIncludeDrafts = includeDraftsRequested && canViewDrafts;
     
     let queryOptions = { 
@@ -1829,7 +1834,9 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
       processedEvents = processedEvents.filter((event) => !event.archived_effective);
     }
 
-    if (!shouldIncludeDrafts) {
+    if (!canAccessNonPublicEvents) {
+      processedEvents = processedEvents.filter((event) => isEventLiveForNotifications(event));
+    } else if (!shouldIncludeDrafts) {
       processedEvents = processedEvents.filter((event) => !asBoolean(event.is_draft));
     }
 
@@ -1903,7 +1910,7 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
 });
 
 // GET specific event by ID - PUBLIC ACCESS
-router.get("/:eventId", async (req, res) => {
+router.get("/:eventId", optionalAuth, checkRoleExpiration, async (req, res) => {
   try {
     const { eventId } = req.params;
 
@@ -1934,6 +1941,11 @@ router.get("/:eventId", async (req, res) => {
       allowed_campuses: normalizeStringListField(event.allowed_campuses),
       ...archiveState,
     };
+
+    const canAccessNonPublicEvent = canViewNonPublicEvents(req.userInfo);
+    if (!canAccessNonPublicEvent && !isEventLiveForNotifications(processedEvent)) {
+      return res.status(404).json({ error: `Event with ID '${eventId}' not found.` });
+    }
 
     return res.status(200).json({ event: processedEvent });
   } catch (error) {
@@ -2018,6 +2030,8 @@ router.post(
         asBoolean(is_draft) ||
         asBoolean(save_as_draft);
       const shouldSaveAsDraft = shouldSaveAsDraftByInput || userIsOrganizerStudentOnly;
+      const isStandaloneEvent = !normalizedFestId;
+      const shouldRemainDraftUntilApproval = shouldSaveAsDraft || isStandaloneEvent;
       const shouldArchiveOnCreate =
         asBoolean(is_archived) && !shouldSaveAsDraft && !userIsOrganizerStudentOnly;
       const parsedRegistrationFee = parseOptionalFloat(registration_fee);
@@ -2290,8 +2304,8 @@ router.post(
         auth_uuid: req.userId,
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
-        is_draft: shouldSaveAsDraft,
-        status: shouldSaveAsDraft
+        is_draft: shouldRemainDraftUntilApproval,
+        status: shouldRemainDraftUntilApproval
           ? LIFECYCLE_STATUS.DRAFT
           : LIFECYCLE_STATUS.PUBLISHED,
         is_archived: shouldArchiveOnCreate,
@@ -2435,7 +2449,8 @@ router.post(
       const canGoLiveNow =
         !shouldSaveAsDraft &&
         !shouldArchiveOnCreate &&
-        activationState === "ACTIVE";
+        activationState === "ACTIVE" &&
+        !asBoolean(createdEventRecord?.is_draft);
       const isEventReadyForNotifications = isEventLiveForNotifications(createdEventRecord);
       const shouldSendNotifications = shouldSendLifecycleNotification({
         record: createdEventRecord,
@@ -2490,6 +2505,8 @@ router.post(
         responseMessage = pendingCfoApproval
           ? `Event submitted successfully and routed to ${primaryApproverLabel} and CFO approvals`
           : `Event submitted successfully and routed to ${primaryApproverLabel} approval`;
+      } else if (isStandaloneEvent && !shouldSaveAsDraft) {
+        responseMessage = "Event saved as draft and pending approval";
       } else if (!canGoLiveNow && (serviceWorkflow.createdCount || 0) > 0) {
         responseMessage = "Event submitted successfully and routed for service approvals";
       }
