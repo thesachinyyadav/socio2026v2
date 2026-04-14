@@ -29,6 +29,7 @@ const ALLOWED_FEST_IMAGE_TYPES = [
 ];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const MAX_EMAIL_LENGTH = 100;
+const CHRIST_EMAIL_DOMAIN = "@christuniversity.in";
 const PHONE_REGEX = /^\+?[\d\s-]{10,14}$/;
 
 const normalizeEmail = (value: unknown): string =>
@@ -36,6 +37,9 @@ const normalizeEmail = (value: unknown): string =>
 
 const isValidEmail = (value: unknown): boolean =>
   EMAIL_REGEX.test(normalizeEmail(value));
+
+const isChristUniversityEmail = (value: unknown): boolean =>
+  normalizeEmail(value).endsWith(CHRIST_EMAIL_DOMAIN);
 
 const normalizePhone = (value: unknown): string => String(value ?? "").trim();
 
@@ -1596,6 +1600,8 @@ function CreateFestForm(props?: CreateFestProps) {
               newErrors.contactEmail = "Contact email is required";
             else if (!isValidEmail(value))
               newErrors.contactEmail = "Invalid email format";
+            else if (!isChristUniversityEmail(value))
+              newErrors.contactEmail = "Use your @christuniversity.in email";
             else if (normalizeEmail(value).length > MAX_EMAIL_LENGTH)
               newErrors.contactEmail = "Max 100 chars.";
             else delete newErrors.contactEmail;
@@ -1634,6 +1640,8 @@ function CreateFestForm(props?: CreateFestProps) {
               newErrors.subheadEmail = "Subhead email is required";
             else if (!isValidEmail(value as string))
               newErrors.subheadEmail = "Invalid email format";
+            else if (!isChristUniversityEmail(value as string))
+              newErrors.subheadEmail = "Use @christuniversity.in email only";
             else delete newErrors.subheadEmail;
             break;
         }
@@ -1692,6 +1700,18 @@ function CreateFestForm(props?: CreateFestProps) {
               const inputDate = parseYYYYMMDD(String(value));
               if (!inputDate) errorMsg = "Invalid date value";
               else if (
+                name === "openingDate" &&
+                !isEditMode
+              ) {
+                const minOpeningDate = new Date(currentDate);
+                minOpeningDate.setDate(minOpeningDate.getDate() + 7);
+                if (inputDate < minOpeningDate) {
+                  errorMsg = "Opening must be at least 7 days from today";
+                }
+              }
+
+              if (
+                !errorMsg &&
                 inputDate < currentDate &&
                 !isEditMode &&
                 name === "openingDate"
@@ -2666,12 +2686,25 @@ function CreateFestForm(props?: CreateFestProps) {
   const [subheadInput, setSubheadInput] = useState("");
   const addSubhead = () => {
     const email = normalizeEmail(subheadInput);
+    const organizerEmail = normalizeEmail(session?.user?.email || formData.contactEmail);
     if (!email) {
       setErrors(prev => ({ ...prev, subheadEmail: "Please enter an email" }));
       return;
     }
     if (!isValidEmail(email)) {
       setErrors(prev => ({ ...prev, subheadEmail: "Invalid email format" }));
+      return;
+    }
+    if (!isChristUniversityEmail(email)) {
+      setErrors(prev => ({ ...prev, subheadEmail: "Use @christuniversity.in email only" }));
+      return;
+    }
+    if (organizerEmail && email === organizerEmail) {
+      setErrors(prev => ({
+        ...prev,
+        subheadEmail:
+          "You are the organizer of this fest. You cannot add yourself as a subhead.",
+      }));
       return;
     }
     if (formData.subheads.includes(email)) {
@@ -2786,8 +2819,8 @@ function CreateFestForm(props?: CreateFestProps) {
                   ? "Your fest is now live and visible to users."
                   : (
                     <>
-                      Your fest has been successfully sent for approval.<br />
-                      What would you like to do next?
+                      Fest saved as draft. Submitted to HOD for approval.<br />
+                      You will be notified at each step.
                     </>
                   )}
               </p>
@@ -3572,10 +3605,10 @@ function CreateFestForm(props?: CreateFestProps) {
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-bold text-[#063168]">
-                          Sub-heads (optional, max 20)
+                          Add sub-organisers (subheads)
                         </h3>
                         <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                          Assistants for fest coordination.
+                          Subheads can create events under this fest once it is approved. They do not need any additional approvals.
                         </p>
                       </div>
                     </div>
@@ -4330,6 +4363,8 @@ function CreateFestForm(props?: CreateFestProps) {
                         >
                           {isSubmitting && submitIntent === "draft"
                             ? "Saving Draft..."
+                            : !finalIsEditMode
+                            ? "Save as draft & submit for HOD approval"
                             : "Save as Draft"}
                         </button>
 

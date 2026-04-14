@@ -160,7 +160,7 @@ export const eventFormSchema = z
     endDate: z.string().min(1, "End date is required"),
     detailedDescription: z
       .string()
-      .min(1, "Description is required")
+      .min(20, "Description must be at least 20 characters")
       .max(1000, "Max 1000 chars"),
     department: z
       .array(z.string())
@@ -172,8 +172,8 @@ export const eventFormSchema = z
       .string()
       .trim()
       .min(1, "Please select a fest option or None"),
-    standaloneRequiresHodApproval: z.boolean().default(true),
-    standaloneRequiresDeanApproval: z.boolean().default(true),
+    standaloneRequiresHodApproval: z.boolean().default(false),
+    standaloneRequiresDeanApproval: z.boolean().default(false),
     registrationDeadline: z.string().min(1, "Deadline is required"),
     location: z
       .string()
@@ -192,8 +192,12 @@ export const eventFormSchema = z
       .string()
       .optional()
       .refine(
-        (val) => !val || (Number(val) > 0 && Number.isInteger(Number(val))),
-        "Must be a positive integer"
+        (val) =>
+          !val ||
+          (Number(val) > 0 &&
+            Number.isInteger(Number(val)) &&
+            Number(val) <= 10000),
+        "Must be a positive integer not more than 10000"
       )
       .transform((val) => (val === "" ? undefined : val)),
     minParticipants: z
@@ -281,6 +285,19 @@ export const eventFormSchema = z
   })
   .refine(
     (data) => {
+      if (!data.eventDate) return true;
+      const eventDate = new Date(data.eventDate);
+      if (Number.isNaN(eventDate.getTime())) return true;
+      const minStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      return eventDate.getTime() >= minStart.getTime();
+    },
+    {
+      message: "Event date must be at least 48 hours from now",
+      path: ["eventDate"],
+    }
+  )
+  .refine(
+    (data) => {
       if (!data.isTeamEvent) return true;
       return !!data.maxParticipants && Number(data.maxParticipants) > 1;
     },
@@ -340,18 +357,6 @@ export const eventFormSchema = z
       typeof data.festEvent === "string" &&
       data.festEvent.trim() !== "" &&
       data.festEvent.trim().toLowerCase() !== "none";
-
-    if (
-      !hasFestSelected &&
-      !data.standaloneRequiresHodApproval &&
-      !data.standaloneRequiresDeanApproval
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["standaloneRequiresDeanApproval"],
-        message: "Select at least one standalone approval stage (HOD or Dean)",
-      });
-    }
 
     if (!hasFestSelected) {
       return;

@@ -1354,8 +1354,8 @@ export default function EventForm({
       organizingSchool: "",
       organizingDept: "",
       festEvent: "",
-      standaloneRequiresHodApproval: true,
-      standaloneRequiresDeanApproval: true,
+      standaloneRequiresHodApproval: false,
+      standaloneRequiresDeanApproval: false,
       registrationDeadline: "",
       location: "",
       registrationFee: "",
@@ -1588,11 +1588,11 @@ export default function EventForm({
         standaloneRequiresHodApproval:
           typeof defaultValues.standaloneRequiresHodApproval === "boolean"
             ? defaultValues.standaloneRequiresHodApproval
-            : true,
+            : false,
         standaloneRequiresDeanApproval:
           typeof defaultValues.standaloneRequiresDeanApproval === "boolean"
             ? defaultValues.standaloneRequiresDeanApproval
-            : true,
+            : false,
         additionalRequests: mergeAdditionalRequests(defaultValues.additionalRequests),
       };
       reset(transformedDefaults);
@@ -1604,6 +1604,8 @@ export default function EventForm({
   const watchedIsTeamEvent = useWatch({ control, name: "isTeamEvent" });
   const watchedMaxParticipants = useWatch({ control, name: "maxParticipants" });
   const watchedMinParticipants = useWatch({ control, name: "minParticipants" });
+  const watchedOrganizingDept = useWatch({ control, name: "organizingDept" });
+  const watchedCampusHostedAt = useWatch({ control, name: "campusHostedAt" });
   const watchedFestEvent = useWatch({ control, name: "festEvent" });
   const watchedStandaloneRequiresHodApproval = useWatch({
     control,
@@ -1650,10 +1652,84 @@ export default function EventForm({
     name: "additionalRequests.stalls.hardboardSelected",
   });
 
+  const [standaloneApproverPreview, setStandaloneApproverPreview] = useState<{
+    hodName: string | null;
+    deanName: string | null;
+    loading: boolean;
+  }>({
+    hodName: null,
+    deanName: null,
+    loading: false,
+  });
+
   const hasFestSelected =
     typeof watchedFestEvent === "string" &&
     watchedFestEvent.trim() !== "" &&
     watchedFestEvent.trim().toLowerCase() !== "none";
+
+  useEffect(() => {
+    const dept = String(watchedOrganizingDept || "").trim();
+    const campus = String(watchedCampusHostedAt || "").trim();
+    const token = session?.access_token;
+
+    if (hasFestSelected || !dept || !campus || !token) {
+      setStandaloneApproverPreview({
+        hodName: null,
+        deanName: null,
+        loading: false,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+
+    const fetchApprovers = async () => {
+      setStandaloneApproverPreview((prev) => ({ ...prev, loading: true }));
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/users/approvers?dept=${encodeURIComponent(dept)}&campus=${encodeURIComponent(campus)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Approver lookup failed (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (cancelled) return;
+
+        setStandaloneApproverPreview({
+          hodName: String(data?.hod?.name || "").trim() || null,
+          deanName: String(data?.dean?.name || "").trim() || null,
+          loading: false,
+        });
+      } catch {
+        if (cancelled) return;
+        setStandaloneApproverPreview({
+          hodName: null,
+          deanName: null,
+          loading: false,
+        });
+      }
+    };
+
+    fetchApprovers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasFestSelected,
+    watchedOrganizingDept,
+    watchedCampusHostedAt,
+    session?.access_token,
+  ]);
   const selectedFestOption = React.useMemo(() => {
     if (!hasFestSelected) return null;
 
@@ -2795,9 +2871,9 @@ export default function EventForm({
                   {!hasFestSelected ? (
                     <div className="mt-4 rounded-lg border border-blue-200 bg-white px-3 py-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Standalone Approval Stages
+                        Section 6 - HOD & Dean Approval
                       </p>
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="mt-3 grid grid-cols-1 gap-3">
                         <Controller
                           name="standaloneRequiresHodApproval"
                           control={control}
@@ -2809,39 +2885,64 @@ export default function EventForm({
                               <input
                                 id="standaloneRequiresHodApproval"
                                 type="checkbox"
-                                checked={Boolean(field.value)}
-                                onChange={(event) => field.onChange(event.target.checked)}
+                                checked={
+                                  Boolean(field.value) ||
+                                  Boolean(watchedStandaloneRequiresDeanApproval)
+                                }
+                                onChange={(event) => {
+                                  const checked = event.target.checked;
+                                  field.onChange(checked);
+                                  setValue("standaloneRequiresDeanApproval", checked, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  });
+                                }}
                                 className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
                               />
-                              HOD approval
+                              This event requires HOD and Dean approval
                             </label>
                           )}
                         />
+
                         <Controller
-                          name="standaloneRequiresDeanApproval"
+                          name="provideClaims"
                           control={control}
                           render={({ field }) => (
                             <label
-                              htmlFor="standaloneRequiresDeanApproval"
+                              htmlFor="standaloneBudgetApproval"
                               className="flex items-center gap-2 text-sm text-gray-700"
                             >
                               <input
-                                id="standaloneRequiresDeanApproval"
+                                id="standaloneBudgetApproval"
                                 type="checkbox"
                                 checked={Boolean(field.value)}
                                 onChange={(event) => field.onChange(event.target.checked)}
                                 className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
                               />
-                              Dean approval
+                              This event requires budget/funds approval
                             </label>
                           )}
                         />
                       </div>
-                      {errors.standaloneRequiresDeanApproval ? (
-                        <p className="mt-2 text-xs text-red-600">
-                          {String(errors.standaloneRequiresDeanApproval.message || "")}
-                        </p>
-                      ) : null}
+
+                      {(Boolean(watchedStandaloneRequiresHodApproval) ||
+                        Boolean(watchedStandaloneRequiresDeanApproval)) && (
+                        <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                          {standaloneApproverPreview.loading
+                            ? "Loading approver preview..."
+                            : `Your event will first go to ${standaloneApproverPreview.hodName || "HOD"} for review, then to ${standaloneApproverPreview.deanName || "Dean"}. Both must approve before you can proceed.`}
+                        </div>
+                      )}
+
+                      {Boolean(watchedProvideClaims) && (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          <p className="font-semibold">Section 7 - Budget / Funds Approval</p>
+                          <p className="mt-1">
+                            Based on budget amount: Under Rs 25,000 routes to Accounts (L4) only. Rs 25,000 and above routes to CFO (L3) then Accounts (L4).
+                          </p>
+                          <p className="mt-1">Venue booking is always free and does not count toward this budget.</p>
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
@@ -2878,13 +2979,13 @@ export default function EventForm({
 
                       <p className="mt-3 text-xs sm:text-sm text-gray-700">
                         {isFestWorkflowApproved
-                          ? "Selected fest is approved and active, so standalone HOD/Dean/CFO approvals are bypassed for this event."
+                          ? `Creating under ${selectedFestOption?.label || "selected fest"} - No HOD/Dean/CFO/Accounts approval is needed. Your event will go to the fest organiser for review.`
                           : "Selected fest is not fully approved yet. Publish is blocked until fest workflow is approved."}
                       </p>
                     </>
                   ) : (
                     <p className="mt-3 text-xs sm:text-sm text-gray-700">
-                      For standalone events, HOD and Dean approvals are selected by default. CFO approval is added when claims/funds are enabled.
+                      Standalone approvals are optional. If both toggles are disabled, the event is auto-approved and can proceed directly to service requests.
                     </p>
                   )}
                 </div>

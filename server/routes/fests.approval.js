@@ -432,6 +432,137 @@ const notifyFestRejection = async ({ fest, step, notes, requester }) => {
   });
 };
 
+
+const canAccessFestApprovalContext = async ({ fest, requester, userId }) => {
+  if (isMasterAdmin(requester)) return true;
+
+  if (canUserManageFest(fest, requester, userId)) {
+    return true;
+  }
+
+  if (userHasRole(requester, ROLE_CODES.HOD)) {
+    if (
+      matchesScope(requester?.department, fest?.organizing_dept) &&
+      matchesScope(requester?.campus, fest?.campus_hosted_at)
+    ) {
+      return true;
+    }
+  }
+
+  if (userHasRole(requester, ROLE_CODES.DEAN)) {
+    const school = await resolveSchoolForFest(fest);
+    if (
+      matchesScope(requester?.school, school) &&
+      matchesScope(requester?.campus, fest?.campus_hosted_at)
+    ) {
+      return true;
+    }
+  }
+
+  if (userHasRole(requester, ROLE_CODES.CFO)) {
+    if (matchesScope(requester?.campus, fest?.campus_hosted_at)) {
+      return true;
+    }
+  }
+
+  if (
+    userHasRole(requester, ROLE_CODES.ACCOUNTS) ||
+    userHasRole(requester, ROLE_CODES.FINANCE_OFFICER)
+  ) {
+    if (matchesScope(requester?.campus, fest?.campus_hosted_at)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+router.get("/:festId/context", async (req, res) => {
+  try {
+    const festId = normalizeText(req.params.festId);
+    if (!festId) {
+      return res.status(400).json({ error: "Fest ID is required." });
+    }
+
+    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    if (!fest) {
+      return res.status(404).json({ error: "Fest not found." });
+    }
+
+    const allowed = await canAccessFestApprovalContext({
+      fest,
+      requester: req.userInfo,
+      userId: req.userId,
+    });
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "You are not authorized to view this fest approval context.",
+      });
+    }
+
+    let logs = [];
+    try {
+      logs =
+        (await queryAll("approval_chain_log", {
+          where: {
+            entity_type: "fest",
+            entity_id: festId,
+          },
+          order: { column: "created_at", ascending: true },
+        })) || [];
+    } catch (error) {
+      if (!isMissingRelationError(error)) {
+        throw error;
+      }
+    }
+
+    const school = await resolveSchoolForFest(fest);
+    const [hod, dean, cfo, accounts] = await Promise.all([
+      findApprover({
+        roleCode: ROLE_CODES.HOD,
+        department: fest.organizing_dept,
+        campus: fest.campus_hosted_at,
+      }),
+      findApprover({
+        roleCode: ROLE_CODES.DEAN,
+        school,
+        campus: fest.campus_hosted_at,
+      }),
+      findApprover({
+        roleCode: ROLE_CODES.CFO,
+        campus: fest.campus_hosted_at,
+      }),
+      findApprover({
+        roleCode: ROLE_CODES.ACCOUNTS,
+        campus: fest.campus_hosted_at,
+      }),
+    ]);
+
+    return res.status(200).json({
+      fest,
+      logs,
+      approvers: {
+        hod: hod
+          ? { name: hod.name || null, email: normalizeEmail(hod.email), department: hod.department || null }
+          : null,
+        dean: dean
+          ? { name: dean.name || null, email: normalizeEmail(dean.email), school: dean.school || null }
+          : null,
+        cfo: cfo ? { name: cfo.name || null, email: normalizeEmail(cfo.email) } : null,
+        accounts: accounts
+          ? { name: accounts.name || null, email: normalizeEmail(accounts.email) }
+          : null,
+      },
+      permissions: {
+        can_manage: canUserManageFest(fest, req.userInfo, req.userId) || isMasterAdmin(req.userInfo),
+      },
+    });
+  } catch (error) {
+    console.error("[FestApproval] context error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 router.post("/:festId/submit", async (req, res) => {
   try {
     const festId = normalizeText(req.params.festId);

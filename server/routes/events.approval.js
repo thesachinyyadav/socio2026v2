@@ -504,6 +504,158 @@ const notifyEventRejection = async ({ event, stepLabel, notes, reviewer }) => {
   });
 };
 
+const canAccessStandaloneApprovalContext = async ({ eventRecord, userInfo }) => {
+  if (userHasRole(userInfo, ROLE_CODES.HOD)) {
+    if (
+      matchesScope(userInfo?.department, eventRecord?.organizing_dept) &&
+      matchesScope(userInfo?.campus, eventRecord?.campus_hosted_at)
+    ) {
+      return true;
+    }
+  }
+
+  if (userHasRole(userInfo, ROLE_CODES.DEAN)) {
+    const school = await resolveSchoolForEvent(eventRecord);
+    if (
+      matchesScope(userInfo?.school, school) &&
+      matchesScope(userInfo?.campus, eventRecord?.campus_hosted_at)
+    ) {
+      return true;
+    }
+  }
+
+  if (userHasRole(userInfo, ROLE_CODES.CFO)) {
+    if (matchesScope(userInfo?.campus, eventRecord?.campus_hosted_at)) {
+      return true;
+    }
+  }
+
+  if (
+    userHasRole(userInfo, ROLE_CODES.ACCOUNTS) ||
+    userHasRole(userInfo, ROLE_CODES.FINANCE_OFFICER)
+  ) {
+    if (matchesScope(userInfo?.campus, eventRecord?.campus_hosted_at)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+router.get("/:eventId/context", async (req, res) => {
+  try {
+    const eventId = normalizeText(req.params.eventId);
+    if (!eventId) {
+      return res.status(400).json({ error: "Event ID is required." });
+    }
+
+    const event = await queryOne("events", { where: { event_id: eventId } });
+    if (!event) {
+      return res.status(404).json({ error: "Event not found." });
+    }
+
+    const context = inferEventContext(event);
+    const requesterEmail = normalizeEmail(req.userInfo?.email);
+    const organizerAccess = canUserManageEvent(event, req.userInfo, req.userId);
+
+    let parentFest = null;
+    let organiserAccess = false;
+    if (context === EVENT_CONTEXT.UNDER_FEST) {
+      const parentFestId = getParentFestId(event);
+      if (parentFestId) {
+        parentFest = await queryOne("fests", { where: { fest_id: parentFestId } });
+        if (parentFest) {
+          organiserAccess =
+            normalizeText(parentFest.auth_uuid) === normalizeText(req.userId) ||
+            requesterEmail === normalizeEmail(parentFest.created_by) ||
+            requesterEmail === normalizeEmail(parentFest.contact_email);
+        }
+      }
+    }
+
+    const standaloneApproverAccess =
+      context === EVENT_CONTEXT.STANDALONE
+        ? await canAccessStandaloneApprovalContext({
+            eventRecord: event,
+            userInfo: req.userInfo,
+          })
+        : false;
+
+    const allowed =
+      isMasterAdmin(req.userInfo) ||
+      organizerAccess ||
+      organiserAccess ||
+      standaloneApproverAccess;
+
+    if (!allowed) {
+      return res.status(403).json({ error: "You are not authorized to view this approval context." });
+    }
+
+    let logs = [];
+    try {
+      logs =
+        (await queryAll("approval_chain_log", {
+          where: {
+            entity_type: "event",
+            entity_id: eventId,
+          },
+          order: { column: "created_at", ascending: true },
+        })) || [];
+    } catch (error) {
+      if (!isMissingRelationError(error)) {
+        throw error;
+      }
+    }
+
+    const school = await resolveSchoolForEvent(event);
+    const [hod, dean, cfo, accounts] = await Promise.all([
+      findApprover({
+        roleCode: ROLE_CODES.HOD,
+        department: event.organizing_dept,
+        campus: event.campus_hosted_at,
+      }),
+      findApprover({
+        roleCode: ROLE_CODES.DEAN,
+        school,
+        campus: event.campus_hosted_at,
+      }),
+      findApprover({
+        roleCode: ROLE_CODES.CFO,
+        campus: event.campus_hosted_at,
+      }),
+      findApprover({
+        roleCode: ROLE_CODES.ACCOUNTS,
+        campus: event.campus_hosted_at,
+      }),
+    ]);
+
+    return res.status(200).json({
+      event,
+      parent_fest: parentFest,
+      context,
+      approvers: {
+        hod: hod
+          ? { name: hod.name || null, email: normalizeEmail(hod.email), department: hod.department || null }
+          : null,
+        dean: dean
+          ? { name: dean.name || null, email: normalizeEmail(dean.email), school: dean.school || null }
+          : null,
+        cfo: cfo ? { name: cfo.name || null, email: normalizeEmail(cfo.email) } : null,
+        accounts: accounts
+          ? { name: accounts.name || null, email: normalizeEmail(accounts.email) }
+          : null,
+      },
+      logs,
+      permissions: {
+        can_manage: organizerAccess || organiserAccess || isMasterAdmin(req.userInfo),
+      },
+    });
+  } catch (error) {
+    console.error("[EventApproval] context error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/:eventId/submit", async (req, res) => {
   try {
     const eventId = normalizeText(req.params.eventId);

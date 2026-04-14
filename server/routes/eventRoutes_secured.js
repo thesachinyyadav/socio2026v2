@@ -268,13 +268,18 @@ const isBudgetRelatedFromEventPayload = ({
   claimsApplicable,
   registrationFee,
   noFinancialRequirements,
+  needsBudgetApproval,
 }) => {
   if (Boolean(noFinancialRequirements)) {
     return false;
   }
 
   const parsedFee = Number(registrationFee || 0);
-  return Boolean(claimsApplicable) || (Number.isFinite(parsedFee) && parsedFee > 0);
+  return (
+    Boolean(needsBudgetApproval) ||
+    Boolean(claimsApplicable) ||
+    (Number.isFinite(parsedFee) && parsedFee > 0)
+  );
 };
 
 const parseBooleanPreference = (value) => {
@@ -293,6 +298,17 @@ const resolveStandaloneApprovalPreferences = (
   payload = {},
   fallback = { requiresHodApproval: false, requiresDeanApproval: false }
 ) => {
+  const combinedPreference = parseBooleanPreference(
+    payload?.needs_hod_dean_approval ?? payload?.needsHodDeanApproval
+  );
+
+  if (combinedPreference !== null) {
+    return {
+      requiresHodApproval: combinedPreference,
+      requiresDeanApproval: combinedPreference,
+    };
+  }
+
   const hodPreference = parseBooleanPreference(
     payload?.requires_hod_approval ?? payload?.standaloneRequiresHodApproval
   );
@@ -2136,6 +2152,8 @@ router.post(
         claimsApplicable,
         registrationFee: parsedRegistrationFee,
         noFinancialRequirements: noFinancialRequirementsRequested,
+        needsBudgetApproval:
+          req.body.needs_budget_approval ?? req.body.needsBudgetApproval,
       });
       const standaloneBudgetAmount = getStandaloneBudgetAmount({
         payload: req.body,
@@ -3027,6 +3045,8 @@ router.put(
         claimsApplicable,
         registrationFee: parsedRegistrationFee,
         noFinancialRequirements: noFinancialRequirementsRequested,
+        needsBudgetApproval:
+          req.body.needs_budget_approval ?? req.body.needsBudgetApproval,
       });
       const standaloneBudgetAmount = getStandaloneBudgetAmount({
         payload: req.body,
@@ -3316,6 +3336,27 @@ router.put(
         };
       }
 
+      const workflowStatusForUpdate =
+        normalizedFestReference && userIsOrganizerStudentOnly
+          ? "pending_organiser"
+          : !normalizedFestReference && wantsPublishIntent
+          ? !standaloneApprovalPreferences.requiresHodApproval &&
+            !standaloneApprovalPreferences.requiresDeanApproval &&
+            !(standaloneBudgetPlan.requiresCfo || standaloneBudgetPlan.requiresAccounts)
+            ? "auto_approved"
+            : standaloneApprovalPreferences.requiresHodApproval
+            ? "pending_hod"
+            : standaloneApprovalPreferences.requiresDeanApproval
+            ? "pending_dean"
+            : standaloneBudgetPlan.workflowStatus || "draft"
+          : draftOverridePayload?.is_draft
+          ? "draft"
+          : null;
+
+      const workflowStatusPayload = workflowStatusForUpdate
+        ? { workflow_status: workflowStatusForUpdate }
+        : {};
+
       const updateData = {
         title: title.trim(),
         description: description || null,
@@ -3353,22 +3394,7 @@ router.put(
           Boolean(
             standaloneBudgetPlan.requiresCfo || standaloneBudgetPlan.requiresAccounts
           ),
-        workflow_status:
-          normalizedFestReference && userIsOrganizerStudentOnly
-            ? "pending_organiser"
-            : !normalizedFestReference && wantsPublishIntent
-            ? !standaloneApprovalPreferences.requiresHodApproval &&
-              !standaloneApprovalPreferences.requiresDeanApproval &&
-              !(standaloneBudgetPlan.requiresCfo || standaloneBudgetPlan.requiresAccounts)
-              ? "auto_approved"
-              : standaloneApprovalPreferences.requiresHodApproval
-              ? "pending_hod"
-              : standaloneApprovalPreferences.requiresDeanApproval
-              ? "pending_dean"
-              : standaloneBudgetPlan.workflowStatus || "draft"
-            : draftOverridePayload?.is_draft
-            ? "draft"
-            : undefined,
+        ...workflowStatusPayload,
         registration_deadline: req.body.registration_deadline || null,
         // Preserve existing total_participants unless there is a specific admin action to modify it.
         // Include outsider-related settings so toggles persist from the client.
@@ -3545,15 +3571,6 @@ router.put(
             nextApprovalState = "UNDER_REVIEW";
           }
         } else if (isStandalonePublish) {
-          if (
-            !standaloneApprovalPreferences.requiresHodApproval &&
-            !standaloneApprovalPreferences.requiresDeanApproval
-          ) {
-            return res.status(400).json({
-              error: "Select at least one standalone approval stage (HOD or Dean).",
-            });
-          }
-
           standaloneBudgetRelated = isStandaloneBudgetRelated;
 
           workflowApprovalRequest = await createStandaloneApprovalRequestForEvent({
@@ -3562,6 +3579,8 @@ router.put(
             isBudgetRelated: standaloneBudgetRelated,
             requiresHodApproval: standaloneApprovalPreferences.requiresHodApproval,
             requiresDeanApproval: standaloneApprovalPreferences.requiresDeanApproval,
+            requiresCfoApproval: standaloneBudgetPlan.requiresCfo,
+            requiresAccountsApproval: standaloneBudgetPlan.requiresAccounts,
           });
 
           if (workflowApprovalRequest) {
@@ -3572,7 +3591,7 @@ router.put(
             );
             pendingDeanApproval = primaryRoleCode === ROLE_CODES.DEAN;
             pendingHodApproval = primaryRoleCode === ROLE_CODES.HOD;
-            pendingCfoApproval = Boolean(standaloneBudgetRelated);
+            pendingCfoApproval = Boolean(standaloneBudgetPlan.requiresCfo);
           }
         }
 

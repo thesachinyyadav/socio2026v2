@@ -562,10 +562,13 @@ const asBoolean = (value) =>
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const PHONE_REGEX = /^\+?[\d\s-]{10,14}$/;
 const MAX_EMAIL_LENGTH = 100;
+const CHRIST_EMAIL_DOMAIN = "@christuniversity.in";
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const normalizePhone = (value) => String(value || "").trim();
 const isValidEmail = (value) => EMAIL_REGEX.test(normalizeEmail(value));
+const isChristUniversityEmail = (value) =>
+  normalizeEmail(value).endsWith(CHRIST_EMAIL_DOMAIN);
 
 const normalizeEventHead = (head) => {
   if (typeof head === "string") {
@@ -1160,9 +1163,12 @@ router.post(
         : [];
       
       const subheadsInput = pickDefined(festData.subheads);
-      const subheads = Array.isArray(subheadsInput)
-        ? subheadsInput.map(email => String(email).trim()).filter(Boolean)
+      const normalizedSubheads = Array.isArray(subheadsInput)
+        ? subheadsInput.map((email) => normalizeEmail(email)).filter(Boolean)
         : [];
+      const hasDuplicateSubheads =
+        new Set(normalizedSubheads).size !== normalizedSubheads.length;
+      const subheads = Array.from(new Set(normalizedSubheads));
 
       if (!title || !school || !dept) {
         console.log("Validation failed. Received:", JSON.stringify(festData));
@@ -1181,6 +1187,12 @@ router.post(
 
       if (!isValidEmail(contactEmail)) {
         return res.status(400).json({ error: "Please provide a valid contact email." });
+      }
+
+      if (!isChristUniversityEmail(contactEmail)) {
+        return res.status(400).json({
+          error: "Contact email must use @christuniversity.in domain.",
+        });
       }
 
       if (!contactPhone) {
@@ -1221,6 +1233,42 @@ router.post(
         });
       }
 
+      if (hasDuplicateSubheads) {
+        return res.status(400).json({
+          error: "Subhead emails must be unique.",
+        });
+      }
+
+      if (subheads.length > 20) {
+        return res.status(400).json({
+          error: "Maximum 20 subheads are allowed.",
+        });
+      }
+
+      const invalidSubhead = subheads.find(
+        (email) =>
+          !isValidEmail(email) ||
+          !isChristUniversityEmail(email) ||
+          email.length > MAX_EMAIL_LENGTH
+      );
+      if (invalidSubhead) {
+        return res.status(400).json({
+          error:
+            "Each subhead must have a valid @christuniversity.in email and be 100 characters or fewer.",
+        });
+      }
+
+      const organizerEmails = new Set([
+        normalizeEmail(req.userInfo?.email || ""),
+        contactEmail,
+      ]);
+      if (subheads.some((email) => organizerEmails.has(email))) {
+        return res.status(400).json({
+          error:
+            "You are the organizer of this fest. You cannot add yourself as a subhead.",
+        });
+      }
+
       // Generate slug-based ID from title
       const titleForSlug = title;
       let fest_id = titleForSlug
@@ -1247,6 +1295,31 @@ router.post(
       // Proceed with insertion
       const openingDateValue = festData.openingDate || festData.opening_date || null;
       const closingDateValue = festData.closingDate || festData.closing_date || null;
+      const openingDateComparable = parseComparableDate(openingDateValue);
+      const closingDateComparable =
+        parseComparableDate(closingDateValue) || openingDateComparable;
+
+      if (!openingDateComparable) {
+        return res.status(400).json({
+          error: "Opening date is required and must be a valid date.",
+        });
+      }
+
+      const minimumOpeningDate = new Date();
+      minimumOpeningDate.setHours(0, 0, 0, 0);
+      minimumOpeningDate.setDate(minimumOpeningDate.getDate() + 7);
+
+      if (openingDateComparable < minimumOpeningDate) {
+        return res.status(400).json({
+          error: "Opening date must be at least 7 days from today.",
+        });
+      }
+
+      if (closingDateComparable && closingDateComparable < openingDateComparable) {
+        return res.status(400).json({
+          error: "Closing date must be on or after opening date.",
+        });
+      }
       const parsedCustomFields =
         parseJsonLikeField(
           pickDefined(festData.custom_fields, festData.customFields),
@@ -1605,6 +1678,12 @@ router.put(
         if (!isValidEmail(normalizedContactEmail)) {
           return res.status(400).json({ error: "Please provide a valid contact email." });
         }
+
+        if (!isChristUniversityEmail(normalizedContactEmail)) {
+          return res.status(400).json({
+            error: "Contact email must use @christuniversity.in domain.",
+          });
+        }
       }
 
       if (normalizedContactPhone !== undefined) {
@@ -1954,9 +2033,53 @@ router.put(
       const subheadsInput = pickDefined(updateData.subheads);
       if (subheadsInput !== undefined) {
         try {
-          const subheads = Array.isArray(subheadsInput)
-            ? subheadsInput.map(email => String(email).trim()).filter(Boolean)
+          const normalizedSubheads = Array.isArray(subheadsInput)
+            ? subheadsInput.map((email) => normalizeEmail(email)).filter(Boolean)
             : [];
+          const hasDuplicateSubheads =
+            new Set(normalizedSubheads).size !== normalizedSubheads.length;
+          const subheads = Array.from(new Set(normalizedSubheads));
+
+          if (hasDuplicateSubheads) {
+            return res.status(400).json({
+              error: "Subhead emails must be unique.",
+            });
+          }
+
+          if (subheads.length > 20) {
+            return res.status(400).json({
+              error: "Maximum 20 subheads are allowed.",
+            });
+          }
+
+          const invalidSubhead = subheads.find(
+            (email) =>
+              !isValidEmail(email) ||
+              !isChristUniversityEmail(email) ||
+              email.length > MAX_EMAIL_LENGTH
+          );
+          if (invalidSubhead) {
+            return res.status(400).json({
+              error:
+                "Each subhead must have a valid @christuniversity.in email and be 100 characters or fewer.",
+            });
+          }
+
+          const organizerEmailForSubheadCheck = normalizeEmail(
+            pickDefined(updateData.contact_email, updateData.contactEmail) ||
+              existingFest.contact_email ||
+              req.userInfo?.email ||
+              ""
+          );
+          if (
+            organizerEmailForSubheadCheck &&
+            subheads.includes(organizerEmailForSubheadCheck)
+          ) {
+            return res.status(400).json({
+              error:
+                "You are the organizer of this fest. You cannot add yourself as a subhead.",
+            });
+          }
             
           // Delete old subheads
           await remove("fest_subheads", { fest_id: festId });
