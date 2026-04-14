@@ -1712,6 +1712,7 @@ function CreateFestForm(props?: CreateFestProps) {
 
               if (
                 !errorMsg &&
+                inputDate &&
                 inputDate < currentDate &&
                 !isEditMode &&
                 name === "openingDate"
@@ -1722,7 +1723,7 @@ function CreateFestForm(props?: CreateFestProps) {
                 formData.openingDate &&
                 parseYYYYMMDD(formData.openingDate)
               ) {
-                if (inputDate < parseYYYYMMDD(formData.openingDate)!) {
+                if (inputDate && inputDate < parseYYYYMMDD(formData.openingDate)!) {
                   errorMsg = "Must be on/after opening date";
                 }
               }
