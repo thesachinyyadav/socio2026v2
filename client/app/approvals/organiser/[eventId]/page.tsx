@@ -61,7 +61,7 @@ export default function OrganiserApprovalPage() {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
+  const [decision, setDecision] = useState<"approve" | "return" | "reject" | null>(null);
 
   // Load auth token
   useEffect(() => {
@@ -99,14 +99,14 @@ export default function OrganiserApprovalPage() {
     fetchEvent();
   }, [fetchEvent]);
 
-  const handleDecision = async (action: "approved" | "rejected") => {
+  const handleDecision = async (action: "approved" | "returned_for_revision" | "rejected") => {
     if (!authToken) { toast.error("Not authenticated."); return; }
-    if (action === "rejected" && note.trim().length < 20) {
+    if ((action === "rejected" || action === "returned_for_revision") && note.trim().length < 20) {
       toast.error("Please provide a revision note of at least 20 characters.");
       return;
     }
     setIsSubmitting(true);
-    setDecision(action === "approved" ? "approve" : "reject");
+    setDecision(action === "approved" ? "approve" : action === "returned_for_revision" ? "return" : "reject");
     try {
       const res = await fetch(`${API_URL}/api/events/${eventId}/organiser-action`, {
         method: "POST",
@@ -118,7 +118,13 @@ export default function OrganiserApprovalPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? "Decision failed.");
-      toast.success(action === "approved" ? "✅ Event approved successfully!" : "Event returned for revision.");
+      if (action === "approved") {
+        toast.success("Event approved successfully.");
+      } else if (action === "returned_for_revision") {
+        toast.success("Event returned for revision.");
+      } else {
+        toast.success("Event rejected.");
+      }
       await fetchEvent();
     } catch (err: any) {
       toast.error(err.message ?? "Unable to submit decision.");
@@ -258,11 +264,11 @@ export default function OrganiserApprovalPage() {
                 )}
               </button>
               <button
-                onClick={() => handleDecision("rejected")}
+                onClick={() => handleDecision("returned_for_revision")}
                 disabled={isSubmitting || note.trim().length < 20}
                 className="flex items-center justify-center gap-2 flex-1 px-5 py-3 bg-white text-red-600 border border-red-300 font-semibold rounded-xl hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-sm"
               >
-                {isSubmitting && decision === "reject" ? (
+                {isSubmitting && decision === "return" ? (
                   <span className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border-2 border-red-500 border-t-transparent animate-spin" /> Returning…</span>
                 ) : (
                   <><XCircle className="w-4 h-4" /> Return for Revision</>

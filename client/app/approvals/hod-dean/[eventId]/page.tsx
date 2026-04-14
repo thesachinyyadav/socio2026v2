@@ -36,6 +36,8 @@ type EventContextResponse = {
   approvers?: {
     hod?: { name?: string | null; email?: string | null } | null;
     dean?: { name?: string | null; email?: string | null } | null;
+    cfo?: { name?: string | null; email?: string | null } | null;
+    accounts?: { name?: string | null; email?: string | null } | null;
   };
   logs?: ApprovalLog[];
 };
@@ -77,6 +79,11 @@ export default function HodDeanApprovalPage() {
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin) || hasAnyRoleCode(userRecord, ["MASTER_ADMIN"]);
   const isHod = Boolean((userData as any)?.is_hod) || hasAnyRoleCode(userRecord, ["HOD"]);
   const isDean = Boolean((userData as any)?.is_dean) || hasAnyRoleCode(userRecord, ["DEAN"]);
+  const isCfo = Boolean((userData as any)?.is_cfo) || hasAnyRoleCode(userRecord, ["CFO"]);
+  const isFinanceOfficer =
+    Boolean((userData as any)?.is_finance_officer) ||
+    Boolean((userData as any)?.is_finance_office) ||
+    hasAnyRoleCode(userRecord, ["ACCOUNTS", "FINANCE_OFFICER"]);
 
   useEffect(() => {
     const loadToken = async () => {
@@ -124,21 +131,31 @@ export default function HodDeanApprovalPage() {
     return Array.isArray(contextData?.logs) ? contextData!.logs : [];
   }, [contextData]);
 
-  const latestHodDecision = useMemo(() => {
-    return [...logs]
-      .reverse()
-      .find((row) => normalizeToken(row.step) === "hod_review" && normalizeToken(row.action) !== "submitted");
+  const latestStepDecision = useMemo(() => {
+    const result: Record<string, ApprovalLog | undefined> = {};
+    const reversed = [...logs].reverse();
+
+    for (const row of reversed) {
+      const step = normalizeToken(row.step);
+      if (!step || result[step]) continue;
+      if (normalizeToken(row.action) === "submitted") continue;
+      result[step] = row;
+    }
+
+    return result;
   }, [logs]);
 
-  const latestDeanDecision = useMemo(() => {
-    return [...logs]
-      .reverse()
-      .find((row) => normalizeToken(row.step) === "dean_review" && normalizeToken(row.action) !== "submitted");
-  }, [logs]);
+  const latestHodDecision = latestStepDecision.hod_review;
+  const latestDeanDecision = latestStepDecision.dean_review;
+  const latestCfoDecision = latestStepDecision.cfo_review;
+  const latestAccountsDecision = latestStepDecision.accounts_review;
 
   const workflowStatus = normalizeToken(contextData?.event?.workflow_status);
   const canHodAct = (isHod || isMasterAdmin) && workflowStatus === "pending_hod";
   const canDeanAct = (isDean || isMasterAdmin) && workflowStatus === "pending_dean";
+  const canCfoAct = (isCfo || isMasterAdmin) && workflowStatus === "pending_cfo";
+  const canAccountsAct = (isFinanceOfficer || isMasterAdmin) && workflowStatus === "pending_accounts";
+  const canReview = canHodAct || canDeanAct || canCfoAct || canAccountsAct;
 
   const submitAction = async (
     actor: "hod" | "dean",
@@ -192,6 +209,48 @@ export default function HodDeanApprovalPage() {
     }
   };
 
+  const submitFinanceAction = async (
+    reviewer: "cfo" | "accounts",
+    action: "approved" | "rejected" | "returned_for_revision"
+  ) => {
+    if (!token || !eventId) return;
+
+    if (action !== "approved" && notes.trim().length < 20) {
+      toast.error("Notes must be at least 20 characters for rejection/revision.");
+      return;
+    }
+
+    const endpoint = reviewer === "cfo" ? "cfo-action" : "accounts-action";
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/events/${encodeURIComponent(eventId)}/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action,
+          notes: notes.trim() || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to submit decision.");
+      }
+
+      toast.success("Decision submitted successfully.");
+      setNotes("");
+      await fetchContext();
+    } catch (error: any) {
+      toast.error(error?.message || "Unable to submit decision.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -219,7 +278,7 @@ export default function HodDeanApprovalPage() {
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">HOD + Dean Review</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Standalone Approval Workflow</p>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">{contextData.event.title}</h1>
             <p className="text-sm text-slate-600 mt-1">
               {contextData.event.organizing_dept || "Department"} | {contextData.event.campus_hosted_at || "Campus"}
@@ -335,9 +394,99 @@ export default function HodDeanApprovalPage() {
               </div>
             )}
           </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-slate-800">CFO Review</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {contextData.approvers?.cfo?.name || "CFO"} {contextData.approvers?.cfo?.email ? `(${contextData.approvers.cfo.email})` : ""}
+            </p>
+            {latestCfoDecision ? (
+              <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm">
+                <p className="font-semibold text-slate-800">{HUMAN_ACTION_LABEL[normalizeToken(latestCfoDecision.action)] || latestCfoDecision.action}</p>
+                {latestCfoDecision.notes ? <p className="text-slate-600 mt-1">{latestCfoDecision.notes}</p> : null}
+                <p className="text-xs text-slate-500 mt-2">{new Date(latestCfoDecision.created_at).toLocaleString()}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 mt-3">No CFO decision yet.</p>
+            )}
+
+            {canCfoAct && (
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitFinanceAction("cfo", "approved")}
+                  className="w-full px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold disabled:opacity-60"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitFinanceAction("cfo", "returned_for_revision")}
+                  className="w-full px-3 py-2 rounded-lg border border-amber-300 text-amber-700 text-sm font-semibold disabled:opacity-60"
+                >
+                  Return for Revision
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitFinanceAction("cfo", "rejected")}
+                  className="w-full px-3 py-2 rounded-lg border border-rose-300 text-rose-700 text-sm font-semibold disabled:opacity-60"
+                >
+                  Reject
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-slate-800">Finance Officer Review</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {contextData.approvers?.accounts?.name || "Finance Officer"} {contextData.approvers?.accounts?.email ? `(${contextData.approvers.accounts.email})` : ""}
+            </p>
+            {latestAccountsDecision ? (
+              <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm">
+                <p className="font-semibold text-slate-800">{HUMAN_ACTION_LABEL[normalizeToken(latestAccountsDecision.action)] || latestAccountsDecision.action}</p>
+                {latestAccountsDecision.notes ? <p className="text-slate-600 mt-1">{latestAccountsDecision.notes}</p> : null}
+                <p className="text-xs text-slate-500 mt-2">{new Date(latestAccountsDecision.created_at).toLocaleString()}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 mt-3">No finance decision yet.</p>
+            )}
+
+            {canAccountsAct && (
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitFinanceAction("accounts", "approved")}
+                  className="w-full px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold disabled:opacity-60"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitFinanceAction("accounts", "returned_for_revision")}
+                  className="w-full px-3 py-2 rounded-lg border border-amber-300 text-amber-700 text-sm font-semibold disabled:opacity-60"
+                >
+                  Return for Revision
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitFinanceAction("accounts", "rejected")}
+                  className="w-full px-3 py-2 rounded-lg border border-rose-300 text-rose-700 text-sm font-semibold disabled:opacity-60"
+                >
+                  Reject
+                </button>
+              </div>
+            )}
+          </div>
         </section>
 
-        {(canHodAct || canDeanAct) && (
+        {canReview && (
           <section className="rounded-xl border border-slate-200 bg-white p-5">
             <label htmlFor="review-notes" className="block text-sm font-semibold text-slate-800 mb-2">
               Review Notes (required for reject or return)
