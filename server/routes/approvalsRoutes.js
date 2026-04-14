@@ -145,6 +145,51 @@ const recomputeEventServiceApprovalState = async (eventId) => {
   }
 };
 
+const updateWithMissingColumnFallback = async ({
+  tableName,
+  updates,
+  where,
+  removableColumns = [],
+}) => {
+  let fallbackUpdates = {
+    ...updates,
+  };
+  let attempts = 0;
+
+  while (attempts <= removableColumns.length) {
+    try {
+      await update(tableName, fallbackUpdates, where);
+      return true;
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        return false;
+      }
+
+      const missingColumns = removableColumns.filter(
+        (columnName) =>
+          Object.prototype.hasOwnProperty.call(fallbackUpdates, columnName) &&
+          isMissingColumnError(error, columnName)
+      );
+
+      if (missingColumns.length === 0) {
+        throw error;
+      }
+
+      missingColumns.forEach((columnName) => {
+        delete fallbackUpdates[columnName];
+      });
+
+      if (Object.keys(fallbackUpdates).length === 0) {
+        return false;
+      }
+
+      attempts += 1;
+    }
+  }
+
+  return false;
+};
+
 const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, decidedByEmail, comment }) => {
   const eventId = String(approvalRequest?.entity_ref || "").trim();
   if (!eventId) {
@@ -199,16 +244,29 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
       updates.approved_by = null;
     }
 
-    await update("events", updates, { event_id: eventId });
+    const persisted = await updateWithMissingColumnFallback({
+      tableName: "events",
+      updates,
+      where: { event_id: eventId },
+      removableColumns: [
+        "approval_state",
+        "service_approval_state",
+        "activation_state",
+        "status",
+        "is_draft",
+        "approved_at",
+        "approved_by",
+        "rejected_at",
+        "rejected_by",
+        "rejection_reason",
+      ],
+    });
+
+    if (!persisted) {
+      return;
+    }
   } catch (error) {
-    if (
-      isMissingRelationError(error) ||
-      isMissingColumnError(error, "approval_state") ||
-      isMissingColumnError(error, "activation_state") ||
-      isMissingColumnError(error, "service_approval_state") ||
-      isMissingColumnError(error, "is_draft") ||
-      isMissingColumnError(error, "status")
-    ) {
+    if (isMissingRelationError(error)) {
       return;
     }
 
@@ -270,20 +328,29 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
         updates.approved_by = null;
       }
 
-      await update(tableName, updates, { fest_id: festId });
-      return;
+      const persisted = await updateWithMissingColumnFallback({
+        tableName,
+        updates,
+        where: { fest_id: festId },
+        removableColumns: [
+          "approval_state",
+          "activation_state",
+          "status",
+          "is_draft",
+          "approved_at",
+          "approved_by",
+          "rejected_at",
+          "rejected_by",
+          "rejection_reason",
+        ],
+      });
+
+      if (persisted) {
+        return;
+      }
     } catch (error) {
       if (isMissingRelationError(error)) {
         continue;
-      }
-
-      if (
-        isMissingColumnError(error, "approval_state") ||
-        isMissingColumnError(error, "activation_state") ||
-        isMissingColumnError(error, "is_draft") ||
-        isMissingColumnError(error, "status")
-      ) {
-        return;
       }
 
       throw error;
@@ -358,15 +425,28 @@ const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comme
       updates.approved_by = eventRecord.approved_by || decidedByEmail || null;
     }
 
-    await update("events", updates, { event_id: eventId });
+    const persisted = await updateWithMissingColumnFallback({
+      tableName: "events",
+      updates,
+      where: { event_id: eventId },
+      removableColumns: [
+        "service_approval_state",
+        "activation_state",
+        "status",
+        "is_draft",
+        "approved_at",
+        "approved_by",
+        "rejected_at",
+        "rejected_by",
+        "rejection_reason",
+      ],
+    });
+
+    if (!persisted) {
+      return;
+    }
   } catch (error) {
-    if (
-      isMissingRelationError(error) ||
-      isMissingColumnError(error, "service_approval_state") ||
-      isMissingColumnError(error, "activation_state") ||
-      isMissingColumnError(error, "is_draft") ||
-      isMissingColumnError(error, "status")
-    ) {
+    if (isMissingRelationError(error)) {
       return;
     }
 

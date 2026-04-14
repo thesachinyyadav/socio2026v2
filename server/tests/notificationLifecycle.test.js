@@ -76,6 +76,16 @@ test("Public visibility allows approved event", () => {
   assert.equal(isVisible, true);
 });
 
+test("Approved status is visible even if legacy is_draft flag is stale", () => {
+  const isVisible = isRecordLiveForNotifications({
+    is_draft: true,
+    activation_state: "ACTIVE",
+    status: LIFECYCLE_STATUS.APPROVED,
+  });
+
+  assert.equal(isVisible, true);
+});
+
 test("Publish notification preference accepts mixed-case truthy strings", () => {
   assert.equal(parseBooleanLike("TRUE"), true);
   assert.equal(parseBooleanLike("Yes"), true);

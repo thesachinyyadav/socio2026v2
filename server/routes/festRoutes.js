@@ -476,16 +476,53 @@ export const applyFestWorkflowState = async ({ festTable, festId, approvalReques
     await update(festTable, workflowPayload, { fest_id: normalizedFestId });
     return { applied: true, activationState: "PENDING" };
   } catch (error) {
-    const missingWorkflowColumns =
-      isMissingColumnError(error) &&
-      (String(error?.message || "").toLowerCase().includes("approval_state") ||
-        String(error?.message || "").toLowerCase().includes("activation_state") ||
-        String(error?.message || "").toLowerCase().includes("approval_request_id") ||
-        String(error?.message || "").toLowerCase().includes("is_budget_related") ||
-        String(error?.message || "").toLowerCase().includes("status"));
+    const normalizedMessage = String(error?.message || "").toLowerCase();
+    const workflowColumns = [
+      "approval_state",
+      "activation_state",
+      "approval_request_id",
+      "is_budget_related",
+      "status",
+      "is_draft",
+      "approved_at",
+      "approved_by",
+      "rejected_at",
+      "rejected_by",
+      "rejection_reason",
+    ];
 
-    if (missingWorkflowColumns) {
-      console.warn("[FestWorkflow] Workflow columns missing on fest table; skipping workflow-state persistence.");
+    const missingWorkflowColumns = workflowColumns.filter((columnName) =>
+      normalizedMessage.includes(columnName)
+    );
+
+    if (isMissingColumnError(error)) {
+      const fallbackWorkflowPayload = {
+        ...workflowPayload,
+      };
+
+      if (missingWorkflowColumns.length > 0) {
+        missingWorkflowColumns.forEach((columnName) => {
+          delete fallbackWorkflowPayload[columnName];
+        });
+      } else {
+        // Most legacy DBs miss status first; drop it as a safe fallback.
+        delete fallbackWorkflowPayload.status;
+      }
+
+      if (Object.keys(fallbackWorkflowPayload).length > 0) {
+        try {
+          await update(festTable, fallbackWorkflowPayload, { fest_id: normalizedFestId });
+          return { applied: true, activationState: "PENDING" };
+        } catch (fallbackError) {
+          if (!isMissingColumnError(fallbackError)) {
+            throw fallbackError;
+          }
+        }
+      }
+
+      console.warn(
+        `[FestWorkflow] Workflow columns missing on fest table (${missingWorkflowColumns.join(", ") || "unknown"}); applied fallback payload.`
+      );
       return { applied: false, activationState: "PENDING" };
     }
 

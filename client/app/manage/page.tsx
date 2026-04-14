@@ -333,7 +333,6 @@ const isDraftLifecycleStatus = (value?: string | null) => {
   const lifecycleStatus = normalizeLifecycleStatusToken(value);
   return (
     lifecycleStatus === "draft" ||
-    lifecycleStatus === "pending_approvals" ||
     lifecycleStatus === "revision_requested"
   );
 };

@@ -19,11 +19,57 @@ import {
   requireOrganiser,
   requireOwnership,
 } from "../middleware/authMiddleware.js";
+import {
+  LIFECYCLE_STATUS,
+  normalizeLifecycleStatus,
+} from "../utils/lifecycleStatus.js";
+import { isRecordLiveForNotifications } from "../utils/notificationLifecycle.js";
 
 const router = express.Router();
 
 const asBoolean = (value) => {
   return value === true || value === 1 || value === "1" || value === "true";
+};
+
+const getEventRegistrationAvailability = (event) => {
+  const lifecycleStatus = normalizeLifecycleStatus(
+    event?.status,
+    asBoolean(event?.is_draft) ? LIFECYCLE_STATUS.DRAFT : LIFECYCLE_STATUS.PUBLISHED
+  );
+
+  if (isRecordLiveForNotifications(event)) {
+    return {
+      isOpen: true,
+      code: null,
+      error: null,
+      details: null,
+    };
+  }
+
+  if (lifecycleStatus === LIFECYCLE_STATUS.PENDING_APPROVALS) {
+    return {
+      isOpen: false,
+      code: "EVENT_PENDING_APPROVAL",
+      error: "Event approvals are pending",
+      details: "This event will accept registrations after approvals are completed.",
+    };
+  }
+
+  if (lifecycleStatus === LIFECYCLE_STATUS.REVISION_REQUESTED) {
+    return {
+      isOpen: false,
+      code: "EVENT_REQUIRES_REVISION",
+      error: "Event requires revision",
+      details: "This event is under revision and not accepting registrations.",
+    };
+  }
+
+  return {
+    isOpen: false,
+    code: "EVENT_DRAFT",
+    error: "Event is in draft mode",
+    details: "This event is not published yet and is not accepting registrations.",
+  };
 };
 
 const normalizeRegisterIdentifier = (value) => {
@@ -213,11 +259,12 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    if (event.is_draft === true || event.is_draft === 1 || event.is_draft === "1" || event.is_draft === "true") {
+    const availability = getEventRegistrationAvailability(event);
+    if (!availability.isOpen) {
       return res.status(403).json({
-        error: "Event is in draft mode",
-        details: "This event is not published yet and is not accepting registrations.",
-        code: "EVENT_DRAFT",
+        error: availability.error,
+        details: availability.details,
+        code: availability.code,
       });
     }
     
@@ -710,11 +757,12 @@ router.post(
         });
       }
 
-      if (event.is_draft === true || event.is_draft === 1 || event.is_draft === "1" || event.is_draft === "true") {
+      const availability = getEventRegistrationAvailability(event);
+      if (!availability.isOpen) {
         return res.status(403).json({
-          error: "Event is in draft mode",
-          details: "This event is not published yet and is not accepting registrations.",
-          code: "EVENT_DRAFT",
+          error: availability.error,
+          details: availability.details,
+          code: availability.code,
         });
       }
 

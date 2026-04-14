@@ -631,16 +631,48 @@ const applyEventWorkflowState = async ({
       normalizedLifecycleStatus,
     };
   } catch (error) {
-    const missingWorkflowColumns =
-      isMissingColumnError(error, "approval_state") ||
-      isMissingColumnError(error, "service_approval_state") ||
-      isMissingColumnError(error, "activation_state") ||
-      isMissingColumnError(error, "approval_request_id") ||
-      isMissingColumnError(error, "is_budget_related") ||
-      isMissingColumnError(error, "status");
+    const workflowColumns = [
+      "approval_state",
+      "service_approval_state",
+      "activation_state",
+      "approval_request_id",
+      "is_budget_related",
+      "status",
+      "is_draft",
+    ];
+    const missingWorkflowColumns = workflowColumns.filter((columnName) =>
+      isMissingColumnError(error, columnName)
+    );
 
-    if (missingWorkflowColumns) {
-      console.warn("[EventWorkflow] Workflow state columns missing; skipping workflow-state persistence.");
+    if (missingWorkflowColumns.length > 0) {
+      const fallbackWorkflowPayload = {
+        ...workflowPayload,
+      };
+
+      missingWorkflowColumns.forEach((columnName) => {
+        delete fallbackWorkflowPayload[columnName];
+      });
+
+      if (Object.keys(fallbackWorkflowPayload).length > 0) {
+        try {
+          await update("events", fallbackWorkflowPayload, { event_id: normalizedEventId });
+          return {
+            applied: true,
+            activationState,
+            normalizedApprovalState,
+            normalizedServiceState,
+            normalizedLifecycleStatus,
+          };
+        } catch (fallbackError) {
+          if (!isMissingColumnError(fallbackError, "status")) {
+            throw fallbackError;
+          }
+        }
+      }
+
+      console.warn(
+        `[EventWorkflow] Workflow state columns missing (${missingWorkflowColumns.join(", ")}); applied fallback payload.`
+      );
       return {
         applied: false,
         activationState,

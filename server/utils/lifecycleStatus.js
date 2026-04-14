@@ -79,7 +79,6 @@ export const shouldEntityRemainDraft = (status) => {
   const normalizedStatus = normalizeLifecycleStatus(status);
   return (
     normalizedStatus === LIFECYCLE_STATUS.DRAFT ||
-    normalizedStatus === LIFECYCLE_STATUS.PENDING_APPROVALS ||
     normalizedStatus === LIFECYCLE_STATUS.REVISION_REQUESTED
   );
 };

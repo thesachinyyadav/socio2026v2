@@ -36,7 +36,12 @@ export const isRecordLiveForNotifications = (record) => {
   }
 
   const isDraft = parseBooleanLike(record?.is_draft);
-  if (isDraft) {
+  const lifecycleStatus = normalizeLifecycleStatus(
+    record?.status,
+    isDraft ? LIFECYCLE_STATUS.DRAFT : LIFECYCLE_STATUS.PUBLISHED
+  );
+
+  if (!LIVE_LIFECYCLE_STATUSES.has(lifecycleStatus)) {
     return false;
   }
 
@@ -45,12 +50,7 @@ export const isRecordLiveForNotifications = (record) => {
     return false;
   }
 
-  const lifecycleStatus = normalizeLifecycleStatus(
-    record?.status,
-    isDraft ? LIFECYCLE_STATUS.DRAFT : LIFECYCLE_STATUS.PUBLISHED
-  );
-
-  return LIVE_LIFECYCLE_STATUSES.has(lifecycleStatus);
+  return true;
 };
 
 export const shouldSendLifecycleNotification = ({
