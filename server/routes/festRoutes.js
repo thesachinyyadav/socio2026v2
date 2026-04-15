@@ -760,6 +760,14 @@ const FEST_TABLE_CANDIDATES = ["fests", "fest"];
 const resolveFestTableCandidates = (primaryTable) =>
   Array.from(new Set([primaryTable, ...FEST_TABLE_CANDIDATES].filter(Boolean)));
 const normalizeFestKey = (value) => String(value || "").trim().toLowerCase();
+const toFestSlugCandidate = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 const getMergedFestsFromCandidates = async (queryOptions, primaryTable) => {
   const tables = resolveFestTableCandidates(primaryTable);
@@ -809,6 +817,8 @@ const getMergedFestsFromCandidates = async (queryOptions, primaryTable) => {
 
 const getFestByIdFromCandidates = async (festId, primaryTable) => {
   const tables = resolveFestTableCandidates(primaryTable);
+  const normalizedInput = normalizeFestKey(festId);
+  const normalizedInputSlug = toFestSlugCandidate(festId);
 
   for (const tableName of tables) {
     try {
@@ -816,10 +826,49 @@ const getFestByIdFromCandidates = async (festId, primaryTable) => {
       if (fest) {
         return fest;
       }
+
+      // Backward compatibility:
+      // Some approval/history rows may still hold legacy title references.
+      const rows = await queryAll(tableName, {
+        select: "fest_id, fest_title",
+      });
+
+      const matchedFest = (rows || []).find((row) => {
+        const festIdKey = normalizeFestKey(row?.fest_id);
+        const festIdSlug = toFestSlugCandidate(row?.fest_id);
+        const festTitleKey = normalizeFestKey(row?.fest_title);
+        const festTitleSlug = toFestSlugCandidate(row?.fest_title);
+
+        if (!festIdKey && !festTitleKey) {
+          return false;
+        }
+
+        return (
+          normalizedInput === festIdKey ||
+          normalizedInput === festTitleKey ||
+          normalizedInputSlug === festIdSlug ||
+          normalizedInputSlug === festTitleSlug
+        );
+      });
+
+      if (matchedFest?.fest_id) {
+        const resolvedFest = await queryOne(tableName, {
+          where: { fest_id: matchedFest.fest_id },
+        });
+
+        if (resolvedFest) {
+          return resolvedFest;
+        }
+      }
     } catch (error) {
       if (isMissingRelationError(error)) {
         continue;
       }
+
+      if (isMissingColumnError(error)) {
+        continue;
+      }
+
       throw error;
     }
   }
