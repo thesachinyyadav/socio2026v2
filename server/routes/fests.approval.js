@@ -7,12 +7,10 @@ import {
   resolveRoleMatrixApprover,
 } from "../utils/roleMatrixApprover.js";
 import {
-  sendFestApprovedByHodToDeanEmail,
   sendFestApprovedToAccountsEmail,
   sendFestApprovedToCfoEmail,
   sendFestFullyApprovedEmail,
   sendFestRejectedEmail,
-  sendFestSubmittedToHodEmail,
 } from "../utils/emailService.js";
 import {
   sendBroadcastNotification,
@@ -525,15 +523,6 @@ const submitToHod = async ({ fest, requester }) => {
     version: nextVersion,
   });
 
-  await sendFestSubmittedToHodEmail({
-    to: hod.email,
-    festName: fest.fest_title || fest.fest_id,
-    requesterName: requester.name,
-    requesterEmail: requester.email,
-    submittedAt: new Date().toISOString(),
-    link: buildFestApprovalLink(fest.fest_id),
-  });
-
   return { updatedFest, hod };
 };
 
@@ -838,16 +827,6 @@ router.post("/:festId/hod-action", async (req, res) => {
           rejected_at: null,
           rejected_by: null,
           rejection_reason: null,
-        });
-
-        await sendFestApprovedByHodToDeanEmail({
-          to: dean.email,
-          festName: fest.fest_title || festId,
-          requesterName: req.userInfo.name,
-          requesterEmail: req.userInfo.email,
-          submittedAt: new Date().toISOString(),
-          hodNotes: notes,
-          link: buildFestApprovalLink(festId),
         });
 
         notifyFestDecisionTransition({

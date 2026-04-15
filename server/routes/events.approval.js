@@ -12,8 +12,6 @@ import {
   sendStandaloneEventAutoApprovedEmail,
   sendStandaloneEventToAccountsEmail,
   sendStandaloneEventToCfoEmail,
-  sendStandaloneEventToDeanEmail,
-  sendStandaloneEventToHodEmail,
   sendUnderFestEventApprovedEmail,
   sendUnderFestEventToOrganiserEmail,
 } from "../utils/emailService.js";
@@ -854,15 +852,6 @@ router.post("/:eventId/submit", async (req, res) => {
         version: nextVersion,
       });
 
-      await sendStandaloneEventToHodEmail({
-        to: hod.email,
-        eventName: event.title || eventId,
-        requesterName: req.userInfo.name,
-        requesterEmail,
-        submittedAt: new Date().toISOString(),
-        link: buildHodDeanLink(eventId),
-      });
-
       return res.status(200).json({
         success: true,
         status: EVENT_STATUS.PENDING_HOD,
@@ -1092,16 +1081,6 @@ router.post("/:eventId/hod-dean-action", async (req, res) => {
             rejected_at: null,
             rejected_by: null,
             rejection_reason: null,
-          });
-
-          await sendStandaloneEventToDeanEmail({
-            to: dean.email,
-            eventName: event.title || eventId,
-            requesterName: req.userInfo.name,
-            requesterEmail: req.userInfo.email,
-            submittedAt: new Date().toISOString(),
-            hodNotes,
-            link: buildHodDeanLink(eventId),
           });
 
           return res.status(200).json({

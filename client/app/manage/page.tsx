@@ -151,6 +151,58 @@ const normalizeRoleToken = (value?: string | null) =>
     .trim()
     .toUpperCase();
 
+const normalizeEmailLike = (value: string | null | undefined) =>
+  String(value || "").trim().toLowerCase();
+
+const getEmailLocalPart = (value: string | null | undefined) => {
+  const normalized = normalizeEmailLike(value);
+  if (!normalized.includes("@")) {
+    return "";
+  }
+
+  return normalized.split("@")[0] || "";
+};
+
+const isUuidLike = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+const identitiesMatch = ({
+  ownerIdentity,
+  currentEmail,
+  currentAuthUuid,
+}: {
+  ownerIdentity: string;
+  currentEmail: string;
+  currentAuthUuid: string;
+}) => {
+  const normalizedOwner = normalizeEmailLike(ownerIdentity);
+  if (!normalizedOwner) {
+    return false;
+  }
+
+  if (normalizedOwner === currentEmail) {
+    return true;
+  }
+
+  if (normalizedOwner === currentAuthUuid) {
+    return true;
+  }
+
+  if (normalizedOwner.includes("@") && currentEmail.includes("@")) {
+    const ownerLocalPart = getEmailLocalPart(normalizedOwner);
+    const currentLocalPart = getEmailLocalPart(currentEmail);
+    if (ownerLocalPart && currentLocalPart && ownerLocalPart === currentLocalPart) {
+      return true;
+    }
+  }
+
+  if (!normalizedOwner.includes("@") && isUuidLike(normalizedOwner) && normalizedOwner === currentAuthUuid) {
+    return true;
+  }
+
+  return false;
+};
+
 const inferRoleFromStep = (step?: ApprovalTimelineStep | null) => {
   const stepCode = normalizeRoleToken(step?.step_code);
   const roleCode = normalizeRoleToken(step?.role_code);
@@ -938,9 +990,6 @@ export default function ManageDashboard() {
     "undefined",
   ]);
 
-  const isUuidLike = (value: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
   const normalizeOwnerIdentity = (value: string | null | undefined) => {
     const normalized = String(value || "").trim().toLowerCase();
     if (!normalized || CREATOR_PLACEHOLDER_TOKENS.has(normalized)) {
@@ -992,11 +1041,11 @@ export default function ManageDashboard() {
       return false;
     }
 
-    if (effectiveOwner.includes("@")) {
-      return Boolean(currentUserEmail) && effectiveOwner === currentUserEmail;
-    }
-
-    return Boolean(currentUserAuthUuid) && effectiveOwner === currentUserAuthUuid;
+    return identitiesMatch({
+      ownerIdentity: effectiveOwner,
+      currentEmail: currentUserEmail,
+      currentAuthUuid: currentUserAuthUuid,
+    });
   };
 
   const canViewPendingApprovalCard = ({
@@ -2334,7 +2383,16 @@ export default function ManageDashboard() {
               {/* Events Mode Logic */}
               {reportMode === "events" && (() => {
                 const eventsForReport = liveEvents.length > 0 ? liveEvents : contextAllEvents;
-                const userEvents = isMasterAdmin ? eventsForReport : eventsForReport.filter(e => e.created_by === userData?.email);
+                const userEvents = isMasterAdmin
+                  ? eventsForReport
+                  : eventsForReport.filter((e) =>
+                      isOwnedByCurrentUser(
+                        e.created_by,
+                        (e as any).auth_uuid,
+                        (e as any).organizer_email,
+                        (e as any).organiser_email
+                      )
+                    );
                 const filteredEvents = userEvents.filter(e => 
                   e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
                   (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())

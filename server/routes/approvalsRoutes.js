@@ -1047,6 +1047,32 @@ const isMasterAdminRequest = (req) => {
 };
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const isLikelyEmailAddress = (value) => /.+@.+\..+/.test(String(value || "").trim());
+
+const pickPreferredNotificationEmail = (...candidates) => {
+  for (const candidate of candidates) {
+    const normalized = normalizeEmail(candidate);
+    if (normalized && isLikelyEmailAddress(normalized)) {
+      return normalized;
+    }
+  }
+
+  return "";
+};
+
+const stripRevisionPrefix = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  const prefix = "RETURN_FOR_REVISION:";
+  if (raw.toUpperCase().startsWith(prefix)) {
+    return raw.slice(prefix.length).trim();
+  }
+
+  return raw;
+};
 
 const getApprovalRequestForEvent = async (eventId) => {
   const normalizedEventId = String(eventId || "").trim();
@@ -1333,8 +1359,10 @@ const resolveApprovalNotificationContext = async (approvalRequest) => {
       return null;
     }
 
-    const organizerEmail = normalizeEmail(
-      event.organizer_email || event.created_by || approvalRequest?.requested_by_email || ""
+    const organizerEmail = pickPreferredNotificationEmail(
+      approvalRequest?.requested_by_email,
+      event.organizer_email,
+      event.created_by
     );
 
     return {
@@ -1375,8 +1403,10 @@ const resolveApprovalNotificationContext = async (approvalRequest) => {
       return null;
     }
 
-    const organizerEmail = normalizeEmail(
-      fest.contact_email || fest.created_by || approvalRequest?.requested_by_email || ""
+    const organizerEmail = pickPreferredNotificationEmail(
+      approvalRequest?.requested_by_email,
+      fest.contact_email,
+      fest.created_by
     );
 
     return {
@@ -1474,6 +1504,74 @@ const notifyPublicBroadcastOnFinalApproval = async ({
     event_id: context.notificationEntityId,
     event_title: context.title,
     action_url: context.publicActionUrl || context.actionUrl,
+  });
+};
+
+const notifyServiceDecisionToRequester = async ({
+  serviceRequest,
+  decision,
+  comment,
+  decidedByEmail,
+}) => {
+  const requesterEmail = pickPreferredNotificationEmail(serviceRequest?.requested_by_email);
+  if (!requesterEmail) {
+    return;
+  }
+
+  const eventId = String(serviceRequest?.event_id || "").trim() || null;
+  let eventTitle = String(serviceRequest?.event_title || "").trim();
+
+  if (!eventTitle && eventId) {
+    try {
+      const event = await queryOne("events", {
+        where: { event_id: eventId },
+        select: "title",
+      });
+      eventTitle = String(event?.title || "").trim();
+    } catch (error) {
+      if (!isMissingRelationError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  const normalizedDecision = normalizeDecision(decision);
+  const actorEmail = normalizeEmail(decidedByEmail) || "Approver";
+  const revisionNote = stripRevisionPrefix(comment);
+  const wasReturnedForRevision =
+    normalizedDecision === "REJECTED" &&
+    String(comment || "").toUpperCase().startsWith("RETURN_FOR_REVISION:");
+
+  let title = "Service request update";
+  let message = `A service approval decision was recorded by ${actorEmail}.`;
+  let type = "info";
+
+  if (normalizedDecision === "APPROVED") {
+    title = "Service request approved";
+    message = `${eventTitle || "Your event"} passed the current service approval step.`;
+    type = "success";
+  } else if (wasReturnedForRevision) {
+    title = "Service request returned for revision";
+    message = revisionNote
+      ? `${eventTitle || "Your event"} was returned for revision. Note: ${revisionNote}`
+      : `${eventTitle || "Your event"} was returned for revision.`;
+    type = "warning";
+  } else if (normalizedDecision === "REJECTED") {
+    title = "Service request rejected";
+    message = revisionNote
+      ? `${eventTitle || "Your event"} service approval was rejected. Note: ${revisionNote}`
+      : `${eventTitle || "Your event"} service approval was rejected.`;
+    type = "error";
+  }
+
+  await sendUserNotifications({
+    userEmails: [requesterEmail],
+    title,
+    message,
+    type,
+    event_id: eventId,
+    event_title: eventTitle || null,
+    action_url: "/manage",
   });
 };
 
@@ -2037,9 +2135,15 @@ router.post("/service-requests/:serviceRequestId/decision", async (req, res) => 
       return res.status(400).json({ error: "decision must be APPROVED or REJECTED" });
     }
 
-    const serviceRequest = await queryOne("service_requests", {
+    let serviceRequest = await queryOne("service_requests", {
       where: { service_request_id: serviceRequestId },
     });
+
+    if (!serviceRequest) {
+      serviceRequest = await queryOne("service_requests", {
+        where: { id: serviceRequestId },
+      });
+    }
 
     if (!serviceRequest) {
       return res.status(404).json({ error: "Service request not found" });
@@ -2123,6 +2227,18 @@ router.post("/service-requests/:serviceRequestId/decision", async (req, res) => 
       serviceRequest,
       decidedByEmail: req.userInfo?.email || null,
       comment,
+    });
+
+    notifyServiceDecisionToRequester({
+      serviceRequest,
+      decision,
+      comment,
+      decidedByEmail: req.userInfo?.email || null,
+    }).catch((notificationError) => {
+      console.error(
+        "[ServiceApprovalNotify] Failed to dispatch requester decision notification:",
+        notificationError
+      );
     });
 
     return res.status(200).json({
