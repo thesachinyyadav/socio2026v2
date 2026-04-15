@@ -31,7 +31,78 @@ import {
 } from "lucide-react";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_FALLBACK_ORIGINS = [
+  "https://socioserver-snowy.vercel.app",
+  "https://sociodevserver.vercel.app",
+] as const;
+
+const normalizeApiOrigin = (value: string | undefined | null): string => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (!/^https?:\/\//i.test(raw)) return "";
+  return raw.replace(/\/+$/, "").replace(/\/api\/?$/i, "");
+};
+
+const getApiOrigins = (): string[] => {
+  const fromPrimaryEnv = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_URL);
+  const fromFallbackEnv = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
+  const localOriginCandidate =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+      ? "http://localhost:8000"
+      : "";
+
+  return Array.from(
+    new Set([
+      fromPrimaryEnv,
+      fromFallbackEnv,
+      localOriginCandidate,
+      ...API_FALLBACK_ORIGINS,
+    ].filter(Boolean))
+  );
+};
+
+const apiFetch = async (
+  apiPath: string,
+  init?: RequestInit,
+  options?: { allowNotFoundFailover?: boolean }
+): Promise<Response> => {
+  const origins = getApiOrigins();
+  if (origins.length === 0) {
+    throw new Error("API base URL is not configured.");
+  }
+
+  const normalizedPath = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  const method = String(init?.method || "GET").toUpperCase();
+  const allowNotFoundFailover = options?.allowNotFoundFailover ?? method === "GET";
+
+  let lastNotFound: Response | null = null;
+  let lastError: unknown = null;
+
+  for (const origin of origins) {
+    try {
+      const response = await fetch(`${origin}${normalizedPath}`, init);
+      if (response.status === 404 && allowNotFoundFailover && origins.length > 1) {
+        lastNotFound = response;
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastNotFound) {
+    return lastNotFound;
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("Failed to reach API.");
+};
+
 const ITEMS_PER_PAGE = 20;
 const CAMPUS_SCOPE_FALLBACK = [
   "Central Campus (Main)",
@@ -421,7 +492,7 @@ export default function MasterAdminPage() {
   const fetchRegistrations = async () => {
     try {
       const token = await getFreshToken();
-      const response = await fetch(`${API_URL}/api/registrations`, {
+      const response = await apiFetch("/api/registrations", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -498,10 +569,10 @@ export default function MasterAdminPage() {
         query.set("sortOrder", userSortDir);
       }
 
-      const url = `${API_URL}/api/users${query.toString() ? `?${query.toString()}` : ""}`;
+      const usersPath = `/api/users${query.toString() ? `?${query.toString()}` : ""}`;
 
       const makeRequest = async (authToken: string) =>
-        fetch(url, {
+        apiFetch(usersPath, {
           headers: {
             Authorization: `Bearer ${authToken}`,
           },
@@ -555,8 +626,8 @@ export default function MasterAdminPage() {
         query.set("sortOrder", eventSortDir);
       }
 
-      const url = `${API_URL}/api/events${query.toString() ? `?${query.toString()}` : ""}`;
-      const eventsResponse = await fetch(url, {
+      const eventsPath = `/api/events${query.toString() ? `?${query.toString()}` : ""}`;
+      const eventsResponse = await apiFetch(eventsPath, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -592,8 +663,8 @@ export default function MasterAdminPage() {
         query.set("sortOrder", festSortDir);
       }
 
-      const url = `${API_URL}/api/fests${query.toString() ? `?${query.toString()}` : ""}`;
-      const festsResponse = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const festsPath = `/api/fests${query.toString() ? `?${query.toString()}` : ""}`;
+      const festsResponse = await apiFetch(festsPath, { headers: { Authorization: `Bearer ${token}` } });
 
       if (!festsResponse.ok) {
         throw new Error("Failed to fetch fests");
@@ -615,8 +686,8 @@ export default function MasterAdminPage() {
     try {
       const token = await getFreshToken();
       const [eventsRes, festsRes] = await Promise.all([
-        fetch(`${API_URL}/api/events`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/api/fests`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch("/api/events", { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch("/api/fests", { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (eventsRes.ok) {
         const data = await eventsRes.json();
@@ -822,14 +893,14 @@ export default function MasterAdminPage() {
         payload.campus = isCfoScoped ? selectedCampus : null;
       }
 
-      const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(user.email)}/roles`, {
+      const response = await apiFetch(`/api/users/${encodeURIComponent(user.email)}/roles`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      });
+      }, { allowNotFoundFailover: false });
 
       if (!response.ok) {
         const error = await response.json();
@@ -857,12 +928,12 @@ export default function MasterAdminPage() {
   const deleteUser = async (email: string) => {
     try {
       const token = await getFreshToken();
-      const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`, {
+      const response = await apiFetch(`/api/users/${encodeURIComponent(email)}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      }, { allowNotFoundFailover: false });
 
       if (!response.ok) {
         const error = await response.json();
@@ -881,12 +952,12 @@ export default function MasterAdminPage() {
   const deleteEvent = async (eventId: string) => {
     try {
       const token = await getFreshToken();
-      const response = await fetch(`${API_URL}/api/events/${eventId}`, {
+      const response = await apiFetch(`/api/events/${eventId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      }, { allowNotFoundFailover: false });
 
       if (!response.ok) {
         const error = await response.json();
@@ -905,12 +976,12 @@ export default function MasterAdminPage() {
   const deleteFest = async (festId: string) => {
     try {
       const token = await getFreshToken();
-      const response = await fetch(`${API_URL}/api/fests/${festId}`, {
+      const response = await apiFetch(`/api/fests/${festId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      }, { allowNotFoundFailover: false });
 
       if (!response.ok) {
         const error = await response.json();
@@ -2191,11 +2262,11 @@ export default function MasterAdminPage() {
                     setIsGenerating(true);
                     try {
                       const token = await getFreshToken();
-                      const response = await fetch(`${API_URL}/api/report/data`, {
+                      const response = await apiFetch("/api/report/data", {
                         method: "POST",
                         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ eventIds: Array.from(selectedEventIds), festId: reportMode === "fest" ? selectedReportFest : null }),
-                      });
+                      }, { allowNotFoundFailover: false });
                       if (!response.ok) throw new Error("Failed to fetch report data");
                       const data = await response.json();
 
