@@ -455,7 +455,7 @@ export const applyFestWorkflowState = async ({ festTable, festId, approvalReques
     return { applied: false, activationState: "ACTIVE" };
   }
 
-  const pendingLifecycleStatus = LIFECYCLE_STATUS.PENDING_APPROVALS;
+  const pendingLifecycleStatus = LIFECYCLE_STATUS.DRAFT;
 
   const workflowPayload = {
     approval_state: "UNDER_REVIEW",

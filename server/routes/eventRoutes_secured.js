@@ -3618,7 +3618,7 @@ router.put(
             approvalRequestId:
               workflowApprovalRequest?.id || updatedEvent?.approval_request_id || null,
             isBudgetRelated: isStandalonePublish ? standaloneBudgetRelated : false,
-            lifecycleStatus: LIFECYCLE_STATUS.PENDING_APPROVALS,
+            lifecycleStatus: LIFECYCLE_STATUS.DRAFT,
           });
 
           activationState = workflowResult.activationState;

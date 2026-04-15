@@ -47,7 +47,7 @@ export const deriveLifecycleStatus = ({
     normalizedApproval === "PENDING" ||
     normalizedService === "PENDING"
   ) {
-    return LIFECYCLE_STATUS.PENDING_APPROVALS;
+    return LIFECYCLE_STATUS.DRAFT;
   }
 
   if (
@@ -79,6 +79,7 @@ export const shouldEntityRemainDraft = (status) => {
   const normalizedStatus = normalizeLifecycleStatus(status);
   return (
     normalizedStatus === LIFECYCLE_STATUS.DRAFT ||
-    normalizedStatus === LIFECYCLE_STATUS.REVISION_REQUESTED
+    normalizedStatus === LIFECYCLE_STATUS.REVISION_REQUESTED ||
+    normalizedStatus === LIFECYCLE_STATUS.PENDING_APPROVALS
   );
 };

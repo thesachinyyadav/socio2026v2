@@ -99,7 +99,7 @@ const resolveLifecycleStatusFromWorkflow = ({
     normalizedApprovalState === "PENDING" ||
     normalizedServiceState === "PENDING"
   ) {
-    return LIFECYCLE_STATUS.PENDING_APPROVALS;
+    return LIFECYCLE_STATUS.DRAFT;
   }
 
   if (normalizedApprovalState === "APPROVED" && normalizedServiceState === "APPROVED") {
