@@ -445,7 +445,6 @@ export default function ApprovalTrackerButton({
           type="button"
           onClick={() => setIsMindmapOpen(true)}
           className="inline-flex items-center gap-2 rounded-full border border-[#154cb3]/20 bg-[#154cb3]/5 px-3 py-1.5 text-sm font-semibold text-[#154cb3] transition-all hover:border-[#154cb3]/40 hover:bg-[#154cb3]/10"
-          aria-expanded={isPopoverOpen ? "true" : "false"}
           aria-haspopup="dialog"
         >
           <Workflow className="h-4 w-4" aria-hidden="true" />
@@ -495,12 +494,14 @@ export default function ApprovalTrackerButton({
         ) : null}
       </div>
 
-      <ApprovalMindmapModal
-        open={isMindmapOpen}
-        onClose={() => setIsMindmapOpen(false)}
-        eventId={stableEventId}
-        eventTitle={eventTitle}
-      />
+      {isMindmapOpen ? (
+        <ApprovalMindmapModal
+          open={isMindmapOpen}
+          onClose={() => setIsMindmapOpen(false)}
+          eventId={stableEventId}
+          eventTitle={eventTitle}
+        />
+      ) : null}
     </>
   );
 }

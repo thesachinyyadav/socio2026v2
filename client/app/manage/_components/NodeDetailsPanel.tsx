@@ -23,7 +23,6 @@ export default function NodeDetailsPanel({
       className={`absolute right-0 top-0 z-30 h-full w-full max-w-[24rem] border-l border-white/20 bg-white/95 backdrop-blur-xl shadow-2xl transition-transform duration-300 ${
         isOpen ? "translate-x-0" : "translate-x-full"
       }`}
-      aria-hidden={isOpen ? "false" : "true"}
     >
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
