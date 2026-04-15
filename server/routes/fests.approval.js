@@ -17,7 +17,24 @@ import {
 
 const router = express.Router();
 
-router.use(authenticateUser, getUserInfo());
+// Only apply auth middleware to approval-specific routes, not root GET /
+// This allows festRoutes.js (mounted after) to handle public GET /
+const requiresAuth = (req, res, next) => {
+  // Apply auth requirement only to non-GET requests or specific approval paths
+  if (req.method === 'GET' && req.path === '/') {
+    return next();
+  }
+  if (req.path.includes('/approval-queue') || req.path.includes('-action') || req.path.includes('/activate') || req.path.includes('/submit')) {
+    return authenticateUser(req, res, () => getUserInfo()(req, res, next));
+  }
+  // Context endpoint also requires auth
+  if (req.method === 'GET' && req.path.includes('/context')) {
+    return authenticateUser(req, res, () => getUserInfo()(req, res, next));
+  }
+  return next();
+};
+
+router.use(requiresAuth);
 
 const FEST_STATUS = Object.freeze({
   DRAFT: "draft",

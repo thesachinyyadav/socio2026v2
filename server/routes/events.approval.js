@@ -20,7 +20,20 @@ import {
 
 const router = express.Router();
 
-router.use(authenticateUser, getUserInfo());
+// Only apply auth middleware to approval-specific routes, not root GET /
+// This allows eventRoutes.js (mounted after) to handle public list requests
+const requiresAuth = (req, res, next) => {
+  // Apply auth requirement only to non-GET requests or specific approval paths
+  if (req.method === 'GET' && req.path === '/') {
+    return next();
+  }
+  if (req.path.includes('/approval-queue') || req.path.includes('-action') || req.path.includes('/context')) {
+    return authenticateUser(req, res, () => getUserInfo()(req, res, next));
+  }
+  return next();
+};
+
+router.use(requiresAuth);
 
 const EVENT_STATUS = Object.freeze({
   DRAFT: "draft",
