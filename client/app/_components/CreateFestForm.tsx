@@ -4364,8 +4364,6 @@ function CreateFestForm(props?: CreateFestProps) {
                         >
                           {isSubmitting && submitIntent === "draft"
                             ? "Saving Draft..."
-                            : !finalIsEditMode
-                            ? "Save as draft & submit for HOD approval"
                             : "Save as Draft"}
                         </button>
 
