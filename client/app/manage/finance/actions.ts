@@ -343,10 +343,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
       return fail("No pending Accounts step exists for this request.");
     }
 
-    const comments =
-      action === "return"
-        ? `RETURN_FOR_REVISION: ${note}`
-        : note;
+    const comments = action === "return" ? `RETURN_FOR_REVISION: ${note}` : note;
 
     const stepCode = normalizeText((pendingStepRow as Record<string, unknown>).step_code);
     if (!stepCode) {
