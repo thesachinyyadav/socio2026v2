@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import ApprovalStatusPopover, {
   ApprovalStatusRow,
 } from "@/app/manage/_components/ApprovalStatusPopover";
+import ApprovalTrackerButton from "@/app/manage/_components/ApprovalTrackerButton";
 import {
   addThemedChartsSheet,
   addStructuredSummarySheet,
@@ -809,11 +810,6 @@ const MappedEventCard = ({
       : isPast
         ? "bg-[#333333] text-white"
         : "bg-white text-emerald-600";
-    const approvalRows = getApprovalRows(approvalTimeline || null, event.workflow_status);
-    const approvalSubmittedLabel = formatApprovalDateTime(
-      approvalTimeline?.submitted_at || approvalTimeline?.created_at || null
-    );
-
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible flex flex-col hover:shadow-md transition-all duration-300 ${
       isArchived
@@ -894,10 +890,12 @@ const MappedEventCard = ({
               </button>
             </>
           )}
-          <ApprovalStatusPopover
-            rows={approvalRows}
-            submittedLabel={approvalSubmittedLabel}
-            loading={Boolean(isApprovalTimelineLoading)}
+          <ApprovalTrackerButton
+            eventId={event.event_id}
+            eventTitle={event.title}
+            approvalRequestId={String((event as any).approval_request_id || "").trim() || null}
+            workflowStatus={event.workflow_status || null}
+            buttonLabel="Approvals"
           />
           <Link
             href={isEditLocked ? "#" : `/${baseUrl}/${event.event_id}`}
