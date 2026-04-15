@@ -1769,6 +1769,13 @@ export default function EventForm({
     (step) => step.key === standaloneFlowStep
   );
   const standaloneFlowIsFinalStep = standaloneFlowStep === "budget";
+  const standaloneStepHeading = !showStandaloneFlowStepper
+    ? "Event details"
+    : standaloneFlowStep === "details"
+    ? "Event details"
+    : standaloneFlowStep === "approvals"
+    ? "Approvals page"
+    : "Budget page";
 
   const publishActionNeedsApproval =
     (!isEditMode || Boolean(isDraft)) &&
@@ -2662,7 +2669,7 @@ export default function EventForm({
           <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-12">
             <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 sm:p-8 md:p-10">
               <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-6 sm:mb-8">
-                Event details
+                {standaloneStepHeading}
               </h2>
               {showStandaloneFlowStepper && (
                 <div className="mb-6 sm:mb-8 rounded-xl border border-blue-100 bg-blue-50/70 p-4 sm:p-5">
@@ -2844,6 +2851,7 @@ export default function EventForm({
                   />
                 </div>
 
+                {(!showStandaloneFlowStepper || standaloneFlowStep === "approvals") && (
                 <div
                   id="standalone-approval-step"
                   tabIndex={-1}
@@ -2907,26 +2915,6 @@ export default function EventForm({
                             </label>
                           )}
                         />
-
-                        <Controller
-                          name="provideClaims"
-                          control={control}
-                          render={({ field }) => (
-                            <label
-                              htmlFor="standaloneBudgetApproval"
-                              className="flex items-center gap-2 text-sm text-gray-700"
-                            >
-                              <input
-                                id="standaloneBudgetApproval"
-                                type="checkbox"
-                                checked={Boolean(field.value)}
-                                onChange={(event) => field.onChange(event.target.checked)}
-                                className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
-                              />
-                              This event requires budget/funds approval
-                            </label>
-                          )}
-                        />
                       </div>
 
                       {(Boolean(watchedStandaloneRequiresHodApproval) ||
@@ -2938,15 +2926,6 @@ export default function EventForm({
                         </div>
                       )}
 
-                      {Boolean(watchedProvideClaims) && (
-                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                          <p className="font-semibold">Section 7 - Budget / Funds Approval</p>
-                          <p className="mt-1">
-                            Based on budget amount: Under Rs 25,000 routes to Accounts (L4) only. Rs 25,000 and above routes to CFO (L3) then Accounts (L4).
-                          </p>
-                          <p className="mt-1">Venue booking is always free and does not count toward this budget.</p>
-                        </div>
-                      )}
                     </div>
                   ) : null}
 
@@ -2993,6 +2972,7 @@ export default function EventForm({
                     </p>
                   )}
                 </div>
+                )}
 
                 {hasFestSelected && (
                   <div
@@ -3478,6 +3458,7 @@ export default function EventForm({
                   </div>
                 )}
 
+                {(!showStandaloneFlowStepper || standaloneFlowStep === "budget") && (
                 <div
                   id="standalone-budget-step"
                   tabIndex={-1}
@@ -3620,6 +3601,7 @@ export default function EventForm({
                     )}
                   </div>
                 </div>
+                )}
 
                 <InputField
                   label="Detailed description:"
@@ -3862,10 +3844,11 @@ export default function EventForm({
                   />
                 </div>
 
+                {(!showStandaloneFlowStepper || standaloneFlowStep === "budget") && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
                   <div className="flex items-center justify-between gap-4">
                     <label className="text-sm font-medium text-gray-700">
-                      Are claims provided for this fest?
+                      This event requires budget/funds approval
                     </label>
                     <Controller
                       name="provideClaims"
@@ -3953,7 +3936,17 @@ export default function EventForm({
                       {errors.provideClaims.message}
                     </p>
                   )}
+                  {Boolean(watchedProvideClaims) && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      <p className="font-semibold">Section 7 - Budget / Funds Approval</p>
+                      <p className="mt-1">
+                        Based on budget amount: Under Rs 25,000 routes to Accounts (L4) only. Rs 25,000 and above routes to CFO (L3) then Accounts (L4).
+                      </p>
+                      <p className="mt-1">Venue booking is always free and does not count toward this budget.</p>
+                    </div>
+                  )}
                 </div>
+                )}
 
                 <FileInput<EventFormData>
                   label="Event image:"
@@ -4125,6 +4118,7 @@ export default function EventForm({
                       </button>
                     )}
 
+                    {(!showStandaloneFlowStepper || standaloneFlowStep === "details") && (
                     <button
                       type="button"
                       onClick={handlePreview}
@@ -4138,8 +4132,9 @@ export default function EventForm({
                     >
                       {isOpeningPreview ? "Opening preview..." : "Preview"}
                     </button>
+                    )}
 
-                    {onSubmitDraft && (
+                    {(!showStandaloneFlowStepper || standaloneFlowStep === "details") && onSubmitDraft && (
                       <button
                         type="button"
                         onClick={handleSubmit(processDraftSubmit, handleInvalidSubmit)}
