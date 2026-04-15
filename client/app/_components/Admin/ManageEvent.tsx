@@ -3850,8 +3850,8 @@ export default function EventForm({
                     </div>
                     {watchedIsTeamEvent && (
                       <div className="flex flex-col gap-3 w-full">
-                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                          <div className="flex-1 sm:flex-none">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                          <div className="min-w-0">
                             <label className="block text-xs font-medium text-gray-600 mb-1.5">
                               Min
                             </label>
@@ -3889,12 +3889,12 @@ export default function EventForm({
                               }}
                             />
                             {errors.minParticipants && (
-                              <p className="text-red-500 text-xs mt-1">
+                              <p className="text-red-500 text-xs mt-1 whitespace-normal break-words leading-4">
                                 {errors.minParticipants.message}
                               </p>
                             )}
                           </div>
-                          <div className="flex-1 sm:flex-none">
+                          <div className="min-w-0">
                             <label className="block text-xs font-medium text-gray-600 mb-1.5">
                               Max
                             </label>
@@ -3932,7 +3932,7 @@ export default function EventForm({
                               }}
                             />
                             {errors.maxParticipants && (
-                              <p className="text-red-500 text-xs mt-1">
+                              <p className="text-red-500 text-xs mt-1 whitespace-normal break-words leading-4">
                                 {errors.maxParticipants.message}
                               </p>
                             )}
