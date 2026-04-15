@@ -705,6 +705,8 @@ const deriveFestsFromEvents = (events, festRegistrationCounts = {}) => {
     if (!festKey) continue;
 
     if (!derivedFestMap.has(festKey)) {
+      const eventOwnerEmail =
+        event?.organizer_email || event?.organiser_email || null;
       derivedFestMap.set(festKey, {
         fest_id: festKey,
         fest_title: festKey,
@@ -712,6 +714,9 @@ const deriveFestsFromEvents = (events, festRegistrationCounts = {}) => {
         opening_date: event?.event_date || null,
         closing_date: event?.event_date || null,
         created_at: event?.created_at || null,
+        created_by: event?.created_by || eventOwnerEmail,
+        contact_email: eventOwnerEmail,
+        organizer_email: eventOwnerEmail,
         registration_count: festRegistrationCounts[festKey] || 0,
         _eventCount: 0,
         _activeEventCount: 0,
@@ -739,6 +744,18 @@ const deriveFestsFromEvents = (events, festRegistrationCounts = {}) => {
     if (!entry.created_at && event?.created_at) {
       entry.created_at = event.created_at;
     }
+
+    if (!entry.created_by && (event?.created_by || event?.organizer_email || event?.organiser_email)) {
+      entry.created_by = event?.created_by || event?.organizer_email || event?.organiser_email;
+    }
+
+    if (!entry.contact_email && (event?.organizer_email || event?.organiser_email)) {
+      entry.contact_email = event?.organizer_email || event?.organiser_email;
+    }
+
+    if (!entry.organizer_email && (event?.organizer_email || event?.organiser_email)) {
+      entry.organizer_email = event?.organizer_email || event?.organiser_email;
+    }
   }
 
   return Array.from(derivedFestMap.values()).map((fest) => ({
@@ -748,6 +765,9 @@ const deriveFestsFromEvents = (events, festRegistrationCounts = {}) => {
     opening_date: fest.opening_date,
     closing_date: fest.closing_date,
     created_at: fest.created_at,
+    created_by: fest.created_by || null,
+    contact_email: fest.contact_email || null,
+    organizer_email: fest.organizer_email || null,
     registration_count: fest.registration_count,
     is_archived: fest._eventCount > 0 && fest._activeEventCount === 0,
   }));
@@ -809,26 +829,28 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
     }
 
     let events = [];
-    try {
-      events = await queryAll("events", {
-        select: "event_id, fest, fest_id, organizing_dept, event_date, created_at, is_archived",
-      });
-    } catch (error) {
-      if (isMissingRelationError(error)) {
-        events = [];
-      } else if (isMissingColumnError(error)) {
-        try {
-          events = await queryAll("events", {
-            select: "event_id, fest_id, organizing_dept, event_date, created_at, is_archived",
-          });
-        } catch (fallbackError) {
-          if (isMissingRelationError(fallbackError) || isMissingColumnError(fallbackError)) {
-            events = [];
-          } else {
-            throw fallbackError;
-          }
+    const eventSelectCandidates = [
+      "event_id, fest, fest_id, organizing_dept, event_date, created_at, is_archived, created_by, organizer_email, organiser_email",
+      "event_id, fest, fest_id, organizing_dept, event_date, created_at, is_archived, created_by, organizer_email",
+      "event_id, fest, fest_id, organizing_dept, event_date, created_at, is_archived, created_by",
+      "event_id, fest_id, organizing_dept, event_date, created_at, is_archived, created_by",
+      "event_id, fest_id, organizing_dept, event_date, created_at, is_archived",
+    ];
+
+    for (const selectClause of eventSelectCandidates) {
+      try {
+        events = await queryAll("events", { select: selectClause });
+        break;
+      } catch (error) {
+        if (isMissingRelationError(error)) {
+          events = [];
+          break;
         }
-      } else {
+
+        if (isMissingColumnError(error)) {
+          continue;
+        }
+
         throw error;
       }
     }

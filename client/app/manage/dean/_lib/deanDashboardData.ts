@@ -224,6 +224,7 @@ export async function fetchDeanDashboardData({
     .from("approval_steps")
     .select(pendingSelectWithSchool)
     .eq("role_code", "DEAN")
+    .in("step_code", ["DEAN", "L2_DEAN"])
     .eq("status", "PENDING")
     .order("created_at", { ascending: true });
 
@@ -235,6 +236,7 @@ export async function fetchDeanDashboardData({
       .from("approval_steps")
       .select(pendingSelectLegacy)
       .eq("role_code", "DEAN")
+      .in("step_code", ["DEAN", "L2_DEAN"])
       .eq("status", "PENDING")
       .order("created_at", { ascending: true });
   }
@@ -445,7 +447,8 @@ export async function fetchDeanDashboardData({
     let query = supabase
       .from("approval_steps")
       .select(includeSchoolColumn ? kpiSelectWithSchool : kpiSelectLegacy)
-      .eq("role_code", "DEAN");
+      .eq("role_code", "DEAN")
+      .in("step_code", ["DEAN", "L2_DEAN"]);
 
     if (normalizedSchoolId) {
       query = query.eq(

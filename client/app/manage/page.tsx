@@ -923,18 +923,40 @@ export default function ManageDashboard() {
   const normalizeEmail = (value: string | null | undefined) =>
     String(value || "").trim().toLowerCase();
   const currentUserEmail = normalizeEmail(userData?.email);
-  const isOwnedByCurrentUser = (...ownerCandidates: Array<string | null | undefined>) => {
-    if (!currentUserEmail) return false;
+  const CREATOR_PLACEHOLDER_TOKENS = new Set(["admin", "system", "unknown", "n/a", "na", "none"]);
 
-    const normalizedOwners = ownerCandidates
-      .map((owner) => normalizeEmail(owner))
-      .filter(Boolean);
-
-    if (normalizedOwners.length === 0) return false;
-    return normalizedOwners.includes(currentUserEmail);
+  const normalizeCreatorEmail = (value: string | null | undefined) => {
+    const normalized = normalizeEmail(value);
+    if (!normalized) return "";
+    if (!normalized.includes("@")) {
+      if (CREATOR_PLACEHOLDER_TOKENS.has(normalized)) {
+        return "";
+      }
+      return "";
+    }
+    return normalized;
   };
 
-  const isCreatedByCurrentUser = (
+  const resolveCreatorEmail = (
+    createdBy: string | null | undefined,
+    fallbackOwnerCandidates: Array<string | null | undefined> = []
+  ) => {
+    const primaryOwner = normalizeCreatorEmail(createdBy);
+    if (primaryOwner) {
+      return primaryOwner;
+    }
+
+    for (const candidate of fallbackOwnerCandidates) {
+      const normalizedCandidate = normalizeCreatorEmail(candidate);
+      if (normalizedCandidate) {
+        return normalizedCandidate;
+      }
+    }
+
+    return "";
+  };
+
+  const isOwnedByCurrentUser = (
     createdBy: string | null | undefined,
     ...fallbackOwnerCandidates: Array<string | null | undefined>
   ) => {
@@ -942,12 +964,7 @@ export default function ManageDashboard() {
       return false;
     }
 
-    const normalizedCreator = normalizeEmail(createdBy);
-    const normalizedFallbackCreator = fallbackOwnerCandidates
-      .map((candidate) => normalizeEmail(candidate))
-      .find((candidate) => candidate.length > 0);
-    const effectiveCreator = normalizedCreator || normalizedFallbackCreator || "";
-
+    const effectiveCreator = resolveCreatorEmail(createdBy, fallbackOwnerCandidates);
     return effectiveCreator.length > 0 && effectiveCreator === currentUserEmail;
   };
 
@@ -967,7 +984,7 @@ export default function ManageDashboard() {
       return true;
     }
 
-    return isCreatedByCurrentUser(createdBy, ...fallbackOwnerCandidates);
+    return isOwnedByCurrentUser(createdBy, ...fallbackOwnerCandidates);
   };
 
   const festsCacheKey = currentUserEmail ? `manage:fests:${currentUserEmail}` : null;
@@ -1063,13 +1080,14 @@ export default function ManageDashboard() {
             workflowStatus: fest.workflow_status,
             lifecycleStatus: fest.lifecycle_status || fest.status,
             createdBy: fest.created_by,
+            fallbackOwnerCandidates: [fest.contact_email],
           });
 
           if (!canSeePendingFestCard) {
             return false;
           }
 
-          return isOwnedByCurrentUser(fest.created_by);
+          return isOwnedByCurrentUser(fest.created_by, fest.contact_email);
         }
       );
 
@@ -1266,8 +1284,13 @@ export default function ManageDashboard() {
       workflowStatus: e.workflow_status,
       lifecycleStatus: (e as any).lifecycle_status || (e as any).status,
       createdBy: e.created_by,
+      fallbackOwnerCandidates: [(e as any).organizer_email, (e as any).organiser_email],
     });
-    const isOwnerOrMaster = isOwnedByCurrentUser(e.created_by);
+    const isOwnerOrMaster = isOwnedByCurrentUser(
+      e.created_by,
+      (e as any).organizer_email,
+      (e as any).organiser_email
+    );
     const matchesCampus = campusFilter === "all" || (e as any).campus_hosted_at === campusFilter;
     const eventIsPast = isPastDate(e.event_date);
     const archiveState = getEffectiveArchiveState(e);

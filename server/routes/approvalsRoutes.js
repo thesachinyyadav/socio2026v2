@@ -110,6 +110,178 @@ const resolveLifecycleStatusFromWorkflow = ({
   return normalizeLifecycleStatus(currentStatus, LIFECYCLE_STATUS.DRAFT);
 };
 
+const WORKFLOW_PHASE = Object.freeze({
+  DRAFT: "draft",
+  DEPT_APPROVAL: "dept_approval",
+  FINANCE_APPROVAL: "finance_approval",
+  LOGISTICS_APPROVAL: "logistics_approval",
+  APPROVED: "approved",
+});
+
+const DEPT_APPROVAL_ROLE_CODES = new Set([
+  ROLE_CODES.HOD,
+  ROLE_CODES.DEAN,
+  ROLE_CODES.ORGANIZER_TEACHER,
+]);
+
+const FINANCE_APPROVAL_ROLE_CODES = new Set([
+  ROLE_CODES.CFO,
+  ROLE_CODES.ACCOUNTS,
+  ROLE_CODES.FINANCE_OFFICER,
+]);
+
+const WORKFLOW_STATUS_BY_ROLE_CODE = {
+  [ROLE_CODES.HOD]: "pending_hod",
+  [ROLE_CODES.DEAN]: "pending_dean",
+  [ROLE_CODES.CFO]: "pending_cfo",
+  [ROLE_CODES.ACCOUNTS]: "pending_accounts",
+  [ROLE_CODES.FINANCE_OFFICER]: "pending_accounts",
+  [ROLE_CODES.ORGANIZER_TEACHER]: "pending_organiser",
+};
+
+const normalizeWorkflowPhase = (value, fallback = WORKFLOW_PHASE.DRAFT) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  const allowed = new Set(Object.values(WORKFLOW_PHASE));
+  return allowed.has(normalized) ? normalized : String(fallback || "").trim().toLowerCase();
+};
+
+const normalizeWorkflowStatusToken = (value, fallback = "") =>
+  String(value || fallback)
+    .trim()
+    .toLowerCase();
+
+const resolveWorkflowPhaseFromActiveStep = (
+  activeStep,
+  fallback = WORKFLOW_PHASE.DEPT_APPROVAL
+) => {
+  const roleCode = normalizeRoleCode(activeStep?.role_code || activeStep?.step_code);
+
+  if (!roleCode) {
+    return normalizeWorkflowPhase(fallback, WORKFLOW_PHASE.DEPT_APPROVAL);
+  }
+
+  if (FINANCE_APPROVAL_ROLE_CODES.has(roleCode)) {
+    return WORKFLOW_PHASE.FINANCE_APPROVAL;
+  }
+
+  if (DEPT_APPROVAL_ROLE_CODES.has(roleCode)) {
+    return WORKFLOW_PHASE.DEPT_APPROVAL;
+  }
+
+  return normalizeWorkflowPhase(fallback, WORKFLOW_PHASE.DEPT_APPROVAL);
+};
+
+const resolveWorkflowStatusFromActiveStep = (activeStep, fallback) => {
+  const roleCode = normalizeRoleCode(activeStep?.role_code || activeStep?.step_code);
+  if (!roleCode) {
+    return normalizeWorkflowStatusToken(fallback);
+  }
+
+  return normalizeWorkflowStatusToken(
+    WORKFLOW_STATUS_BY_ROLE_CODE[roleCode] || fallback
+  );
+};
+
+const getActivePendingStepForRequest = async (approvalRequestId) => {
+  const normalizedRequestId = String(approvalRequestId || "").trim();
+  if (!normalizedRequestId) {
+    return null;
+  }
+
+  const pendingSteps = await queryAll("approval_steps", {
+    where: {
+      approval_request_id: normalizedRequestId,
+      status: "PENDING",
+    },
+    order: { column: "sequence_order", ascending: true },
+    limit: 1,
+  });
+
+  return (pendingSteps || [])[0] || null;
+};
+
+const getActivePendingSequenceForRequest = async (
+  approvalRequestId,
+  cache = new Map()
+) => {
+  const normalizedRequestId = String(approvalRequestId || "").trim();
+  if (!normalizedRequestId) {
+    return null;
+  }
+
+  if (cache.has(normalizedRequestId)) {
+    return cache.get(normalizedRequestId);
+  }
+
+  const pendingSteps = await queryAll("approval_steps", {
+    where: {
+      approval_request_id: normalizedRequestId,
+      status: "PENDING",
+    },
+    select: "sequence_order",
+    order: { column: "sequence_order", ascending: true },
+  });
+
+  const activeSequence = Array.isArray(pendingSteps) && pendingSteps.length > 0
+    ? Number(pendingSteps[0]?.sequence_order || 0)
+    : null;
+
+  cache.set(normalizedRequestId, activeSequence);
+  return activeSequence;
+};
+
+const promoteQueuedServiceRequestsForEvent = async (eventId) => {
+  const normalizedEventId = String(eventId || "").trim();
+  if (!normalizedEventId) {
+    return 0;
+  }
+
+  try {
+    const queuedRequests = await queryAll("service_requests", {
+      where: {
+        event_id: normalizedEventId,
+        status: "QUEUED",
+      },
+      select: "id",
+    });
+
+    if (!Array.isArray(queuedRequests) || queuedRequests.length === 0) {
+      return 0;
+    }
+
+    await update(
+      "service_requests",
+      {
+        status: "PENDING",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        event_id: normalizedEventId,
+        status: "QUEUED",
+      }
+    );
+
+    return queuedRequests.length;
+  } catch (error) {
+    if (isMissingRelationError(error) || isMissingColumnError(error, "status")) {
+      return 0;
+    }
+
+    throw error;
+  }
+};
+
+const isEventInLogisticsPhase = (eventRecord) => {
+  const workflowPhase = normalizeWorkflowPhase(eventRecord?.workflow_phase, "");
+  if (workflowPhase) {
+    return workflowPhase === WORKFLOW_PHASE.LOGISTICS_APPROVAL;
+  }
+
+  const approvalState = normalizeWorkflowStatus(eventRecord?.approval_state, "APPROVED");
+  const serviceState = normalizeWorkflowStatus(eventRecord?.service_approval_state, "APPROVED");
+  return approvalState === "APPROVED" && serviceState === "PENDING";
+};
+
 const recomputeEventServiceApprovalState = async (eventId) => {
   if (!eventId) {
     return "APPROVED";
@@ -132,7 +304,7 @@ const recomputeEventServiceApprovalState = async (eventId) => {
       return "REJECTED";
     }
 
-    if (statuses.some((status) => status === "PENDING")) {
+    if (statuses.some((status) => status === "PENDING" || status === "QUEUED")) {
       return "PENDING";
     }
 
@@ -209,6 +381,15 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
     }
 
     const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
+    const activePendingStep =
+      normalizedRequestStatus === "UNDER_REVIEW"
+        ? await getActivePendingStepForRequest(approvalRequest?.id)
+        : null;
+
+    if (normalizedRequestStatus === "APPROVED") {
+      await promoteQueuedServiceRequestsForEvent(eventId);
+    }
+
     const serviceApprovalState = await recomputeEventServiceApprovalState(eventId);
     const resolvedActivationState = resolveActivationState(
       normalizedRequestStatus,
@@ -220,10 +401,34 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
       serviceApprovalState,
     });
 
+    const workflowPhase =
+      normalizedRequestStatus === "REJECTED"
+        ? normalizeWorkflowPhase(eventRecord?.workflow_phase, WORKFLOW_PHASE.DRAFT)
+        : normalizedRequestStatus === "APPROVED"
+        ? serviceApprovalState === "PENDING"
+          ? WORKFLOW_PHASE.LOGISTICS_APPROVAL
+          : WORKFLOW_PHASE.APPROVED
+        : resolveWorkflowPhaseFromActiveStep(
+            activePendingStep,
+            normalizeWorkflowPhase(eventRecord?.workflow_phase, WORKFLOW_PHASE.DEPT_APPROVAL)
+          );
+
+    const workflowStatus =
+      normalizedRequestStatus === "REJECTED"
+        ? "rejected"
+        : normalizedRequestStatus === "APPROVED"
+        ? "fully_approved"
+        : resolveWorkflowStatusFromActiveStep(
+            activePendingStep,
+            normalizeWorkflowStatusToken(eventRecord?.workflow_status, "pending_hod")
+          );
+
     const updates = {
       approval_state: normalizedRequestStatus,
       service_approval_state: serviceApprovalState,
       activation_state: resolvedActivationState,
+      workflow_phase: workflowPhase,
+      workflow_status: workflowStatus,
       status: lifecycleStatus,
       is_draft: shouldEntityRemainDraft(lifecycleStatus),
       updated_at: nowIso,
@@ -253,6 +458,8 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
         "approval_state",
         "service_approval_state",
         "activation_state",
+        "workflow_phase",
+        "workflow_status",
         "status",
         "is_draft",
         "approved_at",
@@ -283,6 +490,10 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
 
   const nowIso = new Date().toISOString();
   const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
+  const activePendingStep =
+    normalizedRequestStatus === "UNDER_REVIEW"
+      ? await getActivePendingStepForRequest(approvalRequest?.id)
+      : null;
 
   for (const tableName of ["fests", "fest"]) {
     try {
@@ -305,9 +516,32 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
         approvalState: normalizedRequestStatus,
         serviceApprovalState: "APPROVED",
       });
+
+      const workflowPhase =
+        normalizedRequestStatus === "REJECTED"
+          ? normalizeWorkflowPhase(festRecord?.workflow_phase, WORKFLOW_PHASE.DRAFT)
+          : normalizedRequestStatus === "APPROVED"
+          ? WORKFLOW_PHASE.APPROVED
+          : resolveWorkflowPhaseFromActiveStep(
+              activePendingStep,
+              normalizeWorkflowPhase(festRecord?.workflow_phase, WORKFLOW_PHASE.DEPT_APPROVAL)
+            );
+
+      const workflowStatus =
+        normalizedRequestStatus === "REJECTED"
+          ? "rejected"
+          : normalizedRequestStatus === "APPROVED"
+          ? "fully_approved"
+          : resolveWorkflowStatusFromActiveStep(
+              activePendingStep,
+              normalizeWorkflowStatusToken(festRecord?.workflow_status, "pending_hod")
+            );
+
       const updates = {
         approval_state: normalizedRequestStatus,
         activation_state: resolvedActivationState,
+        workflow_phase: workflowPhase,
+        workflow_status: workflowStatus,
         status: lifecycleStatus,
         is_draft: shouldEntityRemainDraft(lifecycleStatus),
         updated_at: nowIso,
@@ -336,6 +570,8 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
         removableColumns: [
           "approval_state",
           "activation_state",
+          "workflow_phase",
+          "workflow_status",
           "status",
           "is_draft",
           "approved_at",
@@ -404,9 +640,25 @@ const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comme
       serviceApprovalState,
     });
 
+    const workflowPhase =
+      serviceApprovalState === "PENDING" || serviceApprovalState === "REJECTED"
+        ? WORKFLOW_PHASE.LOGISTICS_APPROVAL
+        : currentApprovalState === "APPROVED"
+        ? WORKFLOW_PHASE.APPROVED
+        : normalizeWorkflowPhase(eventRecord?.workflow_phase, WORKFLOW_PHASE.DRAFT);
+
+    const workflowStatus =
+      serviceApprovalState === "REJECTED"
+        ? "rejected"
+        : currentApprovalState === "APPROVED" && serviceApprovalState === "APPROVED"
+        ? "fully_approved"
+        : normalizeWorkflowStatusToken(eventRecord?.workflow_status, "fully_approved");
+
     const updates = {
       service_approval_state: serviceApprovalState,
       activation_state: resolvedActivationState,
+      workflow_phase: workflowPhase,
+      workflow_status: workflowStatus,
       status: lifecycleStatus,
       is_draft: shouldEntityRemainDraft(lifecycleStatus),
       updated_at: nowIso,
@@ -433,6 +685,8 @@ const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comme
       removableColumns: [
         "service_approval_state",
         "activation_state",
+        "workflow_phase",
+        "workflow_status",
         "status",
         "is_draft",
         "approved_at",
@@ -1356,8 +1610,31 @@ router.get("/queues/:roleCode", async (req, res) => {
       order: { column: "created_at", ascending: true },
     });
 
+    const activeSequenceByRequestId = new Map();
     const items = [];
     for (const step of queueSteps || []) {
+      const approvalRequestId = String(step?.approval_request_id || "").trim();
+      if (!approvalRequestId) {
+        continue;
+      }
+
+      const activeSequence = await getActivePendingSequenceForRequest(
+        approvalRequestId,
+        activeSequenceByRequestId
+      );
+
+      const stepSequence = Number(step?.sequence_order || 0);
+      if (Number.isFinite(activeSequence) && activeSequence > 0 && stepSequence !== activeSequence) {
+        continue;
+      }
+
+      if (roleCode === ROLE_CODES.DEAN) {
+        const normalizedStepCode = normalizeWorkflowStatus(step?.step_code);
+        if (normalizedStepCode && !["DEAN", "L2_DEAN"].includes(normalizedStepCode)) {
+          continue;
+        }
+      }
+
       const approvalRequest = await queryOne("approval_requests", {
         where: { id: step.approval_request_id },
       });
@@ -1431,10 +1708,98 @@ router.get("/service-queues/:roleCode", async (req, res) => {
       order: { column: "created_at", ascending: true },
     });
 
+    const eventLogisticsPhaseCache = new Map();
+    const logisticsItems = [];
+
+    for (const requestRow of serviceQueue || []) {
+      const eventId = String(requestRow?.event_id || "").trim();
+      if (!eventId) {
+        continue;
+      }
+
+      if (!eventLogisticsPhaseCache.has(eventId)) {
+        let eventRecord = null;
+
+        try {
+          eventRecord = await queryOne("events", {
+            where: { event_id: eventId },
+            select:
+              "event_id,workflow_phase,workflow_status,approval_state,service_approval_state",
+          });
+        } catch (error) {
+          if (isMissingColumnError(error, "workflow_phase")) {
+            eventRecord = await queryOne("events", {
+              where: { event_id: eventId },
+              select: "event_id,workflow_status,approval_state,service_approval_state",
+            });
+          } else {
+            throw error;
+          }
+        }
+
+        eventLogisticsPhaseCache.set(
+          eventId,
+          eventRecord ? isEventInLogisticsPhase(eventRecord) : false
+        );
+      }
+
+      if (!eventLogisticsPhaseCache.get(eventId)) {
+        continue;
+      }
+
+      let approvalRequest = null;
+      if (requestRow?.approval_request_id) {
+        approvalRequest = await queryOne("approval_requests", {
+          where: { id: requestRow.approval_request_id },
+          select: "entity_type,entity_ref,organizing_dept",
+        }).catch((error) => {
+          if (isMissingRelationError(error)) {
+            return null;
+          }
+
+          throw error;
+        });
+      }
+
+      let eventRecord = null;
+      try {
+        eventRecord = await queryOne("events", {
+          where: { event_id: eventId },
+          select: "event_id,title,event_date,organizing_dept,campus_hosted_at",
+        });
+      } catch (error) {
+        if (!isMissingRelationError(error)) {
+          throw error;
+        }
+      }
+
+      logisticsItems.push({
+        id: requestRow.id,
+        service_request_id: requestRow.service_request_id,
+        service_role_code: requestRow.service_role_code,
+        status: requestRow.status,
+        approval_request_id: requestRow.approval_request_id,
+        event_id: eventId,
+        entity_type: normalizeWorkflowStatus(approvalRequest?.entity_type) === "FEST"
+          ? "fest"
+          : "event",
+        entity_id: String(approvalRequest?.entity_ref || eventId).trim(),
+        organizing_dept:
+          approvalRequest?.organizing_dept || eventRecord?.organizing_dept || null,
+        campus_hosted_at: eventRecord?.campus_hosted_at || null,
+        event_title: eventRecord?.title || null,
+        event_date: eventRecord?.event_date || null,
+        requested_by_email: requestRow.requested_by_email || null,
+        details: requestRow.details || {},
+        created_at: requestRow.created_at,
+        updated_at: requestRow.updated_at,
+      });
+    }
+
     return res.status(200).json({
       role_code: roleCode,
-      pending_count: (serviceQueue || []).length,
-      items: serviceQueue || [],
+      pending_count: logisticsItems.length,
+      items: logisticsItems,
     });
   } catch (error) {
     if (isMissingRelationError(error)) {
@@ -1491,6 +1856,13 @@ router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) =>
       });
     }
 
+    const activePendingStep = await getActivePendingStepForRequest(approvalRequest.id);
+    if (!activePendingStep || String(activePendingStep.id || "") !== String(approvalStep.id || "")) {
+      return res.status(409).json({
+        error: "Only the current active approval step can be decided.",
+      });
+    }
+
     const stepRoleCode = normalizeRoleCode(approvalStep.role_code);
 
     if (!(await ensureQueueAccess(req, res, stepRoleCode, approvalRequest))) {
@@ -1519,11 +1891,37 @@ router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) =>
       comment,
     }]);
 
+    if (decision === "APPROVED") {
+      const waitingSteps = await queryAll("approval_steps", {
+        where: {
+          approval_request_id: approvalRequest.id,
+          status: "WAITING",
+        },
+        order: { column: "sequence_order", ascending: true },
+        limit: 1,
+      });
+
+      const nextWaitingStep = (waitingSteps || [])[0] || null;
+      if (nextWaitingStep?.id) {
+        await update(
+          "approval_steps",
+          { status: "PENDING", updated_at: nowIso },
+          { id: nextWaitingStep.id }
+        );
+      }
+    }
+
     if (decision === "REJECTED") {
       await update(
         "approval_steps",
         { status: "SKIPPED", updated_at: nowIso },
         { approval_request_id: approvalRequest.id, status: "PENDING" }
+      );
+
+      await update(
+        "approval_steps",
+        { status: "SKIPPED", updated_at: nowIso },
+        { approval_request_id: approvalRequest.id, status: "WAITING" }
       );
     }
 
@@ -1601,6 +1999,34 @@ router.post("/service-requests/:serviceRequestId/decision", async (req, res) => 
         error: "Service request is not pending",
         current_status: serviceRequest.status,
       });
+    }
+
+    const serviceEventId = String(serviceRequest.event_id || "").trim();
+    if (serviceEventId) {
+      let parentEvent = null;
+
+      try {
+        parentEvent = await queryOne("events", {
+          where: { event_id: serviceEventId },
+          select:
+            "event_id,workflow_phase,workflow_status,approval_state,service_approval_state",
+        });
+      } catch (error) {
+        if (isMissingColumnError(error, "workflow_phase")) {
+          parentEvent = await queryOne("events", {
+            where: { event_id: serviceEventId },
+            select: "event_id,workflow_status,approval_state,service_approval_state",
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      if (parentEvent && !isEventInLogisticsPhase(parentEvent)) {
+        return res.status(409).json({
+          error: "Service decisions are enabled only during logistics approval phase.",
+        });
+      }
     }
 
     const serviceRoleCode = normalizeRoleCode(serviceRequest.service_role_code);
