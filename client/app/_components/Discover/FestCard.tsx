@@ -22,17 +22,13 @@ export const FestCard = ({
   baseUrl = "fest",
   isArchived = false,
 }: FestCardProps) => {
-  const formattedTitle = (title || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-    
-  // Use id if available, otherwise fallback to title slug
-  const slug = id || formattedTitle;
+  const slug = String(id || "").trim();
+  const href = slug
+    ? `/${baseUrl}/${encodeURIComponent(slug)}`
+    : `/${baseUrl}`;
 
   return (
-    <Link href={`/${baseUrl}/${slug}`} className="block w-full h-full min-w-0">
+    <Link href={href} className="block w-full h-full min-w-0">
       <div className={`bg-[#F9F9F9] rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-md flex flex-col group w-full h-full min-w-0 ${
         isArchived ? "opacity-60 grayscale" : ""
       }`}>

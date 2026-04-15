@@ -197,6 +197,15 @@ export function hasServiceRoleAccess(
     return false;
   }
 
+  const userRoleCodes = new Set(getRoleCodes(userLike));
+  const hasMappedRoleCode = roleConfig.roleCodes.some((roleCode) =>
+    userRoleCodes.has(normalizeRoleCode(roleCode))
+  );
+
+  if (hasMappedRoleCode) {
+    return true;
+  }
+
   return roleConfig.userFlagKeys.some((key) => Boolean(userLike[key]));
 }
 

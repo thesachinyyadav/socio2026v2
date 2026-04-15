@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import HodDashboardClient from "../hod/_components/HodDashboardClient";
-import { fetchHodDashboardData } from "../hod/_lib/hodDashboardData";
+import { HodApprovalQueueItem } from "../hod/types";
 import {
   getServiceRoleConfigBySlug,
   hasServiceRoleAccess,
@@ -31,6 +31,99 @@ async function buildSupabaseServerClient() {
       },
     },
   });
+}
+
+function normalizeEntityType(value: unknown): "event" | "fest" {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "fest" ? "fest" : "event";
+}
+
+function normalizeDateLabel(value: unknown): string | null {
+  const normalized = String(value || "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function fetchServiceRoleDashboardData({
+  serviceRoleCode,
+  accessToken,
+}: {
+  serviceRoleCode: string;
+  accessToken: string;
+}): Promise<{ queue: HodApprovalQueueItem[]; metrics: { deptBudgetUsedYtd: number; pendingL1Approvals: number } }> {
+  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "").replace(/\/api\/?$/, "");
+  if (!apiBaseUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured for workflow queue fetch.");
+  }
+
+  const queueResponse = await fetch(
+    `${apiBaseUrl}/api/approvals/service-queues/${encodeURIComponent(serviceRoleCode)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  const queuePayload = await queueResponse.json().catch(() => null);
+  if (!queueResponse.ok) {
+    throw new Error(
+      String(queuePayload?.error || "Unable to load service queue from backend workflow API.")
+    );
+  }
+
+  const items = Array.isArray(queuePayload?.items) ? queuePayload.items : [];
+
+  const queue: HodApprovalQueueItem[] = items
+    .map((item: any) => {
+      const entityType = normalizeEntityType(item?.entity_type);
+      const entityRef = String(item?.entity_id || item?.event_id || "").trim();
+      if (!entityRef) {
+        return null;
+      }
+
+      const details = item?.details && typeof item.details === "object" ? item.details : {};
+      const displayName =
+        String(details.event_name || details.event_title || details.fest_title || "").trim() ||
+        (entityType === "fest" ? `Fest ${entityRef}` : `Event ${entityRef}`);
+
+      const departmentName =
+        String(item?.organizing_dept || details.organizing_dept || details.department || "").trim() ||
+        "Unknown Department";
+
+      const coordinatorName =
+        String(item?.requested_by_email || details.requester_email || details.requested_by_email || "").trim() ||
+        "Coordinator";
+
+      const eventDate = normalizeDateLabel(item?.event_date || details.event_date || details.date);
+
+      return {
+        id: String(item?.service_request_id || item?.id || "").trim() || entityRef,
+        eventId: entityRef,
+        eventName: displayName,
+        entityType,
+        totalBudget: toNumber(details.total_estimated_expense || details.total_budget),
+        coordinatorName,
+        departmentName,
+        eventDate,
+        requestedAt: normalizeDateLabel(item?.created_at),
+      } as HodApprovalQueueItem;
+    })
+    .filter((row: HodApprovalQueueItem | null): row is HodApprovalQueueItem => Boolean(row));
+
+  return {
+    queue,
+    metrics: {
+      deptBudgetUsedYtd: 0,
+      pendingL1Approvals: queue.length,
+    },
+  };
 }
 
 export default async function ServiceRoleManagePage({
@@ -61,7 +154,15 @@ export default async function ServiceRoleManagePage({
     data: { user },
   } = await supabase.auth.getUser();
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   if (!user) {
+    redirect("/auth");
+  }
+
+  if (!session?.access_token) {
     redirect("/auth");
   }
 
@@ -82,9 +183,7 @@ export default async function ServiceRoleManagePage({
     redirect("/error");
   }
 
-  const departmentId = String(userProfile.department_id || "").trim();
-
-  const fallbackDashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = {
+  const fallbackDashboardData = {
     queue: [],
     metrics: {
       deptBudgetUsedYtd: 0,
@@ -92,21 +191,17 @@ export default async function ServiceRoleManagePage({
     },
   };
 
-  let dashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = fallbackDashboardData;
+  let dashboardData = fallbackDashboardData;
   let dashboardErrorMessage: string | null = null;
 
-  const departmentLookup = departmentId
-    ? await supabase
-        .from("departments_courses")
-        .select("department_name")
-        .eq("id", departmentId)
-        .maybeSingle()
-    : { data: null };
+  const serviceRoleCode = Array.isArray(roleConfig.roleCodes) && roleConfig.roleCodes.length > 0
+    ? String(roleConfig.roleCodes[0] || "").trim().toUpperCase()
+    : "";
 
   try {
-    dashboardData = await fetchHodDashboardData({
-      supabase,
-      departmentId: departmentId || null,
+    dashboardData = await fetchServiceRoleDashboardData({
+      serviceRoleCode,
+      accessToken: session.access_token,
     });
   } catch (error) {
     dashboardErrorMessage =
@@ -115,9 +210,7 @@ export default async function ServiceRoleManagePage({
         : `Unable to load ${roleConfig.label} dashboard data right now.`;
   }
 
-  const departmentName =
-    String(departmentLookup?.data?.department_name || "").trim() ||
-    (isMasterAdmin ? "All Departments" : "My Department");
+  const departmentName = isMasterAdmin ? "All Departments" : roleConfig.label;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -131,6 +224,14 @@ export default async function ServiceRoleManagePage({
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}
         dashboardTitle={`${roleConfig.label} Dashboard`}
+        pendingMetricLabel="Pending Service Requests"
+        emptyStateTitle={`No pending ${roleConfig.label} requests`}
+        emptyStateDescription={`No logistics-phase requests are waiting in the ${roleConfig.label} queue.`}
+        eventDetailBasePath="/event"
+        decisionMessages={{
+          approve: `${roleConfig.label} request approved`,
+          return: `${roleConfig.label} request returned for revision`,
+        }}
         approvalApiBasePath={`/api/manage/${roleConfig.slug}`}
       />
     </main>

@@ -324,6 +324,7 @@ const FestsPageContent = () => {
                   {paginatedFests.map((fest) => (
                     <div key={fest.fest_id} className="min-w-0 h-full">
                       <FestCard
+                        id={String(fest.fest_id)}
                         title={fest.fest_title}
                         dept={fest.organizing_dept}
                         description={fest.description}

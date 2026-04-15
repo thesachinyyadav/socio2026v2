@@ -578,7 +578,7 @@ const DiscoverPageContent = () => {
                 <FestsSection
                   title="Upcoming fests"
                   fests={filteredUpcomingFests.map((fest: Fest) => {
-                    const festIdNum = Number(fest.fest_id) || Number(fest.id) || 0;
+                    const festId = String(fest.fest_id || fest.id || "").trim();
                     const openingDate = fest.opening_date
                       ? new Date(fest.opening_date)
                       : new Date();
@@ -587,7 +587,7 @@ const DiscoverPageContent = () => {
                       : openingDate;
 
                     return {
-                      fest_id: festIdNum,
+                      fest_id: festId,
                       fest_title: fest.title || "Untitled fest",
                       organizing_dept: fest.organizing_dept || "",
                       description: fest.description || "",

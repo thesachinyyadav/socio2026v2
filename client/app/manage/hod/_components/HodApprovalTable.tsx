@@ -7,6 +7,9 @@ interface HodApprovalTableProps {
   activeRequestId: string | null;
   onApprove: (requestId: string) => void;
   onReturn: (requestId: string) => void;
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
+  eventDetailBasePath?: string;
 }
 
 const currencyFormatter = new Intl.NumberFormat("en-IN", {
@@ -37,14 +40,16 @@ export default function HodApprovalTable({
   activeRequestId,
   onApprove,
   onReturn,
+  emptyStateTitle = "No pending L1 approvals",
+  emptyStateDescription =
+    "You are all caught up for event and fest approvals in your department.",
+  eventDetailBasePath = "/approvals/hod-dean",
 }: HodApprovalTableProps) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
-        <h3 className="text-lg font-semibold text-slate-800">No pending L1 approvals</h3>
-        <p className="mt-2 text-sm text-slate-600">
-          You are all caught up for event and fest approvals in your department.
-        </p>
+        <h3 className="text-lg font-semibold text-slate-800">{emptyStateTitle}</h3>
+        <p className="mt-2 text-sm text-slate-600">{emptyStateDescription}</p>
       </div>
     );
   }
@@ -79,7 +84,7 @@ export default function HodApprovalTable({
               const isFest = row.entityType === "fest";
               const detailHref = isFest
                 ? `/fest/${row.eventId}`
-                : `/approvals/hod-dean/${row.eventId}`;
+                : `${eventDetailBasePath}/${row.eventId}`;
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50/70">

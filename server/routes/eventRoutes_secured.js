@@ -236,6 +236,74 @@ const normalizeWorkflowStatus = (value, fallback = "") => {
   return normalized || String(fallback || "").trim().toUpperCase();
 };
 
+const WORKFLOW_PHASE = Object.freeze({
+  DRAFT: "draft",
+  DEPT_APPROVAL: "dept_approval",
+  FINANCE_APPROVAL: "finance_approval",
+  LOGISTICS_APPROVAL: "logistics_approval",
+  APPROVED: "approved",
+});
+
+const normalizeWorkflowPhase = (value, fallback = WORKFLOW_PHASE.DRAFT) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  const allowed = new Set(Object.values(WORKFLOW_PHASE));
+  return allowed.has(normalized) ? normalized : String(fallback || "").trim().toLowerCase();
+};
+
+const resolveWorkflowPhaseFromWorkflowStatus = (workflowStatus) => {
+  const normalizedStatus = String(workflowStatus || "").trim().toLowerCase();
+
+  if (["pending_hod", "pending_dean", "pending_organiser"].includes(normalizedStatus)) {
+    return WORKFLOW_PHASE.DEPT_APPROVAL;
+  }
+
+  if (["pending_cfo", "pending_accounts"].includes(normalizedStatus)) {
+    return WORKFLOW_PHASE.FINANCE_APPROVAL;
+  }
+
+  if (["auto_approved", "fully_approved", "live"].includes(normalizedStatus)) {
+    return WORKFLOW_PHASE.APPROVED;
+  }
+
+  if (["draft", "rejected", "final_rejected"].includes(normalizedStatus)) {
+    return WORKFLOW_PHASE.DRAFT;
+  }
+
+  return "";
+};
+
+const resolveWorkflowPhaseForEventState = ({
+  workflowStatus,
+  approvalState,
+  serviceApprovalState,
+  isDraft,
+}) => {
+  const normalizedServiceState = normalizeWorkflowStatus(serviceApprovalState, "APPROVED");
+  if (normalizedServiceState === "PENDING") {
+    return WORKFLOW_PHASE.LOGISTICS_APPROVAL;
+  }
+
+  const phaseFromStatus = resolveWorkflowPhaseFromWorkflowStatus(workflowStatus);
+  if (phaseFromStatus) {
+    return phaseFromStatus;
+  }
+
+  const normalizedApprovalState = normalizeWorkflowStatus(approvalState, "APPROVED");
+  if (normalizedApprovalState === "UNDER_REVIEW" || normalizedApprovalState === "PENDING") {
+    return WORKFLOW_PHASE.DEPT_APPROVAL;
+  }
+
+  if (normalizedApprovalState === "APPROVED") {
+    return WORKFLOW_PHASE.APPROVED;
+  }
+
+  if (Boolean(isDraft)) {
+    return WORKFLOW_PHASE.DRAFT;
+  }
+
+  return WORKFLOW_PHASE.DRAFT;
+};
+
 const resolveActivationState = (approvalState, serviceState) => {
   const normalizedApprovalState = normalizeWorkflowStatus(approvalState, "PENDING");
   const normalizedServiceState = normalizeWorkflowStatus(serviceState, "APPROVED");
@@ -741,7 +809,7 @@ const createApprovalRequestWithSteps = async ({
           step_group: Number(step?.stepGroup || index + 1),
           sequence_order: Number(step?.sequenceOrder || index + 1),
           required_count: Number(step?.requiredCount || 1),
-          status: "PENDING",
+          status: index === 0 ? "PENDING" : "WAITING",
         }))
       );
     }
@@ -855,6 +923,7 @@ const applyEventWorkflowState = async ({
   approvalRequestId,
   isBudgetRelated,
   lifecycleStatus,
+  workflowPhase,
 }) => {
   const normalizedEventId = String(eventId || "").trim();
   if (!normalizedEventId) {
@@ -882,11 +951,21 @@ const applyEventWorkflowState = async ({
       isDraft: true,
     })
   );
+  const normalizedWorkflowPhase = normalizeWorkflowPhase(
+    workflowPhase,
+    resolveWorkflowPhaseForEventState({
+      workflowStatus: null,
+      approvalState: normalizedApprovalState,
+      serviceApprovalState: normalizedServiceState,
+      isDraft: shouldEntityRemainDraft(normalizedLifecycleStatus),
+    })
+  );
 
   const workflowPayload = {
     approval_state: normalizedApprovalState,
     service_approval_state: normalizedServiceState,
     activation_state: activationState,
+    workflow_phase: normalizedWorkflowPhase,
     status: normalizedLifecycleStatus,
     is_draft: shouldEntityRemainDraft(normalizedLifecycleStatus),
     updated_at: new Date().toISOString(),
@@ -907,6 +986,7 @@ const applyEventWorkflowState = async ({
       activationState,
       normalizedApprovalState,
       normalizedServiceState,
+      normalizedWorkflowPhase,
       normalizedLifecycleStatus,
     };
   } catch (error) {
@@ -914,6 +994,7 @@ const applyEventWorkflowState = async ({
       "approval_state",
       "service_approval_state",
       "activation_state",
+      "workflow_phase",
       "approval_request_id",
       "is_budget_related",
       "status",
@@ -940,6 +1021,7 @@ const applyEventWorkflowState = async ({
             activationState,
             normalizedApprovalState,
             normalizedServiceState,
+            normalizedWorkflowPhase,
             normalizedLifecycleStatus,
           };
         } catch (fallbackError) {
@@ -957,6 +1039,7 @@ const applyEventWorkflowState = async ({
         activationState,
         normalizedApprovalState,
         normalizedServiceState,
+        normalizedWorkflowPhase,
         normalizedLifecycleStatus,
       };
     }
@@ -1009,7 +1092,43 @@ const getServiceRequestDetails = (additionalRequests, roleCode) => {
   return {};
 };
 
-const createServiceRequestsForEvent = async ({ eventRecord, userInfo, approvalRequestId = null }) => {
+const resolveRequestedServiceRoleCodesForEvent = async ({ eventId, additionalRequests }) => {
+  const requestedRoleCodes = new Set(collectRequestedServiceRoleCodes(additionalRequests));
+
+  const tableRoleMappings = [
+    { tableName: "event_resources", roleCode: ROLE_CODES.SERVICE_IT },
+    { tableName: "venue_bookings", roleCode: ROLE_CODES.SERVICE_VENUE },
+    { tableName: "catering_plans", roleCode: ROLE_CODES.SERVICE_CATERING },
+  ];
+
+  for (const mapping of tableRoleMappings) {
+    try {
+      const rows = await queryAll(mapping.tableName, {
+        where: { event_id: eventId },
+        limit: 1,
+      });
+
+      if (Array.isArray(rows) && rows.length > 0) {
+        requestedRoleCodes.add(mapping.roleCode);
+      }
+    } catch (error) {
+      if (isMissingRelationError(error) || isMissingColumnError(error, "event_id")) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  return Array.from(requestedRoleCodes);
+};
+
+const createServiceRequestsForEvent = async ({
+  eventRecord,
+  userInfo,
+  approvalRequestId = null,
+  initialStatus = "PENDING",
+}) => {
   try {
     const eventId = String(eventRecord?.event_id || "").trim();
     if (!eventId) {
@@ -1017,21 +1136,58 @@ const createServiceRequestsForEvent = async ({ eventRecord, userInfo, approvalRe
     }
 
     const additionalRequests = sanitizeAdditionalRequests(eventRecord?.additional_requests);
-    const requestedRoleCodes = collectRequestedServiceRoleCodes(additionalRequests);
+    const requestedRoleCodes = await resolveRequestedServiceRoleCodesForEvent({
+      eventId,
+      additionalRequests,
+    });
 
     if (requestedRoleCodes.length === 0) {
       return { createdCount: 0, requestedRoleCodes: [] };
     }
 
+    const normalizedInitialStatus = normalizeWorkflowStatus(initialStatus, "PENDING");
+    const serviceRequestStatus = ["PENDING", "QUEUED"].includes(normalizedInitialStatus)
+      ? normalizedInitialStatus
+      : "PENDING";
+
+    const existingServiceRequests = await queryAll("service_requests", {
+      where: { event_id: eventId },
+      select: "service_role_code,status",
+    }).catch((error) => {
+      if (isMissingRelationError(error)) {
+        return [];
+      }
+
+      throw error;
+    });
+
+    const existingActiveRoleCodes = new Set(
+      (existingServiceRequests || [])
+        .filter((row) => {
+          const status = normalizeWorkflowStatus(row?.status, "PENDING");
+          return status === "PENDING" || status === "QUEUED";
+        })
+        .map((row) => normalizeWorkflowStatus(row?.service_role_code))
+        .filter(Boolean)
+    );
+
+    const rolesToCreate = requestedRoleCodes.filter(
+      (roleCode) => !existingActiveRoleCodes.has(normalizeWorkflowStatus(roleCode))
+    );
+
+    if (rolesToCreate.length === 0) {
+      return { createdCount: 0, requestedRoleCodes };
+    }
+
     const nowIso = new Date().toISOString();
-    const rows = requestedRoleCodes.map((roleCode, index) => ({
+    const rows = rolesToCreate.map((roleCode, index) => ({
       service_request_id: `SR-${eventId}-${Date.now()}-${index + 1}`,
       event_id: eventId,
       approval_request_id: approvalRequestId,
       service_role_code: roleCode,
       requested_by_user_id: userInfo?.id || null,
       requested_by_email: userInfo?.email || null,
-      status: "PENDING",
+      status: serviceRequestStatus,
       details: getServiceRequestDetails(additionalRequests, roleCode),
       created_at: nowIso,
       updated_at: nowIso,
@@ -2594,6 +2750,40 @@ router.post(
         },
       });
 
+      const initialWorkflowStatus =
+        normalizedFestReference && userIsOrganizerStudentOnly
+          ? "pending_organiser"
+          : !normalizedFestReference && !shouldSaveAsDraft && !shouldArchiveOnCreate
+          ? !standaloneApprovalPreferences.requiresHodApproval &&
+            !standaloneApprovalPreferences.requiresDeanApproval &&
+            !(standaloneBudgetPlan.requiresCfo || standaloneBudgetPlan.requiresAccounts)
+            ? "auto_approved"
+            : standaloneApprovalPreferences.requiresHodApproval
+            ? "pending_hod"
+            : standaloneApprovalPreferences.requiresDeanApproval
+            ? "pending_dean"
+            : standaloneBudgetPlan.workflowStatus || "draft"
+          : "draft";
+
+      const requestedServiceRoleCodesOnCreate = collectRequestedServiceRoleCodes(
+        additionalRequestsValidation.additionalRequests
+      );
+      const initialServiceApprovalStateOnCreate =
+        !shouldSaveAsDraft &&
+        !shouldArchiveOnCreate &&
+        requestedServiceRoleCodesOnCreate.length > 0
+          ? "PENDING"
+          : "APPROVED";
+      const initialWorkflowPhase = resolveWorkflowPhaseForEventState({
+        workflowStatus: initialWorkflowStatus,
+        approvalState:
+          initialWorkflowStatus === "draft" || initialWorkflowStatus === "auto_approved"
+            ? "APPROVED"
+            : "UNDER_REVIEW",
+        serviceApprovalState: initialServiceApprovalStateOnCreate,
+        isDraft: shouldRemainDraftUntilApproval || shouldArchiveOnCreate,
+      });
+
       const eventInsertPayload = {
         event_id,
         title: title.trim(),
@@ -2632,20 +2822,8 @@ router.post(
           Boolean(
             standaloneBudgetPlan.requiresCfo || standaloneBudgetPlan.requiresAccounts
           ),
-        workflow_status:
-          normalizedFestReference && userIsOrganizerStudentOnly
-            ? "pending_organiser"
-            : !normalizedFestReference && !shouldSaveAsDraft && !shouldArchiveOnCreate
-            ? !standaloneApprovalPreferences.requiresHodApproval &&
-              !standaloneApprovalPreferences.requiresDeanApproval &&
-              !(standaloneBudgetPlan.requiresCfo || standaloneBudgetPlan.requiresAccounts)
-              ? "auto_approved"
-              : standaloneApprovalPreferences.requiresHodApproval
-              ? "pending_hod"
-              : standaloneApprovalPreferences.requiresDeanApproval
-              ? "pending_dean"
-              : standaloneBudgetPlan.workflowStatus || "draft"
-            : "draft",
+        workflow_status: initialWorkflowStatus,
+        workflow_phase: initialWorkflowPhase,
         created_by: req.userInfo?.email,
         auth_uuid: req.userId,
         registration_deadline: req.body.registration_deadline || null,
@@ -2677,6 +2855,7 @@ router.post(
       } catch (insertError) {
         const hasMissingLifecycleStatusColumn = isMissingColumnError(insertError, "status");
         const missingWorkflowStatusColumn = isMissingColumnError(insertError, "workflow_status");
+        const missingWorkflowPhaseColumn = isMissingColumnError(insertError, "workflow_phase");
         const missingEventContextColumn = isMissingColumnError(insertError, "event_context");
         const missingNeedsHodDeanColumn = isMissingColumnError(insertError, "needs_hod_dean_approval");
         const missingNeedsBudgetColumn = isMissingColumnError(insertError, "needs_budget_approval");
@@ -2687,6 +2866,7 @@ router.post(
           !isMissingAdditionalRequestsColumnError(insertError) &&
           !hasMissingLifecycleStatusColumn &&
           !missingWorkflowStatusColumn &&
+          !missingWorkflowPhaseColumn &&
           !missingEventContextColumn &&
           !missingNeedsHodDeanColumn &&
           !missingNeedsBudgetColumn &&
@@ -2708,6 +2888,9 @@ router.post(
         }
         if (missingWorkflowStatusColumn) {
           delete fallbackInsertPayload.workflow_status;
+        }
+        if (missingWorkflowPhaseColumn) {
+          delete fallbackInsertPayload.workflow_phase;
         }
         if (missingEventContextColumn) {
           delete fallbackInsertPayload.event_context;
@@ -2780,11 +2963,13 @@ router.post(
         }
       }
 
+      const initialServiceRequestStatus = approvalState === "UNDER_REVIEW" ? "QUEUED" : "PENDING";
       const serviceWorkflow = (!shouldSaveAsDraft && !shouldArchiveOnCreate)
         ? await createServiceRequestsForEvent({
             eventRecord: createdEventRecord,
             userInfo: req.userInfo,
             approvalRequestId: primaryApprovalRequest?.id || null,
+            initialStatus: initialServiceRequestStatus,
           })
         : { createdCount: 0, requestedRoleCodes: [] };
 
@@ -2797,12 +2982,20 @@ router.post(
         (serviceWorkflow.requestedRoleCodes || []).length > 0;
 
       if (shouldApplyWorkflowState) {
+        const workflowPhase = resolveWorkflowPhaseForEventState({
+          workflowStatus: createdEventRecord?.workflow_status || initialWorkflowStatus,
+          approvalState,
+          serviceApprovalState,
+          isDraft: shouldRemainDraftUntilApproval || shouldArchiveOnCreate,
+        });
+
         const workflowResult = await applyEventWorkflowState({
           eventId: event_id,
           approvalState,
           serviceApprovalState,
           approvalRequestId: primaryApprovalRequest?.id || null,
           isBudgetRelated: queueStandaloneApproval ? isStandaloneBudgetRelated : false,
+          workflowPhase,
         });
 
         activationState = workflowResult.activationState;
@@ -3543,7 +3736,21 @@ router.put(
           : null;
 
       const workflowStatusPayload = workflowStatusForUpdate
-        ? { workflow_status: workflowStatusForUpdate }
+        ? {
+            workflow_status: workflowStatusForUpdate,
+            workflow_phase: resolveWorkflowPhaseForEventState({
+              workflowStatus: workflowStatusForUpdate,
+              approvalState:
+                workflowStatusForUpdate === "draft" || workflowStatusForUpdate === "auto_approved"
+                  ? "APPROVED"
+                  : "UNDER_REVIEW",
+              serviceApprovalState: normalizeWorkflowStatus(
+                event?.service_approval_state,
+                "APPROVED"
+              ),
+              isDraft: Boolean(draftOverridePayload?.is_draft),
+            }),
+          }
         : {};
 
       const updateData = {
@@ -3649,6 +3856,7 @@ router.put(
         [
           "status",
           "workflow_status",
+          "workflow_phase",
           "event_context",
           "parent_fest_id",
           "created_by_subhead",
@@ -3789,6 +3997,7 @@ router.put(
           userInfo: req.userInfo,
           approvalRequestId:
             workflowApprovalRequest?.id || updatedEvent?.approval_request_id || null,
+          initialStatus: nextApprovalState === "UNDER_REVIEW" ? "QUEUED" : "PENDING",
         });
 
         if ((serviceWorkflowOnPublish.requestedRoleCodes || []).length > 0) {
@@ -3800,6 +4009,13 @@ router.put(
           (serviceWorkflowOnPublish.requestedRoleCodes || []).length > 0;
 
         if (hasWorkflowToAwait) {
+          const workflowPhase = resolveWorkflowPhaseForEventState({
+            workflowStatus: updatedEvent?.workflow_status,
+            approvalState: nextApprovalState,
+            serviceApprovalState: nextServiceState,
+            isDraft: true,
+          });
+
           const workflowResult = await applyEventWorkflowState({
             eventId: String(updatedEvent?.event_id || newEventId || eventId),
             approvalState: nextApprovalState,
@@ -3808,6 +4024,7 @@ router.put(
               workflowApprovalRequest?.id || updatedEvent?.approval_request_id || null,
             isBudgetRelated: isStandalonePublish ? standaloneBudgetRelated : false,
             lifecycleStatus: LIFECYCLE_STATUS.DRAFT,
+            workflowPhase,
           });
 
           activationState = workflowResult.activationState;
@@ -3843,6 +4060,7 @@ router.put(
             approvalRequestId: updatedEvent?.approval_request_id || null,
             isBudgetRelated: false,
             lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
+            workflowPhase: WORKFLOW_PHASE.APPROVED,
           });
 
           activationState = publishResult.activationState;
@@ -3879,6 +4097,7 @@ router.put(
           approvalRequestId: updatedEvent?.approval_request_id || null,
           isBudgetRelated: !normalizedFestReference ? isStandaloneBudgetRelated : undefined,
           lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
+          workflowPhase: WORKFLOW_PHASE.APPROVED,
         });
 
         activationState = publishResult.activationState;
@@ -4089,6 +4308,7 @@ router.post(
             })
           : undefined,
         lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
+        workflowPhase: WORKFLOW_PHASE.APPROVED,
       });
 
       const refreshedEvent =

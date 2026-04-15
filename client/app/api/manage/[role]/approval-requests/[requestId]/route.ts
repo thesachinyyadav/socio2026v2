@@ -10,15 +10,11 @@ import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
 type DecisionAction = "approve" | "reject" | "return";
 
-type ApprovalRequestRow = {
+type ServiceRequestRow = {
   id?: string;
-  request_id?: string | null;
+  service_request_id?: string | null;
   status?: string | null;
-};
-
-type ApprovalStepRow = {
-  step_code?: string | null;
-  status?: string | null;
+  service_role_code?: string | null;
 };
 
 function parseAction(value: unknown): DecisionAction | null {
@@ -121,61 +117,69 @@ export async function PATCH(
       return jsonError(400, "A rejection note of at least 20 characters is required.");
     }
 
-    const { data: approvalData, error: approvalError } = await supabase
-      .from("approval_requests")
-      .select("id,request_id,status")
-      .eq("id", requestId)
+    let serviceRequestData: ServiceRequestRow | null = null;
+
+    const { data: byServiceRequestId, error: serviceRequestIdError } = await supabase
+      .from("service_requests")
+      .select("id,service_request_id,status,service_role_code")
+      .eq("service_request_id", requestId)
       .maybeSingle();
 
-    if (approvalError) {
-      return jsonError(500, `Failed to fetch approval request: ${approvalError.message}`);
+    if (serviceRequestIdError) {
+      return jsonError(
+        500,
+        `Failed to fetch ${roleConfig.label} service request: ${serviceRequestIdError.message}`
+      );
     }
 
-    if (!approvalData) {
-      return jsonError(404, "Approval request not found.");
+    serviceRequestData = (byServiceRequestId as ServiceRequestRow | null) || null;
+
+    if (!serviceRequestData) {
+      const { data: byRowId, error: rowIdError } = await supabase
+        .from("service_requests")
+        .select("id,service_request_id,status,service_role_code")
+        .eq("id", requestId)
+        .maybeSingle();
+
+      if (rowIdError) {
+        return jsonError(
+          500,
+          `Failed to fetch ${roleConfig.label} service request: ${rowIdError.message}`
+        );
+      }
+
+      serviceRequestData = (byRowId as ServiceRequestRow | null) || null;
     }
 
-    const requestRow = approvalData as ApprovalRequestRow;
+    if (!serviceRequestData) {
+      return jsonError(404, "Service request not found.");
+    }
+
+    const requestRow = serviceRequestData as ServiceRequestRow;
     const requestStatus = String(requestRow.status || "").trim().toUpperCase();
     if (!requestStatus || requestStatus === "APPROVED" || requestStatus === "REJECTED") {
       return jsonError(409, "This request is no longer pending.");
     }
 
-    const approvalRequestDbId = String(requestRow.id || "").trim();
-    const requestIdentifier = String(requestRow.request_id || "").trim();
-    if (!approvalRequestDbId || !requestIdentifier) {
-      return jsonError(400, "Approval request is missing workflow identifiers.");
-    }
+    const serviceRoleCode = String(requestRow.service_role_code || "").trim().toUpperCase();
 
     const roleCodes = Array.isArray(roleConfig.roleCodes)
-      ? roleConfig.roleCodes.map((code) => String(code || "").trim()).filter((code) => code.length > 0)
+      ? roleConfig.roleCodes
+          .map((code) => String(code || "").trim().toUpperCase())
+          .filter((code) => code.length > 0)
       : [];
 
     if (roleCodes.length === 0) {
       return jsonError(500, "Role configuration is missing role code mappings.");
     }
 
-    const { data: pendingStepData, error: pendingStepError } = await supabase
-      .from("approval_steps")
-      .select("step_code,status")
-      .eq("approval_request_id", approvalRequestDbId)
-      .in("role_code", roleCodes)
-      .eq("status", "PENDING")
-      .order("sequence_order", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (pendingStepError) {
-      return jsonError(500, `Failed to load pending ${roleConfig.label} step: ${pendingStepError.message}`);
+    if (!roleCodes.includes(serviceRoleCode)) {
+      return jsonError(403, `This request is not assigned to ${roleConfig.label} queue.`);
     }
 
-    if (!pendingStepData) {
-      return jsonError(409, `No pending ${roleConfig.label} step exists for this request.`);
-    }
-
-    const stepCode = String((pendingStepData as ApprovalStepRow).step_code || "").trim();
-    if (!stepCode) {
-      return jsonError(400, "Approval request is missing step identifiers.");
+    const requestIdentifier = String(requestRow.service_request_id || requestRow.id || "").trim();
+    if (!requestIdentifier) {
+      return jsonError(400, "Service request is missing workflow identifiers.");
     }
 
     const {
@@ -200,7 +204,7 @@ export async function PATCH(
           : note;
 
     const upstreamResponse = await fetch(
-      `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+      `${apiBaseUrl}/api/approvals/service-requests/${encodeURIComponent(requestIdentifier)}/decision`,
       {
         method: "POST",
         headers: {
@@ -237,10 +241,10 @@ export async function PATCH(
       success: true,
       message:
         action === "approve"
-          ? "Approval request approved successfully."
+          ? `${roleConfig.label} request approved successfully.`
           : action === "return"
-            ? "Approval request returned for revision."
-            : "Approval request rejected successfully.",
+            ? `${roleConfig.label} request returned for revision.`
+            : `${roleConfig.label} request rejected successfully.`,
       data: upstreamPayload,
     });
   } catch (error) {

@@ -14,6 +14,14 @@ interface HodDashboardClientProps {
   initialMetrics: HodDashboardMetrics;
   dashboardTitle?: string;
   approvalApiBasePath?: string;
+  pendingMetricLabel?: string;
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
+  eventDetailBasePath?: string;
+  decisionMessages?: {
+    approve?: string;
+    return?: string;
+  };
 }
 
 type ModalState = {
@@ -31,12 +39,18 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
 
 const NOTE_MIN_CHARS = 1;
 
-function decisionMessage(action: HodApprovalAction): string {
+function decisionMessage(
+  action: HodApprovalAction,
+  decisionMessages?: {
+    approve?: string;
+    return?: string;
+  }
+): string {
   if (action === "approve") {
-    return "Approval recorded";
+    return decisionMessages?.approve || "Approval recorded";
   }
 
-  return "Request returned for revision";
+  return decisionMessages?.return || "Request returned for revision";
 }
 
 export default function HodDashboardClient({
@@ -45,6 +59,11 @@ export default function HodDashboardClient({
   initialMetrics,
   dashboardTitle = "HOD Approval Dashboard",
   approvalApiBasePath = "/api/manage/hod",
+  pendingMetricLabel = "Pending L1 Approvals",
+  emptyStateTitle,
+  emptyStateDescription,
+  eventDetailBasePath,
+  decisionMessages,
 }: HodDashboardClientProps) {
   const router = useRouter();
 
@@ -97,7 +116,7 @@ export default function HodDashboardClient({
 
       applySuccessfulAction(requestId);
       setModalState(null);
-      toast.success(decisionMessage(action));
+      toast.success(decisionMessage(action, decisionMessages));
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to update approval request.";
@@ -142,7 +161,7 @@ export default function HodDashboardClient({
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending L1 Approvals</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{pendingMetricLabel}</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{metrics.pendingL1Approvals}</p>
         </div>
       </div>
@@ -150,6 +169,9 @@ export default function HodDashboardClient({
       <HodApprovalTable
         rows={queue}
         activeRequestId={activeRequestId}
+        emptyStateTitle={emptyStateTitle}
+        emptyStateDescription={emptyStateDescription}
+        eventDetailBasePath={eventDetailBasePath}
         onApprove={(requestId) => {
           void submitAction({ requestId, action: "approve" });
         }}
