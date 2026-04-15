@@ -44,6 +44,77 @@ interface Category {
 }
 
 const DEFAULT_DISCOVER_CAMPUS = "Central Campus (Main)";
+const API_FALLBACK_ORIGINS = [
+  "https://socioserver-snowy.vercel.app",
+  "https://sociodevserver.vercel.app",
+] as const;
+
+const normalizeApiOrigin = (value: string | undefined | null): string => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (!/^https?:\/\//i.test(raw)) return "";
+  return raw.replace(/\/+$/, "").replace(/\/api\/?$/i, "");
+};
+
+const getApiOrigins = (): string[] => {
+  const configuredOrigin = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_URL);
+  const fallbackEnvOrigin = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
+  const localOriginCandidate =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+      ? "http://localhost:8000"
+      : "";
+
+  return Array.from(
+    new Set([
+      configuredOrigin,
+      fallbackEnvOrigin,
+      localOriginCandidate,
+      ...API_FALLBACK_ORIGINS,
+    ].filter(Boolean))
+  );
+};
+
+const apiFetch = async (
+  apiPath: string,
+  init?: RequestInit,
+  options?: { allowNotFoundFailover?: boolean }
+): Promise<Response> => {
+  const origins = getApiOrigins();
+  if (origins.length === 0) {
+    throw new Error("API base URL is not configured.");
+  }
+
+  const normalizedPath = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  const method = String(init?.method || "GET").toUpperCase();
+  const allowNotFoundFailover = options?.allowNotFoundFailover ?? method === "GET";
+
+  let lastNotFoundResponse: Response | null = null;
+  let lastError: unknown = null;
+
+  for (const origin of origins) {
+    try {
+      const response = await fetch(`${origin}${normalizedPath}`, init);
+      if (response.status === 404 && allowNotFoundFailover && origins.length > 1) {
+        lastNotFoundResponse = response;
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastNotFoundResponse) {
+    return lastNotFoundResponse;
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("Failed to reach API.");
+};
 
 const findCampusByQueryValue = (value: string | null) => {
   if (!value) {
@@ -71,7 +142,6 @@ const DiscoverPageContent = () => {
     allEvents,
   } = useEvents();
   const { session, userData } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
   const [selectedCampus, setSelectedCampus] = useState(DEFAULT_DISCOVER_CAMPUS);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -107,7 +177,7 @@ const DiscoverPageContent = () => {
       setIsLoadingFests(true);
       setErrorFests(null);
       try {
-        const response = await fetch(`${API_URL}/api/fests?status=upcoming&sortBy=opening_date&sortOrder=asc`, {
+        const response = await apiFetch("/api/fests?status=upcoming&sortBy=opening_date&sortOrder=asc", {
           headers: session?.access_token
             ? {
                 Authorization: `Bearer ${session.access_token}`,
@@ -156,7 +226,7 @@ const DiscoverPageContent = () => {
     };
 
     fetchFests();
-  }, [API_URL, session?.access_token]);
+  }, [session?.access_token]);
 
   const {
     filteredEvents: allFilteredEvents,
