@@ -191,7 +191,10 @@ export default async function ServiceRoleManagePage({
     },
   };
 
-  let dashboardData = fallbackDashboardData;
+  type ServiceRoleDashboardData = Awaited<ReturnType<typeof fetchServiceRoleDashboardData>>;
+  const fallbackDashboardDataTyped: ServiceRoleDashboardData = fallbackDashboardData;
+
+  let dashboardData: ServiceRoleDashboardData = fallbackDashboardDataTyped;
   let dashboardErrorMessage: string | null = null;
 
   const serviceRoleCode = Array.isArray(roleConfig.roleCodes) && roleConfig.roleCodes.length > 0
