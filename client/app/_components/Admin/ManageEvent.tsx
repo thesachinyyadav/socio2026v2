@@ -770,7 +770,13 @@ interface FestOption {
   allowOutsiders: boolean;
   approvalState?: string;
   activationState?: string;
+  requiresHodApproval: boolean;
+  requiresDeanApproval: boolean;
+  requiresCfoApproval: boolean;
 }
+
+const FEST_APPROVAL_SETTINGS_KEY = "__approval_workflow__";
+const FEST_BUDGET_SETTINGS_KEY = "__budget_approval__";
 
 const toCanonical = (value: string): string =>
   value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -907,6 +913,21 @@ const normalizeAllowedCampuses = (value: unknown): string[] =>
 const normalizeBoolean = (value: unknown): boolean =>
   value === true || value === "true" || value === 1 || value === "1";
 
+const parseBooleanWithFallback = (
+  value: unknown,
+  fallbackValue: boolean
+): boolean => {
+  if (normalizeBoolean(value)) {
+    return true;
+  }
+
+  if (value === false || value === "false" || value === 0 || value === "0") {
+    return false;
+  }
+
+  return fallbackValue;
+};
+
 const CONTACT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const CONTACT_EMAIL_MAX_LENGTH = 100;
 
@@ -925,6 +946,137 @@ const normalizeFestOptionValue = (fest: any): string => {
 const normalizeFestOptionLabel = (fest: any): string => {
   const normalized = String(fest?.fest_title ?? fest?.title ?? "").trim();
   return normalized || "Untitled Fest";
+};
+
+const parseJsonLikeField = <T,>(value: unknown, fallback: T): T => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    try {
+      return JSON.parse(trimmed) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  if (typeof value === "object") {
+    return value as T;
+  }
+
+  return fallback;
+};
+
+const extractFestApprovalWorkflow = (
+  fest: any
+): { requiresHodApproval: boolean; requiresDeanApproval: boolean } => {
+  const fallback = {
+    requiresHodApproval: true,
+    requiresDeanApproval: true,
+  };
+
+  const direct = parseJsonLikeField<Record<string, unknown> | null>(
+    fest?.approval_workflow,
+    null
+  );
+  if (direct && !Array.isArray(direct)) {
+    return {
+      requiresHodApproval: parseBooleanWithFallback(
+        direct.requiresHodApproval,
+        fallback.requiresHodApproval
+      ),
+      requiresDeanApproval: parseBooleanWithFallback(
+        direct.requiresDeanApproval,
+        fallback.requiresDeanApproval
+      ),
+    };
+  }
+
+  const parsedCustomFields = parseJsonLikeField<any[]>(fest?.custom_fields, []);
+  if (!Array.isArray(parsedCustomFields)) {
+    return fallback;
+  }
+
+  const approvalField = parsedCustomFields.find((field) => {
+    if (!field || typeof field !== "object" || Array.isArray(field)) {
+      return false;
+    }
+
+    return String(field.key || "").trim() === FEST_APPROVAL_SETTINGS_KEY;
+  });
+
+  if (!approvalField || typeof approvalField !== "object" || Array.isArray(approvalField)) {
+    return fallback;
+  }
+
+  const workflowValue = parseJsonLikeField<Record<string, unknown> | null>(
+    (approvalField as { value?: unknown }).value,
+    null
+  );
+
+  if (!workflowValue || Array.isArray(workflowValue)) {
+    return fallback;
+  }
+
+  return {
+    requiresHodApproval: parseBooleanWithFallback(
+      workflowValue.requiresHodApproval,
+      fallback.requiresHodApproval
+    ),
+    requiresDeanApproval: parseBooleanWithFallback(
+      workflowValue.requiresDeanApproval,
+      fallback.requiresDeanApproval
+    ),
+  };
+};
+
+const extractFestCfoRequirement = (fest: any): boolean => {
+  const directCandidates = [
+    fest?.requires_cfo_approval,
+    fest?.requiresCfoApproval,
+    fest?.needs_budget_approval,
+    fest?.needsBudgetApproval,
+    fest?.requires_budget_approval,
+    fest?.requiresBudgetApproval,
+  ];
+
+  if (directCandidates.some((value) => normalizeBoolean(value))) {
+    return true;
+  }
+
+  const parsedCustomFields = parseJsonLikeField<any[]>(fest?.custom_fields, []);
+  if (!Array.isArray(parsedCustomFields)) {
+    return false;
+  }
+
+  const budgetField = parsedCustomFields.find((field) => {
+    if (!field || typeof field !== "object" || Array.isArray(field)) {
+      return false;
+    }
+
+    return String(field.key || "").trim() === FEST_BUDGET_SETTINGS_KEY;
+  });
+
+  if (!budgetField || typeof budgetField !== "object" || Array.isArray(budgetField)) {
+    return false;
+  }
+
+  const budgetSettings = parseJsonLikeField<Record<string, unknown> | null>(
+    (budgetField as { value?: unknown }).value,
+    null
+  );
+
+  if (!budgetSettings || Array.isArray(budgetSettings)) {
+    return false;
+  }
+
+  return normalizeBoolean(budgetSettings.requiresBudgetApproval);
 };
 
 const getAdditionalRequestsDefaults = (): EventFormData["additionalRequests"] => ({
@@ -1310,32 +1462,39 @@ export default function EventForm({
         if (fests) {
           const options: FestOption[] = fests
             .filter((f: any) => !isArchivedFest(f))
-            .map((f: any) => ({
-              value: normalizeFestOptionValue(f),
-              label: normalizeFestOptionLabel(f),
-              departmentAccess: normalizeDepartmentAccess(f.department_access),
-              organizingSchool: normalizeSchoolValue(
-                f.organizing_school ??
-                  f.organizingSchool ??
-                  f.school ??
-                  f.school_scope ??
-                  f.schoolScope
-              ),
-              organizingDept:
-                typeof f.organizing_dept === "string" ? f.organizing_dept.trim() : "",
-              category: normalizeCategoryValue(f.category),
-              campusHostedAt: normalizeCampusHostedAt(f.campus_hosted_at),
-              allowedCampuses: normalizeAllowedCampuses(f.allowed_campuses),
-              allowOutsiders: normalizeBoolean(f.allow_outsiders ?? f.allowOutsiders),
-              approvalState:
-                typeof f.approval_state === "string"
-                  ? f.approval_state.trim().toUpperCase()
-                  : "",
-              activationState:
-                typeof f.activation_state === "string"
-                  ? f.activation_state.trim().toUpperCase()
-                  : "",
-            }));
+            .map((f: any) => {
+              const approvalWorkflow = extractFestApprovalWorkflow(f);
+
+              return {
+                value: normalizeFestOptionValue(f),
+                label: normalizeFestOptionLabel(f),
+                departmentAccess: normalizeDepartmentAccess(f.department_access),
+                organizingSchool: normalizeSchoolValue(
+                  f.organizing_school ??
+                    f.organizingSchool ??
+                    f.school ??
+                    f.school_scope ??
+                    f.schoolScope
+                ),
+                organizingDept:
+                  typeof f.organizing_dept === "string" ? f.organizing_dept.trim() : "",
+                category: normalizeCategoryValue(f.category),
+                campusHostedAt: normalizeCampusHostedAt(f.campus_hosted_at),
+                allowedCampuses: normalizeAllowedCampuses(f.allowed_campuses),
+                allowOutsiders: normalizeBoolean(f.allow_outsiders ?? f.allowOutsiders),
+                approvalState:
+                  typeof f.approval_state === "string"
+                    ? f.approval_state.trim().toUpperCase()
+                    : "",
+                activationState:
+                  typeof f.activation_state === "string"
+                    ? f.activation_state.trim().toUpperCase()
+                    : "",
+                requiresHodApproval: approvalWorkflow.requiresHodApproval,
+                requiresDeanApproval: approvalWorkflow.requiresDeanApproval,
+                requiresCfoApproval: extractFestCfoRequirement(f),
+              };
+            });
           setFetchedFests([
             {
               value: "none",
@@ -1349,6 +1508,9 @@ export default function EventForm({
               allowOutsiders: false,
               approvalState: "",
               activationState: "",
+              requiresHodApproval: false,
+              requiresDeanApproval: false,
+              requiresCfoApproval: false,
             },
             ...options,
           ]);
@@ -1389,8 +1551,8 @@ export default function EventForm({
       organizingSchool: "",
       organizingDept: "",
       festEvent: "",
-      standaloneRequiresHodApproval: false,
-      standaloneRequiresDeanApproval: false,
+      standaloneRequiresHodApproval: true,
+      standaloneRequiresDeanApproval: true,
       registrationDeadline: "",
       location: "",
       registrationFee: "",
@@ -1631,11 +1793,11 @@ export default function EventForm({
         standaloneRequiresHodApproval:
           typeof defaultValues.standaloneRequiresHodApproval === "boolean"
             ? defaultValues.standaloneRequiresHodApproval
-            : false,
+            : true,
         standaloneRequiresDeanApproval:
           typeof defaultValues.standaloneRequiresDeanApproval === "boolean"
             ? defaultValues.standaloneRequiresDeanApproval
-            : false,
+            : true,
         additionalRequests: mergeAdditionalRequests(defaultValues.additionalRequests),
       };
       reset(transformedDefaults);
@@ -1872,11 +2034,34 @@ export default function EventForm({
     Boolean(selectedFestOption) &&
     selectedFestApprovalState === "APPROVED" &&
     (!selectedFestActivationState || selectedFestActivationState === "ACTIVE");
+  const selectedFestApprovalRoles = React.useMemo(() => {
+    if (!selectedFestOption) return [] as string[];
+
+    const roles: string[] = [];
+    if (selectedFestOption.requiresHodApproval) {
+      roles.push("HOD");
+    }
+    if (selectedFestOption.requiresDeanApproval) {
+      roles.push("Dean");
+    }
+    if (selectedFestOption.requiresCfoApproval) {
+      roles.push("CFO");
+    }
+
+    return roles;
+  }, [selectedFestOption]);
+  const selectedFestApprovalRolesLabel =
+    selectedFestApprovalRoles.length === 0
+      ? "No HOD/Dean/CFO"
+      : selectedFestApprovalRoles.length === 1
+      ? selectedFestApprovalRoles[0]
+      : `${selectedFestApprovalRoles.slice(0, -1).join(" and ")} and ${selectedFestApprovalRoles[selectedFestApprovalRoles.length - 1]}`;
 
   const hasStandaloneApproverSelected =
     standaloneApprovalLocked ||
     Boolean(watchedStandaloneRequiresHodApproval) ||
-    Boolean(watchedStandaloneRequiresDeanApproval);
+    Boolean(watchedStandaloneRequiresDeanApproval) ||
+    Boolean(watchedProvideClaims);
   const showStandaloneFlowStepper = !hasFestSelected;
   const standaloneFlowStepIndex = STANDALONE_FLOW_STEPS.findIndex(
     (step) => step.key === standaloneFlowStep
@@ -3077,43 +3262,28 @@ export default function EventForm({
                           )}
                         />
 
-                        <Controller
-                          name="provideClaims"
-                          control={control}
-                          render={({ field }) => {
-                            const isCfoLocked = Boolean(field.value);
-
-                            return (
-                              <label
-                                htmlFor="standaloneRequiresCfoApproval"
-                                className={`flex items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
-                                  isCfoLocked
-                                    ? "border-gray-300 bg-gray-100 cursor-not-allowed"
-                                    : "border-gray-200 hover:border-[#154CB3]"
-                                }`}
-                              >
-                                <input
-                                  id="standaloneRequiresCfoApproval"
-                                  type="checkbox"
-                                  checked={Boolean(field.value)}
-                                  disabled={isCfoLocked}
-                                  onChange={(event) => field.onChange(event.target.checked)}
-                                  className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
-                                />
-                                <span>
-                                  <span className="block text-sm font-semibold text-gray-900">
-                                    CFO approval
-                                  </span>
-                                  <span className="block text-xs text-gray-500 mt-1">
-                                    {isCfoLocked
-                                      ? "Locked by Budget page (Funding required = Yes). Set Budget to No to unlock this field."
-                                      : "Optional when Budget page is set to No. Enabling this here makes CFO approval required and locks this box."}
-                                  </span>
-                                </span>
-                              </label>
-                            );
-                          }}
-                        />
+                        {Boolean(watchedProvideClaims) && (
+                          <label
+                            htmlFor="standaloneRequiresCfoApproval"
+                            className="flex items-start gap-3 rounded-lg border border-gray-300 bg-gray-100 cursor-not-allowed px-4 py-3"
+                          >
+                            <input
+                              id="standaloneRequiresCfoApproval"
+                              type="checkbox"
+                              checked
+                              disabled
+                              className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                            />
+                            <span>
+                              <span className="block text-sm font-semibold text-gray-900">
+                                CFO approval
+                              </span>
+                              <span className="block text-xs text-gray-500 mt-1">
+                                Locked by Budget page (Funding required = Yes). Set Budget to No to remove this box.
+                              </span>
+                            </span>
+                          </label>
+                        )}
                       </div>
 
                       <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -3134,38 +3304,23 @@ export default function EventForm({
 
                   {hasFestSelected ? (
                     <>
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
-                          <span className="text-gray-700">HOD approval</span>
-                          <span className="font-semibold text-gray-600">Bypassed</span>
+                      {selectedFestApprovalRoles.length > 0 && (
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          {selectedFestApprovalRoles.map((role) => (
+                            <div
+                              key={role}
+                              className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 flex items-center justify-between gap-2"
+                            >
+                              <span className="text-gray-700">{role} approval</span>
+                              <span className="font-semibold text-emerald-700">Approved</span>
+                            </div>
+                          ))}
                         </div>
-                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
-                          <span className="text-gray-700">Dean approval</span>
-                          <span className="font-semibold text-gray-600">Bypassed</span>
-                        </div>
-                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
-                          <span className="text-gray-700">CFO approval</span>
-                          <span
-                            className={`font-semibold ${
-                              requiresCfoApprovalForPublish
-                                ? "text-amber-700"
-                                : publishActionNeedsApproval
-                                ? "text-gray-600"
-                                : "text-emerald-700"
-                            }`}
-                          >
-                            {requiresCfoApprovalForPublish
-                              ? "Required"
-                              : publishActionNeedsApproval
-                              ? "Not required"
-                              : "Bypassed"}
-                          </span>
-                        </div>
-                      </div>
+                      )}
 
                       <p className="mt-3 text-xs sm:text-sm text-gray-700">
                         {isFestWorkflowApproved
-                          ? `Creating under ${selectedFestOption?.label || "selected fest"} - No HOD/Dean/CFO/Accounts approval is needed. Your event will go to the fest organiser for review.`
+                          ? `Creating under ${selectedFestOption?.label || "selected fest"} - ${selectedFestApprovalRolesLabel} approvals are already approved in fest workflow. Your event will go to the fest organiser for review.`
                           : "Selected fest is not fully approved yet. Publish is blocked until fest workflow is approved."}
                       </p>
                     </>
