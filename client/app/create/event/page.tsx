@@ -312,20 +312,24 @@ export default function CreateEventPage() {
       );
 
       if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (parseError) {
-          const responseText = await response.text();
-          console.error(
-            "CreateEventPage: Failed to parse error response JSON. Raw text:",
-            responseText
-          );
-          errorData = {
-            error: "Failed to parse error response from server.",
-            details: `Status: ${response.status}, StatusText: ${response.statusText}. Response body: ${responseText}`,
-          };
+        const responseText = await response.text();
+        let errorData: any = {};
+
+        if (responseText) {
+          try {
+            errorData = JSON.parse(responseText);
+          } catch {
+            console.error(
+              "CreateEventPage: Failed to parse error response JSON. Raw text:",
+              responseText
+            );
+            errorData = {
+              error: "Failed to parse error response from server.",
+              details: `Status: ${response.status}, StatusText: ${response.statusText}. Response body: ${responseText}`,
+            };
+          }
         }
+
         console.error("CreateEventPage: API Error Data:", errorData);
         const message =
           errorData.error ||
