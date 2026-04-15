@@ -2302,14 +2302,10 @@ export default function EventForm({
     }
 
     if (wasFestSelected && !hasFestSelected) {
-      setValue("additionalRequests", getAdditionalRequestsDefaults(), {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
       setActiveAdditionalRequestStep(0);
       setMaxUnlockedAdditionalRequestStep(0);
     }
-  }, [hasFestSelected, setValue]);
+  }, [hasFestSelected]);
 
   useEffect(() => {
     const wasEnabled = prevItEnabledRef.current;
@@ -3332,7 +3328,7 @@ export default function EventForm({
                 </div>
                 )}
 
-                {hasFestSelected && (
+                {
                   <div
                     id="additionalRequests-section"
                     className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 space-y-5"
@@ -3342,8 +3338,9 @@ export default function EventForm({
                         Additional Requests
                       </h3>
                       <p className="text-xs text-gray-600 mt-1">
-                        Operational approvals for fest-linked events. Modules you
-                        enable below must be completed before submission.
+                        {hasFestSelected
+                          ? "Operational approvals for fest-linked events. Modules you enable below must be completed before submission."
+                          : "Operational requests for standalone events. Enable the modules you need and include details as required."}
                       </p>
                     </div>
 
@@ -3814,7 +3811,7 @@ export default function EventForm({
                       </div>
                     </div>
                   </div>
-                )}
+                }
 
                 {(!showStandaloneFlowStepper || standaloneFlowStep === "details") && (
                 <div
