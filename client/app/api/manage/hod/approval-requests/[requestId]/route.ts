@@ -32,8 +32,79 @@ type ApprovalStepRow = {
   status?: string | null;
 };
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function normalizeScope(value: unknown): string {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeDepartmentScope(value: unknown): string {
+  const normalized = normalizeScope(value);
+  if (!normalized) {
+    return "";
+  }
+
+  if (UUID_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/^department of\s+/, "")
+    .replace(/^dept(?:\.)?\s+of\s+/, "")
+    .replace(/^dept(?:\.)?\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildDepartmentScopeCandidates(value: unknown): string[] {
+  const candidates = new Set<string>();
+  const raw = normalizeScope(value);
+  const canonical = normalizeDepartmentScope(value);
+
+  if (raw) {
+    candidates.add(raw);
+  }
+
+  if (canonical) {
+    candidates.add(canonical);
+    candidates.add(canonical.replace(/\s+/g, "_"));
+    candidates.add(`dept_${canonical.replace(/\s+/g, "_")}`);
+    candidates.add(`department_${canonical.replace(/\s+/g, "_")}`);
+    candidates.add(`department of ${canonical}`);
+  }
+
+  return Array.from(candidates).filter((candidate) => candidate.length > 0);
+}
+
+async function expandDepartmentScopes(supabase: any, scopes: string[]): Promise<string[]> {
+  const normalizedScopes = Array.from(
+    new Set(
+      scopes
+        .flatMap((scope) => buildDepartmentScopeCandidates(scope))
+        .filter((scope) => scope.length > 0)
+    )
+  );
+
+  const uuidScopes = normalizedScopes.filter((scope) => UUID_PATTERN.test(scope));
+  if (uuidScopes.length === 0) {
+    return normalizedScopes;
+  }
+
+  const { data: departmentsRows, error: departmentsError } = await supabase
+    .from("departments_courses")
+    .select("id, department_name")
+    .in("id", uuidScopes);
+
+  if (!departmentsError && Array.isArray(departmentsRows)) {
+    departmentsRows.forEach((row: any) => {
+      const nameCandidates = buildDepartmentScopeCandidates(row?.department_name);
+      nameCandidates.forEach((candidate) => normalizedScopes.push(candidate));
+    });
+  }
+
+  return Array.from(new Set(normalizedScopes));
 }
 
 function parseAction(value: unknown): DecisionAction | null {
@@ -68,36 +139,33 @@ function isAssignmentActive(assignment: Record<string, unknown>, nowDate: Date =
   return true;
 }
 
-function getRoleScopedDepartments(
+async function getRoleScopedDepartments(
   userProfile: Record<string, unknown>,
-  roleCode: "HOD" | "DEAN"
-): string[] {
+  roleCode: "HOD" | "DEAN",
+  supabase: any
+): Promise<string[]> {
   const roleAssignments = Array.isArray(userProfile.role_assignments)
     ? (userProfile.role_assignments as Array<Record<string, unknown>>)
     : [];
 
-  const scopedDepartments = roleAssignments
+  const scopedDepartmentsRaw = roleAssignments
     .filter(
       (assignment) =>
         String(assignment.role_code || "").trim().toUpperCase() === roleCode &&
         isAssignmentActive(assignment)
     )
-    .map((assignment) => normalizeScope(assignment.department_scope))
+    .map((assignment) => String(assignment.department_scope || "").trim())
     .filter((scope) => scope.length > 0);
 
-  if (scopedDepartments.length > 0) {
-    return Array.from(new Set(scopedDepartments));
+  if (scopedDepartmentsRaw.length > 0) {
+    return expandDepartmentScopes(supabase, scopedDepartmentsRaw);
   }
 
   if (roleCode === "HOD") {
-    return Array.from(
-      new Set(
-        [
-          normalizeScope(userProfile.department_id),
-          normalizeScope(userProfile.department),
-        ].filter((scope) => scope.length > 0)
-      )
-    );
+    return expandDepartmentScopes(supabase, [
+      String(userProfile.department_id || "").trim(),
+      String(userProfile.department || "").trim(),
+    ]);
   }
 
   return [];
@@ -139,7 +207,7 @@ async function resolveRequestScopeFromEntity(
   const entityType = String(requestRow.entity_type || "").trim().toUpperCase();
   const entityRef = String(requestRow.entity_ref || "").trim();
 
-  let departmentScope = normalizeScope(requestRow.organizing_dept);
+  let departmentScope = normalizeDepartmentScope(requestRow.organizing_dept);
   let campusScope = normalizeScope(requestRow.campus_hosted_at);
 
   if (entityType === "FEST" && entityRef) {
@@ -150,7 +218,8 @@ async function resolveRequestScopeFromEntity(
       .maybeSingle();
 
     const festRow = (festData as FestScopeRow | null) || null;
-    departmentScope = departmentScope || normalizeScope(festRow?.organizing_dept);
+    departmentScope =
+      departmentScope || normalizeDepartmentScope(festRow?.organizing_dept);
     campusScope = campusScope || normalizeScope(festRow?.campus_hosted_at);
 
     if (!departmentScope) {
@@ -161,7 +230,8 @@ async function resolveRequestScopeFromEntity(
         .maybeSingle();
 
       const legacyFestRow = (legacyFestData as FestScopeRow | null) || null;
-      departmentScope = departmentScope || normalizeScope(legacyFestRow?.organizing_dept);
+      departmentScope =
+        departmentScope || normalizeDepartmentScope(legacyFestRow?.organizing_dept);
       campusScope = campusScope || normalizeScope(legacyFestRow?.campus_hosted_at);
     }
   } else if (entityRef) {
@@ -172,7 +242,8 @@ async function resolveRequestScopeFromEntity(
       .maybeSingle();
 
     const eventRow = (eventData as EventScopeRow | null) || null;
-    departmentScope = departmentScope || normalizeScope(eventRow?.organizing_dept);
+    departmentScope =
+      departmentScope || normalizeDepartmentScope(eventRow?.organizing_dept);
     campusScope = campusScope || normalizeScope(eventRow?.campus_hosted_at);
   }
 
@@ -180,6 +251,24 @@ async function resolveRequestScopeFromEntity(
     departmentScope,
     campusScope,
   };
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function jsonError(status: number, error: string) {
@@ -284,7 +373,7 @@ export async function PATCH(
     }
 
     if (!isMasterAdmin) {
-      const allowedScopes = getRoleScopedDepartments(userProfile, "HOD");
+      const allowedScopes = await getRoleScopedDepartments(userProfile, "HOD", supabase);
       if (allowedScopes.length === 0) {
         return jsonError(403, "No department scope is mapped to this HOD account.");
       }
@@ -299,9 +388,14 @@ export async function PATCH(
         requestRow
       );
 
+      const requestDepartmentCandidates = buildDepartmentScopeCandidates(departmentScope);
+      const hasDepartmentMatch =
+        requestDepartmentCandidates.length > 0 &&
+        allowedScopes.some((scope) => requestDepartmentCandidates.includes(scope));
+
       if (
         allowedScopes.length > 0 &&
-        (!departmentScope || !allowedScopes.includes(departmentScope))
+        (!departmentScope || !hasDepartmentMatch)
       ) {
         return jsonError(403, "This request does not belong to your department scope.");
       }
@@ -355,21 +449,36 @@ export async function PATCH(
       return jsonError(500, "NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
     }
 
-    const upstreamResponse = await fetch(
-      `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+    let upstreamResponse: Response;
+    try {
+      upstreamResponse = await fetchWithTimeout(
+        `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            decision: action === "approve" ? "APPROVED" : "REJECTED",
+            comment: action === "return" ? `RETURN_FOR_REVISION: ${note}` : null,
+          }),
+          cache: "no-store",
         },
-        body: JSON.stringify({
-          decision: action === "approve" ? "APPROVED" : "REJECTED",
-          comment: action === "return" ? `RETURN_FOR_REVISION: ${note}` : null,
-        }),
-        cache: "no-store",
+        20000
+      );
+    } catch (error: any) {
+      if (error?.name === "AbortError") {
+        console.error("[ManageHod] Upstream approval decision timed out", {
+          requestId,
+          requestIdentifier,
+          stepCode,
+        });
+        return jsonError(504, "Approval service timeout. Please try again.");
       }
-    );
+
+      throw error;
+    }
 
     let upstreamPayload: any = null;
     let upstreamText: string | null = null;
@@ -381,12 +490,22 @@ export async function PATCH(
     }
 
     if (!upstreamResponse.ok) {
+<<<<<<< Updated upstream
       const upstreamError =
         upstreamPayload?.error ||
         upstreamPayload?.message ||
         upstreamText ||
         "Unable to update approval decision.";
 
+=======
+      console.error("[ManageHod] Upstream approval decision failed", {
+        requestId,
+        requestIdentifier,
+        stepCode,
+        status: upstreamResponse.status,
+        error: upstreamPayload?.error || null,
+      });
+>>>>>>> Stashed changes
       return jsonError(
         upstreamResponse.status,
         upstreamError
@@ -403,6 +522,9 @@ export async function PATCH(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected server error.";
+    console.error("[ManageHod] PATCH approval request failed", {
+      error: message,
+    });
     return jsonError(500, message);
   }
 }

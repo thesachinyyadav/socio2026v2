@@ -1971,12 +1971,6 @@ router.get("/service-queues/:roleCode", async (req, res) => {
 
 router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) => {
   try {
-    if (isMasterAdminRequest(req)) {
-      return res.status(403).json({
-        error: "Master admin can view and edit resources but cannot submit approval decisions.",
-      });
-    }
-
     const { requestId, stepCode } = req.params;
     const decision = normalizeDecision(req.body?.decision);
     const comment = typeof req.body?.comment === "string" ? req.body.comment.trim() : null;
@@ -2020,6 +2014,16 @@ router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) =>
     }
 
     const stepRoleCode = normalizeRoleCode(approvalStep.role_code);
+
+    if (
+      isMasterAdminRequest(req) &&
+      ![ROLE_CODES.HOD, ROLE_CODES.DEAN].includes(stepRoleCode)
+    ) {
+      return res.status(403).json({
+        error:
+          "Master admin can submit decisions only for HOD/Dean approval steps.",
+      });
+    }
 
     if (!(await ensureQueueAccess(req, res, stepRoleCode, approvalRequest))) {
       return;

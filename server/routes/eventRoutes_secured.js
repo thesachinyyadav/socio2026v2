@@ -844,7 +844,10 @@ const createStandaloneApprovalRequestForEvent = async ({
   const approvalSteps = [];
   let stepSequence = 1;
 
-  if (Boolean(requiresHodApproval)) {
+  const requiresDepartmentApproval =
+    Boolean(requiresHodApproval) || Boolean(requiresDeanApproval);
+
+  if (requiresDepartmentApproval) {
     approvalSteps.push({
       stepCode: "HOD",
       roleCode: ROLE_CODES.HOD,
@@ -853,9 +856,7 @@ const createStandaloneApprovalRequestForEvent = async ({
       requiredCount: 1,
     });
     stepSequence += 1;
-  }
 
-  if (Boolean(requiresDeanApproval)) {
     approvalSteps.push({
       stepCode: "DEAN",
       roleCode: ROLE_CODES.DEAN,
@@ -885,6 +886,7 @@ const createStandaloneApprovalRequestForEvent = async ({
       sequenceOrder: stepSequence,
       requiredCount: 1,
     });
+    stepSequence += 1;
   }
 
   if (approvalSteps.length === 0) {

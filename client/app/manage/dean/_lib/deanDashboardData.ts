@@ -82,6 +82,45 @@ function normalizeText(value: unknown): string {
   return String(value || "").trim();
 }
 
+function normalizeScope(value: unknown): string {
+  return normalizeText(value).toLowerCase();
+}
+
+function normalizeDepartmentScope(value: unknown): string {
+  const normalized = normalizeScope(value);
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/^department of\s+/, "")
+    .replace(/^dept(?:\.)?\s+of\s+/, "")
+    .replace(/^dept(?:\.)?\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildDepartmentScopeCandidates(value: unknown): string[] {
+  const candidates = new Set<string>();
+  const raw = normalizeScope(value);
+  const canonical = normalizeDepartmentScope(value);
+
+  if (raw) {
+    candidates.add(raw);
+  }
+
+  if (canonical) {
+    candidates.add(canonical);
+    candidates.add(canonical.replace(/\s+/g, "_"));
+    candidates.add(`dept_${canonical.replace(/\s+/g, "_")}`);
+    candidates.add(`department_${canonical.replace(/\s+/g, "_")}`);
+    candidates.add(`department of ${canonical}`);
+  }
+
+  return Array.from(candidates).filter((candidate) => candidate.length > 0);
+}
+
 function normalizeEntityType(value: unknown): string {
   return normalizeText(value).toUpperCase();
 }
@@ -129,6 +168,59 @@ function toTimestamp(value: unknown): number {
 
   const parsed = new Date(String(value)).getTime();
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function buildDepartmentToSchoolLookup(supabase: any): Promise<Map<string, string>> {
+  const lookup = new Map<string, string>();
+
+  const addMapping = (departmentValue: unknown, schoolValue: unknown) => {
+    const normalizedSchool = normalizeScope(schoolValue);
+    if (!normalizedSchool) {
+      return;
+    }
+
+    const candidates = buildDepartmentScopeCandidates(departmentValue);
+    candidates.forEach((candidate) => {
+      lookup.set(candidate, normalizedSchool);
+    });
+  };
+
+  const { data: departmentRows, error: departmentError } = await supabase
+    .from("departments_courses")
+    .select("department_name,school");
+
+  if (!departmentError && Array.isArray(departmentRows)) {
+    (departmentRows as any[]).forEach((row) => {
+      addMapping(row?.department_name, row?.school);
+    });
+  }
+
+  const { data: departmentSchoolRows, error: departmentSchoolError } = await supabase
+    .from("department_school")
+    .select("department_name,school");
+
+  if (!departmentSchoolError && Array.isArray(departmentSchoolRows)) {
+    (departmentSchoolRows as any[]).forEach((row) => {
+      addMapping(row?.department_name, row?.school);
+    });
+  }
+
+  return lookup;
+}
+
+function resolveSchoolFromDepartment(
+  departmentToSchoolLookup: Map<string, string>,
+  departmentValue: unknown
+): string {
+  const candidates = buildDepartmentScopeCandidates(departmentValue);
+  for (const candidate of candidates) {
+    const school = departmentToSchoolLookup.get(candidate);
+    if (school) {
+      return school;
+    }
+  }
+
+  return "";
 }
 
 async function fetchFestRowsWithFallback(
@@ -302,6 +394,8 @@ export async function fetchDeanDashboardData({
     );
   }
 
+  const departmentToSchoolLookup = await buildDepartmentToSchoolLookup(supabase);
+
   let budgetsByEventId = new Map<string, BudgetRow>();
   if (eventIds.length > 0) {
     const { data: budgetData, error: budgetError } = await supabase
@@ -368,9 +462,15 @@ export async function fetchDeanDashboardData({
       const festRow = isFestEntity ? festRowsById.get(entityRef) || null : null;
       const budgetRow = !isFestEntity ? budgetsByEventId.get(entityRef) || null : null;
 
-      const scopeCandidate = normalizeText(
-        isFestEntity ? festRow?.organizing_school : eventRow?.organizing_school
-      ).toLowerCase() || normalizeText(requestRow.organizing_school).toLowerCase();
+      const directSchoolScope =
+        normalizeScope(isFestEntity ? festRow?.organizing_school : eventRow?.organizing_school) ||
+        normalizeScope(requestRow.organizing_school);
+      const mappedSchoolScope = resolveSchoolFromDepartment(
+        departmentToSchoolLookup,
+        normalizeText(requestRow.organizing_dept) ||
+          normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept)
+      );
+      const scopeCandidate = directSchoolScope || mappedSchoolScope;
 
       if (normalizedSchoolId && scopeCandidate !== normalizedSchoolId) {
         return null;
@@ -380,7 +480,7 @@ export async function fetchDeanDashboardData({
         normalizeText(requestRow.campus_hosted_at).toLowerCase() ||
         normalizeText(isFestEntity ? festRow?.campus_hosted_at : eventRow?.campus_hosted_at).toLowerCase();
 
-      if (normalizedCampusScope && campusCandidate !== normalizedCampusScope) {
+      if (normalizedCampusScope && campusCandidate && campusCandidate !== normalizedCampusScope) {
         return null;
       }
 
@@ -444,21 +544,11 @@ export async function fetchDeanDashboardData({
       `;
 
   const buildKpiQuery = (includeSchoolColumn: boolean) => {
-    let query = supabase
+    const query = supabase
       .from("approval_steps")
       .select(includeSchoolColumn ? kpiSelectWithSchool : kpiSelectLegacy)
       .eq("role_code", "DEAN")
       .in("step_code", ["DEAN", "L2_DEAN"]);
-
-    if (normalizedSchoolId) {
-      query = query.eq(
-        includeSchoolColumn
-          ? "approval_requests.organizing_school"
-          : "approval_requests.organizing_dept",
-        normalizedSchoolId
-      );
-    }
-
     return query;
   };
 
@@ -494,9 +584,24 @@ export async function fetchDeanDashboardData({
     ).values()
   );
 
+  const filteredKpiRequestRows = kpiRequestRows.filter(({ requestRow }) => {
+    if (!normalizedSchoolId) {
+      return true;
+    }
+
+    const directSchoolScope = normalizeScope(requestRow.organizing_school);
+    const mappedSchoolScope = resolveSchoolFromDepartment(
+      departmentToSchoolLookup,
+      requestRow.organizing_dept
+    );
+
+    const scopeCandidate = directSchoolScope || mappedSchoolScope;
+    return scopeCandidate === normalizedSchoolId;
+  });
+
   const kpiEventIds = Array.from(
     new Set(
-      kpiRequestRows
+      filteredKpiRequestRows
         .filter(({ requestRow }) => normalizeEntityType(requestRow.entity_type) !== "FEST")
         .map(({ requestRow }) => normalizeText(requestRow.entity_ref))
         .filter((entityRef) => entityRef.length > 0)
@@ -524,7 +629,7 @@ export async function fetchDeanDashboardData({
 
   const departmentMap = new Map<string, { requested: number; approved: number }>();
 
-  kpiRequestRows.forEach(({ stepRow, requestRow }) => {
+  filteredKpiRequestRows.forEach(({ stepRow, requestRow }) => {
     const departmentName = normalizeText(requestRow.organizing_dept) || "Unknown Department";
     const entityType = normalizeEntityType(requestRow.entity_type);
     const entityRef = normalizeText(requestRow.entity_ref);

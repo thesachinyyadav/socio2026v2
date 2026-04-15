@@ -36,6 +36,24 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
 
 const NOTE_MIN_CHARS = 1;
 
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function decisionMessage(action: DeanApprovalAction): string {
   if (action === "approve") {
     return "Approval recorded";
@@ -128,7 +146,7 @@ export default function DeanDashboardClient({
     setActiveRequestId(requestId);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `/api/manage/dean/approval-requests/${encodeURIComponent(requestId)}`,
         {
           method: "PATCH",
@@ -139,7 +157,8 @@ export default function DeanDashboardClient({
             action,
             note: note?.trim() || null,
           }),
-        }
+        },
+        20000
       );
 
       const payload = await response.json().catch(() => null);
@@ -154,7 +173,11 @@ export default function DeanDashboardClient({
       router.refresh();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to update approval request.";
+        error instanceof Error
+          ? error.name === "AbortError"
+            ? "Approval service timeout. Please try again."
+            : error.message
+          : "Unable to update approval request.";
 
       if (modalState && modalState.requestId === requestId) {
         setModalState((previous) =>

@@ -39,6 +39,24 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
 
 const NOTE_MIN_CHARS = 1;
 
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function decisionMessage(
   action: HodApprovalAction,
   decisionMessages?: {
@@ -94,7 +112,7 @@ export default function HodDashboardClient({
     setActiveRequestId(requestId);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${approvalApiBasePath}/approval-requests/${encodeURIComponent(requestId)}`,
         {
           method: "PATCH",
@@ -105,7 +123,8 @@ export default function HodDashboardClient({
             action,
             note: note?.trim() || null,
           }),
-        }
+        },
+        20000
       );
 
       const payload = await response.json().catch(() => null);
@@ -119,7 +138,12 @@ export default function HodDashboardClient({
       toast.success(decisionMessage(action, decisionMessages));
       router.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to update approval request.";
+      const message =
+        error instanceof Error
+          ? error.name === "AbortError"
+            ? "Approval service timeout. Please try again."
+            : error.message
+          : "Unable to update approval request.";
 
       if (modalState && modalState.requestId === requestId) {
         setModalState((previous) => (previous ? { ...previous, errorMessage: message } : previous));

@@ -14,7 +14,7 @@ import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushFestToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { getFestTableForDatabase } from "../utils/festTableResolver.js";
 import { ROLE_CODES, hasAnyRoleCode } from "../utils/roleAccessService.js";
-import { resolveDepartmentApproverRole } from "../utils/departmentApprovalRouting.js";
+import { resolveRoleMatrixApprover } from "../utils/roleMatrixApprover.js";
 import {
   LIFECYCLE_STATUS,
   normalizeLifecycleStatus,
@@ -356,21 +356,44 @@ export const createFestApprovalRequest = async ({
     return null;
   }
 
-  const routingResult = await resolveDepartmentApproverRole({
-    organizingDept: festRecord?.organizing_dept || null,
+  const departmentScope = festRecord?.organizing_dept || null;
+  const schoolScope = festRecord?.organizing_school || null;
+  const campusScope =
+    festRecord?.campus_hosted_at || festRecord?.department_hosted_at || null;
+
+  const hodApprover = await resolveRoleMatrixApprover({
+    roleCode: ROLE_CODES.HOD,
+    department: departmentScope,
+    school: schoolScope,
+    campus: campusScope,
   });
 
-  if (!routingResult?.ok) {
+  if (!hodApprover?.email) {
     const routingError = new Error(
-      routingResult?.errorMessage ||
-        "Department approver routing is not configured for this fest."
+      `No active HOD assignee is mapped for department '${departmentScope || "Unknown"}'. Contact admin.`
     );
     routingError.statusCode = 400;
     throw routingError;
   }
 
-  const primaryRoleCode = routingResult.approverRoleCode;
-  const primaryStepCode = primaryRoleCode === ROLE_CODES.HOD ? "HOD" : "DEAN";
+  const deanApprover = await resolveRoleMatrixApprover({
+    roleCode: ROLE_CODES.DEAN,
+    department: departmentScope,
+    school: schoolScope,
+    campus: campusScope,
+    excludeEmail: hodApprover.email,
+  });
+
+  if (!deanApprover?.email) {
+    const routingError = new Error(
+      `No active Dean assignee is mapped for department '${departmentScope || "Unknown"}'. Contact admin.`
+    );
+    routingError.statusCode = 400;
+    throw routingError;
+  }
+
+  const primaryRoleCode = ROLE_CODES.HOD;
+  const primaryStepCode = "HOD";
 
   const existingRequest = await findActiveApprovalRequestForEntity({
     entityType: "FEST",
@@ -419,12 +442,21 @@ export const createFestApprovalRequest = async ({
     const approvalSteps = [
       {
         approval_request_id: approvalRequest.id,
-        step_code: primaryStepCode,
-        role_code: primaryRoleCode,
+        step_code: "HOD",
+        role_code: ROLE_CODES.HOD,
         step_group: 1,
         sequence_order: 1,
         required_count: 1,
         status: "PENDING",
+      },
+      {
+        approval_request_id: approvalRequest.id,
+        step_code: "DEAN",
+        role_code: ROLE_CODES.DEAN,
+        step_group: 2,
+        sequence_order: 2,
+        required_count: 1,
+        status: "WAITING",
       },
     ];
 
@@ -433,20 +465,20 @@ export const createFestApprovalRequest = async ({
         approval_request_id: approvalRequest.id,
         step_code: "CFO",
         role_code: ROLE_CODES.CFO,
-        step_group: 2,
-        sequence_order: 2,
+        step_group: 3,
+        sequence_order: 3,
         required_count: 1,
-        status: "PENDING",
+        status: "WAITING",
       });
 
       approvalSteps.push({
         approval_request_id: approvalRequest.id,
         step_code: "ACCOUNTS",
         role_code: ROLE_CODES.ACCOUNTS,
-        step_group: 3,
-        sequence_order: 3,
+        step_group: 4,
+        sequence_order: 4,
         required_count: 1,
-        status: "PENDING",
+        status: "WAITING",
       });
     }
 
