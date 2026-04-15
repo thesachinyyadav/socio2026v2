@@ -478,7 +478,7 @@ const MappedFestCard = ({
           <span
             className={`px-3 py-1.5 text-[10px] font-bold rounded-full tracking-wider shadow-sm flex items-center ${
               isDraft
-                ? "bg-slate-900 text-white"
+                ? "bg-slate-200 text-slate-800"
                 : isEditLocked
                 ? "bg-amber-100 text-amber-800"
                 : isArchived
@@ -615,7 +615,7 @@ const MappedEventCard = ({
   const isEditLocked = isApprovalPending && !isDraft;
   const statusLabel = isDraft ? "DRAFT" : isEditLocked ? "APPROVAL PENDING" : isArchived ? "ARCHIVED" : isPast ? "PAST" : "UPCOMING";
   const statusClassName = isDraft
-    ? "bg-slate-900 text-white"
+    ? "bg-slate-200 text-slate-800"
     : isEditLocked
     ? "bg-amber-100 text-amber-800"
     : isArchived
