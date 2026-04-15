@@ -200,6 +200,15 @@ const identitiesMatch = ({
     return true;
   }
 
+  if (!normalizedOwner.includes("@")) {
+    const ownerToken = normalizedOwner.replace(/\s+/g, "");
+    const currentLocalPart = getEmailLocalPart(currentEmail).replace(/\s+/g, "");
+
+    if (ownerToken && currentLocalPart && ownerToken === currentLocalPart) {
+      return true;
+    }
+  }
+
   return false;
 };
 
@@ -895,6 +904,57 @@ export default function ManageDashboard() {
       ),
     [userRecord, isMasterAdmin]
   );
+
+  const approvalMapNodes = useMemo(() => {
+    const nodes = [
+      {
+        key: "hod",
+        level: "L1",
+        role: "HOD",
+        title: "Department Review",
+        description: "Events and fests are validated by department ownership and policy.",
+        href: "/manage/hod",
+        visible: isMasterAdmin || isHod,
+        badgeClass: "border-blue-200 bg-blue-100 text-blue-700",
+        cardClass: "border-blue-200 hover:border-blue-300 hover:bg-blue-50/40",
+      },
+      {
+        key: "dean",
+        level: "L2",
+        role: "DEAN",
+        title: "School Review",
+        description: "School-level checks across department requests and campus scope.",
+        href: "/manage/dean",
+        visible: isMasterAdmin || isDean,
+        badgeClass: "border-violet-200 bg-violet-100 text-violet-700",
+        cardClass: "border-violet-200 hover:border-violet-300 hover:bg-violet-50/40",
+      },
+      {
+        key: "cfo",
+        level: "L3",
+        role: "CFO",
+        title: "Budget Review",
+        description: "High-value approvals are cleared for financial compliance.",
+        href: "/manage/cfo",
+        visible: isMasterAdmin || isCfo,
+        badgeClass: "border-emerald-200 bg-emerald-100 text-emerald-700",
+        cardClass: "border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/40",
+      },
+      {
+        key: "finance",
+        level: "L4",
+        role: "FIN",
+        title: "Accounts Review",
+        description: "Final accounts verification, payment checks, and closure.",
+        href: "/manage/finance",
+        visible: isMasterAdmin || isFinanceOfficer,
+        badgeClass: "border-orange-200 bg-orange-100 text-orange-700",
+        cardClass: "border-orange-200 hover:border-orange-300 hover:bg-orange-50/40",
+      },
+    ];
+
+    return nodes.filter((node) => node.visible);
+  }, [isMasterAdmin, isHod, isDean, isCfo, isFinanceOfficer]);
   
   // Fests Data
   const [fests, setFests] = useState<Fest[]>([]);
@@ -1004,7 +1064,7 @@ export default function ManageDashboard() {
       return normalized;
     }
 
-    return "";
+    return normalized.length >= 2 ? normalized : "";
   };
 
   const resolveOwnerIdentity = (
@@ -1030,6 +1090,10 @@ export default function ManageDashboard() {
     createdBy: string | null | undefined,
     ...fallbackOwnerCandidates: Array<string | null | undefined>
   ) => {
+    if (isMasterAdmin) {
+      return true;
+    }
+
     if (!currentUserEmail) {
       if (!currentUserAuthUuid) {
         return false;
@@ -1392,6 +1456,8 @@ export default function ManageDashboard() {
       createdBy: e.created_by,
       fallbackOwnerCandidates: [
         (e as any).auth_uuid,
+        (e as any).created_by_email,
+        (e as any).contact_email,
         (e as any).organizer_email,
         (e as any).organiser_email,
       ],
@@ -1399,6 +1465,8 @@ export default function ManageDashboard() {
     const isOwnerOrMaster = isOwnedByCurrentUser(
       e.created_by,
       (e as any).auth_uuid,
+      (e as any).created_by_email,
+      (e as any).contact_email,
       (e as any).organizer_email,
       (e as any).organiser_email
     );
@@ -2389,6 +2457,8 @@ export default function ManageDashboard() {
                       isOwnedByCurrentUser(
                         e.created_by,
                         (e as any).auth_uuid,
+                        (e as any).created_by_email,
+                        (e as any).contact_email,
                         (e as any).organizer_email,
                         (e as any).organiser_email
                       )
@@ -2491,61 +2561,93 @@ export default function ManageDashboard() {
         {activeTab === "approvals" && (
           <div className="space-y-6">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-              <h2 className="text-lg font-bold text-amber-900 mb-1">Approval Queue</h2>
-              <p className="text-sm text-amber-700">Items awaiting your review. Go to your role-specific dashboard for detailed actions.</p>
+              <h2 className="text-lg font-bold text-amber-900 mb-1">Pending Approval Map</h2>
+              <p className="text-sm text-amber-700">Follow the approval path from Level 1 to Level 4 and jump directly into the stage assigned to your role.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {isHod && (
-                <Link href="/manage/hod" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-blue-300 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">HOD</div>
-                    <h3 className="font-semibold text-slate-800">HOD Review Queue</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-4">Level 1 approvals for events and fests from your department.</p>
-                  <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </Link>
-              )}
-              {isDean && (
-                <Link href="/manage/dean" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-purple-300 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm">DEAN</div>
-                    <h3 className="font-semibold text-slate-800">Dean Review Queue</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-4">Level 2 approvals across schools and campuses under your purview.</p>
-                  <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </Link>
-              )}
-              {isCfo && (
-                <Link href="/manage/cfo" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">CFO</div>
-                    <h3 className="font-semibold text-slate-800">CFO Budget Queue</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-4">Level 3 approvals for high-value budget events requiring financial sign-off.</p>
-                  <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </Link>
-              )}
-              {isFinanceOfficer && (
-                <Link href="/manage/finance" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-orange-300 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-sm">FIN</div>
-                    <h3 className="font-semibold text-slate-800">Accounts / Finance Queue</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-4">Level 4 accounts review and payment authorizations.</p>
-                  <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Dashboard <ArrowRight className="w-4 h-4" /></span>
-                </Link>
-              )}
-              {isMasterAdmin && (
-                <Link href="/masteradmin" className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-slate-400 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs">ADMIN</div>
-                    <h3 className="font-semibold text-slate-800">Master Admin Panel</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-4">Full pipeline view: all pending approvals across all roles and campuses.</p>
-                  <span className="text-sm font-semibold text-[#154cb3] group-hover:underline flex items-center gap-1">Open Panel <ArrowRight className="w-4 h-4" /></span>
-                </Link>
-              )}
-            </div>
+            {approvalMapNodes.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+                No approval role is mapped to your account yet. Contact an administrator to assign a role.
+              </div>
+            ) : (
+              <>
+                <div className="hidden lg:flex items-center">
+                  {approvalMapNodes.map((node, index) => (
+                    <React.Fragment key={node.key}>
+                      <Link
+                        href={node.href}
+                        className={`group block min-h-40 flex-1 rounded-2xl border bg-white p-5 shadow-sm transition-all ${node.cardClass}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold tracking-wide ${node.badgeClass}`}>
+                            {node.level}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-500">{node.role}</span>
+                        </div>
+                        <h3 className="mt-4 text-base font-semibold text-slate-800">{node.title}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{node.description}</p>
+                        <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#154cb3] group-hover:underline">
+                          Open Queue <ArrowRight className="h-4 w-4" />
+                        </span>
+                      </Link>
+                      {index < approvalMapNodes.length - 1 && (
+                        <div className="mx-3 flex items-center gap-2 text-slate-400">
+                          <div className="h-px w-8 bg-slate-300" />
+                          <ArrowRight className="h-4 w-4" />
+                          <div className="h-px w-8 bg-slate-300" />
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+
+                <div className="space-y-3 lg:hidden">
+                  {approvalMapNodes.map((node, index) => (
+                    <div key={node.key} className="relative pl-7">
+                      {index < approvalMapNodes.length - 1 && (
+                        <span className="absolute left-[13px] top-10 h-[calc(100%+0.75rem)] border-l-2 border-dashed border-slate-300" />
+                      )}
+                      <Link
+                        href={node.href}
+                        className={`group block rounded-2xl border bg-white p-4 shadow-sm transition-all ${node.cardClass}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className={`inline-flex h-7 w-10 items-center justify-center rounded-full border text-xs font-bold ${node.badgeClass}`}>
+                            {node.level}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className="text-sm font-semibold text-slate-800">{node.title}</h3>
+                              <span className="text-[11px] font-semibold text-slate-500">{node.role}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">{node.description}</p>
+                            <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#154cb3] group-hover:underline">
+                              Open Queue <ArrowRight className="h-3.5 w-3.5" />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+
+                {isMasterAdmin && (
+                  <Link
+                    href="/masteradmin"
+                    className="group block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-slate-400 hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-800">Master Admin Global View</h3>
+                        <p className="mt-1 text-sm text-slate-500">Inspect and govern pending approvals across all roles and campuses.</p>
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#154cb3] group-hover:underline">
+                        Open Panel <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </Link>
+                )}
+              </>
+            )}
           </div>
         )}
 

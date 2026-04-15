@@ -394,12 +394,25 @@ export async function PATCH(
       }
     );
 
-    const upstreamPayload = await upstreamResponse.json().catch(() => null);
+    let upstreamPayload: any = null;
+    let upstreamText: string | null = null;
+
+    try {
+      upstreamPayload = await upstreamResponse.json();
+    } catch {
+      upstreamText = await upstreamResponse.text().catch(() => null);
+    }
 
     if (!upstreamResponse.ok) {
+      const upstreamError =
+        upstreamPayload?.error ||
+        upstreamPayload?.message ||
+        upstreamText ||
+        "Unable to update approval decision.";
+
       return jsonError(
         upstreamResponse.status,
-        upstreamPayload?.error || "Unable to update approval decision."
+        upstreamError
       );
     }
 

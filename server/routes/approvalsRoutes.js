@@ -447,9 +447,12 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
     }
 
     if (normalizedRequestStatus === "REJECTED") {
+      const rejectionReason =
+        stripRevisionPrefix(comment) || "Rejected in approval workflow";
+
       updates.rejected_at = nowIso;
       updates.rejected_by = decidedByEmail || null;
-      updates.rejection_reason = comment || "Rejected in approval workflow";
+      updates.rejection_reason = rejectionReason;
       updates.approved_at = null;
       updates.approved_by = null;
     }
@@ -560,9 +563,12 @@ const syncApprovalOutcomeToFest = async ({ approvalRequest, requestStatus, decid
       }
 
       if (normalizedRequestStatus === "REJECTED") {
+        const rejectionReason =
+          stripRevisionPrefix(comment) || "Rejected in approval workflow";
+
         updates.rejected_at = nowIso;
         updates.rejected_by = decidedByEmail || null;
-        updates.rejection_reason = comment || "Rejected in approval workflow";
+        updates.rejection_reason = rejectionReason;
         updates.approved_at = null;
         updates.approved_by = null;
       }
@@ -1439,6 +1445,10 @@ const notifyDecisionToOrganizer = async ({
   const normalizedDecision = normalizeDecision(decision);
   const normalizedRequestStatus = normalizeWorkflowStatus(requestStatus, "UNDER_REVIEW");
   const roleLabel = getApprovalRoleLabel(approvalStep?.role_code);
+  const revisionNote = stripRevisionPrefix(comment);
+  const wasReturnedForRevision =
+    normalizedDecision === "REJECTED" &&
+    String(comment || "").toUpperCase().startsWith("RETURN_FOR_REVISION:");
 
   let title = `${context.entityLabel} update`;
   let message = `${context.title} has a new approval update.`;
@@ -1454,10 +1464,16 @@ const notifyDecisionToOrganizer = async ({
       message = `${context.title} was approved by ${roleLabel}. Remaining approvals are still in progress.`;
       type = "info";
     }
+  } else if (wasReturnedForRevision) {
+    title = `${context.entityLabel} returned for revision by ${roleLabel}`;
+    message = revisionNote
+      ? `${context.title} was returned for revision by ${roleLabel}. Note: ${revisionNote}`
+      : `${context.title} was returned for revision by ${roleLabel}.`;
+    type = "warning";
   } else if (normalizedDecision === "REJECTED") {
     title = `${context.entityLabel} rejected by ${roleLabel}`;
-    message = comment
-      ? `${context.title} was rejected by ${roleLabel}. Note: ${comment}`
+    message = revisionNote
+      ? `${context.title} was rejected by ${roleLabel}. Note: ${revisionNote}`
       : `${context.title} was rejected by ${roleLabel}. Please review and resubmit.`;
     type = "error";
   }
