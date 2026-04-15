@@ -7,6 +7,7 @@ import {
   hasServiceRoleAccess,
 } from "@/lib/roleDashboards";
 import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
+import { fetchWorkflowApiWithFailover } from "@/lib/workflowApiClient";
 
 type DecisionAction = "approve" | "reject" | "return";
 
@@ -191,11 +192,6 @@ export async function PATCH(
       return jsonError(401, "Authentication session is unavailable. Please sign in again.");
     }
 
-    const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
-    if (!apiBaseUrl) {
-      return jsonError(500, "NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
-    }
-
     const comments =
       action === "approve"
         ? null
@@ -203,21 +199,32 @@ export async function PATCH(
           ? `RETURN_FOR_REVISION: ${note}`
           : note;
 
-    const upstreamResponse = await fetch(
-      `${apiBaseUrl}/api/approvals/service-requests/${encodeURIComponent(requestIdentifier)}/decision`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+    let upstreamResponse: Response;
+    try {
+      const upstreamResult = await fetchWorkflowApiWithFailover(
+        `/api/approvals/service-requests/${encodeURIComponent(requestIdentifier)}/decision`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            decision: action === "approve" ? "APPROVED" : "REJECTED",
+            comment: comments,
+          }),
         },
-        body: JSON.stringify({
-          decision: action === "approve" ? "APPROVED" : "REJECTED",
-          comment: comments,
-        }),
-        cache: "no-store",
+        20000
+      );
+
+      upstreamResponse = upstreamResult.response;
+    } catch (error: any) {
+      if (error?.name === "AbortError") {
+        return jsonError(504, "Approval service timeout. Please try again.");
       }
-    );
+
+      return jsonError(502, "Unable to reach approval service. Please try again.");
+    }
 
     let upstreamPayload: any = null;
     let upstreamText: string | null = null;

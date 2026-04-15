@@ -9,7 +9,7 @@ const fallbackAppUrl = isProduction
   ? "https://sociodev.vercel.app"
   : "http://localhost:3000";
 const fallbackApiUrl = isProduction
-  ? "https://sociodevserver.vercel.app/api"
+  ? "https://socioserver-snowy.vercel.app/api"
   : "http://localhost:8000/api";
 
 const remoteImageHosts = (process.env.NEXT_PUBLIC_REMOTE_IMAGE_HOSTS || "")

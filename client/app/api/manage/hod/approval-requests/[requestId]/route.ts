@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRoleCode } from "@/lib/roleDashboards";
 import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
+import { fetchWorkflowApiWithFailover } from "@/lib/workflowApiClient";
 
 type DecisionAction = "approve" | "return";
 
@@ -253,24 +254,6 @@ async function resolveRequestScopeFromEntity(
   };
 }
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 function jsonError(status: number, error: string) {
   return NextResponse.json({ error }, { status });
 }
@@ -444,15 +427,10 @@ export async function PATCH(
       return jsonError(401, "Authentication session is unavailable. Please sign in again.");
     }
 
-    const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
-    if (!apiBaseUrl) {
-      return jsonError(500, "NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
-    }
-
     let upstreamResponse: Response;
     try {
-      upstreamResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+      const upstreamResult = await fetchWorkflowApiWithFailover(
+        `/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
         {
           method: "POST",
           headers: {
@@ -463,10 +441,11 @@ export async function PATCH(
             decision: action === "approve" ? "APPROVED" : "REJECTED",
             comment: action === "return" ? `RETURN_FOR_REVISION: ${note}` : null,
           }),
-          cache: "no-store",
         },
         20000
       );
+
+      upstreamResponse = upstreamResult.response;
     } catch (error: any) {
       if (error?.name === "AbortError") {
         console.error("[ManageHod] Upstream approval decision timed out", {
@@ -477,7 +456,13 @@ export async function PATCH(
         return jsonError(504, "Approval service timeout. Please try again.");
       }
 
-      throw error;
+      console.error("[ManageHod] Unable to reach approval service", {
+        requestId,
+        requestIdentifier,
+        stepCode,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonError(502, "Unable to reach approval service. Please try again.");
     }
 
     let upstreamPayload: any = null;
