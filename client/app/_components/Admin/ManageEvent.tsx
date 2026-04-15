@@ -1354,8 +1354,8 @@ export default function EventForm({
       organizingSchool: "",
       organizingDept: "",
       festEvent: "",
-      standaloneRequiresHodApproval: true,
-      standaloneRequiresDeanApproval: true,
+      standaloneRequiresHodApproval: false,
+      standaloneRequiresDeanApproval: false,
       registrationDeadline: "",
       location: "",
       registrationFee: "",
@@ -1588,11 +1588,11 @@ export default function EventForm({
         standaloneRequiresHodApproval:
           typeof defaultValues.standaloneRequiresHodApproval === "boolean"
             ? defaultValues.standaloneRequiresHodApproval
-            : true,
+            : false,
         standaloneRequiresDeanApproval:
           typeof defaultValues.standaloneRequiresDeanApproval === "boolean"
             ? defaultValues.standaloneRequiresDeanApproval
-            : true,
+            : false,
         additionalRequests: mergeAdditionalRequests(defaultValues.additionalRequests),
       };
       reset(transformedDefaults);
@@ -1666,7 +1666,7 @@ export default function EventForm({
     typeof watchedFestEvent === "string" &&
     watchedFestEvent.trim() !== "" &&
     watchedFestEvent.trim().toLowerCase() !== "none";
-  const standaloneApprovalLocked = !hasFestSelected;
+  const standaloneApprovalLocked = hasFestSelected;
 
   useEffect(() => {
     const dept = String(watchedOrganizingDept || "").trim();

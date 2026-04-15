@@ -458,11 +458,11 @@ export default function EditEventPage() {
             festEvent: data.fest_id || data.fest || "",
             standaloneRequiresHodApproval: parseBooleanWithFallback(
               data.requires_hod_approval,
-              true
+              false
             ),
             standaloneRequiresDeanApproval: parseBooleanWithFallback(
               data.requires_dean_approval,
-              true
+              false
             ),
             registrationDeadline: data.registration_deadline
               ? dayjs(data.registration_deadline).format("YYYY-MM-DD")

@@ -533,15 +533,8 @@ const parseBooleanPreference = (value) => {
 const resolveStandaloneApprovalPreferences = (
   payload = {},
   fallback = { requiresHodApproval: false, requiresDeanApproval: false },
-  isStandaloneEvent = false
+  _isStandaloneEvent = false
 ) => {
-  if (isStandaloneEvent) {
-    return {
-      requiresHodApproval: true,
-      requiresDeanApproval: true,
-    };
-  }
-
   const combinedPreference = parseBooleanPreference(
     payload?.needs_hod_dean_approval ?? payload?.needsHodDeanApproval
   );

@@ -179,7 +179,13 @@ export default function CreateEventPage() {
       appendIfExists("parent_fest_id", dataFromHookForm.festEvent);
     }
 
-    const needsHodDeanApproval = !isUnderFest;
+    const standaloneRequiresHodApproval =
+      !isUnderFest && Boolean(dataFromHookForm.standaloneRequiresHodApproval);
+    const standaloneRequiresDeanApproval =
+      !isUnderFest && Boolean(dataFromHookForm.standaloneRequiresDeanApproval);
+    const needsHodDeanApproval =
+      !isUnderFest &&
+      (standaloneRequiresHodApproval || standaloneRequiresDeanApproval);
     const needsBudgetApproval =
       !isUnderFest && Boolean(dataFromHookForm.provideClaims);
 
@@ -188,11 +194,11 @@ export default function CreateEventPage() {
     formData.append("needs_budget_approval", String(needsBudgetApproval));
     formData.append(
       "requires_hod_approval",
-      String(needsHodDeanApproval)
+      String(standaloneRequiresHodApproval)
     );
     formData.append(
       "requires_dean_approval",
-      String(needsHodDeanApproval)
+      String(standaloneRequiresDeanApproval)
     );
     appendIfExists(
       "registration_deadline",
