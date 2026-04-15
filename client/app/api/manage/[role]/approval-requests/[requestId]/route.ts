@@ -10,27 +10,16 @@ import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
 type DecisionAction = "approve" | "reject" | "return";
 
-type EventJoinRow = {
-  event_id?: string | null;
-  organizing_dept?: string | null;
-  fest_id?: string | null;
-};
-
 type ApprovalRequestRow = {
   id?: string;
-  approval_level?: string | null;
+  request_id?: string | null;
   status?: string | null;
-  approver_email?: string | null;
-  events?: EventJoinRow | EventJoinRow[] | null;
 };
 
-function asSingleEvent(joined: EventJoinRow | EventJoinRow[] | null | undefined): EventJoinRow | null {
-  if (!joined) {
-    return null;
-  }
-
-  return Array.isArray(joined) ? joined[0] || null : joined;
-}
+type ApprovalStepRow = {
+  step_code?: string | null;
+  status?: string | null;
+};
 
 function parseAction(value: unknown): DecisionAction | null {
   if (value === "approve" || value === "reject" || value === "return") {
@@ -107,15 +96,17 @@ export async function PATCH(
     }
 
     const isMasterAdmin = Boolean(userProfile.is_masteradmin);
-    const canAccessRole =
-      isMasterAdmin || hasServiceRoleAccess(userProfile as Record<string, unknown>, roleConfig);
-    if (!canAccessRole) {
-      return jsonError(403, `Only ${roleConfig.label} or Master Admin users can perform actions.`);
+    if (isMasterAdmin) {
+      return jsonError(
+        403,
+        "Master admin can view and edit resources but cannot submit approval decisions."
+      );
     }
 
-    const departmentId = String(userProfile.department_id || "").trim();
-    if (!departmentId && !isMasterAdmin) {
-      return jsonError(403, "No department is mapped to this role account.");
+    const canAccessRole =
+      hasServiceRoleAccess(userProfile as Record<string, unknown>, roleConfig);
+    if (!canAccessRole) {
+      return jsonError(403, `Only ${roleConfig.label} users can perform actions.`);
     }
 
     const body = await request.json().catch(() => null);
@@ -132,19 +123,7 @@ export async function PATCH(
 
     const { data: approvalData, error: approvalError } = await supabase
       .from("approval_requests")
-      .select(
-        `
-          id,
-          approval_level,
-          status,
-          approver_email,
-          events:event_id (
-            event_id,
-            organizing_dept,
-            fest_id
-          )
-        `
-      )
+      .select("id,request_id,status")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -157,29 +136,62 @@ export async function PATCH(
     }
 
     const requestRow = approvalData as ApprovalRequestRow;
-    const eventRow = asSingleEvent(requestRow.events);
-
-    if (!eventRow) {
-      return jsonError(400, "Approval request is not linked to a valid event.");
-    }
-
-    if (String(requestRow.approval_level || "") !== "L1_HOD") {
-      return jsonError(400, "Only L1_HOD approval requests can be modified here.");
-    }
-
-    if (String(requestRow.status || "") !== "pending") {
+    const requestStatus = String(requestRow.status || "").trim().toUpperCase();
+    if (!requestStatus || requestStatus === "APPROVED" || requestStatus === "REJECTED") {
       return jsonError(409, "This request is no longer pending.");
     }
 
-    if (!isMasterAdmin && String(eventRow.organizing_dept || "") !== departmentId) {
-      return jsonError(403, "This request does not belong to your department.");
+    const approvalRequestDbId = String(requestRow.id || "").trim();
+    const requestIdentifier = String(requestRow.request_id || "").trim();
+    if (!approvalRequestDbId || !requestIdentifier) {
+      return jsonError(400, "Approval request is missing workflow identifiers.");
     }
 
-    if (eventRow.fest_id !== null && eventRow.fest_id !== undefined && String(eventRow.fest_id).trim() !== "") {
-      return jsonError(400, "Fest-linked events bypass L1 approval.");
+    const roleCodes = Array.isArray(roleConfig.roleCodes)
+      ? roleConfig.roleCodes.map((code) => String(code || "").trim()).filter((code) => code.length > 0)
+      : [];
+
+    if (roleCodes.length === 0) {
+      return jsonError(500, "Role configuration is missing role code mappings.");
     }
 
-    const status = action === "approve" ? "approved" : "rejected";
+    const { data: pendingStepData, error: pendingStepError } = await supabase
+      .from("approval_steps")
+      .select("step_code,status")
+      .eq("approval_request_id", approvalRequestDbId)
+      .in("role_code", roleCodes)
+      .eq("status", "PENDING")
+      .order("sequence_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (pendingStepError) {
+      return jsonError(500, `Failed to load pending ${roleConfig.label} step: ${pendingStepError.message}`);
+    }
+
+    if (!pendingStepData) {
+      return jsonError(409, `No pending ${roleConfig.label} step exists for this request.`);
+    }
+
+    const stepCode = String((pendingStepData as ApprovalStepRow).step_code || "").trim();
+    if (!stepCode) {
+      return jsonError(400, "Approval request is missing step identifiers.");
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      return jsonError(401, "Authentication session is unavailable. Please sign in again.");
+    }
+
+    const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+    if (!apiBaseUrl) {
+      return jsonError(500, "NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
+    }
+
     const comments =
       action === "approve"
         ? null
@@ -187,31 +199,49 @@ export async function PATCH(
           ? `RETURN_FOR_REVISION: ${note}`
           : note;
 
-    const { data: updatedData, error: updateError } = await supabase
-      .from("approval_requests")
-      .update({
-        status,
-        comments,
-        approver_email: user.email || requestRow.approver_email || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", requestId)
-      .eq("status", "pending")
-      .select("id, status, comments, resolved_at")
-      .maybeSingle();
+    const upstreamResponse = await fetch(
+      `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          decision: action === "approve" ? "APPROVED" : "REJECTED",
+          comment: comments,
+        }),
+        cache: "no-store",
+      }
+    );
 
-    if (updateError) {
-      return jsonError(500, `Failed to update approval request: ${updateError.message}`);
+    let upstreamPayload: any = null;
+    let upstreamText: string | null = null;
+
+    try {
+      upstreamPayload = await upstreamResponse.json();
+    } catch {
+      upstreamText = await upstreamResponse.text().catch(() => null);
     }
 
-    if (!updatedData) {
-      return jsonError(409, "Approval request was already handled by another user.");
+    if (!upstreamResponse.ok) {
+      const upstreamError =
+        upstreamPayload?.error ||
+        upstreamPayload?.message ||
+        upstreamText ||
+        "Unable to update approval decision.";
+      return jsonError(upstreamResponse.status, upstreamError);
     }
 
     return NextResponse.json({
       success: true,
-      message: "Approval request updated successfully.",
-      data: updatedData,
+      message:
+        action === "approve"
+          ? "Approval request approved successfully."
+          : action === "return"
+            ? "Approval request returned for revision."
+            : "Approval request rejected successfully.",
+      data: upstreamPayload,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected server error.";

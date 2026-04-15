@@ -6,28 +6,16 @@ import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 
 type DecisionAction = "approve" | "reject" | "return";
 
-type EventJoinRow = {
-  event_id?: string | null;
-  campus_hosted_at?: string | null;
-  fest_id?: string | null;
-};
-
 type ApprovalRequestRow = {
   id?: string;
-  event_id?: string | null;
-  approval_level?: string | null;
+  request_id?: string | null;
   status?: string | null;
-  approver_email?: string | null;
-  events?: EventJoinRow | EventJoinRow[] | null;
 };
 
-function asSingleEvent(joined: EventJoinRow | EventJoinRow[] | null | undefined): EventJoinRow | null {
-  if (!joined) {
-    return null;
-  }
-
-  return Array.isArray(joined) ? joined[0] || null : joined;
-}
+type ApprovalStepRow = {
+  step_code?: string | null;
+  status?: string | null;
+};
 
 function parseAction(value: unknown): DecisionAction | null {
   if (value === "approve" || value === "reject" || value === "return") {
@@ -62,26 +50,6 @@ async function buildSupabaseServerClient() {
       },
     },
   });
-}
-
-async function resolveL2Threshold(supabase: any, campusName: string): Promise<number> {
-  const fallbackThreshold = 100000;
-  if (!campusName) {
-    return fallbackThreshold;
-  }
-
-  const { data: configRow } = await supabase
-    .from("campus_approval_config")
-    .select("l2_threshold")
-    .eq("campus", campusName)
-    .maybeSingle();
-
-  const parsedThreshold = Number((configRow as any)?.l2_threshold);
-  if (Number.isFinite(parsedThreshold) && parsedThreshold > 0) {
-    return parsedThreshold;
-  }
-
-  return fallbackThreshold;
 }
 
 export async function PATCH(
@@ -126,11 +94,6 @@ export async function PATCH(
       return jsonError(403, "Only CFO or Master Admin users can perform L3 actions.");
     }
 
-    const userCampus = String(userProfile.campus || "").trim();
-    if (!isMasterAdmin && !userCampus) {
-      return jsonError(403, "No campus scope is mapped to this CFO account.");
-    }
-
     const body = await request.json().catch(() => null);
     const action = parseAction(body?.action);
     const note = typeof body?.note === "string" ? body.note.trim() : "";
@@ -145,20 +108,7 @@ export async function PATCH(
 
     const { data: approvalData, error: approvalError } = await supabase
       .from("approval_requests")
-      .select(
-        `
-          id,
-          event_id,
-          approval_level,
-          status,
-          approver_email,
-          events:event_id (
-            event_id,
-            campus_hosted_at,
-            fest_id
-          )
-        `
-      )
+      .select("id,request_id,status")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -171,84 +121,98 @@ export async function PATCH(
     }
 
     const requestRow = approvalData as ApprovalRequestRow;
-    const eventRow = asSingleEvent(requestRow.events);
-
-    if (!eventRow) {
-      return jsonError(400, "Approval request is not linked to a valid event.");
-    }
-
-    if (String(requestRow.approval_level || "") !== "L3_CFO") {
-      return jsonError(400, "Only L3_CFO approval requests can be modified here.");
-    }
-
-    if (String(requestRow.status || "") !== "pending") {
+    const requestStatus = String(requestRow.status || "").trim().toUpperCase();
+    if (!requestStatus || requestStatus === "APPROVED" || requestStatus === "REJECTED") {
       return jsonError(409, "This request is no longer pending.");
     }
 
-    if (!isMasterAdmin && String(eventRow.campus_hosted_at || "").trim() !== userCampus) {
-      return jsonError(403, "This request does not belong to your campus scope.");
+    const approvalRequestDbId = String(requestRow.id || "").trim();
+    const requestIdentifier = String(requestRow.request_id || "").trim();
+
+    if (!approvalRequestDbId || !requestIdentifier) {
+      return jsonError(400, "Approval request is missing workflow identifiers.");
     }
 
-    if (eventRow.fest_id !== null && eventRow.fest_id !== undefined && String(eventRow.fest_id).trim() !== "") {
-      return jsonError(400, "Fest-linked events bypass CFO approval.");
-    }
-
-    const eventId = String(requestRow.event_id || eventRow.event_id || "").trim();
-    if (!eventId) {
-      return jsonError(400, "Approval request is missing event linkage.");
-    }
-
-    const { data: budgetData, error: budgetError } = await supabase
-      .from("event_budgets")
-      .select("event_id, total_estimated_expense")
-      .eq("event_id", eventId)
+    const { data: pendingStepData, error: pendingStepError } = await supabase
+      .from("approval_steps")
+      .select("step_code,status")
+      .eq("approval_request_id", approvalRequestDbId)
+      .eq("role_code", "CFO")
+      .eq("status", "PENDING")
+      .order("sequence_order", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
-    if (budgetError) {
-      return jsonError(500, `Failed to fetch budget details: ${budgetError.message}`);
+    if (pendingStepError) {
+      return jsonError(500, `Failed to load pending CFO step: ${pendingStepError.message}`);
     }
 
-    const budgetValue = Number((budgetData as any)?.total_estimated_expense || 0);
-    const thresholdCampus = String(eventRow.campus_hosted_at || userProfile.campus || "").trim();
-    const l2Threshold = await resolveL2Threshold(supabase, thresholdCampus);
-
-    if (!Number.isFinite(budgetValue) || budgetValue <= l2Threshold) {
-      return jsonError(400, "Event budget is not above the CFO threshold and should bypass L3.");
+    if (!pendingStepData) {
+      return jsonError(409, "No pending CFO step exists for this request.");
     }
 
-    const status = action === "approve" ? "approved" : "rejected";
-    const comments =
-      action === "approve"
-        ? null
-        : action === "return"
-          ? `RETURN_FOR_REVISION: ${note}`
-          : note;
-
-    const { data: updatedData, error: updateError } = await supabase
-      .from("approval_requests")
-      .update({
-        status,
-        comments,
-        approver_email: user.email || requestRow.approver_email || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", requestId)
-      .eq("status", "pending")
-      .select("id, status, comments, resolved_at")
-      .maybeSingle();
-
-    if (updateError) {
-      return jsonError(500, `Failed to update approval request: ${updateError.message}`);
+    const stepCode = String((pendingStepData as ApprovalStepRow).step_code || "").trim();
+    if (!stepCode) {
+      return jsonError(400, "Approval request is missing step identifiers.");
     }
 
-    if (!updatedData) {
-      return jsonError(409, "Approval request was already handled by another user.");
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      return jsonError(401, "Authentication session is unavailable. Please sign in again.");
+    }
+
+    const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+    if (!apiBaseUrl) {
+      return jsonError(500, "NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
+    }
+
+    const upstreamResponse = await fetch(
+      `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          decision: action === "approve" ? "APPROVED" : "REJECTED",
+          comment: action === "return" ? `RETURN_FOR_REVISION: ${note}` : action === "reject" ? note : null,
+        }),
+        cache: "no-store",
+      }
+    );
+
+    let upstreamPayload: any = null;
+    let upstreamText: string | null = null;
+
+    try {
+      upstreamPayload = await upstreamResponse.json();
+    } catch {
+      upstreamText = await upstreamResponse.text().catch(() => null);
+    }
+
+    if (!upstreamResponse.ok) {
+      const upstreamError =
+        upstreamPayload?.error ||
+        upstreamPayload?.message ||
+        upstreamText ||
+        "Unable to update approval decision.";
+      return jsonError(upstreamResponse.status, upstreamError);
     }
 
     return NextResponse.json({
       success: true,
-      message: "Approval request updated successfully.",
-      data: updatedData,
+      message:
+        action === "approve"
+          ? "Approval request approved successfully."
+          : action === "return"
+            ? "Approval request returned for revision."
+            : "Approval request rejected successfully.",
+      data: upstreamPayload,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected server error.";

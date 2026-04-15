@@ -217,7 +217,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
 
     const { data: approvalRow, error: approvalError } = await supabase
       .from("approval_requests")
-      .select("id,event_id,entity_ref,status,approval_level")
+      .select("id,request_id,event_id,entity_ref,status,approval_level")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -229,35 +229,36 @@ export async function submitFinanceApprovalDecisionAction(input: {
       return fail("Approval request not found.");
     }
 
-    if (normalizeText(approvalRow.approval_level) !== "L4_ACCOUNTS") {
-      return fail("Only L4_ACCOUNTS requests can be handled here.");
-    }
-
-    if (normalizeLower(approvalRow.status) !== "pending") {
+    const requestStatus = normalizeLower(approvalRow.status);
+    if (!requestStatus || requestStatus === "approved" || requestStatus === "rejected") {
       return fail("This approval request is no longer pending.");
     }
 
-    const eventId = normalizeText(approvalRow.event_id || approvalRow.entity_ref);
-    if (!eventId) {
-      return fail("Request is missing event linkage.");
+    const approvalRequestDbId = normalizeText(approvalRow.id);
+    const requestIdentifier = normalizeText(approvalRow.request_id);
+
+    if (!approvalRequestDbId || !requestIdentifier) {
+      return fail("Approval request is missing workflow identifiers.");
     }
 
-    const { data: budgetRow, error: budgetError } = await supabase
-      .from("event_budgets")
-      .select("event_id,total_estimated_expense")
-      .eq("event_id", eventId)
+    const { data: pendingStepRow, error: pendingStepError } = await supabase
+      .from("approval_steps")
+      .select("step_code,status")
+      .eq("approval_request_id", approvalRequestDbId)
+      .eq("role_code", "ACCOUNTS")
+      .eq("status", "PENDING")
+      .order("sequence_order", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
-    if (budgetError) {
-      return fail(`Failed to load event budget: ${budgetError.message}`);
+    if (pendingStepError) {
+      return fail(`Failed to load pending Accounts step: ${pendingStepError.message}`);
     }
 
-    const estimatedExpense = toNumber(budgetRow?.total_estimated_expense);
-    if (!Number.isFinite(estimatedExpense) || estimatedExpense <= 0) {
-      return fail("Only events with estimated budget greater than 0 require L4 approval.");
+    if (!pendingStepRow) {
+      return fail("No pending Accounts step exists for this request.");
     }
 
-    const nextStatus = action === "approve" ? "approved" : "rejected";
     const comments =
       action === "approve"
         ? null
@@ -265,35 +266,72 @@ export async function submitFinanceApprovalDecisionAction(input: {
           ? `RETURN_FOR_REVISION: ${note}`
           : note;
 
-    const { data: updatedRow, error: updateError } = await supabase
-      .from("approval_requests")
-      .update({
-        status: nextStatus,
-        comments,
-        approver_email: user.email || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", requestId)
-      .eq("status", "pending")
-      .select("id")
-      .maybeSingle();
-
-    if (updateError) {
-      return fail(`Failed to update approval request: ${updateError.message}`);
+    const stepCode = normalizeText((pendingStepRow as Record<string, unknown>).step_code);
+    if (!stepCode) {
+      return fail("Approval request is missing step identifiers.");
     }
 
-    if (!updatedRow) {
-      return fail("Approval request was already handled by another user.");
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      return fail("Authentication session is unavailable. Please sign in again.");
     }
+
+    const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+    if (!apiBaseUrl) {
+      return fail("NEXT_PUBLIC_API_URL is not configured for workflow decisions.");
+    }
+
+    const upstreamResponse = await fetch(
+      `${apiBaseUrl}/api/approvals/requests/${encodeURIComponent(requestIdentifier)}/steps/${encodeURIComponent(stepCode)}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          decision: action === "approve" ? "APPROVED" : "REJECTED",
+          comment: comments,
+        }),
+        cache: "no-store",
+      }
+    );
+
+    let upstreamPayload: any = null;
+    let upstreamText: string | null = null;
+
+    try {
+      upstreamPayload = await upstreamResponse.json();
+    } catch {
+      upstreamText = await upstreamResponse.text().catch(() => null);
+    }
+
+    if (!upstreamResponse.ok) {
+      const upstreamError =
+        upstreamPayload?.error ||
+        upstreamPayload?.message ||
+        upstreamText ||
+        "Unable to update approval decision.";
+      return fail(upstreamError);
+    }
+
+    const eventId = normalizeText(approvalRow.event_id || approvalRow.entity_ref);
 
     await logFinanceAudit(supabase, {
-      eventId,
+      eventId: eventId || null,
       budgetId: null,
       action: action === "approve" ? "L4_APPROVED" : action === "return" ? "L4_RETURNED" : "L4_REJECTED",
       notes: comments,
       actedByEmail: user.email || null,
       metadata: {
-        request_id: requestId,
+        approval_request_db_id: requestId,
+        request_id: requestIdentifier,
+        step_code: stepCode,
+        upstream_request_status: upstreamPayload?.request_status || null,
       },
     });
 
