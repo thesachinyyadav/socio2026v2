@@ -1791,6 +1791,26 @@ export default function EventForm({
     Boolean(watchedStandaloneRequiresDeanApproval);
   const requiresCfoApprovalForPublish =
     publishActionNeedsApproval && Boolean(watchedProvideClaims);
+  const standaloneApprovalStages: string[] = [];
+  if (Boolean(watchedStandaloneRequiresHodApproval)) {
+    standaloneApprovalStages.push("HOD");
+  }
+  if (Boolean(watchedStandaloneRequiresDeanApproval)) {
+    standaloneApprovalStages.push("Dean");
+  }
+  const standaloneApprovalStagesLabel =
+    standaloneApprovalStages.length === 0
+      ? "No HOD/Dean"
+      : standaloneApprovalStages.length === 1
+      ? standaloneApprovalStages[0]
+      : `${standaloneApprovalStages.slice(0, -1).join(" and ")} and ${standaloneApprovalStages[standaloneApprovalStages.length - 1]}`;
+  const standaloneBudgetRoutePreviewText = Boolean(watchedProvideClaims)
+    ? standaloneApprovalStages.length > 0
+      ? `${standaloneApprovalStagesLabel} approvals are enabled. CFO approval is also required because budget approval is enabled.`
+      : "No HOD/Dean approvals selected. CFO approval is required because budget approval is enabled."
+    : standaloneApprovalStages.length > 0
+    ? `${standaloneApprovalStagesLabel} approvals are enabled. CFO approval is skipped because budget approval is disabled.`
+    : "No HOD/Dean approvals selected. Event is auto-approved and can proceed directly to service requests.";
   const additionalRequests = watch("additionalRequests");
   const hasAnyLogisticsSelected = Boolean(
     watchedItEnabled ||
@@ -2718,6 +2738,8 @@ export default function EventForm({
                 className="space-y-6 sm:space-y-8"
                 noValidate
               >
+                {(!showStandaloneFlowStepper || standaloneFlowStep === "details") && (
+                <>
                 <div>
                   <InputField
                     label="Event title:"
@@ -2850,6 +2872,8 @@ export default function EventForm({
                     initialVisibleOptionCount={3}
                   />
                 </div>
+                </>
+                )}
 
                 {(!showStandaloneFlowStepper || standaloneFlowStep === "approvals") && (
                 <div
@@ -2890,41 +2914,69 @@ export default function EventForm({
                           render={({ field }) => (
                             <label
                               htmlFor="standaloneRequiresHodApproval"
-                              className="flex items-center gap-2 text-sm text-gray-700"
+                              className="flex items-start gap-3 rounded-lg border border-gray-200 px-4 py-3 hover:border-[#154CB3] transition-colors"
                             >
                               <input
                                 id="standaloneRequiresHodApproval"
                                 type="checkbox"
-                                checked={
-                                  standaloneApprovalLocked ||
-                                  Boolean(field.value) ||
-                                  Boolean(watchedStandaloneRequiresDeanApproval)
-                                }
+                                checked={Boolean(field.value)}
                                 disabled={standaloneApprovalLocked}
-                                onChange={(event) => {
-                                  const checked = event.target.checked;
-                                  field.onChange(checked);
-                                  setValue("standaloneRequiresDeanApproval", checked, {
-                                    shouldDirty: true,
-                                    shouldValidate: true,
-                                  });
-                                }}
+                                onChange={(event) => field.onChange(event.target.checked)}
                                 className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
                               />
-                              This event requires HOD and Dean approval
+                              <span>
+                                <span className="block text-sm font-semibold text-gray-900">
+                                  HOD approval
+                                </span>
+                                <span className="block text-xs text-gray-500 mt-1">
+                                  Routes to the HOD queue for the selected organizing department.
+                                </span>
+                              </span>
+                            </label>
+                          )}
+                        />
+
+                        <Controller
+                          name="standaloneRequiresDeanApproval"
+                          control={control}
+                          render={({ field }) => (
+                            <label
+                              htmlFor="standaloneRequiresDeanApproval"
+                              className="flex items-start gap-3 rounded-lg border border-gray-200 px-4 py-3 hover:border-[#154CB3] transition-colors"
+                            >
+                              <input
+                                id="standaloneRequiresDeanApproval"
+                                type="checkbox"
+                                checked={Boolean(field.value)}
+                                disabled={standaloneApprovalLocked}
+                                onChange={(event) => field.onChange(event.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                              />
+                              <span>
+                                <span className="block text-sm font-semibold text-gray-900">
+                                  Dean approval
+                                </span>
+                                <span className="block text-xs text-gray-500 mt-1">
+                                  Adds dean review before publication.
+                                </span>
+                              </span>
                             </label>
                           )}
                         />
                       </div>
 
-                      {(Boolean(watchedStandaloneRequiresHodApproval) ||
-                        Boolean(watchedStandaloneRequiresDeanApproval)) && (
-                        <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                          {standaloneApproverPreview.loading
-                            ? "Loading approver preview..."
-                            : `Your event will first go to ${standaloneApproverPreview.hodName || "HOD"} for review, then to ${standaloneApproverPreview.deanName || "Dean"}. Both must approve before you can proceed.`}
-                        </div>
-                      )}
+                      <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                        {standaloneApproverPreview.loading
+                          ? "Loading approver preview..."
+                          : Boolean(watchedStandaloneRequiresHodApproval) &&
+                            Boolean(watchedStandaloneRequiresDeanApproval)
+                          ? `Your event will first go to ${standaloneApproverPreview.hodName || "HOD"} for review, then to ${standaloneApproverPreview.deanName || "Dean"}. Both must approve before you can proceed.`
+                          : Boolean(watchedStandaloneRequiresHodApproval)
+                          ? `Your event will be routed to ${standaloneApproverPreview.hodName || "HOD"} for approval.`
+                          : Boolean(watchedStandaloneRequiresDeanApproval)
+                          ? `Your event will be routed to ${standaloneApproverPreview.deanName || "Dean"} for approval.`
+                          : "No HOD/Dean approval selected. Event will auto-approve unless budget approval is enabled."}
+                      </div>
 
                     </div>
                   ) : null}
@@ -3458,12 +3510,12 @@ export default function EventForm({
                   </div>
                 )}
 
-                {(!showStandaloneFlowStepper || standaloneFlowStep === "budget") && (
+                {(!showStandaloneFlowStepper || standaloneFlowStep === "details") && (
                 <div
-                  id="standalone-budget-step"
+                  id="standalone-team-step"
                   tabIndex={-1}
                   className={`bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5 transition-shadow ${
-                    showStandaloneFlowStepper && standaloneFlowStep === "budget"
+                    showStandaloneFlowStepper && standaloneFlowStep === "details"
                       ? "ring-2 ring-blue-300"
                       : ""
                   }`}
@@ -3603,6 +3655,77 @@ export default function EventForm({
                 </div>
                 )}
 
+                {showStandaloneFlowStepper && standaloneFlowStep === "budget" && (
+                  <div
+                    id="standalone-budget-step"
+                    tabIndex={-1}
+                    className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"
+                  >
+                    <h3 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
+                      Does this event require a budget approval?
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Select Yes to enable budget/funds approval for this standalone event.
+                    </p>
+
+                    <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                      <p className="font-semibold text-[#063168]">Approval route preview</p>
+                      <p className="mt-1 text-gray-700">{standaloneBudgetRoutePreviewText}</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setValue("provideClaims", true, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                        className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                          watchedProvideClaims
+                            ? "bg-[#154CB3] border-[#154CB3] text-white"
+                            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setValue("provideClaims", false, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                        className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                          !watchedProvideClaims
+                            ? "bg-[#154CB3] border-[#154CB3] text-white"
+                            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
+
+                    {errors.provideClaims && (
+                      <p className="text-red-500 text-xs mt-2">{errors.provideClaims.message}</p>
+                    )}
+
+                    {Boolean(watchedProvideClaims) && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <p className="font-semibold">Section 7 - Budget / Funds Approval</p>
+                        <p className="mt-1">
+                          Based on budget amount: Under Rs 25,000 routes to Accounts (L4) only. Rs 25,000 and above routes to CFO (L3) then Accounts (L4).
+                        </p>
+                        <p className="mt-1">Venue booking is always free and does not count toward this budget.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(!showStandaloneFlowStepper || standaloneFlowStep === "details") && (
+                <>
                 <InputField
                   label="Detailed description:"
                   name="detailedDescription"
@@ -3844,110 +3967,6 @@ export default function EventForm({
                   />
                 </div>
 
-                {(!showStandaloneFlowStepper || standaloneFlowStep === "budget") && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
-                  <div className="flex items-center justify-between gap-4">
-                    <label className="text-sm font-medium text-gray-700">
-                      This event requires budget/funds approval
-                    </label>
-                    <Controller
-                      name="provideClaims"
-                      control={control}
-                      render={({ field }) => {
-                        const claimsEnabled = Boolean(field.value);
-
-                        return (
-                          <label
-                            htmlFor="provideClaims"
-                            className="relative inline-flex items-center cursor-pointer select-none"
-                          >
-                            <input
-                              type="checkbox"
-                              id="provideClaims"
-                              checked={claimsEnabled}
-                              onChange={(e) => field.onChange(e.target.checked)}
-                              className="sr-only"
-                            />
-
-                            <div
-                              className={`relative h-8 w-20 rounded-full border-2 transition-colors ${
-                                claimsEnabled
-                                  ? "border-green-500 bg-green-50"
-                                  : "border-red-500 bg-red-50"
-                              }`}
-                            >
-                              <span
-                                className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold tracking-wide ${
-                                  claimsEnabled
-                                    ? "left-2 text-green-700"
-                                    : "right-2 text-red-700"
-                                }`}
-                              >
-                                {claimsEnabled ? "YES" : "NO"}
-                              </span>
-
-                              <span
-                                className={`absolute top-0.5 left-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-white transition-transform ${
-                                  claimsEnabled
-                                    ? "translate-x-[3.25rem] border-green-500 text-green-600"
-                                    : "translate-x-0 border-red-500 text-red-600"
-                                }`}
-                              >
-                                {claimsEnabled ? (
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={2.5}
-                                    stroke="currentColor"
-                                    className="h-3.5 w-3.5"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M4.5 12.75l6 6 9-13.5"
-                                    />
-                                  </svg>
-                                ) : (
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={2.5}
-                                    stroke="currentColor"
-                                    className="h-3.5 w-3.5"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M6 18L18 6M6 6l12 12"
-                                    />
-                                  </svg>
-                                )}
-                              </span>
-                            </div>
-                          </label>
-                        );
-                      }}
-                    />
-                  </div>
-                  {errors.provideClaims && (
-                    <p className="text-red-500 text-xs mt-2">
-                      {errors.provideClaims.message}
-                    </p>
-                  )}
-                  {Boolean(watchedProvideClaims) && (
-                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      <p className="font-semibold">Section 7 - Budget / Funds Approval</p>
-                      <p className="mt-1">
-                        Based on budget amount: Under Rs 25,000 routes to Accounts (L4) only. Rs 25,000 and above routes to CFO (L3) then Accounts (L4).
-                      </p>
-                      <p className="mt-1">Venue booking is always free and does not count toward this budget.</p>
-                    </div>
-                  )}
-                </div>
-                )}
-
                 <FileInput<EventFormData>
                   label="Event image:"
                   name="imageFile"
@@ -4085,6 +4104,8 @@ export default function EventForm({
                   register={register}
                   errors={errors}
                 />
+                </>
+                )}
 
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-8 sm:mt-10 pt-6 border-t border-gray-200">
                   <button
