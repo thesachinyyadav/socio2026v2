@@ -76,6 +76,106 @@ const asBoolean = (value) =>
   normalizeToken(value) === "yes" ||
   normalizeToken(value) === "on";
 
+const isMissingRelationError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
+};
+
+const isMissingColumnError = (error, columnName = "") => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  const normalizedColumn = String(columnName || "").toLowerCase();
+
+  if (!normalizedColumn) {
+    return code === "42703" || code === "PGRST204" || message.includes("column");
+  }
+
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes(`column \"${normalizedColumn}\"`) ||
+    message.includes(`${normalizedColumn} does not exist`) ||
+    (message.includes("could not find") && message.includes(normalizedColumn))
+  );
+};
+
+const FEST_TABLE_CANDIDATES = ["fests", "fest"];
+
+const toFestSlugCandidate = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const resolveFestByReference = async (festReference) => {
+  const normalizedReference = normalizeText(festReference);
+  if (!normalizedReference) {
+    return null;
+  }
+
+  const normalizedKey = normalizeToken(normalizedReference);
+  const normalizedSlug = toFestSlugCandidate(normalizedReference);
+
+  for (const tableName of FEST_TABLE_CANDIDATES) {
+    try {
+      const exactFest = await queryOne(tableName, {
+        where: { fest_id: normalizedReference },
+      });
+
+      if (exactFest) {
+        return exactFest;
+      }
+
+      const rows = await queryAll(tableName, {
+        select: "fest_id,fest_title",
+      });
+
+      const matchedFest = (rows || []).find((row) => {
+        const festIdKey = normalizeToken(row?.fest_id);
+        const festTitleKey = normalizeToken(row?.fest_title);
+        const festIdSlug = toFestSlugCandidate(row?.fest_id);
+        const festTitleSlug = toFestSlugCandidate(row?.fest_title);
+
+        return (
+          normalizedKey === festIdKey ||
+          normalizedKey === festTitleKey ||
+          normalizedSlug === festIdSlug ||
+          normalizedSlug === festTitleSlug
+        );
+      });
+
+      const resolvedFestId = normalizeText(matchedFest?.fest_id);
+      if (resolvedFestId) {
+        const resolvedFest = await queryOne(tableName, {
+          where: { fest_id: resolvedFestId },
+        });
+
+        if (resolvedFest) {
+          return resolvedFest;
+        }
+      }
+    } catch (error) {
+      if (isMissingRelationError(error) || isMissingColumnError(error)) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  return null;
+};
+
 const parseNumber = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 0;
@@ -627,15 +727,17 @@ const canAccessFestApprovalContext = async ({ fest, requester, userId }) => {
 
 router.get("/:festId/context", async (req, res) => {
   try {
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     if (!festId) {
       return res.status(400).json({ error: "Fest ID is required." });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) {
       return res.status(404).json({ error: "Fest not found." });
     }
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     const allowed = await canAccessFestApprovalContext({
       fest,
@@ -730,15 +832,17 @@ router.get("/:festId/context", async (req, res) => {
 });
 router.post("/:festId/submit", async (req, res) => {
   try {
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     if (!festId) {
       return res.status(400).json({ error: "Fest ID is required." });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) {
       return res.status(404).json({ error: "Fest not found." });
     }
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     if (!canUserManageFest(fest, req.userInfo, req.userId)) {
       return res.status(403).json({ error: "Only the fest organizer can submit this fest." });
@@ -796,7 +900,7 @@ router.post("/:festId/hod-action", async (req, res) => {
       return res.status(403).json({ error: "Only HOD can perform this action." });
     }
 
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     const action = normalizeToken(req.body?.action);
     const notes = normalizeText(req.body?.notes);
 
@@ -805,10 +909,12 @@ router.post("/:festId/hod-action", async (req, res) => {
       return res.status(400).json({ error: payloadError });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) {
       return res.status(404).json({ error: "Fest not found." });
     }
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     if (normalizeToken(fest.workflow_status) !== FEST_STATUS.PENDING_HOD) {
       return res.status(400).json({ error: "Fest is not pending HOD approval." });
@@ -1021,7 +1127,7 @@ router.post("/:festId/dean-action", async (req, res) => {
       return res.status(403).json({ error: "Only Dean can perform this action." });
     }
 
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     const action = normalizeToken(req.body?.action);
     const notes = normalizeText(req.body?.notes);
 
@@ -1030,8 +1136,10 @@ router.post("/:festId/dean-action", async (req, res) => {
       return res.status(400).json({ error: payloadError });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) return res.status(404).json({ error: "Fest not found." });
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     if (normalizeToken(fest.workflow_status) !== FEST_STATUS.PENDING_DEAN) {
       return res.status(400).json({ error: "Fest is not pending Dean approval." });
@@ -1193,7 +1301,7 @@ router.post("/:festId/cfo-action", async (req, res) => {
       return res.status(403).json({ error: "Only CFO can perform this action." });
     }
 
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     const action = normalizeToken(req.body?.action);
     const notes = normalizeText(req.body?.notes);
 
@@ -1202,8 +1310,10 @@ router.post("/:festId/cfo-action", async (req, res) => {
       return res.status(400).json({ error: payloadError });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) return res.status(404).json({ error: "Fest not found." });
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     if (normalizeToken(fest.workflow_status) !== FEST_STATUS.PENDING_CFO) {
       return res.status(400).json({ error: "Fest is not pending CFO approval." });
@@ -1330,7 +1440,7 @@ router.post("/:festId/accounts-action", async (req, res) => {
       return res.status(403).json({ error: "Only Finance Officer can perform this action." });
     }
 
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     const action = normalizeToken(req.body?.action);
     const notes = normalizeText(req.body?.notes);
 
@@ -1339,8 +1449,10 @@ router.post("/:festId/accounts-action", async (req, res) => {
       return res.status(400).json({ error: payloadError });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) return res.status(404).json({ error: "Fest not found." });
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     if (normalizeToken(fest.workflow_status) !== FEST_STATUS.PENDING_ACCOUNTS) {
       return res.status(400).json({ error: "Fest is not pending Accounts approval." });
@@ -1434,15 +1546,17 @@ router.post("/:festId/accounts-action", async (req, res) => {
 
 router.post("/:festId/activate", async (req, res) => {
   try {
-    const festId = normalizeText(req.params.festId);
+    let festId = normalizeText(req.params.festId);
     if (!festId) {
       return res.status(400).json({ error: "Fest ID is required." });
     }
 
-    const fest = await queryOne("fests", { where: { fest_id: festId } });
+    const fest = await resolveFestByReference(festId);
     if (!fest) {
       return res.status(404).json({ error: "Fest not found." });
     }
+
+    festId = normalizeText(fest?.fest_id) || festId;
 
     if (!canUserManageFest(fest, req.userInfo, req.userId)) {
       return res.status(403).json({ error: "Only the fest organizer can activate this fest." });

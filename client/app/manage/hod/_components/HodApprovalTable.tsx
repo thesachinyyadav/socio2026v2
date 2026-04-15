@@ -87,7 +87,7 @@ export default function HodApprovalTable({
               const isCompleted = Boolean(completedAction);
               const isFest = row.entityType === "fest";
               const detailHref = isFest
-                ? `/fest/${row.eventId}`
+                ? `/approvals/fest/${encodeURIComponent(row.eventId)}`
                 : `${eventDetailBasePath}/${row.eventId}`;
 
               return (
