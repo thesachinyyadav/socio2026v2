@@ -228,6 +228,60 @@ export const extractBudgetApprovalRequirement = (customFieldsValue) => {
   );
 };
 
+const parsePositiveNumber = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return parsed;
+};
+
+const extractBudgetAmountFromCustomFields = (customFieldsValue) => {
+  const parsedCustomFields = parseJsonLikeField(customFieldsValue, []);
+  if (!Array.isArray(parsedCustomFields)) {
+    return 0;
+  }
+
+  const budgetField = parsedCustomFields.find((field) => {
+    if (!field || typeof field !== "object" || Array.isArray(field)) {
+      return false;
+    }
+
+    return String(field.key || "").trim() === FEST_BUDGET_SETTINGS_KEY;
+  });
+
+  if (!budgetField || typeof budgetField !== "object" || Array.isArray(budgetField)) {
+    return 0;
+  }
+
+  const settings = budgetField.value;
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+    return 0;
+  }
+
+  const explicitAmount =
+    parsePositiveNumber(settings.amount) ||
+    parsePositiveNumber(settings.totalAmount) ||
+    parsePositiveNumber(settings.budget_amount) ||
+    parsePositiveNumber(settings.estimated_budget_amount) ||
+    parsePositiveNumber(settings.total_estimated_expense);
+
+  if (explicitAmount > 0) {
+    return explicitAmount;
+  }
+
+  const items = Array.isArray(settings.items) ? settings.items : [];
+
+  return items.reduce((sum, item) => {
+    const price = parsePositiveNumber(item?.price);
+    const quantity = parsePositiveNumber(item?.quantity || 1);
+    const gstPercent = parsePositiveNumber(item?.gst);
+    const subtotal = Math.max(0, price) * Math.max(0, quantity || 1);
+    const gstAmount = subtotal * (Math.max(0, gstPercent) / 100);
+    return sum + subtotal + gstAmount;
+  }, 0);
+};
+
 const parseBooleanWithFallback = (value, fallbackValue) => {
   if (value === true || value === "true" || value === 1 || value === "1") {
     return true;
@@ -670,7 +724,18 @@ const deriveFestStatusFromDates = (
   return "ongoing";
 };
 
-const isMissingColumnError = (error) => String(error?.code || "") === "42703";
+const isMissingColumnError = (error, columnName) => {
+  if (String(error?.code || "") !== "42703") {
+    return false;
+  }
+
+  if (!columnName) {
+    return true;
+  }
+
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes(String(columnName).toLowerCase());
+};
 const isMissingRelationError = (error) => {
   const code = String(error?.code || "").toUpperCase();
   const message = String(error?.message || "").toLowerCase();
@@ -1438,7 +1503,23 @@ router.post(
           pickDefined(festData.custom_fields, festData.customFields),
           []
         ) || [];
-      const isBudgetRelated = extractBudgetApprovalRequirement(parsedCustomFields);
+      const directBudgetAmount = parsePositiveNumber(
+        pickDefined(
+          festData.budget_amount,
+          festData.budgetAmount,
+          festData.estimated_budget_amount,
+          festData.estimatedBudgetAmount,
+          festData.total_estimated_expense,
+          festData.totalEstimatedExpense
+        )
+      );
+      const resolvedBudgetAmount =
+        directBudgetAmount > 0
+          ? directBudgetAmount
+          : extractBudgetAmountFromCustomFields(parsedCustomFields);
+      const isBudgetRelated =
+        extractBudgetApprovalRequirement(parsedCustomFields) ||
+        resolvedBudgetAmount > 0;
       const approvalWorkflow = extractFestApprovalWorkflow({
         customFieldsValue: parsedCustomFields,
         directValue: pickDefined(festData.approval_settings, festData.approvalSettings),
@@ -1470,6 +1551,9 @@ router.post(
         sponsors: festData.sponsors || [],
         social_links: festData.social_links || [],
         faqs: festData.faqs || [],
+        budget_amount: resolvedBudgetAmount,
+        estimated_budget_amount: resolvedBudgetAmount,
+        total_estimated_expense: resolvedBudgetAmount,
         custom_fields: parsedCustomFields,
         campus_hosted_at: festData.campus_hosted_at || festData.campusHostedAt || null,
         allowed_campuses: festData.allowed_campuses || festData.allowedCampuses || [],
@@ -1482,14 +1566,35 @@ router.post(
       try {
         inserted = await insert(festTable, [festPayload]);
       } catch (insertError) {
-        if (!isMissingColumnError(insertError, "status")) {
+        const missingStatusColumn = isMissingColumnError(insertError, "status");
+        const missingBudgetAmountColumn = isMissingColumnError(insertError, "budget_amount");
+        const missingEstimatedBudgetColumn = isMissingColumnError(insertError, "estimated_budget_amount");
+        const missingTotalEstimatedColumn = isMissingColumnError(insertError, "total_estimated_expense");
+
+        if (
+          !missingStatusColumn &&
+          !missingBudgetAmountColumn &&
+          !missingEstimatedBudgetColumn &&
+          !missingTotalEstimatedColumn
+        ) {
           throw insertError;
         }
 
         const fallbackFestPayload = {
           ...festPayload,
         };
-        delete fallbackFestPayload.status;
+        if (missingStatusColumn) {
+          delete fallbackFestPayload.status;
+        }
+        if (missingBudgetAmountColumn) {
+          delete fallbackFestPayload.budget_amount;
+        }
+        if (missingEstimatedBudgetColumn) {
+          delete fallbackFestPayload.estimated_budget_amount;
+        }
+        if (missingTotalEstimatedColumn) {
+          delete fallbackFestPayload.total_estimated_expense;
+        }
         inserted = await insert(festTable, [fallbackFestPayload]);
       }
       let createdFest = inserted?.[0];
@@ -1860,7 +1965,33 @@ router.put(
       const parsedCustomFields = parseJsonLikeField(customFieldsInput, []);
       const effectiveCustomFields =
         parsedCustomFields === undefined ? existingFest.custom_fields : parsedCustomFields;
-      const isBudgetRelated = extractBudgetApprovalRequirement(effectiveCustomFields);
+      const directBudgetAmountInput = pickDefined(
+        updateData.budget_amount,
+        updateData.budgetAmount,
+        updateData.estimated_budget_amount,
+        updateData.estimatedBudgetAmount,
+        updateData.total_estimated_expense,
+        updateData.totalEstimatedExpense
+      );
+      const hasIncomingBudgetPayload =
+        directBudgetAmountInput !== undefined || customFieldsInput !== undefined;
+      const directBudgetAmount = parsePositiveNumber(directBudgetAmountInput);
+      const customFieldBudgetAmount = extractBudgetAmountFromCustomFields(effectiveCustomFields);
+      const existingBudgetAmount =
+        parsePositiveNumber(existingFest?.total_estimated_expense) ||
+        parsePositiveNumber(existingFest?.estimated_budget_amount) ||
+        parsePositiveNumber(existingFest?.budget_amount);
+      const resolvedBudgetAmount =
+        directBudgetAmount > 0
+          ? directBudgetAmount
+          : customFieldBudgetAmount > 0
+          ? customFieldBudgetAmount
+          : hasIncomingBudgetPayload
+          ? 0
+          : existingBudgetAmount;
+      const isBudgetRelated =
+        extractBudgetApprovalRequirement(effectiveCustomFields) ||
+        resolvedBudgetAmount > 0;
       const approvalWorkflow = extractFestApprovalWorkflow({
         customFieldsValue: effectiveCustomFields,
         directValue: pickDefined(updateData.approval_settings, updateData.approvalSettings),
@@ -1882,6 +2013,9 @@ router.put(
         ["contact_phone", normalizedContactPhone],
         ["department_access", parseJsonLikeField(departmentAccessInput, [])],
         ["event_heads", hasEventHeadsUpdate ? normalizedEventHeadsInput : undefined],
+        ["budget_amount", resolvedBudgetAmount],
+        ["estimated_budget_amount", resolvedBudgetAmount],
+        ["total_estimated_expense", resolvedBudgetAmount],
         ["custom_fields", parsedCustomFields],
         // New enhanced fest fields - parse JSON safely
         ["venue", updateData.venue],
@@ -1943,7 +2077,17 @@ router.put(
       try {
         updated = await update(festTable, updatePayload, { fest_id: festId });
       } catch (updateError) {
-        if (!isMissingColumnError(updateError) || !String(updateError?.message || "").toLowerCase().includes("status")) {
+        const missingStatusColumn = isMissingColumnError(updateError, "status");
+        const missingBudgetAmountColumn = isMissingColumnError(updateError, "budget_amount");
+        const missingEstimatedBudgetColumn = isMissingColumnError(updateError, "estimated_budget_amount");
+        const missingTotalEstimatedColumn = isMissingColumnError(updateError, "total_estimated_expense");
+
+        if (
+          !missingStatusColumn &&
+          !missingBudgetAmountColumn &&
+          !missingEstimatedBudgetColumn &&
+          !missingTotalEstimatedColumn
+        ) {
           console.error("[Fest Update ERROR] Supabase update failed:", {
             errorMessage: updateError.message,
             errorCode: updateError.code,
@@ -1958,7 +2102,18 @@ router.put(
         const fallbackPayload = {
           ...updatePayload,
         };
-        delete fallbackPayload.status;
+        if (missingStatusColumn) {
+          delete fallbackPayload.status;
+        }
+        if (missingBudgetAmountColumn) {
+          delete fallbackPayload.budget_amount;
+        }
+        if (missingEstimatedBudgetColumn) {
+          delete fallbackPayload.estimated_budget_amount;
+        }
+        if (missingTotalEstimatedColumn) {
+          delete fallbackPayload.total_estimated_expense;
+        }
         updated = await update(festTable, fallbackPayload, { fest_id: festId });
       }
       

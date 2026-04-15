@@ -29,6 +29,9 @@ type EventContextResponse = {
     organizing_dept?: string | null;
     organizer_email?: string | null;
     registration_fee?: number | null;
+    budget_amount?: number | null;
+    estimated_budget_amount?: number | null;
+    total_estimated_expense?: number | null;
     participants_per_team?: number | null;
     workflow_status?: string | null;
     needs_budget_approval?: boolean | null;
@@ -156,6 +159,12 @@ export default function HodDeanApprovalPage() {
   const canCfoAct = (isCfo || isMasterAdmin) && workflowStatus === "pending_cfo";
   const canAccountsAct = (isFinanceOfficer || isMasterAdmin) && workflowStatus === "pending_accounts";
   const canReview = canHodAct || canDeanAct || canCfoAct || canAccountsAct;
+  const budgetAmount =
+    contextData?.event?.budget_amount ||
+    contextData?.event?.estimated_budget_amount ||
+    contextData?.event?.total_estimated_expense ||
+    contextData?.event?.registration_fee ||
+    null;
 
   const submitAction = async (
     actor: "hod" | "dean",
@@ -295,7 +304,7 @@ export default function HodDeanApprovalPage() {
             <div>Date: {contextData.event.event_date ? new Date(contextData.event.event_date).toLocaleString() : "TBD"}</div>
             <div>Venue: {contextData.event.venue || "TBD"}</div>
             <div>Organizer: {contextData.event.organizer_email || "Unknown"}</div>
-            <div>Budget: {contextData.event.registration_fee ? `Rs ${contextData.event.registration_fee}` : "Not specified"}</div>
+            <div>Budget: {budgetAmount ? `Rs ${budgetAmount}` : "Not specified"}</div>
           </div>
           {contextData.event.description && (
             <p className="text-sm text-slate-700 mt-3 leading-relaxed">{contextData.event.description}</p>

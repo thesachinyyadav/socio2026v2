@@ -188,6 +188,11 @@ export default function CreateEventPage() {
       (standaloneRequiresHodApproval || standaloneRequiresDeanApproval);
     const needsBudgetApproval =
       !isUnderFest && Boolean(dataFromHookForm.provideClaims);
+    const parsedBudgetAmount = Number(dataFromHookForm.budgetAmount || 0);
+    const normalizedBudgetAmount =
+      !isUnderFest && needsBudgetApproval && Number.isFinite(parsedBudgetAmount) && parsedBudgetAmount > 0
+        ? parsedBudgetAmount
+        : 0;
 
     formData.append("event_context", isUnderFest ? "under_fest" : "standalone");
     formData.append("needs_hod_dean_approval", String(needsHodDeanApproval));
@@ -200,6 +205,9 @@ export default function CreateEventPage() {
       "requires_dean_approval",
       String(standaloneRequiresDeanApproval)
     );
+    formData.append("budget_amount", String(normalizedBudgetAmount));
+    formData.append("estimated_budget_amount", String(normalizedBudgetAmount));
+    formData.append("total_estimated_expense", String(normalizedBudgetAmount));
     appendIfExists(
       "registration_deadline",
       dataFromHookForm.registrationDeadline

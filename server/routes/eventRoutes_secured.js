@@ -2491,6 +2491,9 @@ router.post(
         isBudgetRelated: isStandaloneBudgetRelated,
         budgetAmount: standaloneBudgetAmount,
       });
+      const standaloneBudgetAmountForPersistence = !normalizedFestReference
+        ? standaloneBudgetAmount
+        : 0;
       const standaloneApprovalPreferences = resolveStandaloneApprovalPreferences(req.body, {
         requiresHodApproval: false,
         requiresDeanApproval: false,
@@ -2793,6 +2796,9 @@ router.post(
         department_access: parsedDepartmentAccess,
         claims_applicable: claimsApplicable,
         registration_fee: parsedRegistrationFee,
+        budget_amount: standaloneBudgetAmountForPersistence,
+        estimated_budget_amount: standaloneBudgetAmountForPersistence,
+        total_estimated_expense: standaloneBudgetAmountForPersistence,
         participants_per_team: parseOptionalInt(max_participants, 1),
         event_image_url: uploadedFilePaths.image,
         banner_url: uploadedFilePaths.banner,
@@ -2856,6 +2862,9 @@ router.post(
         const missingEventContextColumn = isMissingColumnError(insertError, "event_context");
         const missingNeedsHodDeanColumn = isMissingColumnError(insertError, "needs_hod_dean_approval");
         const missingNeedsBudgetColumn = isMissingColumnError(insertError, "needs_budget_approval");
+        const missingBudgetAmountColumn = isMissingColumnError(insertError, "budget_amount");
+        const missingEstimatedBudgetColumn = isMissingColumnError(insertError, "estimated_budget_amount");
+        const missingTotalEstimatedColumn = isMissingColumnError(insertError, "total_estimated_expense");
         const missingParentFestColumn = isMissingColumnError(insertError, "parent_fest_id");
         const missingCreatedBySubheadColumn = isMissingColumnError(insertError, "created_by_subhead");
 
@@ -2867,6 +2876,9 @@ router.post(
           !missingEventContextColumn &&
           !missingNeedsHodDeanColumn &&
           !missingNeedsBudgetColumn &&
+          !missingBudgetAmountColumn &&
+          !missingEstimatedBudgetColumn &&
+          !missingTotalEstimatedColumn &&
           !missingParentFestColumn &&
           !missingCreatedBySubheadColumn
         ) {
@@ -2897,6 +2909,15 @@ router.post(
         }
         if (missingNeedsBudgetColumn) {
           delete fallbackInsertPayload.needs_budget_approval;
+        }
+        if (missingBudgetAmountColumn) {
+          delete fallbackInsertPayload.budget_amount;
+        }
+        if (missingEstimatedBudgetColumn) {
+          delete fallbackInsertPayload.estimated_budget_amount;
+        }
+        if (missingTotalEstimatedColumn) {
+          delete fallbackInsertPayload.total_estimated_expense;
         }
         if (missingParentFestColumn) {
           delete fallbackInsertPayload.parent_fest_id;
@@ -3439,6 +3460,9 @@ router.put(
         isBudgetRelated: isStandaloneBudgetRelated,
         budgetAmount: standaloneBudgetAmount,
       });
+      const standaloneBudgetAmountForPersistence = !normalizedFestReference
+        ? standaloneBudgetAmount
+        : 0;
       const standaloneApprovalPreferences = resolveStandaloneApprovalPreferences(req.body, {
         requiresHodApproval: false,
         requiresDeanApproval: false,
@@ -3765,6 +3789,9 @@ router.put(
         department_access: parsedDepartmentAccess,
         claims_applicable: claimsApplicable,
         registration_fee: parsedRegistrationFee,
+        budget_amount: standaloneBudgetAmountForPersistence,
+        estimated_budget_amount: standaloneBudgetAmountForPersistence,
+        total_estimated_expense: standaloneBudgetAmountForPersistence,
         participants_per_team: parseOptionalInt(max_participants, 1),
         event_image_url: uploadedFilePaths.image,
         banner_url: uploadedFilePaths.banner,
@@ -3863,6 +3890,9 @@ router.put(
           "created_by_subhead",
           "needs_hod_dean_approval",
           "needs_budget_approval",
+          "budget_amount",
+          "estimated_budget_amount",
+          "total_estimated_expense",
           "approval_state",
           "activation_state",
           "approval_request_id",

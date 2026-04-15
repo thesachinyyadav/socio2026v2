@@ -469,6 +469,22 @@ export default function EditEventPage() {
               : "",
             location: data.venue || "",
             registrationFee: data.registration_fee?.toString() ?? "0",
+            budgetAmount:
+              Number(
+                data.budget_amount ??
+                  data.estimated_budget_amount ??
+                  data.total_estimated_expense ??
+                  0
+              ) > 0
+                ? String(
+                    Number(
+                      data.budget_amount ??
+                        data.estimated_budget_amount ??
+                        data.total_estimated_expense ??
+                        0
+                    )
+                  )
+                : "",
             isTeamEvent: Number(data.participants_per_team ?? 1) > 1,
             maxParticipants: data.participants_per_team?.toString() ?? "1",
             minParticipants:
@@ -477,9 +493,9 @@ export default function EditEventPage() {
             contactEmail: data.organizer_email || "",
             contactPhone: data.organizer_phone?.toString() ?? "",
             whatsappLink: data.whatsapp_invite_link || "",
-            provideClaims: data.claims_applicable || false,
-            onSpot: data.on_spot === true || data.on_spot === 1 || data.on_spot === "1" || data.on_spot === "true",
-            allowOutsiders: data.allow_outsiders || false,
+            provideClaims: parseBooleanWithFallback(data.claims_applicable, false),
+            onSpot: parseBooleanWithFallback(data.on_spot, false),
+            allowOutsiders: parseBooleanWithFallback(data.allow_outsiders, false),
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
             outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
             campusHostedAt: normalizeStringList(data.campus_hosted_at)[0] || "",
@@ -704,6 +720,12 @@ export default function EditEventPage() {
     if (formData.festEvent && formData.festEvent !== "none") {
       payload.append("fest_id", formData.festEvent);
     }
+    const isUnderFest = Boolean(formData.festEvent && formData.festEvent !== "none");
+    const needsHodDeanApproval =
+      !isUnderFest &&
+      (Boolean(formData.standaloneRequiresHodApproval) ||
+        Boolean(formData.standaloneRequiresDeanApproval));
+    const needsBudgetApproval = !isUnderFest && Boolean(formData.provideClaims);
     payload.append(
       "requires_hod_approval",
       String(Boolean(formData.standaloneRequiresHodApproval))
@@ -712,6 +734,8 @@ export default function EditEventPage() {
       "requires_dean_approval",
       String(Boolean(formData.standaloneRequiresDeanApproval))
     );
+    payload.append("needs_hod_dean_approval", String(needsHodDeanApproval));
+    payload.append("needs_budget_approval", String(needsBudgetApproval));
     payload.append("registration_deadline", formData.registrationDeadline || "");
     payload.append("venue", formData.location);
     payload.append("registration_fee", formData.registrationFee || "0");
@@ -723,6 +747,17 @@ export default function EditEventPage() {
       "min_participants",
       formData.isTeamEvent ? (formData.minParticipants || "2") : "1"
     );
+    const parsedBudgetAmount = Number(formData.budgetAmount || 0);
+    const normalizedBudgetAmount =
+      !isUnderFest &&
+      needsBudgetApproval &&
+      Number.isFinite(parsedBudgetAmount) &&
+      parsedBudgetAmount > 0
+        ? parsedBudgetAmount
+        : 0;
+    payload.append("budget_amount", String(normalizedBudgetAmount));
+    payload.append("estimated_budget_amount", String(normalizedBudgetAmount));
+    payload.append("total_estimated_expense", String(normalizedBudgetAmount));
     payload.append("organizer_email", normalizedContactEmail);
     payload.append("organizer_phone", formData.contactPhone || "");
     payload.append("whatsapp_invite_link", formData.whatsappLink || "");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
@@ -114,8 +114,9 @@ interface FestBudgetItem {
 
 interface FestBudgetSettings {
   requiresBudgetApproval: boolean;
-  items: FestBudgetItem[];
-  totalSponsorship: string;
+  amount: string;
+  items?: FestBudgetItem[];
+  totalSponsorship?: string;
 }
 
 interface FestApprovalSettings {
@@ -146,24 +147,23 @@ const withClientUiKeys = <T extends ClientKeyedItem>(
     };
   });
 
-const createEmptyBudgetItem = (): FestBudgetItem => ({
-  _uiKey: createClientUiKey("budget"),
-  category: "",
-  requirement: "",
-  vendor: "",
-  price: "",
-  quantity: "",
-  advance: "",
-  gst: "",
-  quotationFileName: "",
-});
-
 const toPositiveNumber = (value: unknown): number => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 0;
   }
   return parsed;
+};
+
+const calculateLegacyBudgetAmountFromItems = (items: FestBudgetItem[]): number => {
+  return items.reduce((sum, item) => {
+    const price = toPositiveNumber(item.price);
+    const quantity = toPositiveNumber(item.quantity || 1);
+    const gstPercent = toPositiveNumber(item.gst);
+    const subtotal = Math.max(0, price) * Math.max(0, quantity || 1);
+    const gstAmount = subtotal * (Math.max(0, gstPercent) / 100);
+    return sum + subtotal + gstAmount;
+  }, 0);
 };
 
 const parseBooleanWithFallback = (value: unknown, fallbackValue: boolean): boolean => {
@@ -208,6 +208,7 @@ const extractBudgetSettingsFromCustomFields = (
 
   const value = rawValue as {
     requiresBudgetApproval?: unknown;
+    amount?: unknown;
     items?: unknown;
     totalSponsorship?: unknown;
   };
@@ -234,8 +235,13 @@ const extractBudgetSettingsFromCustomFields = (
         })
     : [];
 
+  const explicitAmount = toPositiveNumber(value.amount);
+  const legacyAmount = calculateLegacyBudgetAmountFromItems(items);
+  const resolvedAmount = explicitAmount > 0 ? explicitAmount : legacyAmount;
+
   return {
     requiresBudgetApproval,
+    amount: resolvedAmount > 0 ? String(resolvedAmount) : "",
     items,
     totalSponsorship: String(value.totalSponsorship ?? ""),
   };
@@ -261,8 +267,9 @@ const upsertBudgetSettingsInCustomFields = (
       key: FEST_BUDGET_SETTINGS_KEY,
       value: {
         requiresBudgetApproval: budgetSettings.requiresBudgetApproval,
-        items: budgetSettings.items,
-        totalSponsorship: budgetSettings.totalSponsorship,
+        amount: budgetSettings.amount,
+        items: Array.isArray(budgetSettings.items) ? budgetSettings.items : [],
+        totalSponsorship: budgetSettings.totalSponsorship ?? "",
       },
     },
   ];
@@ -1037,6 +1044,9 @@ interface CreateFestProps {
   social_links?: { platform: string; url: string }[];
   faqs?: { question: string; answer: string }[];
   customFields?: any[];
+  budget_amount?: number | string | null;
+  estimated_budget_amount?: number | string | null;
+  total_estimated_expense?: number | string | null;
   lifecycleStatus?: string | null;
   subheads?: string[];
 }
@@ -1095,6 +1105,10 @@ function CreateFestForm(props?: CreateFestProps) {
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
   const initialBudgetSettings = extractBudgetSettingsFromCustomFields(customFields);
+  const directBudgetAmountFromProps =
+    toPositiveNumber(props?.total_estimated_expense) ||
+    toPositiveNumber(props?.estimated_budget_amount) ||
+    toPositiveNumber(props?.budget_amount);
   const initialApprovalSettings = extractApprovalSettingsFromCustomFields(customFields);
   const existingImageFileUrl = props?.existingImageFileUrl || null;
   const existingBannerFileUrl = props?.existingBannerFileUrl || null;
@@ -1119,14 +1133,9 @@ function CreateFestForm(props?: CreateFestProps) {
   );
   const [requiresHodApproval, setRequiresHodApproval] = useState(true);
   const [requiresDeanApproval, setRequiresDeanApproval] = useState(true);
-  const [budgetItems, setBudgetItems] = useState<FestBudgetItem[]>(
-    initialBudgetSettings?.items?.length
-      ? withClientUiKeys(initialBudgetSettings.items, "budget")
-      : [createEmptyBudgetItem()]
-  );
-  const [budgetHistory, setBudgetHistory] = useState<FestBudgetItem[][]>([]);
-  const [totalSponsorshipAmount, setTotalSponsorshipAmount] = useState(
-    initialBudgetSettings?.totalSponsorship ?? ""
+  const [budgetAmount, setBudgetAmount] = useState(
+    initialBudgetSettings?.amount ||
+      (directBudgetAmountFromProps > 0 ? String(directBudgetAmountFromProps) : "")
   );
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [formData, setFormData] = useState<CreateFestState>({
@@ -1171,29 +1180,6 @@ function CreateFestForm(props?: CreateFestProps) {
   const [successAction, setSuccessAction] = useState<"publish" | "draft">("publish");
   const [festModalVisible, setFestModalVisible] = useState(false);
   const [isOpeningPreview, setIsOpeningPreview] = useState(false);
-
-  const budgetTotals = useMemo(() => {
-    const subtotal = budgetItems.reduce((sum, item) => {
-      const price = toPositiveNumber(item.price);
-      const quantity = toPositiveNumber(item.quantity);
-      return sum + price * quantity;
-    }, 0);
-
-    const totalGst = budgetItems.reduce((sum, item) => {
-      return sum + toPositiveNumber(item.gst);
-    }, 0);
-
-    const sponsorship = toPositiveNumber(totalSponsorshipAmount);
-    const totalAmount = subtotal + totalGst;
-
-    return {
-      subtotal,
-      totalGst,
-      sponsorship,
-      totalAmount,
-      requiredAmount: Math.max(0, totalAmount - sponsorship),
-    };
-  }, [budgetItems, totalSponsorshipAmount]);
 
   const { session } = useAuth();
   const currentDateRef = useRef(new Date());
@@ -1284,6 +1270,10 @@ function CreateFestForm(props?: CreateFestProps) {
             const loadedClosingDate = data.fest.closing_date
               ? formatDateToYYYYMMDD(new Date(data.fest.closing_date))
               : "";
+            const directBudgetAmount =
+              toPositiveNumber(data.fest.total_estimated_expense) ||
+              toPositiveNumber(data.fest.estimated_budget_amount) ||
+              toPositiveNumber(data.fest.budget_amount);
 
             setFormData({
               title: data.fest.fest_title || "",
@@ -1318,12 +1308,11 @@ function CreateFestForm(props?: CreateFestProps) {
             setRequiresBudgetApproval(parsedBudgetSettings?.requiresBudgetApproval ?? false);
             setRequiresHodApproval(true);
             setRequiresDeanApproval(true);
-            setBudgetItems(
-              parsedBudgetSettings?.items?.length
-                ? withClientUiKeys(parsedBudgetSettings.items, "budget")
-                : [createEmptyBudgetItem()]
+            setBudgetAmount(
+              directBudgetAmount > 0
+                ? String(directBudgetAmount)
+                : parsedBudgetSettings?.amount || ""
             );
-            setTotalSponsorshipAmount(parsedBudgetSettings?.totalSponsorship ?? "");
             setIsDraftFest(
               data.fest.is_draft === true ||
                 data.fest.is_draft === 1 ||
@@ -1948,89 +1937,17 @@ function CreateFestForm(props?: CreateFestProps) {
     []
   );
 
-  const formatCurrency = useCallback((amount: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      maximumFractionDigits: 0,
-    }).format(Math.round(amount));
-  }, []);
-
-  const updateBudgetItem = useCallback(
-    (index: number, key: keyof FestBudgetItem, value: string) => {
-      setBudgetItems((prev) =>
-        prev.map((item, itemIndex) =>
-          itemIndex === index ? { ...item, [key]: value } : item
-        )
-      );
-    },
-    []
-  );
-
-  const addBudgetRow = useCallback(() => {
-    setBudgetItems((prev) => {
-      setBudgetHistory((history) => [prev, ...history].slice(0, 30));
-      return [...prev, createEmptyBudgetItem()];
-    });
-  }, []);
-
-  const removeBudgetRow = useCallback((index: number) => {
-    setBudgetItems((prev) => {
-      if (prev.length <= 1) {
-        return [createEmptyBudgetItem()];
-      }
-      setBudgetHistory((history) => [prev, ...history].slice(0, 30));
-      return prev.filter((_, itemIndex) => itemIndex !== index);
-    });
-  }, []);
-
-  const undoBudgetRowChange = useCallback(() => {
-    setBudgetHistory((prevHistory) => {
-      if (!prevHistory.length) {
-        return prevHistory;
-      }
-      const [lastState, ...remaining] = prevHistory;
-      setBudgetItems(lastState.length ? lastState : [createEmptyBudgetItem()]);
-      return remaining;
-    });
-  }, []);
-
   const validateBudgetForm = useCallback((): string | null => {
     if (!requiresBudgetApproval) {
       return null;
     }
 
-    const hasFilledRows = budgetItems.some((item) =>
-      Object.values(item).some((fieldValue) => String(fieldValue).trim() !== "")
-    );
-
-    if (!hasFilledRows) {
-      return "Please add at least one budget line item.";
-    }
-
-    const hasInvalidRow = budgetItems.some((item) => {
-      const hasAnyValue = Object.values(item).some(
-        (fieldValue) => String(fieldValue).trim() !== ""
-      );
-
-      if (!hasAnyValue) return false;
-
-      const price = toPositiveNumber(item.price);
-      const quantity = toPositiveNumber(item.quantity);
-
-      return (
-        item.category.trim() === "" ||
-        item.requirement.trim() === "" ||
-        item.vendor.trim() === "" ||
-        price <= 0 ||
-        quantity <= 0
-      );
-    });
-
-    if (hasInvalidRow) {
-      return "Please complete each budget row with category, requirement, vendor, price and quantity.";
+    if (toPositiveNumber(budgetAmount) <= 0) {
+      return "Please enter a budget amount greater than 0.";
     }
 
     return null;
-  }, [budgetItems, requiresBudgetApproval]);
+  }, [budgetAmount, requiresBudgetApproval]);
 
   const goToApprovalsStep = useCallback(() => {
     setErrors((prev) => ({ ...prev, submit: undefined }));
@@ -2173,26 +2090,15 @@ function CreateFestForm(props?: CreateFestProps) {
           maxParticipants: String(normalizedTeamMax),
         }
       );
-      const normalizedBudgetItems = budgetItems
-        .filter((item) =>
-          Object.values(item).some((fieldValue) => String(fieldValue).trim() !== "")
-        )
-        .map((item) => ({
-          category: item.category.trim(),
-          requirement: item.requirement.trim(),
-          vendor: item.vendor.trim(),
-          price: item.price.trim(),
-          quantity: item.quantity.trim(),
-          advance: item.advance.trim(),
-          gst: item.gst.trim(),
-          quotationFileName: item.quotationFileName.trim(),
-        }));
+      const normalizedBudgetAmount = requiresBudgetApproval
+        ? toPositiveNumber(budgetAmount)
+        : 0;
       const customFieldsWithBudgetAndTeam = upsertBudgetSettingsInCustomFields(
         customFieldsWithTeamSettings,
         {
           requiresBudgetApproval,
-          items: requiresBudgetApproval ? normalizedBudgetItems : [],
-          totalSponsorship: totalSponsorshipAmount.trim(),
+          amount: normalizedBudgetAmount > 0 ? String(normalizedBudgetAmount) : "",
+          items: [],
         }
       );
       const customFieldsWithApprovalBudgetAndTeam =
@@ -2270,6 +2176,9 @@ function CreateFestForm(props?: CreateFestProps) {
         allow_outsiders: formData.allowOutsiders,
         organizing_school: formData.organizingSchool,
         custom_fields: customFieldsWithApprovalBudgetAndTeam,
+        budget_amount: normalizedBudgetAmount,
+        estimated_budget_amount: normalizedBudgetAmount,
+        total_estimated_expense: normalizedBudgetAmount,
         approval_settings: {
           requires_hod_approval: requiresHodApproval,
           requires_dean_approval: requiresDeanApproval,
@@ -4153,188 +4062,31 @@ function CreateFestForm(props?: CreateFestProps) {
 
                     {requiresBudgetApproval && (
                       <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
-                        <div className="overflow-x-auto">
-                          <table className="w-full min-w-[980px] border-collapse">
-                            <thead>
-                              <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                                <th className="py-2 pr-2">Category</th>
-                                <th className="py-2 px-2">Requirement</th>
-                                <th className="py-2 px-2">Vendor</th>
-                                <th className="py-2 px-2">Price</th>
-                                <th className="py-2 px-2">Quantity</th>
-                                <th className="py-2 px-2">Advance</th>
-                                <th className="py-2 px-2">Total</th>
-                                <th className="py-2 px-2">GST</th>
-                                <th className="py-2 pl-2">Quotation</th>
-                                <th className="py-2 pl-2">Action</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {budgetItems.map((item, index) => {
-                                const rowTotal =
-                                  toPositiveNumber(item.price) * toPositiveNumber(item.quantity);
-                                return (
-                                  <tr key={item._uiKey || `budget-${index}`} className="border-b border-gray-100 last:border-b-0">
-                                    <td className="py-2 pr-2">
-                                      <input
-                                        type="text"
-                                        value={item.category}
-                                        onChange={(e) =>
-                                          updateBudgetItem(index, "category", e.target.value)
-                                        }
-                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="Category"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <input
-                                        type="text"
-                                        value={item.requirement}
-                                        onChange={(e) =>
-                                          updateBudgetItem(index, "requirement", e.target.value)
-                                        }
-                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="Requirement"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <input
-                                        type="text"
-                                        value={item.vendor}
-                                        onChange={(e) => updateBudgetItem(index, "vendor", e.target.value)}
-                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="Vendor"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={item.price}
-                                        onChange={(e) => updateBudgetItem(index, "price", e.target.value)}
-                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="0"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={item.quantity}
-                                        onChange={(e) => updateBudgetItem(index, "quantity", e.target.value)}
-                                        className="w-20 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="0"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={item.advance}
-                                        onChange={(e) => updateBudgetItem(index, "advance", e.target.value)}
-                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="0"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <p className="text-sm font-semibold text-gray-800 min-w-[90px]">
-                                        ₹{formatCurrency(rowTotal)}
-                                      </p>
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={item.gst}
-                                        onChange={(e) => updateBudgetItem(index, "gst", e.target.value)}
-                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                                        placeholder="0"
-                                      />
-                                    </td>
-                                    <td className="py-2 pl-2">
-                                      <div className="flex items-center gap-2">
-                                        <input
-                                          id={`budget-quotation-${index}`}
-                                          type="file"
-                                          className="hidden"
-                                          onChange={(e) =>
-                                            updateBudgetItem(
-                                              index,
-                                              "quotationFileName",
-                                              e.target.files?.[0]?.name || ""
-                                            )
-                                          }
-                                        />
-                                        <label
-                                          htmlFor={`budget-quotation-${index}`}
-                                          className="px-3 py-2 rounded-md bg-[#154CB3] text-white text-xs font-medium hover:bg-[#0f3a7a] cursor-pointer"
-                                        >
-                                          Upload
-                                        </label>
-                                        <span className="text-xs text-gray-500 max-w-[110px] truncate">
-                                          {item.quotationFileName || "No file"}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="py-2 pl-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => removeBudgetRow(index)}
-                                        className="px-3 py-2 rounded-md border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50"
-                                      >
-                                        Remove
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                        <label
+                          htmlFor="festBudgetAmount"
+                          className="block text-sm font-semibold text-gray-700"
+                        >
+                          Budget amount
+                        </label>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Enter the total amount required for approval.
+                        </p>
+                        <div className="mt-3 max-w-sm">
+                          <input
+                            id="festBudgetAmount"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={budgetAmount}
+                            onChange={(e) => setBudgetAmount(e.target.value)}
+                            className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                            placeholder="Enter amount"
+                          />
                         </div>
-
-                        <div className="flex flex-wrap justify-end gap-2 mt-4">
-                          <button
-                            type="button"
-                            onClick={addBudgetRow}
-                            className="px-4 py-2 rounded-md bg-[#154CB3] text-white text-sm font-medium hover:bg-[#0f3a7a]"
-                          >
-                            Add Row
-                          </button>
-                          <button
-                            type="button"
-                            onClick={undoBudgetRowChange}
-                            disabled={budgetHistory.length === 0}
-                            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Undo Row Change
-                          </button>
-                        </div>
-
-                        <div className="mt-8 space-y-2 text-right">
-                          <p className="text-sm text-gray-700">
-                            <span className="font-semibold mr-3">Sub-total</span>₹{formatCurrency(budgetTotals.subtotal)}
-                          </p>
-                          <p className="text-sm text-gray-700">
-                            <span className="font-semibold mr-3">Total GST</span>₹{formatCurrency(budgetTotals.totalGst)}
-                          </p>
-                          <div className="flex items-center justify-end gap-3">
-                            <label htmlFor="totalSponsorshipAmount" className="text-sm font-semibold text-gray-700">
-                              Total Sponsorship amount
-                            </label>
-                            <input
-                              id="totalSponsorshipAmount"
-                              type="number"
-                              min="0"
-                              value={totalSponsorshipAmount}
-                              onChange={(e) => setTotalSponsorshipAmount(e.target.value)}
-                              className="w-40 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                              placeholder="0"
-                            />
-                          </div>
-                          <p className="text-base font-bold text-[#063168]">
-                            Amount required: ₹{formatCurrency(budgetTotals.requiredAmount)}
-                          </p>
-                        </div>
+                        <p className="mt-3 text-sm font-semibold text-[#063168]">
+                          Entered amount: ₹
+                          {Number(toPositiveNumber(budgetAmount) || 0).toLocaleString("en-IN")}
+                        </p>
                       </div>
                     )}
                   </div>

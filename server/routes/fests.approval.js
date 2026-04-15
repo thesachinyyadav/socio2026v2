@@ -114,9 +114,15 @@ const getBudgetAmountFromCustomFields = (customFieldsValue) => {
   }
 
   const requiresBudgetApproval = asBoolean(settings.requiresBudgetApproval);
+  const explicitAmount =
+    parseNumber(settings.amount) ||
+    parseNumber(settings.totalAmount) ||
+    parseNumber(settings.budget_amount) ||
+    parseNumber(settings.estimated_budget_amount) ||
+    parseNumber(settings.total_estimated_expense);
   const items = Array.isArray(settings.items) ? settings.items : [];
 
-  const amount = items.reduce((sum, item) => {
+  const amountFromItems = items.reduce((sum, item) => {
     const price = parseNumber(item?.price);
     const quantity = parseNumber(item?.quantity || 1);
     const gstPercent = parseNumber(item?.gst);
@@ -124,6 +130,8 @@ const getBudgetAmountFromCustomFields = (customFieldsValue) => {
     const gstAmount = subtotal * (Math.max(0, gstPercent) / 100);
     return sum + subtotal + gstAmount;
   }, 0);
+
+  const amount = explicitAmount > 0 ? explicitAmount : amountFromItems;
 
   return {
     amount,
@@ -146,9 +154,7 @@ const getFestBudgetAmount = (festRecord) => {
     return fromCustomFields.amount;
   }
 
-  return asBoolean(festRecord?.is_budget_related) || fromCustomFields.requiresBudgetApproval
-    ? 1
-    : 0;
+  return 0;
 };
 
 const userHasRole = (userInfo, roleCode) => {
@@ -681,8 +687,25 @@ router.get("/:festId/context", async (req, res) => {
       }),
     ]);
 
+    const resolvedBudgetAmount = getFestBudgetAmount(fest);
+    const festForContext = {
+      ...fest,
+      budget_amount:
+        parseNumber(fest?.budget_amount) > 0
+          ? parseNumber(fest?.budget_amount)
+          : resolvedBudgetAmount || null,
+      estimated_budget_amount:
+        parseNumber(fest?.estimated_budget_amount) > 0
+          ? parseNumber(fest?.estimated_budget_amount)
+          : resolvedBudgetAmount || null,
+      total_estimated_expense:
+        parseNumber(fest?.total_estimated_expense) > 0
+          ? parseNumber(fest?.total_estimated_expense)
+          : resolvedBudgetAmount || null,
+    };
+
     return res.status(200).json({
-      fest,
+      fest: festForContext,
       logs,
       approvers: {
         hod: hod

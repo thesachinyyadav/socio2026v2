@@ -217,6 +217,14 @@ export const eventFormSchema = z
       .regex(/^\d{10}$/, "Phone number must be 10 digits"),
     whatsappLink: z.string().url("Invalid URL").optional().or(z.literal("")),
     provideClaims: z.boolean().default(false),
+    budgetAmount: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || /^\d+(\.\d{1,2})?$/.test(val) || val === "0",
+        "Invalid budget format. Enter a number (e.g., 1000, 25000, 1000.50)"
+      )
+      .transform((val) => (val === "" ? undefined : val)),
     sendNotifications: z.boolean().default(false),
     onSpot: z.boolean().default(false),
     
@@ -350,6 +358,25 @@ export const eventFormSchema = z
     {
       message: "Registration deadline cannot be after the event end date",
       path: ["registrationDeadline"],
+    }
+  )
+  .refine(
+    (data) => {
+      const hasFestSelected =
+        typeof data.festEvent === "string" &&
+        data.festEvent.trim() !== "" &&
+        data.festEvent.trim().toLowerCase() !== "none";
+
+      if (hasFestSelected || !data.provideClaims) {
+        return true;
+      }
+
+      return Number(data.budgetAmount || 0) > 0;
+    },
+    {
+      message:
+        "Budget amount must be greater than 0 when budget approval is enabled",
+      path: ["budgetAmount"],
     }
   )
   .superRefine((data, ctx) => {

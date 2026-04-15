@@ -181,15 +181,14 @@ const getEventBudgetAmount = (eventRecord) => {
     parseNumber(eventRecord?.budget_amount) ||
     parseNumber(eventRecord?.estimated_budget_amount) ||
     parseNumber(eventRecord?.total_estimated_expense) ||
-    parseNumber(eventRecord?.budget);
+    parseNumber(eventRecord?.budget) ||
+    parseNumber(eventRecord?.registration_fee);
 
   if (directAmount > 0) {
     return directAmount;
   }
 
-  return asBoolean(eventRecord?.needs_budget_approval) || asBoolean(eventRecord?.claims_applicable)
-    ? 1
-    : 0;
+  return 0;
 };
 
 const findApprover = async ({ roleCode, department, school, campus, excludeEmail }) =>
@@ -630,8 +629,25 @@ router.get("/:eventId/context", async (req, res) => {
       }),
     ]);
 
+    const resolvedBudgetAmount = getEventBudgetAmount(event);
+    const eventForContext = {
+      ...event,
+      budget_amount:
+        parseNumber(event?.budget_amount) > 0
+          ? parseNumber(event?.budget_amount)
+          : resolvedBudgetAmount || null,
+      estimated_budget_amount:
+        parseNumber(event?.estimated_budget_amount) > 0
+          ? parseNumber(event?.estimated_budget_amount)
+          : resolvedBudgetAmount || null,
+      total_estimated_expense:
+        parseNumber(event?.total_estimated_expense) > 0
+          ? parseNumber(event?.total_estimated_expense)
+          : resolvedBudgetAmount || null,
+    };
+
     return res.status(200).json({
-      event,
+      event: eventForContext,
       parent_fest: parentFest,
       context,
       approvers: {
