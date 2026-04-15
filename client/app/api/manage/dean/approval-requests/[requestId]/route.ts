@@ -552,7 +552,6 @@ export async function PATCH(
         upstreamPayload?.message ||
         upstreamText ||
         "Unable to update approval decision.";
-
       console.error("[ManageDean] Upstream approval decision failed", {
         requestId,
         requestIdentifier,
