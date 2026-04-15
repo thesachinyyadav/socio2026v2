@@ -50,7 +50,10 @@ interface Fest {
   fest_image_url: string;
   organizing_dept: string;
   created_by?: string;
+  auth_uuid?: string | null;
   contact_email?: string | null;
+  organizer_email?: string | null;
+  organiser_email?: string | null;
   event_heads?: Array<{ email?: string | null } | string>;
   campus_hosted_at?: string | null;
   is_draft?: boolean | number | string | null;
@@ -810,7 +813,7 @@ export default function ManageDashboard() {
   
   // Auth Context & Session
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const { userData, isMasterAdmin } = useAuth();
+  const { userData, isMasterAdmin, session } = useAuth();
   const userRecord = (userData as Record<string, unknown> | null) || null;
   const isOrganiser =
     Boolean(userData?.is_organiser) || hasAnyRoleCode(userRecord, ["ORGANIZER_TEACHER"]);
@@ -923,31 +926,49 @@ export default function ManageDashboard() {
   const normalizeEmail = (value: string | null | undefined) =>
     String(value || "").trim().toLowerCase();
   const currentUserEmail = normalizeEmail(userData?.email);
-  const CREATOR_PLACEHOLDER_TOKENS = new Set(["admin", "system", "unknown", "n/a", "na", "none"]);
+  const currentUserAuthUuid = String(session?.user?.id || "").trim().toLowerCase();
+  const CREATOR_PLACEHOLDER_TOKENS = new Set([
+    "admin",
+    "system",
+    "unknown",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "undefined",
+  ]);
 
-  const normalizeCreatorEmail = (value: string | null | undefined) => {
-    const normalized = normalizeEmail(value);
-    if (!normalized) return "";
-    if (!normalized.includes("@")) {
-      if (CREATOR_PLACEHOLDER_TOKENS.has(normalized)) {
-        return "";
-      }
+  const isUuidLike = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+  const normalizeOwnerIdentity = (value: string | null | undefined) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized || CREATOR_PLACEHOLDER_TOKENS.has(normalized)) {
       return "";
     }
-    return normalized;
+
+    if (normalized.includes("@")) {
+      return normalized;
+    }
+
+    if (isUuidLike(normalized)) {
+      return normalized;
+    }
+
+    return "";
   };
 
-  const resolveCreatorEmail = (
+  const resolveOwnerIdentity = (
     createdBy: string | null | undefined,
     fallbackOwnerCandidates: Array<string | null | undefined> = []
   ) => {
-    const primaryOwner = normalizeCreatorEmail(createdBy);
+    const primaryOwner = normalizeOwnerIdentity(createdBy);
     if (primaryOwner) {
       return primaryOwner;
     }
 
     for (const candidate of fallbackOwnerCandidates) {
-      const normalizedCandidate = normalizeCreatorEmail(candidate);
+      const normalizedCandidate = normalizeOwnerIdentity(candidate);
       if (normalizedCandidate) {
         return normalizedCandidate;
       }
@@ -961,11 +982,21 @@ export default function ManageDashboard() {
     ...fallbackOwnerCandidates: Array<string | null | undefined>
   ) => {
     if (!currentUserEmail) {
+      if (!currentUserAuthUuid) {
+        return false;
+      }
+    }
+
+    const effectiveOwner = resolveOwnerIdentity(createdBy, fallbackOwnerCandidates);
+    if (!effectiveOwner) {
       return false;
     }
 
-    const effectiveCreator = resolveCreatorEmail(createdBy, fallbackOwnerCandidates);
-    return effectiveCreator.length > 0 && effectiveCreator === currentUserEmail;
+    if (effectiveOwner.includes("@")) {
+      return Boolean(currentUserEmail) && effectiveOwner === currentUserEmail;
+    }
+
+    return Boolean(currentUserAuthUuid) && effectiveOwner === currentUserAuthUuid;
   };
 
   const canViewPendingApprovalCard = ({
@@ -1050,8 +1081,23 @@ export default function ManageDashboard() {
         closing_date: fest.closing_date || null,
         fest_image_url: fest.fest_image_url || "",
         organizing_dept: fest.organizing_dept || "",
-        created_by: fest.created_by || fest.createdBy || null,
-        contact_email: fest.contact_email || fest.contactEmail || null,
+        created_by:
+          fest.created_by ||
+          fest.createdBy ||
+          fest.created_by_email ||
+          fest.createdByEmail ||
+          null,
+        auth_uuid: fest.auth_uuid || fest.authUuid || null,
+        contact_email:
+          fest.contact_email ||
+          fest.contactEmail ||
+          fest.organizer_email ||
+          fest.organizerEmail ||
+          fest.organiser_email ||
+          fest.organiserEmail ||
+          null,
+        organizer_email: fest.organizer_email || fest.organizerEmail || null,
+        organiser_email: fest.organiser_email || fest.organiserEmail || null,
         event_heads: Array.isArray(fest.event_heads)
           ? fest.event_heads
           : Array.isArray(fest.eventHeads)
@@ -1080,14 +1126,25 @@ export default function ManageDashboard() {
             workflowStatus: fest.workflow_status,
             lifecycleStatus: fest.lifecycle_status || fest.status,
             createdBy: fest.created_by,
-            fallbackOwnerCandidates: [fest.contact_email],
+            fallbackOwnerCandidates: [
+              fest.auth_uuid,
+              fest.contact_email,
+              fest.organizer_email,
+              fest.organiser_email,
+            ],
           });
 
           if (!canSeePendingFestCard) {
             return false;
           }
 
-          return isOwnedByCurrentUser(fest.created_by, fest.contact_email);
+          return isOwnedByCurrentUser(
+            fest.created_by,
+            fest.auth_uuid,
+            fest.contact_email,
+            fest.organizer_email,
+            fest.organiser_email
+          );
         }
       );
 
@@ -1284,10 +1341,15 @@ export default function ManageDashboard() {
       workflowStatus: e.workflow_status,
       lifecycleStatus: (e as any).lifecycle_status || (e as any).status,
       createdBy: e.created_by,
-      fallbackOwnerCandidates: [(e as any).organizer_email, (e as any).organiser_email],
+      fallbackOwnerCandidates: [
+        (e as any).auth_uuid,
+        (e as any).organizer_email,
+        (e as any).organiser_email,
+      ],
     });
     const isOwnerOrMaster = isOwnedByCurrentUser(
       e.created_by,
+      (e as any).auth_uuid,
       (e as any).organizer_email,
       (e as any).organiser_email
     );

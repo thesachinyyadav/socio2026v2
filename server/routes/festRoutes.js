@@ -27,6 +27,26 @@ import {
 
 const router = express.Router();
 
+const getRoleCodes = (userInfo) =>
+  Array.isArray(userInfo?.role_codes) ? userInfo.role_codes : [];
+
+const canAccessNonPublicFests = (userInfo) => {
+  const roleCodes = getRoleCodes(userInfo);
+
+  return Boolean(
+    userInfo &&
+      (userInfo.is_masteradmin ||
+        userInfo.is_organiser ||
+        userInfo.is_organiser_student ||
+        userInfo.is_organiser_teacher ||
+        hasAnyRoleCode(roleCodes, [
+          ROLE_CODES.MASTER_ADMIN,
+          ROLE_CODES.ORGANIZER_TEACHER,
+          ROLE_CODES.ORGANIZER_STUDENT,
+        ]))
+  );
+};
+
 const normalizeJsonField = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -942,17 +962,7 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
 
     // Filter out archived/draft fests for public callers unless draft inclusion is explicitly allowed.
     const userInfo = req.userInfo;
-    const roleCodes = Array.isArray(userInfo?.role_codes) ? userInfo.role_codes : [];
-    const isAdminOrOrganizer = Boolean(
-      userInfo &&
-        (userInfo.is_masteradmin ||
-          userInfo.is_organiser ||
-          hasAnyRoleCode(roleCodes, [
-            ROLE_CODES.MASTER_ADMIN,
-            ROLE_CODES.ORGANIZER_TEACHER,
-            ROLE_CODES.ORGANIZER_STUDENT,
-          ]))
-    );
+    const isAdminOrOrganizer = canAccessNonPublicFests(userInfo);
     const shouldIncludeDrafts = includeDraftsRequested && isAdminOrOrganizer;
     
     if (!isAdminOrOrganizer) {
@@ -1098,7 +1108,7 @@ router.get("/:festId", optionalAuth, checkRoleExpiration, async (req, res) => {
     // Check if fest is archived
     if (fest.is_archived) {
       const userInfo = req.userInfo;
-      const isAdminOrOrganizer = userInfo && (userInfo.is_masteradmin || userInfo.is_organiser);
+      const isAdminOrOrganizer = canAccessNonPublicFests(userInfo);
       
       if (!isAdminOrOrganizer) {
         console.warn(`[Fest GET] Archived fest access denied: ${festSlug}`);
