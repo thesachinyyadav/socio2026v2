@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 export type ApprovalRowStatus = "approved" | "pending" | "rejected";
@@ -53,7 +53,41 @@ export default function ApprovalStatusPopover({
 }: ApprovalStatusPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [horizontalAlign, setHorizontalAlign] = useState<"left" | "right">("left");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updateHorizontalAlign = () => {
+      const triggerRect = containerRef.current?.getBoundingClientRect();
+      const popoverWidth = popoverRef.current?.offsetWidth;
+      if (!triggerRect || !popoverWidth) return;
+
+      const viewportWidth = window.innerWidth;
+      const viewportPadding = 12;
+
+      const leftAlignedOverflow =
+        Math.max(0, triggerRect.left + popoverWidth - (viewportWidth - viewportPadding)) +
+        Math.max(0, viewportPadding - triggerRect.left);
+      const rightAlignedOverflow =
+        Math.max(0, triggerRect.right - (viewportWidth - viewportPadding)) +
+        Math.max(0, viewportPadding - (triggerRect.right - popoverWidth));
+
+      setHorizontalAlign(rightAlignedOverflow < leftAlignedOverflow ? "right" : "left");
+    };
+
+    updateHorizontalAlign();
+    window.addEventListener("resize", updateHorizontalAlign);
+    window.addEventListener("scroll", updateHorizontalAlign, true);
+
+    return () => {
+      window.removeEventListener("resize", updateHorizontalAlign);
+      window.removeEventListener("scroll", updateHorizontalAlign, true);
+    };
+  }, [isOpen, rows.length]);
 
   const clearCloseTimer = () => {
     if (closeTimerRef.current !== null) {
@@ -81,6 +115,7 @@ export default function ApprovalStatusPopover({
 
   return (
     <div
+      ref={containerRef}
       className="relative"
       onMouseEnter={openPopover}
       onMouseLeave={closePopover}
@@ -101,7 +136,10 @@ export default function ApprovalStatusPopover({
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full left-0 z-40 mb-3 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-700/80 bg-[#060B17] shadow-2xl">
+        <div
+          ref={popoverRef}
+          className={`absolute bottom-full z-40 mb-3 w-[min(26rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-slate-700/80 bg-[#060B17] shadow-2xl ${horizontalAlign === "right" ? "right-0" : "left-0"}`}
+        >
           <div className="border-b border-slate-800 px-4 py-3">
             <p className="text-sm font-semibold text-white">Approval Timeline</p>
             <p className="mt-1 text-xs text-slate-300">
