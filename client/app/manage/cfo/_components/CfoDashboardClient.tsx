@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import ApprovalDecisionModal from "../../hod/_components/ApprovalDecisionModal";
 import CfoApprovalTable from "./CfoApprovalTable";
+import { processCfoApprovalAction } from "../actions";
 import { CfoApprovalAction, CfoApprovalQueueItem, CfoDashboardMetrics } from "../types";
 
 interface CfoDashboardClientProps {
@@ -140,24 +141,35 @@ export default function CfoDashboardClient({
     setActiveRequestId(requestId);
 
     try {
-      const response = await fetch(
-        `/api/manage/cfo/approval-requests/${encodeURIComponent(requestId)}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action,
-            note: note?.trim() || null,
-          }),
+      if (action === "approve") {
+        const result = await processCfoApprovalAction({
+          requestId,
+          note: note?.trim() || undefined,
+        });
+
+        if (!result.ok) {
+          throw new Error(result.message || "Unable to process CFO approval handoff.");
         }
-      );
+      } else {
+        const response = await fetch(
+          `/api/manage/cfo/approval-requests/${encodeURIComponent(requestId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action,
+              note: note?.trim() || null,
+            }),
+          }
+        );
 
-      const payload = await response.json().catch(() => null);
+        const payload = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        throw new Error(payload?.error || "Unable to update approval request.");
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to update approval request.");
+        }
       }
 
       applySuccessfulAction(requestId, action);

@@ -186,6 +186,83 @@ function success(message: string): FinanceActionResult {
   return { ok: true, message };
 }
 
+export async function processAccountsApprovalAction(input: {
+  requestId: string;
+  note?: string;
+}): Promise<FinanceActionResult> {
+  try {
+    const requestId = normalizeText(input.requestId);
+    const note = normalizeText(input.note);
+
+    if (!requestId) {
+      return fail("Approval request id is required.");
+    }
+
+    const authContext = await resolveFinanceSession();
+    if (!authContext.ok) {
+      return fail(authContext.error);
+    }
+
+    const { supabase, user } = authContext;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      "process_accounts_approval_route_logistics",
+      {
+        p_l4_request_id: requestId,
+        p_actor_email: user.email || null,
+        p_note: note || null,
+      }
+    );
+
+    if (rpcError) {
+      return fail(`Failed to route L4 approval to logistics: ${rpcError.message}`);
+    }
+
+    const payload = (rpcData || {}) as Record<string, unknown>;
+    if (payload.ok === false) {
+      return fail(normalizeText(payload.message) || "Unable to process L4 approval.");
+    }
+
+    const eventId = normalizeText(payload.event_id);
+    const createdServiceRequests = toNumber(payload.created_service_requests);
+    const promotedQueuedRequests = toNumber(payload.promoted_queued_requests);
+    const pendingServiceRequests = toNumber(payload.pending_service_requests);
+    const workflowPhase = normalizeText(payload.workflow_phase) || "logistics_approval";
+
+    await logFinanceAudit(supabase, {
+      eventId: eventId || null,
+      budgetId: null,
+      action: "L4_APPROVED_LOGISTICS_ROUTED",
+      notes: note || null,
+      actedByEmail: user.email || null,
+      metadata: {
+        approval_request_db_id: requestId,
+        created_service_requests: createdServiceRequests,
+        promoted_queued_requests: promotedQueuedRequests,
+        pending_service_requests: pendingServiceRequests,
+        workflow_phase: workflowPhase,
+      },
+    });
+
+    revalidatePath("/manage/finance");
+    revalidatePath("/manage/cfo");
+
+    const baseMessage =
+      normalizeText(payload.message) ||
+      "L4 approval recorded and routed to logistics workflow.";
+
+    return success(
+      `${baseMessage} (${createdServiceRequests} new logistics requests, ${promotedQueuedRequests} queued promoted.)`
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unexpected error while processing L4 approval.";
+    return fail(message);
+  }
+}
+
 export async function submitFinanceApprovalDecisionAction(input: {
   requestId: string;
   action: FinanceApprovalAction;
@@ -206,6 +283,13 @@ export async function submitFinanceApprovalDecisionAction(input: {
 
     if ((action === "reject" || action === "return") && note.length < 20) {
       return fail("Reject/Return note must be at least 20 characters.");
+    }
+
+    if (action === "approve") {
+      return processAccountsApprovalAction({
+        requestId,
+        note,
+      });
     }
 
     const authContext = await resolveFinanceSession();

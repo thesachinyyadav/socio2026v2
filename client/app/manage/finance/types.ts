@@ -5,6 +5,7 @@ export interface FinanceL4ApprovalItem {
   eventId: string;
   eventName: string;
   eventDate: string | null;
+  cfoApprovedAt: string | null;
   requestedAt: string | null;
   departmentName: string;
   schoolName: string;

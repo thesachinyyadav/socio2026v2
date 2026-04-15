@@ -23,6 +23,7 @@ type ApprovalJoinRow = {
   status?: string | null;
   created_at?: string | null;
   approval_level?: string | null;
+  cfo_approved_at?: string | null;
   version?: number | string | null;
 };
 
@@ -269,6 +270,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
       status,
       created_at,
       approval_level,
+      cfo_approved_at,
       version
     ),
     event_budgets!inner (
@@ -337,6 +339,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
         eventId: normalizeText(row.event_id),
         eventName: normalizeText(row.title) || "Untitled Event",
         eventDate: normalizeText(row.event_date) || null,
+        cfoApprovedAt: normalizeText(approval?.cfo_approved_at) || null,
         requestedAt: normalizeText(approval?.created_at) || null,
         departmentName: normalizeText(row.organizing_dept) || "Unknown Department",
         schoolName: normalizeText(row.organizing_school) || "Unknown School",

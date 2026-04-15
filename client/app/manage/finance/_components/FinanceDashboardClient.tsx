@@ -9,6 +9,7 @@ import {
   submitFinanceApprovalDecisionAction,
   toggleExpenseDocumentVerificationAction,
 } from "../actions";
+import AccountsApproveAndRouteButton from "./AccountsApproveAndRouteButton";
 import {
   FinanceAdvanceRequestItem,
   FinanceApprovalAction,
@@ -197,6 +198,7 @@ export default function FinanceDashboardClient({
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Event</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Department / School</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Estimated Budget</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">CFO Approved</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Requested</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Decision</th>
                 </tr>
@@ -204,7 +206,7 @@ export default function FinanceDashboardClient({
               <tbody className="divide-y divide-slate-200">
                 {initialData.approvals.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
                       No pending L4 budget approvals.
                     </td>
                   </tr>
@@ -227,6 +229,7 @@ export default function FinanceDashboardClient({
                       <td className="px-4 py-4 text-sm font-semibold text-slate-900">
                         {formatCurrency(item.totalEstimatedExpense)}
                       </td>
+                      <td className="px-4 py-4 text-sm text-slate-700">{formatDate(item.cfoApprovedAt)}</td>
                       <td className="px-4 py-4 text-sm text-slate-700">{formatDate(item.requestedAt)}</td>
                       <td className="px-4 py-4">
                         <textarea
@@ -242,14 +245,10 @@ export default function FinanceDashboardClient({
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#154CB3] focus:outline-none"
                         />
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            type="button"
+                          <AccountsApproveAndRouteButton
                             onClick={() => submitDecision(item.id, "approve")}
                             disabled={isPending}
-                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
+                          />
                           <button
                             type="button"
                             onClick={() => submitDecision(item.id, "return")}

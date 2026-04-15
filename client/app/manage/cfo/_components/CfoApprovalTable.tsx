@@ -1,6 +1,7 @@
 "use client";
 
 import { CfoApprovalQueueItem } from "../types";
+import CfoApproveAndHandoffButton from "./CfoApproveAndHandoffButton";
 
 interface CfoApprovalTableProps {
   rows: CfoApprovalQueueItem[];
@@ -108,14 +109,10 @@ export default function CfoApprovalTable({
                   <td className="px-5 py-4 align-top text-sm text-slate-700">{formatDateLabel(row.eventDate)}</td>
                   <td className="px-5 py-4 align-top">
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
+                      <CfoApproveAndHandoffButton
                         onClick={() => onApprove(row.id)}
                         disabled={isWorking}
-                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Approve
-                      </button>
+                      />
                       <button
                         type="button"
                         onClick={() => onReject(row.id)}
