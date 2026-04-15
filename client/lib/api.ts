@@ -1,7 +1,10 @@
 import { supabase } from './supabaseClient';
 
 // API Base URL
-export const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+export const API_URL = String(process.env.NEXT_PUBLIC_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/(\/api)+$/i, "");
 
 // ============ EVENTS ============
 

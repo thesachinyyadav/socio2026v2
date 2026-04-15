@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = String(process.env.NEXT_PUBLIC_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/(\/api)+$/i, "");
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 const isLocalOrigin = (value?: string | null) =>

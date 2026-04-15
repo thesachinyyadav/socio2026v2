@@ -725,16 +725,26 @@ const deriveFestStatusFromDates = (
 };
 
 const isMissingColumnError = (error, columnName) => {
-  if (String(error?.code || "") !== "42703") {
-    return false;
-  }
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  const details = String(error?.details || "").toLowerCase();
+  const hint = String(error?.hint || "").toLowerCase();
 
   if (!columnName) {
-    return true;
+    return code === "42703" || code === "PGRST204";
   }
 
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes(String(columnName).toLowerCase());
+  const normalizedColumn = String(columnName).toLowerCase();
+
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes(`column \"${normalizedColumn}\"`) ||
+    message.includes(`${normalizedColumn} does not exist`) ||
+    (message.includes("could not find") && message.includes(normalizedColumn)) ||
+    details.includes(normalizedColumn) ||
+    hint.includes(normalizedColumn)
+  );
 };
 const isMissingRelationError = (error) => {
   const code = String(error?.code || "").toUpperCase();

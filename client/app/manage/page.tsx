@@ -120,8 +120,8 @@ const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }>
 
 const API_URL = String(process.env.NEXT_PUBLIC_API_URL || "")
   .trim()
-  .replace(/\/api\/?$/, "")
-  .replace(/\/$/, "");
+  .replace(/\/+$/, "")
+  .replace(/(\/api)+$/i, "");
 const API_ORIGIN_FALLBACKS = [
   "https://socioserver-snowy.vercel.app",
   "https://sociodevserver.vercel.app",
@@ -130,8 +130,8 @@ const API_ORIGIN_FALLBACKS = [
 const normalizeApiOrigin = (value: string | null | undefined) => {
   const normalized = String(value || "")
     .trim()
-    .replace(/\/api\/?$/, "")
-    .replace(/\/$/, "");
+    .replace(/\/+$/, "")
+    .replace(/(\/api)+$/i, "");
 
   if (!normalized) {
     return "";
@@ -1037,12 +1037,12 @@ export default function ManageDashboard() {
       }
     };
 
+    addOrigin(API_URL);
+    API_ORIGIN_FALLBACKS.forEach((origin) => addOrigin(origin));
+
     if (typeof window !== "undefined") {
       addOrigin(window.location.origin);
     }
-
-    addOrigin(API_URL);
-    API_ORIGIN_FALLBACKS.forEach((origin) => addOrigin(origin));
 
     return Array.from(originSet);
   }, []);

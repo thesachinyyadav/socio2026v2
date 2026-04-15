@@ -9,8 +9,8 @@ const fallbackAppUrl = isProduction
   ? "https://sociodev.vercel.app"
   : "http://localhost:3000";
 const fallbackApiUrl = isProduction
-  ? "https://socioserver-snowy.vercel.app/api"
-  : "http://localhost:8000/api";
+  ? "https://socioserver-snowy.vercel.app"
+  : "http://localhost:8000";
 
 const remoteImageHosts = (process.env.NEXT_PUBLIC_REMOTE_IMAGE_HOSTS || "")
   .split(",")
@@ -42,7 +42,9 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, ".."),
   env: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || fallbackAppUrl,
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || fallbackApiUrl,
+    NEXT_PUBLIC_API_URL: (process.env.NEXT_PUBLIC_API_URL || fallbackApiUrl)
+      .replace(/\/+$/, "")
+      .replace(/(\/api)+$/i, ""),
     NEXT_PUBLIC_PWA_URL: process.env.NEXT_PUBLIC_PWA_URL || fallbackAppUrl,
     NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL:
       process.env.NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL ||
