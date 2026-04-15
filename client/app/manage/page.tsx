@@ -118,7 +118,31 @@ const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }>
   { value: "archived", label: "Archived" },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = String(process.env.NEXT_PUBLIC_API_URL || "")
+  .trim()
+  .replace(/\/api\/?$/, "")
+  .replace(/\/$/, "");
+const API_ORIGIN_FALLBACKS = [
+  "https://socioserver-snowy.vercel.app",
+  "https://sociodevserver.vercel.app",
+];
+
+const normalizeApiOrigin = (value: string | null | undefined) => {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/\/api\/?$/, "")
+    .replace(/\/$/, "");
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    return normalized;
+  }
+
+  return "";
+};
 const MANUAL_UNARCHIVE_OVERRIDE = "system:manual_unarchive_override";
 const PENDING_WORKFLOW_STATUS_REGEX = /^pending_level_([1-4])$/;
 const PENDING_LIFECYCLE_STATUSES = new Set(["pending_approval", "pending_approvals"]);
@@ -955,6 +979,64 @@ export default function ManageDashboard() {
 
     return nodes.filter((node) => node.visible);
   }, [isMasterAdmin, isHod, isDean, isCfo, isFinanceOfficer]);
+
+  const apiOrigins = useMemo(() => {
+    const originSet = new Set<string>();
+
+    const addOrigin = (origin: string | null | undefined) => {
+      const normalizedOrigin = normalizeApiOrigin(origin);
+      if (normalizedOrigin) {
+        originSet.add(normalizedOrigin);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      addOrigin(window.location.origin);
+    }
+
+    addOrigin(API_URL);
+    API_ORIGIN_FALLBACKS.forEach((origin) => addOrigin(origin));
+
+    return Array.from(originSet);
+  }, []);
+
+  const apiGetWithFallback = useCallback(
+    async (path: string, init: RequestInit = {}) => {
+      const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+      const retryableStatuses = new Set([404, 502, 503, 504]);
+      let lastNetworkError: Error | null = null;
+
+      for (let index = 0; index < apiOrigins.length; index += 1) {
+        const origin = apiOrigins[index];
+        const isLastOrigin = index === apiOrigins.length - 1;
+
+        try {
+          const response = await fetch(`${origin}${normalizedPath}`, init);
+          if (response.ok) {
+            return response;
+          }
+
+          if (isLastOrigin || !retryableStatuses.has(response.status)) {
+            return response;
+          }
+        } catch (error) {
+          lastNetworkError =
+            error instanceof Error ? error : new Error("Failed to fetch API data.");
+
+          if (isLastOrigin) {
+            throw lastNetworkError;
+          }
+        }
+      }
+
+      if (lastNetworkError) {
+        throw lastNetworkError;
+      }
+
+      throw new Error("API request failed across all origins.");
+    },
+    [apiOrigins]
+  );
   
   // Fests Data
   const [fests, setFests] = useState<Fest[]>([]);
@@ -1168,7 +1250,7 @@ export default function ManageDashboard() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/fests?sortBy=created_at&sortOrder=desc&include_drafts=true&owned_only=true`, {
+      const response = await apiGetWithFallback(`/api/fests?sortBy=created_at&sortOrder=desc&include_drafts=true&owned_only=true`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1233,41 +1315,42 @@ export default function ManageDashboard() {
           fest.is_budget_related === "true",
       }));
 
-      const userSpecificFests = mappedFests.filter(
-        (fest) => {
-          const canSeePendingFestCard = canViewPendingApprovalCard({
-            workflowStatus: fest.workflow_status,
-            lifecycleStatus: fest.lifecycle_status || fest.status,
-            createdBy: fest.created_by,
-            fallbackOwnerCandidates: [
-              fest.auth_uuid,
-              fest.contact_email,
-              fest.organizer_email,
-              fest.organiser_email,
-            ],
-          });
-
-          if (!canSeePendingFestCard) {
-            return false;
-          }
-
-          return isOwnedByCurrentUser(
-            fest.created_by,
+      const visibleFests = mappedFests.filter((fest) =>
+        canViewPendingApprovalCard({
+          workflowStatus: fest.workflow_status,
+          lifecycleStatus: fest.lifecycle_status || fest.status,
+          createdBy: fest.created_by,
+          fallbackOwnerCandidates: [
             fest.auth_uuid,
             fest.contact_email,
             fest.organizer_email,
-            fest.organiser_email
-          );
-        }
+            fest.organiser_email,
+          ],
+        })
       );
 
-      setFests(userSpecificFests);
+      const userSpecificFests = visibleFests.filter((fest) =>
+        isOwnedByCurrentUser(
+          fest.created_by,
+          fest.auth_uuid,
+          fest.contact_email,
+          fest.organizer_email,
+          fest.organiser_email
+        )
+      );
+
+      const finalFestRows =
+        userSpecificFests.length > 0 || visibleFests.length === 0
+          ? userSpecificFests
+          : visibleFests;
+
+      setFests(finalFestRows);
 
       if (festsCacheKey && typeof window !== "undefined") {
         window.sessionStorage.setItem(
           festsCacheKey,
           JSON.stringify({
-            fests: userSpecificFests,
+            fests: finalFestRows,
             cachedAt: Date.now(),
           })
         );
@@ -1280,7 +1363,7 @@ export default function ManageDashboard() {
     } finally {
       setIsLoadingFests(false);
     }
-  }, [API_URL, authToken, userData?.email, currentUserEmail, isMasterAdmin, fests.length, festsCacheKey]);
+  }, [apiGetWithFallback, authToken, userData?.email, currentUserEmail, isMasterAdmin, fests.length, festsCacheKey]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1327,7 +1410,7 @@ export default function ManageDashboard() {
           return;
         }
 
-        const response = await fetch(`${API_URL}/api/events?sortBy=created_at&sortOrder=desc&include_drafts=true`, {
+        const response = await apiGetWithFallback(`/api/events?sortBy=created_at&sortOrder=desc&include_drafts=true`, {
           headers: {
             Authorization: `Bearer ${authToken}`,
           },
@@ -1350,7 +1433,7 @@ export default function ManageDashboard() {
     };
 
     fetchLiveEvents();
-  }, [authToken, contextAllEvents]);
+  }, [apiGetWithFallback, authToken, contextAllEvents]);
 
 
   // Permissions & Campus logic for Events
@@ -1549,8 +1632,8 @@ export default function ManageDashboard() {
 
       try {
         const queryValue = encodeURIComponent(requestedIds.join(","));
-        const response = await fetch(
-          `${API_URL}/api/approvals/requests/timeline?requestIds=${queryValue}`,
+        const response = await apiGetWithFallback(
+          `/api/approvals/requests/timeline?requestIds=${queryValue}`,
           {
             headers: {
               Authorization: `Bearer ${authToken}`,
@@ -1611,7 +1694,7 @@ export default function ManageDashboard() {
         return next;
       });
     };
-  }, [API_URL, authToken, visibleApprovalRequestIdsKey]);
+  }, [apiGetWithFallback, authToken, visibleApprovalRequestIdsKey]);
 
   const scrollToTop = () => {
     const performScroll = () => {
@@ -1644,7 +1727,7 @@ export default function ManageDashboard() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/events?sortBy=created_at&sortOrder=desc&include_drafts=true`, {
+      const response = await apiGetWithFallback(`/api/events?sortBy=created_at&sortOrder=desc&include_drafts=true`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1661,7 +1744,7 @@ export default function ManageDashboard() {
       console.error("Error refreshing live events:", err);
       setLiveEvents(contextAllEvents);
     }
-  }, [API_URL, authToken, contextAllEvents]);
+  }, [apiGetWithFallback, authToken, contextAllEvents]);
 
   useEffect(() => {
     if (!authToken) return;
@@ -1682,8 +1765,8 @@ export default function ManageDashboard() {
   const handleGenerateReport = async () => {
     setIsGenerating(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-      const response = await fetch(`${API_URL}/api/report/data`, {
+      const reportApiBase = API_URL || "";
+      const response = await fetch(`${reportApiBase}/api/report/data`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

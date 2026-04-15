@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -31,6 +31,8 @@ type ModalState = {
   errorMessage: string | null;
 };
 
+type CompletedActionMap = Record<string, HodApprovalAction>;
+
 const currencyFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -38,6 +40,7 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
 });
 
 const NOTE_MIN_CHARS = 1;
+const ROW_COMPLETION_DISPLAY_MS = 1600;
 
 async function fetchWithTimeout(
   url: string,
@@ -87,20 +90,56 @@ export default function HodDashboardClient({
 
   const [queue, setQueue] = useState<HodApprovalQueueItem[]>(initialQueue);
   const [metrics, setMetrics] = useState<HodDashboardMetrics>(initialMetrics);
+  const [completedActions, setCompletedActions] = useState<CompletedActionMap>({});
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState | null>(null);
+  const completionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const headerSubtitle = useMemo(
     () => `Department Scope: ${departmentName || "My Department"}`,
     [departmentName]
   );
 
-  const applySuccessfulAction = (requestId: string) => {
-    setQueue((previous) => previous.filter((row) => row.id !== requestId));
+  useEffect(() => {
+    return () => {
+      Object.values(completionTimers.current).forEach((timerId) => clearTimeout(timerId));
+      completionTimers.current = {};
+    };
+  }, []);
+
+  const clearCompletionTimer = (requestId: string) => {
+    const existing = completionTimers.current[requestId];
+    if (existing) {
+      clearTimeout(existing);
+      delete completionTimers.current[requestId];
+    }
+  };
+
+  const applySuccessfulAction = (requestId: string, action: HodApprovalAction) => {
+    setCompletedActions((previous) => ({
+      ...previous,
+      [requestId]: action,
+    }));
+
     setMetrics((previous) => ({
       ...previous,
       pendingL1Approvals: Math.max(previous.pendingL1Approvals - 1, 0),
     }));
+
+    clearCompletionTimer(requestId);
+    completionTimers.current[requestId] = setTimeout(() => {
+      setQueue((previous) => previous.filter((row) => row.id !== requestId));
+      setCompletedActions((previous) => {
+        if (!previous[requestId]) {
+          return previous;
+        }
+
+        const next = { ...previous };
+        delete next[requestId];
+        return next;
+      });
+      delete completionTimers.current[requestId];
+    }, ROW_COMPLETION_DISPLAY_MS);
   };
 
   const submitAction = async (params: {
@@ -133,7 +172,7 @@ export default function HodDashboardClient({
         throw new Error(payload?.error || "Unable to update approval request.");
       }
 
-      applySuccessfulAction(requestId);
+      applySuccessfulAction(requestId, action);
       setModalState(null);
       toast.success(decisionMessage(action, decisionMessages));
       router.refresh();
@@ -192,6 +231,7 @@ export default function HodDashboardClient({
 
       <HodApprovalTable
         rows={queue}
+        completedActions={completedActions}
         activeRequestId={activeRequestId}
         emptyStateTitle={emptyStateTitle}
         emptyStateDescription={emptyStateDescription}
