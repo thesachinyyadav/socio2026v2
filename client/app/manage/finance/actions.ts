@@ -344,11 +344,9 @@ export async function submitFinanceApprovalDecisionAction(input: {
     }
 
     const comments =
-      action === "approve"
-        ? null
-        : action === "return"
-          ? `RETURN_FOR_REVISION: ${note}`
-          : note;
+      action === "return"
+        ? `RETURN_FOR_REVISION: ${note}`
+        : note;
 
     const stepCode = normalizeText((pendingStepRow as Record<string, unknown>).step_code);
     if (!stepCode) {
@@ -378,7 +376,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          decision: action === "approve" ? "APPROVED" : "REJECTED",
+          decision: "REJECTED",
           comment: comments,
         }),
         cache: "no-store",
@@ -408,7 +406,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
     await logFinanceAudit(supabase, {
       eventId: eventId || null,
       budgetId: null,
-      action: action === "approve" ? "L4_APPROVED" : action === "return" ? "L4_RETURNED" : "L4_REJECTED",
+      action: action === "return" ? "L4_RETURNED" : "L4_REJECTED",
       notes: comments,
       actedByEmail: user.email || null,
       metadata: {
