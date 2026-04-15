@@ -399,14 +399,28 @@ async function cleanupFixtures() {
   try {
     if (cleanup.eventIds.size > 0) {
       const ids = Array.from(cleanup.eventIds).map((id) => `'${id.replace(/'/g, "''")}'`).join(",");
-      await sql(`delete from public.approval_chain_log where entity_type='event' and entity_id in (${ids});`);
+      try {
+        await sql(`delete from public.approval_chain_log where entity_type='event' and entity_id in (${ids});`);
+      } catch (error) {
+        console.warn(`[CLEANUP] Skipping event approval_chain_log cleanup: ${error.message}`);
+      }
       await sql(`delete from public.events where event_id in (${ids});`);
     }
 
     if (cleanup.festIds.size > 0) {
       const ids = Array.from(cleanup.festIds).map((id) => `'${id.replace(/'/g, "''")}'`).join(",");
-      await sql(`delete from public.approval_chain_log where entity_type='fest' and entity_id in (${ids});`);
-      await sql(`delete from public.fest_subheads where fest_id in (${ids});`);
+      try {
+        await sql(`delete from public.approval_chain_log where entity_type='fest' and entity_id in (${ids});`);
+      } catch (error) {
+        console.warn(`[CLEANUP] Skipping fest approval_chain_log cleanup: ${error.message}`);
+      }
+
+      try {
+        await sql(`delete from public.fest_subheads where fest_id in (${ids});`);
+      } catch (error) {
+        console.warn(`[CLEANUP] Unable to delete fest_subheads fixtures: ${error.message}`);
+      }
+
       await sql(`delete from public.fests where fest_id in (${ids});`);
     }
 
