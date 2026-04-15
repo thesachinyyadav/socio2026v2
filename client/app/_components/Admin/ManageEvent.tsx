@@ -1049,8 +1049,8 @@ const ADDITIONAL_REQUEST_STEPS = [
 
 const STANDALONE_FLOW_STEPS = [
   { key: "details", label: "Details" },
-  { key: "approvals", label: "Approvals" },
   { key: "budget", label: "Budget" },
+  { key: "approvals", label: "Approvals" },
 ] as const;
 
 type StandaloneFlowStep =
@@ -1058,6 +1058,41 @@ type StandaloneFlowStep =
 
 type AdditionalRequestStepKey =
   (typeof ADDITIONAL_REQUEST_STEPS)[number]["key"];
+
+interface StandaloneBudgetItem {
+  _uiKey?: string;
+  category: string;
+  requirement: string;
+  vendor: string;
+  price: string;
+  quantity: string;
+  advance: string;
+  gst: string;
+}
+
+const createClientUiKey = (prefix: string): string =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
+
+const createEmptyStandaloneBudgetItem = (): StandaloneBudgetItem => ({
+  _uiKey: createClientUiKey("event-budget"),
+  category: "",
+  requirement: "",
+  vendor: "",
+  price: "",
+  quantity: "",
+  advance: "",
+  gst: "",
+});
+
+const toPositiveNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return parsed;
+};
 
 const renderStandaloneFlowStepIcon = (
   stepKey: StandaloneFlowStep
@@ -1389,6 +1424,14 @@ export default function EventForm({
     useState(0);
   const [standaloneFlowStep, setStandaloneFlowStep] =
     useState<StandaloneFlowStep>("details");
+  const [standaloneBudgetItems, setStandaloneBudgetItems] = useState<
+    StandaloneBudgetItem[]
+  >([createEmptyStandaloneBudgetItem()]);
+  const [standaloneBudgetHistory, setStandaloneBudgetHistory] = useState<
+    StandaloneBudgetItem[][]
+  >([]);
+  const [standaloneTotalSponsorshipAmount, setStandaloneTotalSponsorshipAmount] =
+    useState("");
 
   const validateAdditionalRequestStep = React.useCallback(
     async (stepIndex: number) => {
@@ -1652,6 +1695,76 @@ export default function EventForm({
     name: "additionalRequests.stalls.hardboardSelected",
   });
 
+  const standaloneBudgetTotals = React.useMemo(() => {
+    const subtotal = standaloneBudgetItems.reduce((sum, item) => {
+      const price = toPositiveNumber(item.price);
+      const quantity = toPositiveNumber(item.quantity);
+      return sum + price * quantity;
+    }, 0);
+
+    const totalGst = standaloneBudgetItems.reduce((sum, item) => {
+      return sum + toPositiveNumber(item.gst);
+    }, 0);
+
+    const sponsorship = toPositiveNumber(standaloneTotalSponsorshipAmount);
+    const totalAmount = subtotal + totalGst;
+
+    return {
+      subtotal,
+      totalGst,
+      sponsorship,
+      totalAmount,
+      requiredAmount: Math.max(0, totalAmount - sponsorship),
+    };
+  }, [standaloneBudgetItems, standaloneTotalSponsorshipAmount]);
+
+  const formatStandaloneCurrency = React.useCallback((amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      maximumFractionDigits: 0,
+    }).format(Math.round(amount));
+  }, []);
+
+  const updateStandaloneBudgetItem = React.useCallback(
+    (index: number, key: keyof StandaloneBudgetItem, value: string) => {
+      setStandaloneBudgetItems((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, [key]: value } : item
+        )
+      );
+    },
+    []
+  );
+
+  const addStandaloneBudgetRow = React.useCallback(() => {
+    setStandaloneBudgetItems((prev) => {
+      setStandaloneBudgetHistory((history) => [prev, ...history].slice(0, 30));
+      return [...prev, createEmptyStandaloneBudgetItem()];
+    });
+  }, []);
+
+  const removeStandaloneBudgetRow = React.useCallback((index: number) => {
+    setStandaloneBudgetItems((prev) => {
+      if (prev.length <= 1) {
+        return [createEmptyStandaloneBudgetItem()];
+      }
+      setStandaloneBudgetHistory((history) => [prev, ...history].slice(0, 30));
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  }, []);
+
+  const undoStandaloneBudgetRowChange = React.useCallback(() => {
+    setStandaloneBudgetHistory((prevHistory) => {
+      if (!prevHistory.length) {
+        return prevHistory;
+      }
+      const [lastState, ...remaining] = prevHistory;
+      setStandaloneBudgetItems(
+        lastState.length ? lastState : [createEmptyStandaloneBudgetItem()]
+      );
+      return remaining;
+    });
+  }, []);
+
   const [standaloneApproverPreview, setStandaloneApproverPreview] = useState<{
     hodName: string | null;
     deanName: string | null;
@@ -1768,14 +1881,14 @@ export default function EventForm({
   const standaloneFlowStepIndex = STANDALONE_FLOW_STEPS.findIndex(
     (step) => step.key === standaloneFlowStep
   );
-  const standaloneFlowIsFinalStep = standaloneFlowStep === "budget";
+  const standaloneFlowIsFinalStep = standaloneFlowStep === "approvals";
   const standaloneStepHeading = !showStandaloneFlowStepper
     ? "Event details"
     : standaloneFlowStep === "details"
     ? "Event details"
-    : standaloneFlowStep === "approvals"
-    ? "Approvals page"
-    : "Budget page";
+    : standaloneFlowStep === "budget"
+    ? "Budget page"
+    : "Approvals page";
 
   const publishActionNeedsApproval =
     (!isEditMode || Boolean(isDraft)) &&
@@ -1875,11 +1988,11 @@ export default function EventForm({
   );
 
   const handleStandaloneFlowBack = React.useCallback(() => {
-    if (standaloneFlowStep === "budget") {
-      goToStandaloneFlowStep("approvals");
+    if (standaloneFlowStep === "approvals") {
+      goToStandaloneFlowStep("budget");
       return;
     }
-    if (standaloneFlowStep === "approvals") {
+    if (standaloneFlowStep === "budget") {
       goToStandaloneFlowStep("details");
     }
   }, [goToStandaloneFlowStep, standaloneFlowStep]);
@@ -2245,12 +2358,12 @@ export default function EventForm({
         event.preventDefault();
 
         if (standaloneFlowStep === "details") {
-          goToStandaloneFlowStep("approvals");
+          goToStandaloneFlowStep("budget");
           return;
         }
 
-        if (standaloneFlowStep === "approvals") {
-          goToStandaloneFlowStep("budget");
+        if (standaloneFlowStep === "budget") {
+          goToStandaloneFlowStep("approvals");
           return;
         }
       }
@@ -2728,7 +2841,7 @@ export default function EventForm({
                     })}
                   </div>
                   <p className="mt-3 text-xs text-blue-700">
-                    Complete approvals and budget details before final publish.
+                    Complete budget and approvals before final publish.
                   </p>
                 </div>
               )}
@@ -2963,6 +3076,44 @@ export default function EventForm({
                             </label>
                           )}
                         />
+
+                        <Controller
+                          name="provideClaims"
+                          control={control}
+                          render={({ field }) => {
+                            const isCfoLocked = Boolean(field.value);
+
+                            return (
+                              <label
+                                htmlFor="standaloneRequiresCfoApproval"
+                                className={`flex items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                                  isCfoLocked
+                                    ? "border-gray-300 bg-gray-100 cursor-not-allowed"
+                                    : "border-gray-200 hover:border-[#154CB3]"
+                                }`}
+                              >
+                                <input
+                                  id="standaloneRequiresCfoApproval"
+                                  type="checkbox"
+                                  checked={Boolean(field.value)}
+                                  disabled={isCfoLocked}
+                                  onChange={(event) => field.onChange(event.target.checked)}
+                                  className="h-4 w-4 rounded border-gray-300 text-[#154CB3] focus:ring-[#154CB3]"
+                                />
+                                <span>
+                                  <span className="block text-sm font-semibold text-gray-900">
+                                    CFO approval
+                                  </span>
+                                  <span className="block text-xs text-gray-500 mt-1">
+                                    {isCfoLocked
+                                      ? "Locked by Budget page (Funding required = Yes). Set Budget to No to unlock this field."
+                                      : "Optional when Budget page is set to No. Enabling this here makes CFO approval required and locks this box."}
+                                  </span>
+                                </span>
+                              </label>
+                            );
+                          }}
+                        />
                       </div>
 
                       <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -3020,7 +3171,7 @@ export default function EventForm({
                     </>
                   ) : (
                     <p className="mt-3 text-xs sm:text-sm text-gray-700">
-                      Standalone approvals are optional. If both toggles are disabled, the event is auto-approved and can proceed directly to service requests.
+                      Standalone approvals are optional. CFO approval is controlled by the Budget page and appears as a fixed step when funding is required.
                     </p>
                   )}
                 </div>
@@ -3673,6 +3824,15 @@ export default function EventForm({
                       <p className="mt-1 text-gray-700">{standaloneBudgetRoutePreviewText}</p>
                     </div>
 
+                    <input
+                      id="provideClaims"
+                      type="checkbox"
+                      checked={Boolean(watchedProvideClaims)}
+                      readOnly
+                      className="sr-only"
+                      aria-hidden="true"
+                    />
+
                     <div className="flex flex-wrap gap-3">
                       <button
                         type="button"
@@ -3713,12 +3873,197 @@ export default function EventForm({
                     )}
 
                     {Boolean(watchedProvideClaims) && (
-                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        <p className="font-semibold">Section 7 - Budget / Funds Approval</p>
-                        <p className="mt-1">
-                          Based on budget amount: Under Rs 25,000 routes to Accounts (L4) only. Rs 25,000 and above routes to CFO (L3) then Accounts (L4).
-                        </p>
-                        <p className="mt-1">Venue booking is always free and does not count toward this budget.</p>
+                      <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
+                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          <p className="font-semibold">CFO approval required</p>
+                          <p className="mt-1">
+                            Budget approval is enabled. This adds CFO and Accounts approval in workflow.
+                          </p>
+                          <p className="mt-1">
+                            To remove CFO from approvals, set Funding required to No on this page.
+                          </p>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[880px] border-collapse">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                                <th className="py-2 pr-2">Category</th>
+                                <th className="py-2 px-2">Requirement</th>
+                                <th className="py-2 px-2">Vendor</th>
+                                <th className="py-2 px-2">Price</th>
+                                <th className="py-2 px-2">Quantity</th>
+                                <th className="py-2 px-2">Advance</th>
+                                <th className="py-2 px-2">Total</th>
+                                <th className="py-2 px-2">GST</th>
+                                <th className="py-2 pl-2">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {standaloneBudgetItems.map((item, index) => {
+                                const rowTotal =
+                                  toPositiveNumber(item.price) * toPositiveNumber(item.quantity);
+
+                                return (
+                                  <tr
+                                    key={item._uiKey || `event-budget-${index}`}
+                                    className="border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <td className="py-2 pr-2">
+                                      <input
+                                        type="text"
+                                        value={item.category}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "category", e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="Category"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="text"
+                                        value={item.requirement}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "requirement", e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="Requirement"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="text"
+                                        value={item.vendor}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "vendor", e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="Vendor"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.price}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "price", e.target.value)
+                                        }
+                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.quantity}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "quantity", e.target.value)
+                                        }
+                                        className="w-20 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.advance}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "advance", e.target.value)
+                                        }
+                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <p className="text-sm font-semibold text-gray-800 min-w-[90px]">
+                                        ₹{formatStandaloneCurrency(rowTotal)}
+                                      </p>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={item.gst}
+                                        onChange={(e) =>
+                                          updateStandaloneBudgetItem(index, "gst", e.target.value)
+                                        }
+                                        className="w-24 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                                        placeholder="0"
+                                      />
+                                    </td>
+                                    <td className="py-2 pl-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => removeStandaloneBudgetRow(index)}
+                                        className="px-3 py-2 rounded-md border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50"
+                                      >
+                                        Remove
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="flex flex-wrap justify-end gap-2 mt-4">
+                          <button
+                            type="button"
+                            onClick={addStandaloneBudgetRow}
+                            className="px-4 py-2 rounded-md bg-[#154CB3] text-white text-sm font-medium hover:bg-[#0f3a7a]"
+                          >
+                            Add Row
+                          </button>
+                          <button
+                            type="button"
+                            onClick={undoStandaloneBudgetRowChange}
+                            disabled={standaloneBudgetHistory.length === 0}
+                            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Undo Row Change
+                          </button>
+                        </div>
+
+                        <div className="mt-8 space-y-2 text-right">
+                          <p className="text-sm text-gray-700">
+                            <span className="font-semibold mr-3">Sub-total</span>
+                            ₹{formatStandaloneCurrency(standaloneBudgetTotals.subtotal)}
+                          </p>
+                          <p className="text-sm text-gray-700">
+                            <span className="font-semibold mr-3">Total GST</span>
+                            ₹{formatStandaloneCurrency(standaloneBudgetTotals.totalGst)}
+                          </p>
+                          <div className="flex items-center justify-end gap-3">
+                            <label
+                              htmlFor="standaloneTotalSponsorshipAmount"
+                              className="text-sm font-semibold text-gray-700"
+                            >
+                              Total Sponsorship amount
+                            </label>
+                            <input
+                              id="standaloneTotalSponsorshipAmount"
+                              type="number"
+                              min="0"
+                              value={standaloneTotalSponsorshipAmount}
+                              onChange={(e) =>
+                                setStandaloneTotalSponsorshipAmount(e.target.value)
+                              }
+                              className="w-40 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              placeholder="0"
+                            />
+                          </div>
+                          <p className="text-base font-bold text-[#063168]">
+                            Amount required: ₹
+                            {formatStandaloneCurrency(
+                              standaloneBudgetTotals.requiredAmount
+                            )}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -4135,7 +4480,7 @@ export default function EventForm({
                         }
                         className="w-full sm:w-auto px-5 py-2.5 border border-slate-300 text-slate-700 bg-white text-sm font-medium rounded-md hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        Back: {standaloneFlowStep === "budget" ? "Approvals" : "Details"}
+                        Back: {standaloneFlowStep === "approvals" ? "Budget" : "Details"}
                       </button>
                     )}
 
@@ -4257,8 +4602,8 @@ export default function EventForm({
                   >
                     {showStandaloneFlowStepper && !standaloneFlowIsFinalStep
                       ? standaloneFlowStep === "details"
-                        ? "Next: Approvals"
-                        : "Next: Budget"
+                        ? "Next: Budget"
+                        : "Next: Approvals"
                       : isSubmittingProp || rhfIsSubmitting
                       ? getPublishSubmittingLabel(resolvedPublishMode, "event")
                       : getPublishActionLabel(resolvedPublishMode, "event")}
