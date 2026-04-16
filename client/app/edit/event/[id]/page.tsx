@@ -441,6 +441,21 @@ export default function EditEventPage() {
             return fallback;
           };
 
+          const existingBudgetAmount = Number(
+            data.budget_amount ??
+              data.estimated_budget_amount ??
+              data.total_estimated_expense ??
+              0
+          );
+          const fallbackNeedsHodDeanApproval = parseBooleanWithFallback(
+            data.needs_hod_dean_approval ?? data.needsHodDeanApproval,
+            false
+          );
+          const fallbackNeedsBudgetApproval = parseBooleanWithFallback(
+            data.needs_budget_approval ?? data.needsBudgetApproval,
+            existingBudgetAmount > 0
+          );
+
           const transformedData: Partial<EventFormData> = {
             eventTitle: data.title || "",
             eventDate: data.event_date
@@ -458,11 +473,11 @@ export default function EditEventPage() {
             festEvent: data.fest_id || data.fest || "",
             standaloneRequiresHodApproval: parseBooleanWithFallback(
               data.requires_hod_approval,
-              false
+              fallbackNeedsHodDeanApproval
             ),
             standaloneRequiresDeanApproval: parseBooleanWithFallback(
               data.requires_dean_approval,
-              false
+              fallbackNeedsHodDeanApproval
             ),
             registrationDeadline: data.registration_deadline
               ? dayjs(data.registration_deadline).format("YYYY-MM-DD")
@@ -493,7 +508,10 @@ export default function EditEventPage() {
             contactEmail: data.organizer_email || "",
             contactPhone: data.organizer_phone?.toString() ?? "",
             whatsappLink: data.whatsapp_invite_link || "",
-            provideClaims: parseBooleanWithFallback(data.claims_applicable, false),
+            provideClaims: parseBooleanWithFallback(
+              data.claims_applicable,
+              fallbackNeedsBudgetApproval
+            ),
             onSpot: parseBooleanWithFallback(data.on_spot, false),
             allowOutsiders: parseBooleanWithFallback(data.allow_outsiders, false),
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",

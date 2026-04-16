@@ -2501,12 +2501,12 @@ router.post(
         isBudgetRelated: isStandaloneBudgetRelated,
         budgetAmount: standaloneBudgetAmount,
       });
-      const standaloneBudgetAmountForPersistence = !normalizedFestReference
+      const standaloneBudgetAmountForPersistence = !normalizedFestId
         ? standaloneBudgetAmount
         : 0;
       const standaloneApprovalPreferences = resolveStandaloneApprovalPreferences(req.body, {
-        requiresHodApproval: false,
-        requiresDeanApproval: false,
+        requiresHodApproval: true,
+        requiresDeanApproval: true,
       },
       isStandaloneEvent);
 
@@ -3004,6 +3004,7 @@ router.post(
       const serviceApprovalState =
         (serviceWorkflow.requestedRoleCodes || []).length > 0 ? "PENDING" : "APPROVED";
       let activationState = resolveActivationState(approvalState, serviceApprovalState);
+      let eventPublishedNow = false;
 
       const shouldApplyWorkflowState =
         Boolean(primaryApprovalRequest) ||
@@ -3029,6 +3030,29 @@ router.post(
         activationState = workflowResult.activationState;
 
         if (workflowResult.applied) {
+          const refreshedEvent = await queryOne("events", {
+            where: { event_id },
+          });
+
+          if (refreshedEvent) {
+            createdEventRecord = refreshedEvent;
+          }
+        }
+      } else if (queueStandaloneApproval) {
+        const publishResult = await applyEventWorkflowState({
+          eventId: event_id,
+          approvalState: "APPROVED",
+          serviceApprovalState: "APPROVED",
+          approvalRequestId: null,
+          isBudgetRelated: isStandaloneBudgetRelated,
+          lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
+          workflowPhase: WORKFLOW_PHASE.APPROVED,
+        });
+
+        activationState = publishResult.activationState;
+        eventPublishedNow = true;
+
+        if (publishResult.applied) {
           const refreshedEvent = await queryOne("events", {
             where: { event_id },
           });
@@ -3088,7 +3112,7 @@ router.post(
 
       // Push to UniversityGated if outsiders are enabled (non-blocking)
       if (canGoLiveNow && isGatedEnabled()) {
-        const createdEvent = created[0];
+        const createdEvent = createdEventRecord || created[0];
         shouldPushEventToGated(createdEvent, queryOne).then(async (shouldPush) => {
           if (shouldPush) {
             try {
@@ -3115,6 +3139,10 @@ router.post(
         responseMessage = pendingCfoApproval
           ? `Event submitted successfully and routed to ${primaryApproverLabel} and CFO approvals`
           : `Event submitted successfully and routed to ${primaryApproverLabel} approval`;
+      } else if (eventPublishedNow) {
+        responseMessage = "Event published successfully";
+      } else if (!canGoLiveNow && (serviceWorkflow.createdCount || 0) > 0) {
+        responseMessage = "Event submitted successfully and routed for service approvals";
       } else if (isStandaloneEvent && !shouldSaveAsDraft) {
         const isAutoApprovedStandalone =
           !standaloneApprovalPreferences.requiresHodApproval &&
@@ -3125,8 +3153,6 @@ router.post(
         responseMessage = isAutoApprovedStandalone
           ? "Event auto-approved. You can proceed with service requests."
           : "Event saved and routed for approvals";
-      } else if (!canGoLiveNow && (serviceWorkflow.createdCount || 0) > 0) {
-        responseMessage = "Event submitted successfully and routed for service approvals";
       }
 
       return res.status(201).json({ 
@@ -3447,37 +3473,73 @@ router.put(
       let shouldSendPublishNotifications =
         wantsPublishIntent &&
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
+      const isStandaloneEvent = !normalizedFestReference;
       const parsedRegistrationFee = parseOptionalFloat(registration_fee);
+      const existingRegistrationFee = parseOptionalFloat(event?.registration_fee);
+      const resolvedRegistrationFee =
+        parsedRegistrationFee !== null && Number.isFinite(parsedRegistrationFee)
+          ? parsedRegistrationFee
+          : existingRegistrationFee;
+      const explicitClaimsApplicable = parseBooleanPreference(claims_applicable);
       const claimsApplicable =
-        claims_applicable === "true" || claims_applicable === true;
+        explicitClaimsApplicable === null
+          ? asBoolean(event?.claims_applicable)
+          : explicitClaimsApplicable;
+      const explicitNeedsBudgetApproval = parseBooleanPreference(
+        req.body.needs_budget_approval ?? req.body.needsBudgetApproval
+      );
+      const resolvedNeedsBudgetApproval =
+        explicitNeedsBudgetApproval === null
+          ? asBoolean(event?.needs_budget_approval)
+          : explicitNeedsBudgetApproval;
       const noFinancialRequirementsRequested = eventHasNoFinancialRequirements({
         ...event,
         ...req.body,
       });
       const isStandaloneBudgetRelated = isBudgetRelatedFromEventPayload({
         claimsApplicable,
-        registrationFee: parsedRegistrationFee,
+        registrationFee: resolvedRegistrationFee,
         noFinancialRequirements: noFinancialRequirementsRequested,
-        needsBudgetApproval:
-          req.body.needs_budget_approval ?? req.body.needsBudgetApproval,
+        needsBudgetApproval: resolvedNeedsBudgetApproval,
       });
       const standaloneBudgetAmount = getStandaloneBudgetAmount({
-        payload: req.body,
-        parsedRegistrationFee,
+        payload: {
+          ...(event || {}),
+          ...(req.body || {}),
+        },
+        parsedRegistrationFee: resolvedRegistrationFee,
       });
       const standaloneBudgetPlan = getStandaloneBudgetApprovalPlan({
-        campusHostedAt: req.body.campus_hosted_at || req.body.campusHostedAt || event?.campus_hosted_at || "",
+        campusHostedAt:
+          req.body.campus_hosted_at ||
+          req.body.campusHostedAt ||
+          event?.campus_hosted_at ||
+          "",
         isBudgetRelated: isStandaloneBudgetRelated,
         budgetAmount: standaloneBudgetAmount,
       });
-      const standaloneBudgetAmountForPersistence = !normalizedFestReference
-        ? standaloneBudgetAmount
-        : 0;
-      const standaloneApprovalPreferences = resolveStandaloneApprovalPreferences(req.body, {
-        requiresHodApproval: false,
-        requiresDeanApproval: false,
-      },
-      isStandalonePublish);
+      const standaloneBudgetAmountForPersistence =
+        !normalizedFestReference && isStandaloneBudgetRelated ? standaloneBudgetAmount : 0;
+      const standaloneApprovalFallback = resolveStandaloneApprovalPreferences(
+        {
+          needs_hod_dean_approval:
+            event?.needs_hod_dean_approval ?? event?.needsHodDeanApproval,
+          requires_hod_approval:
+            event?.requires_hod_approval ?? event?.standaloneRequiresHodApproval,
+          requires_dean_approval:
+            event?.requires_dean_approval ?? event?.standaloneRequiresDeanApproval,
+        },
+        {
+          requiresHodApproval: true,
+          requiresDeanApproval: true,
+        },
+        isStandaloneEvent
+      );
+      const standaloneApprovalPreferences = resolveStandaloneApprovalPreferences(
+        req.body,
+        standaloneApprovalFallback,
+        isStandaloneEvent
+      );
       const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
       const resolvedOrganizerEmail = normalizeEmailAddress(
         organizerEmailInput || event?.organizer_email || req.userInfo?.email || ""
@@ -4103,7 +4165,7 @@ router.put(
             approvalState: "APPROVED",
             serviceApprovalState: "APPROVED",
             approvalRequestId: updatedEvent?.approval_request_id || null,
-            isBudgetRelated: false,
+            isBudgetRelated: isStandalonePublish ? standaloneBudgetRelated : undefined,
             lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
             workflowPhase: WORKFLOW_PHASE.APPROVED,
           });
