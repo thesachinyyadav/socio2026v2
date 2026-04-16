@@ -3125,12 +3125,28 @@ router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) =>
       return res.status(404).json({ error: "Approval request not found" });
     }
 
-    const approvalStep = await queryOne("approval_steps", {
+    const normalizedStepCode = normalizeWorkflowStatus(stepCode);
+    const pendingStepsForRequest = await queryAll("approval_steps", {
       where: {
         approval_request_id: approvalRequest.id,
-        step_code: stepCode,
+        status: "PENDING",
       },
+      order: { column: "sequence_order", ascending: true },
     });
+
+    let approvalStep = (pendingStepsForRequest || []).find(
+      (stepRow) =>
+        normalizeWorkflowStatus(stepRow?.step_code) === normalizedStepCode
+    ) || null;
+
+    if (!approvalStep) {
+      approvalStep = await queryOne("approval_steps", {
+        where: {
+          approval_request_id: approvalRequest.id,
+          step_code: stepCode,
+        },
+      });
+    }
 
     if (!approvalStep) {
       return res.status(404).json({ error: "Approval step not found" });

@@ -50,7 +50,7 @@ async function fetchWithTimeout(
 
 function decisionMessage(action: CfoApprovalAction): string {
   if (action === "approve") {
-    return "Approval recorded";
+    return "Approved and forwarded to Finance for approval";
   }
 
   if (action === "return") {

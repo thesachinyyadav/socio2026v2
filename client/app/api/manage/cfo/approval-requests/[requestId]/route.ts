@@ -156,7 +156,7 @@ export async function PATCH(
         .from("approval_steps")
         .select("step_code,status,role_code")
         .eq("approval_request_id", approvalRequestDbId)
-        .in("step_code", ["CFO", "L3_CFO"])
+        .in("step_code", ["CFO", "L3_CFO", "CAMPUS_DIRECTOR_CFO"])
         .eq("status", "PENDING")
         .order("sequence_order", { ascending: true })
         .limit(1)
@@ -236,7 +236,7 @@ export async function PATCH(
       success: true,
       message:
         action === "approve"
-          ? "Approval request approved successfully."
+          ? "Approved and forwarded to Finance for approval."
           : action === "return"
             ? "Approval request returned for revision."
             : "Approval request rejected successfully.",

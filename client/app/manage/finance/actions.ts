@@ -130,7 +130,7 @@ async function resolveFinanceSession() {
   const profileRecord = profile as Record<string, unknown>;
   const isMasterAdmin = Boolean(profileRecord.is_masteradmin);
   const isFinanceOfficer =
-    hasAnyRoleCode(profileRecord, ["ACCOUNTS", "FINANCE_OFFICER"]) ||
+    hasAnyRoleCode(profileRecord, ["ACCOUNTS", "FINANCE_OFFICER", "FINANCE"]) ||
     Boolean(profileRecord.is_finance_officer) ||
     Boolean(profileRecord.is_finance_office);
   if (!isFinanceOfficer && !isMasterAdmin) {
@@ -342,7 +342,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
       .from("approval_steps")
       .select("step_code,status")
       .eq("approval_request_id", approvalRequestDbId)
-      .in("role_code", ["ACCOUNTS", "FINANCE_OFFICER"])
+      .in("role_code", ["ACCOUNTS", "FINANCE_OFFICER", "FINANCE"])
       .eq("status", "PENDING")
       .order("sequence_order", { ascending: true })
       .limit(1)
@@ -359,7 +359,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
         .from("approval_steps")
         .select("step_code,status")
         .eq("approval_request_id", approvalRequestDbId)
-        .in("step_code", ["ACCOUNTS", "L4_ACCOUNTS"])
+        .in("step_code", ["ACCOUNTS", "L4_ACCOUNTS", "FINANCE", "L4_FINANCE", "FINANCE_OFFICER"])
         .eq("status", "PENDING")
         .order("sequence_order", { ascending: true })
         .limit(1)
