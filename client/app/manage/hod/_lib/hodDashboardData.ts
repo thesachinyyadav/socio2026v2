@@ -114,6 +114,32 @@ function festReferenceMatches(reference: unknown, candidate: unknown): boolean {
   return Boolean(referenceSlug && candidateSlug && referenceSlug === candidateSlug);
 }
 
+function resolveFestRowByReference(
+  festRowsById: Map<string, FestDetailRow>,
+  reference: unknown
+): FestDetailRow | null {
+  const normalizedReference = normalizeText(reference);
+  if (!normalizedReference) {
+    return null;
+  }
+
+  const directMatch = festRowsById.get(normalizedReference);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  for (const festRow of festRowsById.values()) {
+    if (
+      festReferenceMatches(normalizedReference, festRow?.fest_id) ||
+      festReferenceMatches(normalizedReference, festRow?.fest_title)
+    ) {
+      return festRow;
+    }
+  }
+
+  return null;
+}
+
 function normalizeEntityType(value: unknown): string {
   return normalizeText(value).toUpperCase();
 }
@@ -576,11 +602,14 @@ export async function fetchHodDashboardData({
     const entityType = normalizeEntityType(requestRow.entity_type);
     const entityRef = normalizeText(requestRow.entity_ref);
     const isFestEntity = entityType === "FEST";
+    const festRow = isFestEntity
+      ? resolveFestRowByReference(festRowsById, entityRef)
+      : null;
 
     const requestDepartmentScope = normalizeDepartmentScope(requestRow.organizing_dept);
     const fallbackDepartmentScope = normalizeDepartmentScope(
       isFestEntity
-        ? festRowsById.get(entityRef)?.organizing_dept
+        ? festRow?.organizing_dept
         : eventRowsById.get(entityRef)?.organizing_dept
     );
     const effectiveDepartmentScope = requestDepartmentScope || fallbackDepartmentScope;
@@ -637,7 +666,9 @@ export async function fetchHodDashboardData({
           const entityType = normalizeEntityType(requestRow.entity_type);
 
           if (entityType === "FEST") {
-            return normalizeText(festRowsById.get(entityRef)?.contact_email).toLowerCase();
+            return normalizeText(
+              resolveFestRowByReference(festRowsById, entityRef)?.contact_email
+            ).toLowerCase();
           }
 
           return normalizeText(eventRowsById.get(entityRef)?.organizer_email).toLowerCase();
@@ -681,7 +712,9 @@ export async function fetchHodDashboardData({
       const isFestEntity = entityType === "FEST";
 
       const eventRow = !isFestEntity ? eventRowsById.get(entityRef) || null : null;
-      const festRow = isFestEntity ? festRowsById.get(entityRef) || null : null;
+      const festRow = isFestEntity
+        ? resolveFestRowByReference(festRowsById, entityRef)
+        : null;
 
       const organizerEmail = normalizeText(
         isFestEntity ? festRow?.contact_email : eventRow?.organizer_email
