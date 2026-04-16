@@ -1,78 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getApiErrorMessage,
+  parseJsonSafely,
+  resolveBackendApiBase,
+} from "@/lib/backendApi";
 
 export const dynamic = "force-dynamic";
 
-const PRODUCTION_BACKEND_FALLBACKS = [
-  "https://socioserver-snowy.vercel.app",
-  "https://sociodevserver.vercel.app",
-] as const;
-
-function normalizeApiBase(value: unknown): string {
-  return String(value || "").trim().replace(/\/+$/, "").replace(/\/api\/?$/i, "");
-}
-
-function parseJsonSafely(value: string): any | null {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-function resolveBackendBase(request: NextRequest): string {
-  const requestOrigin = normalizeApiBase(request.nextUrl.origin);
-  const configuredCandidates = [
-    process.env.BACKEND_API_URL,
-    process.env.SERVER_API_URL,
-    process.env.API_URL,
-    process.env.NEXT_PUBLIC_SERVER_API_URL,
-    process.env.NEXT_PUBLIC_API_URL,
-  ].map((value) => normalizeApiBase(value));
-
-  const fallbackCandidates =
-    process.env.NODE_ENV === "production"
-      ? PRODUCTION_BACKEND_FALLBACKS.map((value) => normalizeApiBase(value))
-      : ["http://localhost:8000"];
-
-  const uniqueCandidates = Array.from(
-    new Set(
-      [...configuredCandidates, ...fallbackCandidates]
-        .map((value) => normalizeApiBase(value))
-        .filter(Boolean)
-    )
-  );
-
-  const resolvedCandidate = uniqueCandidates.find(
-    (candidate) => candidate !== requestOrigin
-  );
-
-  return resolvedCandidate || "";
-}
-
-function getErrorMessage(payload: any, rawBody: string, fallbackMessage: string): string {
-  if (typeof payload?.error === "string" && payload.error.trim()) {
-    return payload.error.trim();
-  }
-
-  if (typeof payload?.message === "string" && payload.message.trim()) {
-    return payload.message.trim();
-  }
-
-  const trimmedBody = rawBody.trim();
-  if (trimmedBody) {
-    return trimmedBody;
-  }
-
-  return fallbackMessage;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const backendBase = resolveBackendBase(request);
+    const backendBase = resolveBackendApiBase({
+      requestOrigin: request.nextUrl.origin,
+    });
 
     if (!backendBase) {
       return NextResponse.json(
@@ -98,7 +37,7 @@ export async function GET(request: NextRequest) {
     const payload = parseJsonSafely(rawBody);
 
     if (!backendResponse.ok) {
-      const message = getErrorMessage(
+      const message = getApiErrorMessage(
         payload,
         rawBody,
         `Failed to fetch events (${backendResponse.status})`
@@ -140,7 +79,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const backendBase = resolveBackendBase(request);
+    const backendBase = resolveBackendApiBase({
+      requestOrigin: request.nextUrl.origin,
+    });
     if (!backendBase) {
       return NextResponse.json(
         {
@@ -166,7 +107,7 @@ export async function POST(request: NextRequest) {
     const payload = parseJsonSafely(rawBody);
 
     if (!backendResponse.ok) {
-      const message = getErrorMessage(
+      const message = getApiErrorMessage(
         payload,
         rawBody,
         `Failed to create event (${backendResponse.status})`

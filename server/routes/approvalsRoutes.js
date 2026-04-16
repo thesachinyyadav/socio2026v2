@@ -1196,6 +1196,70 @@ const isMasterAdminRequest = (req) => {
   return Boolean(req.userInfo?.is_masteradmin) || hasAnyRoleCode(getUserRoleCodes(req), [ROLE_CODES.MASTER_ADMIN]);
 };
 
+const hasQueueRoleAccess = (req, roleCode) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+  if (!normalizedRoleCode) {
+    return false;
+  }
+
+  if (hasAnyRoleCode(getUserRoleCodes(req), [normalizedRoleCode])) {
+    return true;
+  }
+
+  const userInfo = req.userInfo || {};
+
+  if (normalizedRoleCode === ROLE_CODES.HOD) {
+    return isTruthyValue(userInfo.is_hod);
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.DEAN) {
+    return isTruthyValue(userInfo.is_dean);
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.CFO) {
+    return isTruthyValue(userInfo.is_cfo);
+  }
+
+  if (
+    normalizedRoleCode === ROLE_CODES.ACCOUNTS ||
+    normalizedRoleCode === ROLE_CODES.FINANCE_OFFICER
+  ) {
+    return (
+      isTruthyValue(userInfo.is_finance_officer) ||
+      isTruthyValue(userInfo.is_finance_office)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_IT) {
+    return isTruthyValue(userInfo.is_service_it);
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_VENUE) {
+    return (
+      isTruthyValue(userInfo.is_service_venue) ||
+      isTruthyValue(userInfo.is_venue_manager)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_CATERING) {
+    return isTruthyValue(userInfo.is_service_catering);
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_STALLS) {
+    return isTruthyValue(userInfo.is_service_stalls);
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.ORGANIZER_STUDENT) {
+    return isTruthyValue(userInfo.is_organiser_student);
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.ORGANIZER_TEACHER) {
+    return isTruthyValue(userInfo.is_organiser);
+  }
+
+  return false;
+};
+
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const isLikelyEmailAddress = (value) => /.+@.+\..+/.test(String(value || "").trim());
 
@@ -1379,7 +1443,7 @@ const ensureQueueAccess = async (req, res, roleCode, approvalRequest = null) => 
     return true;
   }
 
-  if (!hasAnyRoleCode(getUserRoleCodes(req), [normalizedRoleCode])) {
+  if (!hasQueueRoleAccess(req, normalizedRoleCode)) {
     res.status(403).json({ error: "Access denied: role queue access not permitted" });
     return false;
   }

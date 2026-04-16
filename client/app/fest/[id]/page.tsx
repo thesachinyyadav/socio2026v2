@@ -472,7 +472,7 @@ const FestPage = () => {
       setFestSpecificEvents(contextMatches);
     }
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+    const API_URL = "";
 
     fetch(`${API_URL}/api/events`, { cache: "no-store" })
       .then((res) => {

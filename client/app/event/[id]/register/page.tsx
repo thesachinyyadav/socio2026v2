@@ -85,7 +85,7 @@ const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
   const { userData, isLoading: authIsLoading } = useAuth();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const API_URL = "";
   const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
   const { allEvents, isLoading: contextIsLoading, error: contextError } = useEvents();

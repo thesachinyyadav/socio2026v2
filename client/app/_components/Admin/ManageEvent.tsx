@@ -1865,7 +1865,7 @@ export default function EventForm({
     }
 
     let cancelled = false;
-    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+    const API_URL = "";
 
     const fetchApprovers = async () => {
       setStandaloneApproverPreview((prev) => ({ ...prev, loading: true }));
@@ -2569,7 +2569,7 @@ export default function EventForm({
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+      const API_URL = "";
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}`,
         {
@@ -2652,7 +2652,7 @@ export default function EventForm({
         .toLowerCase()
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-]/g, "");
-      const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+      const API_URL = "";
       const response = await fetch(
         `${API_URL}/api/events/${eventIdSlug}/close`,
         {

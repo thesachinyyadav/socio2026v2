@@ -48,7 +48,7 @@ const monoFont = JetBrains_Mono({
   weight: ["400", "600"],
 });
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+const API_URL = "";
 const MUTATION_CONFIRMATION_PHRASE = "I UNDERSTAND STATUSCHECK MUTATIONS";
 const HISTORY_STORAGE_KEY = "statuscheck:history:v2";
 const SLOW_CHECK_THRESHOLD_MS = 1200;

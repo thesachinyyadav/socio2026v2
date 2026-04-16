@@ -129,8 +129,9 @@ async function resolveFinanceSession() {
   const profileRecord = profile as Record<string, unknown>;
   const isMasterAdmin = Boolean(profileRecord.is_masteradmin);
   const isFinanceOfficer =
-    hasAnyRoleCode(profileRecord, ["ACCOUNTS"]) ||
-    Boolean(profileRecord.is_finance_officer);
+    hasAnyRoleCode(profileRecord, ["ACCOUNTS", "FINANCE_OFFICER"]) ||
+    Boolean(profileRecord.is_finance_officer) ||
+    Boolean(profileRecord.is_finance_office);
   if (!isFinanceOfficer && !isMasterAdmin) {
     return {
       ok: false as const,
@@ -340,7 +341,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
       .from("approval_steps")
       .select("step_code,status")
       .eq("approval_request_id", approvalRequestDbId)
-      .eq("role_code", "ACCOUNTS")
+      .in("role_code", ["ACCOUNTS", "FINANCE_OFFICER"])
       .eq("status", "PENDING")
       .order("sequence_order", { ascending: true })
       .limit(1)
@@ -350,7 +351,27 @@ export async function submitFinanceApprovalDecisionAction(input: {
       return fail(`Failed to load pending Accounts step: ${pendingStepError.message}`);
     }
 
-    if (!pendingStepRow) {
+    let resolvedPendingStep = pendingStepRow as Record<string, unknown> | null;
+
+    if (!resolvedPendingStep) {
+      const { data: fallbackStepRow, error: fallbackStepError } = await supabase
+        .from("approval_steps")
+        .select("step_code,status")
+        .eq("approval_request_id", approvalRequestDbId)
+        .in("step_code", ["ACCOUNTS", "L4_ACCOUNTS"])
+        .eq("status", "PENDING")
+        .order("sequence_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackStepError) {
+        return fail(`Failed to load pending Accounts step: ${fallbackStepError.message}`);
+      }
+
+      resolvedPendingStep = (fallbackStepRow as Record<string, unknown> | null) || null;
+    }
+
+    if (!resolvedPendingStep) {
       return fail("No pending Accounts step exists for this request.");
     }
 
@@ -363,7 +384,7 @@ export async function submitFinanceApprovalDecisionAction(input: {
 
     const decision = action === "approve" ? "APPROVED" : "REJECTED";
 
-    const stepCode = normalizeText((pendingStepRow as Record<string, unknown>).step_code);
+    const stepCode = normalizeText(resolvedPendingStep.step_code);
     if (!stepCode) {
       return fail("Approval request is missing step identifiers.");
     }

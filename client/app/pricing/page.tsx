@@ -5,7 +5,7 @@ import Link from "next/link";
 import Footer from "../_components/Home/Footer";
 
 const PricingPage = () => {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const API_URL = "";
   const [billingCycle, setBillingCycle] = useState<"per-fest" | "annual">("per-fest");
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);

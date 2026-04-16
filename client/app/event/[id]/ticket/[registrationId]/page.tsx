@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/context/EventContext";
 import { dayjs } from "@/lib/dateUtils";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 
 const generateGoogleCalendarUrl = (title: string, date: string, time?: string): string | null => {
   try {

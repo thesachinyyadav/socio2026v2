@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveBackendApiBase } from "@/lib/backendApi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +11,7 @@ const USAGE_HEADERS = [
 ];
 
 function getBackendBaseUrl() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-  return apiUrl.replace(/\/api\/?$/, "");
+  return resolveBackendApiBase();
 }
 
 function buildProxyHeaders(upstreamHeaders: Headers, contentType: string, isStream = false) {
@@ -52,7 +52,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Authorization header required" }, { status: 401 });
     }
 
-    const backendUrl = `${getBackendBaseUrl()}/api/chat/usage`;
+    const backendBase = getBackendBaseUrl();
+    if (!backendBase) {
+      return NextResponse.json(
+        {
+          error:
+            "Backend API origin is not configured. Set BACKEND_API_URL (or NEXT_PUBLIC_API_URL) to your server deployment.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const backendUrl = `${backendBase}/api/chat/usage`;
     const upstream = await fetch(backendUrl, {
       method: "GET",
       headers: {
@@ -86,7 +97,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.text();
-    const backendUrl = `${getBackendBaseUrl()}/api/chat`;
+    const backendBase = getBackendBaseUrl();
+    if (!backendBase) {
+      return NextResponse.json(
+        {
+          error:
+            "Backend API origin is not configured. Set BACKEND_API_URL (or NEXT_PUBLIC_API_URL) to your server deployment.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const backendUrl = `${backendBase}/api/chat`;
 
     const upstream = await fetch(backendUrl, {
       method: "POST",

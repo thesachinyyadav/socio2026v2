@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, XCircle, Clock, Calendar, MapPin, Users } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 
 interface EventDetail {
   event_id: string;

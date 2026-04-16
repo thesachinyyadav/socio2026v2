@@ -1,5 +1,10 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getApiErrorMessage,
+  parseJsonSafely,
+  resolveBackendApiBase,
+} from "@/lib/backendApi";
 
 export async function PATCH(
   request: NextRequest,
@@ -18,8 +23,19 @@ export async function PATCH(
     }
 
     // Call the backend Express server
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    const backendUrl = apiUrl.replace(/\/api\/?$/, "");
+    const backendUrl = resolveBackendApiBase({
+      requestOrigin: request.nextUrl.origin,
+    });
+
+    if (!backendUrl) {
+      return NextResponse.json(
+        {
+          error:
+            "Backend API origin is not configured. Set BACKEND_API_URL (or NEXT_PUBLIC_API_URL) to your server deployment.",
+        },
+        { status: 500 }
+      );
+    }
     const response = await fetch(`${backendUrl}/api/fests/${festId}/archive`, {
       method: "PATCH",
       headers: {
@@ -29,10 +45,22 @@ export async function PATCH(
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    const rawBody = await response.text();
+    const data = parseJsonSafely(rawBody);
 
     if (!response.ok) {
-      return NextResponse.json(data, { status: response.status });
+      const message = getApiErrorMessage(
+        data,
+        rawBody,
+        `Failed to archive fest (${response.status})`
+      );
+      return NextResponse.json(
+        {
+          ...(data && typeof data === "object" ? data : {}),
+          error: message,
+        },
+        { status: response.status }
+      );
     }
 
     // ✅ Revalidate cache after successful archive
@@ -40,7 +68,10 @@ export async function PATCH(
     revalidateTag("fests");
     console.log("🔄 Cache revalidated for tags: events, fests");
 
-    return NextResponse.json(data, { status: 200 });
+    return NextResponse.json(
+      data && typeof data === "object" ? data : { success: true },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error("Fest archive API bridge error:", error);
     return NextResponse.json(

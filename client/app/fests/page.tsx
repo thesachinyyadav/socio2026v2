@@ -65,7 +65,7 @@ const FestsPageContent = () => {
   ]);
 
   const [allFests, setAllFests] = useState<Fest[]>([]);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const API_URL = "";
   const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
   
   useEffect(() => {

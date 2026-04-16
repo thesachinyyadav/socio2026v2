@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { campusData } from "../lib/eventFormSchema";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 const MAX_DISTANCE_KM = 15;
 const DISMISS_KEY = "campus_modal_dismissed_at";
 const DISMISS_HOURS = 12;

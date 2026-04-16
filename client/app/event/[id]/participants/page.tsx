@@ -58,7 +58,7 @@ export default function StudentsPage() {
 
   const params = useParams();
   const event_id = params?.id as string;
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const apiBaseUrl = "";
 
   const currentUserEmail = String(session?.user?.email || "").toLowerCase();
   const isMasterAdmin = Boolean(userData?.is_masteradmin);

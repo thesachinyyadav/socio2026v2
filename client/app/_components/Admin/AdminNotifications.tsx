@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 

@@ -66,6 +66,32 @@ const nextConfig: NextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
+  async rewrites() {
+    const backendProxyOrigin = (
+      process.env.BACKEND_API_URL ||
+      process.env.SERVER_API_URL ||
+      process.env.API_URL ||
+      process.env.NEXT_PUBLIC_SERVER_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      fallbackApiUrl
+    )
+      .replace(/\/+$/, "")
+      .replace(/(\/api)+$/i, "");
+
+    if (!backendProxyOrigin) {
+      return [];
+    }
+
+    return {
+      fallback: [
+        {
+          // Any /api route not handled by Next.js route handlers is proxied to backend.
+          source: "/api/:path*",
+          destination: `${backendProxyOrigin}/api/:path*`,
+        },
+      ],
+    };
+  },
   // SEO & Security headers
   async headers() {
     return [

@@ -16,6 +16,7 @@ type ApprovalRequestRow = {
 type ApprovalStepRow = {
   step_code?: string | null;
   status?: string | null;
+  role_code?: string | null;
 };
 
 function parseAction(value: unknown): DecisionAction | null {
@@ -136,7 +137,7 @@ export async function PATCH(
 
     const { data: pendingStepData, error: pendingStepError } = await supabase
       .from("approval_steps")
-      .select("step_code,status")
+      .select("step_code,status,role_code")
       .eq("approval_request_id", approvalRequestDbId)
       .eq("role_code", "CFO")
       .eq("status", "PENDING")
@@ -148,11 +149,31 @@ export async function PATCH(
       return jsonError(500, `Failed to load pending CFO step: ${pendingStepError.message}`);
     }
 
-    if (!pendingStepData) {
+    let resolvedPendingStep = pendingStepData as ApprovalStepRow | null;
+
+    if (!resolvedPendingStep) {
+      const { data: fallbackStepData, error: fallbackStepError } = await supabase
+        .from("approval_steps")
+        .select("step_code,status,role_code")
+        .eq("approval_request_id", approvalRequestDbId)
+        .in("step_code", ["CFO", "L3_CFO"])
+        .eq("status", "PENDING")
+        .order("sequence_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackStepError) {
+        return jsonError(500, `Failed to load pending CFO step: ${fallbackStepError.message}`);
+      }
+
+      resolvedPendingStep = (fallbackStepData as ApprovalStepRow | null) || null;
+    }
+
+    if (!resolvedPendingStep) {
       return jsonError(409, "No pending CFO step exists for this request.");
     }
 
-    const stepCode = String((pendingStepData as ApprovalStepRow).step_code || "").trim();
+    const stepCode = String(resolvedPendingStep.step_code || "").trim();
     if (!stepCode) {
       return jsonError(400, "Approval request is missing step identifiers.");
     }

@@ -452,7 +452,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
   let pendingQueryResult = await supabase
     .from("approval_steps")
     .select(pendingSelectWithSchool)
-    .eq("role_code", "ACCOUNTS")
+    .in("role_code", ["ACCOUNTS", "FINANCE_OFFICER"])
     .in("step_code", ["ACCOUNTS", "L4_ACCOUNTS"])
     .eq("status", "PENDING")
     .order("created_at", { ascending: true });
@@ -464,7 +464,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
     pendingQueryResult = await supabase
       .from("approval_steps")
       .select(pendingSelectLegacy)
-      .eq("role_code", "ACCOUNTS")
+      .in("role_code", ["ACCOUNTS", "FINANCE_OFFICER"])
       .in("step_code", ["ACCOUNTS", "L4_ACCOUNTS"])
       .eq("status", "PENDING")
       .order("created_at", { ascending: true });

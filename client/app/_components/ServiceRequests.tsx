@@ -68,7 +68,7 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
   const [selectedService, setSelectedService] = useState(SERVICE_TYPES[0].id);
   const [details, setDetails] = useState<any>({});
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const API_URL = "";
 
   const fetchRequests = async () => {
     if (!authToken) return;

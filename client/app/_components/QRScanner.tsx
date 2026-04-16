@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import QrScanner from "qr-scanner";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 
 interface QRScannerProps {
   eventId: string;

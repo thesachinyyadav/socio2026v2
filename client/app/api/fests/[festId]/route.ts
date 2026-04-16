@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getApiErrorMessage,
+  parseJsonSafely,
+  resolveBackendApiBase,
+} from "@/lib/backendApi";
 
 export const dynamic = "force-dynamic";
-
-function normalizeApiBase(value: unknown): string {
-  return String(value || "").trim().replace(/\/+$/, "").replace(/\/api\/?$/i, "");
-}
-
-function parseJsonSafely(value: string): any | null {
-  if (!value) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
 
 export async function GET(
   request: NextRequest,
@@ -29,12 +20,19 @@ export async function GET(
     }
 
     const authHeader = request.headers.get("authorization");
-    const configuredBackendBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL);
-    const requestOrigin = normalizeApiBase(request.nextUrl.origin);
-    const backendBase =
-      configuredBackendBase && configuredBackendBase !== requestOrigin
-        ? configuredBackendBase
-        : "http://localhost:8000";
+    const backendBase = resolveBackendApiBase({
+      requestOrigin: request.nextUrl.origin,
+    });
+
+    if (!backendBase) {
+      return NextResponse.json(
+        {
+          error:
+            "Backend API origin is not configured. Set BACKEND_API_URL (or NEXT_PUBLIC_API_URL) to your server deployment.",
+        },
+        { status: 500 }
+      );
+    }
 
     const backendResponse = await fetch(
       `${backendBase}/api/fests/${encodeURIComponent(normalizedFestId)}`,
@@ -52,10 +50,11 @@ export async function GET(
     const payload = parseJsonSafely(rawBody);
 
     if (!backendResponse.ok) {
-      const message =
-        typeof payload?.error === "string"
-          ? payload.error
-          : rawBody?.trim() || `Failed to fetch fest (${backendResponse.status})`;
+      const message = getApiErrorMessage(
+        payload,
+        rawBody,
+        `Failed to fetch fest (${backendResponse.status})`
+      );
 
       return NextResponse.json({ error: message }, { status: backendResponse.status });
     }

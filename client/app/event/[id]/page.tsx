@@ -41,7 +41,7 @@ interface EventData {
 export default function Page() {
   const params = useParams(); // { id: string }
   const eventIdSlug = params?.id ? String(params.id) : null;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const API_URL = "";
 
   const router = useRouter();
 

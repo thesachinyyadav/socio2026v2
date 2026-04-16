@@ -7,7 +7,7 @@ import Footer from "../../_components/Home/Footer";
 import LoadingIndicator from "../../_components/UI/LoadingIndicator";
 import { useAuth } from "../../../context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 
 type ContactMessage = {
   id: string;

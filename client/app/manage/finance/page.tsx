@@ -62,8 +62,9 @@ export default async function FinanceManagePage() {
 
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
   const isFinanceOfficer =
-    hasAnyRoleCode(userProfile, ["ACCOUNTS"]) ||
-    Boolean((userProfile as any).is_finance_officer);
+    hasAnyRoleCode(userProfile, ["ACCOUNTS", "FINANCE_OFFICER"]) ||
+    Boolean((userProfile as any).is_finance_officer) ||
+    Boolean((userProfile as any).is_finance_office);
   if (!isFinanceOfficer && !isMasterAdmin) {
     redirect("/manage");
   }

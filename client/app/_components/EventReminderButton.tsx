@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const API_URL = "";
 
 // SVG icon components
 const BellIcon = () => (
