@@ -80,6 +80,32 @@ const festReferenceMatches = (reference: unknown, candidate: unknown): boolean =
   return toFestSlugCandidate(refKey) === toFestSlugCandidate(candidateKey);
 };
 
+const normalizeApiBase = (value: unknown): string => {
+  return String(value || "").trim().replace(/\/+$/, "").replace(/\/api\/?$/i, "");
+};
+
+const parseJsonSafely = (value: string): any | null => {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const buildEndpointCandidates = (apiBase: string, path: string): string[] => {
+  const candidates = new Set<string>();
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (apiBase) {
+    candidates.add(`${apiBase}${normalizedPath}`);
+  }
+
+  candidates.add(normalizedPath);
+  return Array.from(candidates);
+};
+
 function buildFestDetailsFromEvents(
   events: EventWithFlexibleFest[],
   festReference: string
@@ -287,32 +313,80 @@ const FestPage = () => {
     setLoadingFestDetails(true);
     setErrorFestDetails(null);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+    const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL);
     let didCancel = false;
 
     const loadFestDetails = async () => {
       try {
-        const festResponse = await fetch(`${API_URL}/api/fests/${festIdSlug}`, {
-          headers: session?.access_token
-            ? {
-                Authorization: `Bearer ${session.access_token}`,
-              }
-            : undefined,
-          cache: "no-store",
-        });
+        const festPath = `/api/fests/${encodeURIComponent(festIdSlug)}`;
+        const festEndpoints = buildEndpointCandidates(API_URL, festPath);
 
-        if (!festResponse.ok) {
-          if (festResponse.status === 403) {
-            throw new Error("This fest is archived and not available");
-          }
+        let data: { fest: FestDataFromAPI } | null = null;
+        let notFound = false;
+        let lastError: Error | null = null;
 
-          if (festResponse.status === 404) {
-            const eventsResponse = await fetch(`${API_URL}/api/events`, {
+        for (const endpoint of festEndpoints) {
+          try {
+            const festResponse = await fetch(endpoint, {
+              headers: session?.access_token
+                ? {
+                    Authorization: `Bearer ${session.access_token}`,
+                  }
+                : undefined,
               cache: "no-store",
             });
 
-            if (eventsResponse.ok) {
-              const payload = await eventsResponse.json().catch(() => null);
+            const rawBody = await festResponse.text();
+            const payload = parseJsonSafely(rawBody) as { fest?: FestDataFromAPI; error?: string } | null;
+
+            if (!festResponse.ok) {
+              if (festResponse.status === 403) {
+                throw new Error("This fest is archived and not available");
+              }
+
+              if (festResponse.status === 404) {
+                notFound = true;
+                throw new Error(`Fest with ID '${festIdSlug}' not found.`);
+              }
+
+              const message =
+                typeof payload?.error === "string"
+                  ? payload.error
+                  : `Failed to fetch fest data (status: ${festResponse.status})`;
+              throw new Error(message);
+            }
+
+            if (!payload || !payload.fest) {
+              throw new Error("Fest data not found in API response.");
+            }
+
+            data = payload as { fest: FestDataFromAPI };
+            break;
+          } catch (endpointError: any) {
+            lastError =
+              endpointError instanceof Error
+                ? endpointError
+                : new Error(String(endpointError || "Failed to fetch fest data."));
+          }
+        }
+
+        if (!data?.fest && notFound) {
+          const eventsPath = "/api/events";
+          const eventsEndpoints = buildEndpointCandidates(API_URL, eventsPath);
+
+          for (const endpoint of eventsEndpoints) {
+            try {
+              const eventsResponse = await fetch(endpoint, {
+                cache: "no-store",
+              });
+
+              const rawEventsBody = await eventsResponse.text();
+              const payload = parseJsonSafely(rawEventsBody);
+
+              if (!eventsResponse.ok) {
+                continue;
+              }
+
               const events = Array.isArray(payload?.events)
                 ? (payload.events as EventWithFlexibleFest[])
                 : [];
@@ -326,17 +400,14 @@ const FestPage = () => {
                 }
                 return;
               }
+            } catch {
+              continue;
             }
-
-            throw new Error(`Fest with ID '${festIdSlug}' not found.`);
           }
-
-          throw new Error(`Failed to fetch fest data (status: ${festResponse.status})`);
         }
 
-        const data = (await festResponse.json()) as { fest: FestDataFromAPI };
-        if (!data.fest) {
-          throw new Error("Fest data not found in API response.");
+        if (!data?.fest) {
+          throw lastError || new Error(`Fest with ID '${festIdSlug}' not found.`);
         }
 
         const apiFest = data.fest;

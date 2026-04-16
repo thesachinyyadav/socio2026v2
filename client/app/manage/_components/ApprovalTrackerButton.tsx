@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, Workflow } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import {
   ApprovalStatusIcon,
@@ -505,7 +505,6 @@ export default function ApprovalTrackerButton({
           className="inline-flex items-center gap-2 rounded-full border border-[#154cb3]/20 bg-[#154cb3]/5 px-3 py-1.5 text-sm font-semibold text-[#154cb3] transition-all hover:border-[#154cb3]/40 hover:bg-[#154cb3]/10"
           aria-label={`Open ${workflowType} workflow tracker`}
         >
-          <Workflow className="h-4 w-4" aria-hidden="true" />
           <span>{buttonLabel}</span>
           <ApprovalStatusIcon status={dominantStatus} className="h-4 w-4" animatePending />
         </Link>

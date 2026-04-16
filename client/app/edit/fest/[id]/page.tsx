@@ -57,12 +57,37 @@ interface FestDataForEdit {
 import { FileText, Wrench } from "lucide-react";
 import ServiceRequests from "../../../_components/ServiceRequests";
 
+const normalizeApiBase = (value: unknown): string =>
+  String(value || "").trim().replace(/\/+$/, "").replace(/\/api\/?$/i, "");
+
+const parseJsonSafely = (value: string): any | null => {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const buildEndpointCandidates = (apiBase: string, path: string): string[] => {
+  const candidates = new Set<string>();
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (apiBase) {
+    candidates.add(`${apiBase}${normalizedPath}`);
+  }
+
+  candidates.add(normalizedPath);
+  return Array.from(candidates);
+};
+
 const EditPage = () => {
   const params = useParams();
   const festId = params?.id as string;
   const { session, userData, isLoading: authIsLoading } = useAuth();
   const [activeTab, setActiveTab] = (useState<"details" | "services">("details"));
-  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL);
   const [festData, setFestData] = useState<FestDataForEdit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -99,19 +124,50 @@ const EditPage = () => {
         setIsLoading(true);
         setErrorMessage(null);
         try {
-          const response = await fetch(
-            `${API_URL}/api/fests/${festId}`,
-            {
-              headers: { Authorization: `Bearer ${session.access_token}` },
+          const endpointPath = `/api/fests/${encodeURIComponent(festId)}`;
+          const endpointCandidates = buildEndpointCandidates(API_URL, endpointPath);
+
+          let data: any = null;
+          let lastError: Error | null = null;
+
+          for (const endpoint of endpointCandidates) {
+            try {
+              const response = await fetch(endpoint, {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+                cache: "no-store",
+              });
+
+              const rawBody = await response.text();
+              const parsedBody = parseJsonSafely(rawBody);
+
+              if (!response.ok) {
+                const responseError =
+                  typeof parsedBody?.error === "string"
+                    ? parsedBody.error
+                    : response.status === 404
+                      ? `Fest with ID '${festId}' not found.`
+                      : `Failed to fetch fest (${response.status})`;
+                throw new Error(responseError);
+              }
+
+              if (!parsedBody || typeof parsedBody !== "object") {
+                throw new Error("Fest endpoint returned an invalid response.");
+              }
+
+              data = parsedBody;
+              break;
+            } catch (endpointError: any) {
+              lastError =
+                endpointError instanceof Error
+                  ? endpointError
+                  : new Error(String(endpointError || "Failed to fetch fest."));
             }
-          );
-          if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(
-              errData.error || `Failed to fetch fest (${response.status})`
-            );
           }
-          const data = await response.json();
+
+          if (!data) {
+            throw lastError || new Error("Failed to fetch fest data.");
+          }
+
           if (data.fest) {
             const normalizedWorkflowStatus = String(data.fest.workflow_status || "").trim().toLowerCase();
             setWorkflowStatus(normalizedWorkflowStatus || null);
