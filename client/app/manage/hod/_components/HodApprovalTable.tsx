@@ -45,7 +45,7 @@ export default function HodApprovalTable({
   emptyStateTitle = "No pending L1 approvals",
   emptyStateDescription =
     "You are all caught up for event and fest approvals in your department.",
-  eventDetailBasePath = "/approvals/hod-dean",
+  eventDetailBasePath = "/event",
 }: HodApprovalTableProps) {
   if (rows.length === 0) {
     return (
@@ -86,9 +86,8 @@ export default function HodApprovalTable({
               const completedAction = completedActions[row.id] || null;
               const isCompleted = Boolean(completedAction);
               const isFest = row.entityType === "fest";
-              const detailHref = isFest
-                ? `/approvals/fest/${encodeURIComponent(row.eventId)}`
-                : `${eventDetailBasePath}/${row.eventId}`;
+              const detailBasePath = isFest ? "/fest" : eventDetailBasePath;
+              const detailHref = `${detailBasePath.replace(/\/$/, "")}/${encodeURIComponent(row.eventId)}`;
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50/70">
