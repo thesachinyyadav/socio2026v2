@@ -117,7 +117,8 @@ const resolveLifecycleStatusFromWorkflow = ({
 const WORKFLOW_PHASE = Object.freeze({
   DRAFT: "draft",
   DEPT_APPROVAL: "dept_approval",
-  FINANCE_APPROVAL: "finance_approval",
+  FINANCE_APPROVAL_CFO: "finance_approval_cfo",
+  FINANCE_APPROVAL_ACCOUNTS: "finance_approval_accounts",
   LOGISTICS_APPROVAL: "logistics_approval",
   APPROVED: "approved",
 });
@@ -164,8 +165,12 @@ const resolveWorkflowPhaseFromActiveStep = (
     return normalizeWorkflowPhase(fallback, WORKFLOW_PHASE.DEPT_APPROVAL);
   }
 
-  if (FINANCE_APPROVAL_ROLE_CODES.has(roleCode)) {
-    return WORKFLOW_PHASE.FINANCE_APPROVAL;
+  if (roleCode === ROLE_CODES.CFO) {
+    return WORKFLOW_PHASE.FINANCE_APPROVAL_CFO;
+  }
+
+  if (roleCode === ROLE_CODES.ACCOUNTS || roleCode === ROLE_CODES.FINANCE_OFFICER) {
+    return WORKFLOW_PHASE.FINANCE_APPROVAL_ACCOUNTS;
   }
 
   if (DEPT_APPROVAL_ROLE_CODES.has(roleCode)) {
@@ -1578,6 +1583,84 @@ const ensureDeanStepAfterHodTransition = async ({ approvalRequest, approvalStep,
   ]);
 };
 
+const toFiniteNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const resolveEventIdFromApprovalRequest = (approvalRequest) => {
+  if (!isEventEntityType(approvalRequest?.entity_type)) {
+    return "";
+  }
+
+  return String(approvalRequest?.event_id || approvalRequest?.entity_ref || "").trim();
+};
+
+const resolveBudgetAmountForApprovalRequest = async (approvalRequest) => {
+  const eventId = resolveEventIdFromApprovalRequest(approvalRequest);
+  if (!eventId) {
+    return null;
+  }
+
+  try {
+    const budgetRecord = await queryOne("event_budgets", {
+      where: { event_id: eventId },
+      select: "event_id,total_estimated_expense,total_actual_expense",
+    });
+
+    if (!budgetRecord) {
+      return 0;
+    }
+
+    const estimatedExpense = toFiniteNumber(budgetRecord.total_estimated_expense, 0);
+    if (estimatedExpense > 0) {
+      return estimatedExpense;
+    }
+
+    return Math.max(toFiniteNumber(budgetRecord.total_actual_expense, 0), 0);
+  } catch (error) {
+    if (isMissingRelationError(error) || isMissingColumnError(error, "total_estimated_expense")) {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
+const shouldRequireFinanceAfterDeanApproval = async (approvalRequest) => {
+  const resolvedBudgetAmount = await resolveBudgetAmountForApprovalRequest(approvalRequest);
+  if (resolvedBudgetAmount !== null) {
+    return resolvedBudgetAmount > 0;
+  }
+
+  return isTruthyValue(approvalRequest?.is_budget_related);
+};
+
+const isFinanceRoleCode = (roleCode) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+  return (
+    normalizedRoleCode === ROLE_CODES.CFO ||
+    normalizedRoleCode === ROLE_CODES.ACCOUNTS ||
+    normalizedRoleCode === ROLE_CODES.FINANCE_OFFICER
+  );
+};
+
+const resolveFinanceStepCode = (roleCode) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+  if (normalizedRoleCode === ROLE_CODES.CFO) {
+    return "L3_CFO";
+  }
+
+  if (
+    normalizedRoleCode === ROLE_CODES.ACCOUNTS ||
+    normalizedRoleCode === ROLE_CODES.FINANCE_OFFICER
+  ) {
+    return "L4_ACCOUNTS";
+  }
+
+  return "";
+};
+
 const ensureFinanceStepsAfterDeanTransition = async ({ approvalRequest, approvalStep, nowIso }) => {
   const requestDbId = String(approvalRequest?.id || "").trim();
   if (!requestDbId) {
@@ -1589,27 +1672,188 @@ const ensureFinanceStepsAfterDeanTransition = async ({ approvalRequest, approval
     return;
   }
 
-  if (!isTruthyValue(approvalRequest?.is_budget_related)) {
-    return;
-  }
+  const requiresFinanceApproval = await shouldRequireFinanceAfterDeanApproval(approvalRequest);
 
   const allSteps = await queryAll("approval_steps", {
     where: { approval_request_id: requestDbId },
     order: { column: "sequence_order", ascending: false },
   });
 
-  const hasCfoStep = (allSteps || []).some((stepRow) => {
-    const roleCode = normalizeRoleCode(stepRow?.role_code || stepRow?.step_code);
-    return roleCode === ROLE_CODES.CFO;
-  });
+  const financeSteps = (allSteps || []).filter((stepRow) =>
+    isFinanceRoleCode(stepRow?.role_code || stepRow?.step_code)
+  );
 
-  const hasAccountsStep = (allSteps || []).some((stepRow) => {
+  if (!requiresFinanceApproval) {
+    for (const stepRow of financeSteps) {
+      const stepId = String(stepRow?.id || "").trim();
+      if (!stepId) {
+        continue;
+      }
+
+      const currentStatus = String(stepRow?.status || "").trim().toUpperCase();
+      if (!["PENDING", "WAITING"].includes(currentStatus)) {
+        continue;
+      }
+
+      await update(
+        "approval_steps",
+        {
+          status: "SKIPPED",
+          updated_at: nowIso,
+        },
+        { id: stepId }
+      );
+    }
+
+    return;
+  }
+
+  for (const financeStep of financeSteps) {
+    const stepId = String(financeStep?.id || "").trim();
+    if (!stepId) {
+      continue;
+    }
+
+    const desiredStepCode = resolveFinanceStepCode(
+      financeStep?.role_code || financeStep?.step_code
+    );
+    const currentStepCode = String(financeStep?.step_code || "").trim();
+
+    if (!desiredStepCode || currentStepCode.toUpperCase() === desiredStepCode) {
+      continue;
+    }
+
+    await update(
+      "approval_steps",
+      {
+        step_code: desiredStepCode,
+        updated_at: nowIso,
+      },
+      { id: stepId }
+    );
+  }
+
+  const cfoStep = financeSteps.find(
+    (stepRow) => normalizeRoleCode(stepRow?.role_code || stepRow?.step_code) === ROLE_CODES.CFO
+  );
+
+  const accountsStep = financeSteps.find((stepRow) => {
     const roleCode = normalizeRoleCode(stepRow?.role_code || stepRow?.step_code);
     return roleCode === ROLE_CODES.ACCOUNTS || roleCode === ROLE_CODES.FINANCE_OFFICER;
   });
 
-  // If either finance step already exists, preserve the authored chain and do not mutate ordering.
-  if (hasCfoStep || hasAccountsStep) {
+  if (cfoStep && accountsStep) {
+    return;
+  }
+
+  if (cfoStep && !accountsStep) {
+    const cfoSequenceOrder = Number(cfoStep?.sequence_order || 0) || 1;
+    const cfoStepGroup = Number(cfoStep?.step_group || cfoSequenceOrder) || cfoSequenceOrder;
+
+    for (const stepRow of allSteps || []) {
+      const stepId = String(stepRow?.id || "").trim();
+      if (!stepId || stepId === String(cfoStep?.id || "").trim()) {
+        continue;
+      }
+
+      const sequenceOrder = Number(stepRow?.sequence_order || 0);
+      if (!Number.isFinite(sequenceOrder) || sequenceOrder <= cfoSequenceOrder) {
+        continue;
+      }
+
+      const stepGroupValue = Number(stepRow?.step_group || sequenceOrder);
+      const shiftedStepGroup = Number.isFinite(stepGroupValue) && stepGroupValue > 0
+        ? stepGroupValue + 1
+        : sequenceOrder + 1;
+
+      await update(
+        "approval_steps",
+        {
+          sequence_order: sequenceOrder + 1,
+          step_group: shiftedStepGroup,
+          updated_at: nowIso,
+        },
+        { id: stepId }
+      );
+    }
+
+    await insert("approval_steps", [
+      {
+        approval_request_id: requestDbId,
+        step_code: "L4_ACCOUNTS",
+        role_code: ROLE_CODES.ACCOUNTS,
+        step_group: cfoStepGroup + 1,
+        sequence_order: cfoSequenceOrder + 1,
+        required_count: 1,
+        status: "WAITING",
+        created_at: nowIso,
+        updated_at: nowIso,
+      },
+    ]);
+
+    return;
+  }
+
+  if (!cfoStep && accountsStep) {
+    const accountsSequenceOrder = Number(accountsStep?.sequence_order || 0) || 1;
+    const accountsStepGroup = Number(accountsStep?.step_group || accountsSequenceOrder) || accountsSequenceOrder;
+
+    for (const stepRow of allSteps || []) {
+      const stepId = String(stepRow?.id || "").trim();
+      if (!stepId || stepId === String(accountsStep?.id || "").trim()) {
+        continue;
+      }
+
+      const sequenceOrder = Number(stepRow?.sequence_order || 0);
+      if (!Number.isFinite(sequenceOrder) || sequenceOrder < accountsSequenceOrder) {
+        continue;
+      }
+
+      const stepGroupValue = Number(stepRow?.step_group || sequenceOrder);
+      const shiftedStepGroup = Number.isFinite(stepGroupValue) && stepGroupValue > 0
+        ? stepGroupValue + 1
+        : sequenceOrder + 1;
+
+      await update(
+        "approval_steps",
+        {
+          sequence_order: sequenceOrder + 1,
+          step_group: shiftedStepGroup,
+          updated_at: nowIso,
+        },
+        { id: stepId }
+      );
+    }
+
+    const existingAccountsStatus = String(accountsStep?.status || "").trim().toUpperCase();
+    await update(
+      "approval_steps",
+      {
+        sequence_order: accountsSequenceOrder + 1,
+        step_group: accountsStepGroup + 1,
+        step_code: "L4_ACCOUNTS",
+        status: ["APPROVED", "REJECTED", "SKIPPED"].includes(existingAccountsStatus)
+          ? existingAccountsStatus
+          : "WAITING",
+        updated_at: nowIso,
+      },
+      { id: String(accountsStep?.id || "").trim() }
+    );
+
+    await insert("approval_steps", [
+      {
+        approval_request_id: requestDbId,
+        step_code: "L3_CFO",
+        role_code: ROLE_CODES.CFO,
+        step_group: accountsStepGroup,
+        sequence_order: accountsSequenceOrder,
+        required_count: 1,
+        status: "WAITING",
+        created_at: nowIso,
+        updated_at: nowIso,
+      },
+    ]);
+
     return;
   }
 
@@ -1646,7 +1890,7 @@ const ensureFinanceStepsAfterDeanTransition = async ({ approvalRequest, approval
   await insert("approval_steps", [
     {
       approval_request_id: requestDbId,
-      step_code: "CFO",
+      step_code: "L3_CFO",
       role_code: ROLE_CODES.CFO,
       step_group: deanStepGroup + 1,
       sequence_order: deanSequenceOrder + 1,
@@ -1657,10 +1901,96 @@ const ensureFinanceStepsAfterDeanTransition = async ({ approvalRequest, approval
     },
     {
       approval_request_id: requestDbId,
-      step_code: "ACCOUNTS",
+      step_code: "L4_ACCOUNTS",
       role_code: ROLE_CODES.ACCOUNTS,
       step_group: deanStepGroup + 2,
       sequence_order: deanSequenceOrder + 2,
+      required_count: 1,
+      status: "WAITING",
+      created_at: nowIso,
+      updated_at: nowIso,
+    },
+  ]);
+};
+
+const ensureAccountsStepAfterCfoTransition = async ({ approvalRequest, approvalStep, nowIso }) => {
+  const requestDbId = String(approvalRequest?.id || "").trim();
+  if (!requestDbId) {
+    return;
+  }
+
+  const stepRoleCode = normalizeRoleCode(approvalStep?.role_code || approvalStep?.step_code);
+  if (stepRoleCode !== ROLE_CODES.CFO) {
+    return;
+  }
+
+  const allSteps = await queryAll("approval_steps", {
+    where: { approval_request_id: requestDbId },
+    order: { column: "sequence_order", ascending: false },
+  });
+
+  const existingAccountsStep = (allSteps || []).find((stepRow) => {
+    const roleCode = normalizeRoleCode(stepRow?.role_code || stepRow?.step_code);
+    return roleCode === ROLE_CODES.ACCOUNTS || roleCode === ROLE_CODES.FINANCE_OFFICER;
+  });
+
+  if (existingAccountsStep) {
+    const desiredStepCode = resolveFinanceStepCode(
+      existingAccountsStep?.role_code || existingAccountsStep?.step_code
+    );
+    const currentStepCode = String(existingAccountsStep?.step_code || "").trim();
+
+    if (desiredStepCode && currentStepCode.toUpperCase() !== desiredStepCode) {
+      await update(
+        "approval_steps",
+        {
+          step_code: desiredStepCode,
+          updated_at: nowIso,
+        },
+        { id: String(existingAccountsStep?.id || "").trim() }
+      );
+    }
+
+    return;
+  }
+
+  const cfoSequenceOrder = Number(approvalStep?.sequence_order || 0) || 1;
+  const cfoStepGroup = Number(approvalStep?.step_group || cfoSequenceOrder) || cfoSequenceOrder;
+
+  for (const stepRow of allSteps || []) {
+    const stepId = String(stepRow?.id || "").trim();
+    if (!stepId || stepId === String(approvalStep?.id || "").trim()) {
+      continue;
+    }
+
+    const sequenceOrder = Number(stepRow?.sequence_order || 0);
+    if (!Number.isFinite(sequenceOrder) || sequenceOrder <= cfoSequenceOrder) {
+      continue;
+    }
+
+    const stepGroupValue = Number(stepRow?.step_group || sequenceOrder);
+    const shiftedStepGroup = Number.isFinite(stepGroupValue) && stepGroupValue > 0
+      ? stepGroupValue + 1
+      : sequenceOrder + 1;
+
+    await update(
+      "approval_steps",
+      {
+        sequence_order: sequenceOrder + 1,
+        step_group: shiftedStepGroup,
+        updated_at: nowIso,
+      },
+      { id: stepId }
+    );
+  }
+
+  await insert("approval_steps", [
+    {
+      approval_request_id: requestDbId,
+      step_code: "L4_ACCOUNTS",
+      role_code: ROLE_CODES.ACCOUNTS,
+      step_group: cfoStepGroup + 1,
+      sequence_order: cfoSequenceOrder + 1,
       required_count: 1,
       status: "WAITING",
       created_at: nowIso,
@@ -1724,6 +2054,21 @@ const getApprovalRoleLabel = (roleCode) => {
   if (normalizedRoleCode === ROLE_CODES.ORGANIZER_TEACHER) {
     return "Organizer Teacher";
   }
+  if (normalizedRoleCode === ROLE_CODES.ORGANIZER_STUDENT) {
+    return "Student Organiser";
+  }
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_IT) {
+    return "IT Team";
+  }
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_VENUE) {
+    return "Venue Team";
+  }
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_CATERING) {
+    return "Catering Team";
+  }
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_STALLS) {
+    return "Stalls Team";
+  }
 
   return normalizedRoleCode || "Approver";
 };
@@ -1732,6 +2077,334 @@ const isEventEntityType = (entityType) =>
   ["EVENT", "STANDALONE_EVENT", "FEST_CHILD_EVENT"].includes(
     normalizeWorkflowStatus(entityType)
   );
+
+const normalizeNotificationScopeValue = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+const roleMatchesUserRecord = (userRow, roleCode) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+  const normalizedUniversityRole = normalizeNotificationScopeValue(
+    userRow?.university_role
+  );
+
+  if (normalizedRoleCode === ROLE_CODES.HOD) {
+    return isTruthyValue(userRow?.is_hod) || normalizedUniversityRole === "hod";
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.DEAN) {
+    return isTruthyValue(userRow?.is_dean) || normalizedUniversityRole === "dean";
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.CFO) {
+    return isTruthyValue(userRow?.is_cfo) || normalizedUniversityRole === "cfo";
+  }
+
+  if (
+    normalizedRoleCode === ROLE_CODES.ACCOUNTS ||
+    normalizedRoleCode === ROLE_CODES.FINANCE_OFFICER
+  ) {
+    return (
+      isTruthyValue(userRow?.is_finance_office) ||
+      isTruthyValue(userRow?.is_finance_officer) ||
+      ["finance_officer", "accounts"].includes(normalizedUniversityRole)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_IT) {
+    return (
+      isTruthyValue(userRow?.is_service_it) ||
+      ["service_it", "it", "it_service"].includes(normalizedUniversityRole)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_VENUE) {
+    return (
+      isTruthyValue(userRow?.is_service_venue) ||
+      ["service_venue", "venue", "venue_service"].includes(normalizedUniversityRole)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_CATERING) {
+    return (
+      isTruthyValue(userRow?.is_service_catering) ||
+      ["service_catering", "catering", "catering_service"].includes(normalizedUniversityRole)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_STALLS) {
+    return (
+      isTruthyValue(userRow?.is_service_stalls) ||
+      ["service_stalls", "stalls", "stalls_service"].includes(normalizedUniversityRole)
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.ORGANIZER_STUDENT) {
+    return (
+      isTruthyValue(userRow?.is_organiser_student) ||
+      ["organizer", "organiser", "organizer_student", "organiser_student"].includes(
+        normalizedUniversityRole
+      )
+    );
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.ORGANIZER_TEACHER) {
+    return (
+      isTruthyValue(userRow?.is_organiser) ||
+      ["organizer", "organiser", "organizer_teacher", "organiser_teacher"].includes(
+        normalizedUniversityRole
+      )
+    );
+  }
+
+  return false;
+};
+
+const isUserWithinNotificationScope = (userRow, roleCode, scope = {}) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+  const campusScope = normalizeNotificationScopeValue(scope.campusScope);
+  const schoolScope = normalizeSchoolScopeValue(scope.schoolScope);
+  const departmentScope = normalizeDepartmentScopeForMatching(scope.departmentScope);
+
+  if (campusScope) {
+    const userCampus = normalizeNotificationScopeValue(userRow?.campus);
+    if (userCampus && userCampus !== campusScope) {
+      return false;
+    }
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.DEAN && schoolScope) {
+    const userSchool =
+      normalizeSchoolScopeValue(userRow?.school) || normalizeSchoolScopeValue(userRow?.school_id);
+    if (userSchool && userSchool !== schoolScope) {
+      return false;
+    }
+  }
+
+  if (normalizedRoleCode === ROLE_CODES.HOD && departmentScope) {
+    const userDepartment =
+      normalizeDepartmentScopeForMatching(userRow?.department) ||
+      normalizeDepartmentScopeForMatching(userRow?.department_id);
+    if (userDepartment && userDepartment !== departmentScope) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const resolveRoleRecipientEmails = async ({
+  roleCode,
+  campusScope,
+  schoolScope,
+  departmentScope,
+  excludeEmails = [],
+}) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+  if (!normalizedRoleCode) {
+    return [];
+  }
+
+  const excluded = new Set(
+    (excludeEmails || [])
+      .map((email) => normalizeEmail(email))
+      .filter(Boolean)
+  );
+
+  try {
+    const userRows = await queryAll("users", {
+      select:
+        "email,campus,school,school_id,department,department_id,university_role,is_hod,is_dean,is_cfo,is_finance_office,is_finance_officer,is_service_it,is_service_venue,is_service_catering,is_service_stalls,is_organiser_student,is_organiser",
+    });
+
+    const recipients = new Set();
+
+    for (const userRow of userRows || []) {
+      const email = normalizeEmail(userRow?.email);
+      if (!email || excluded.has(email)) {
+        continue;
+      }
+
+      if (!roleMatchesUserRecord(userRow, normalizedRoleCode)) {
+        continue;
+      }
+
+      if (
+        !isUserWithinNotificationScope(userRow, normalizedRoleCode, {
+          campusScope,
+          schoolScope,
+          departmentScope,
+        })
+      ) {
+        continue;
+      }
+
+      recipients.add(email);
+    }
+
+    return Array.from(recipients);
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+};
+
+const resolveRoleDashboardUrl = (roleCode) => {
+  const normalizedRoleCode = normalizeRoleCode(roleCode);
+
+  if (normalizedRoleCode === ROLE_CODES.HOD) return "/manage/hod";
+  if (normalizedRoleCode === ROLE_CODES.DEAN) return "/manage/dean";
+  if (normalizedRoleCode === ROLE_CODES.CFO) return "/manage/cfo";
+  if (
+    normalizedRoleCode === ROLE_CODES.ACCOUNTS ||
+    normalizedRoleCode === ROLE_CODES.FINANCE_OFFICER
+  ) {
+    return "/manage/finance";
+  }
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_IT) return "/manage/it";
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_VENUE) return "/manage/venue";
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_CATERING) return "/manage/catering";
+  if (normalizedRoleCode === ROLE_CODES.SERVICE_STALLS) return "/manage/stalls";
+
+  return "/manage";
+};
+
+const notifyNextApprovalStageRole = async ({
+  approvalRequest,
+  currentApprovalStep,
+  nextPendingStep,
+}) => {
+  if (!nextPendingStep) {
+    return;
+  }
+
+  const context = await resolveApprovalNotificationContext(approvalRequest);
+  if (!context) {
+    return;
+  }
+
+  const nextRoleCode = normalizeRoleCode(
+    nextPendingStep?.role_code || nextPendingStep?.step_code
+  );
+  if (!nextRoleCode) {
+    return;
+  }
+
+  const recipientEmails = await resolveRoleRecipientEmails({
+    roleCode: nextRoleCode,
+    campusScope: approvalRequest?.campus_hosted_at,
+    schoolScope: approvalRequest?.organizing_school,
+    departmentScope: approvalRequest?.organizing_dept,
+    excludeEmails: [approvalRequest?.requested_by_email],
+  });
+
+  if (recipientEmails.length === 0) {
+    return;
+  }
+
+  const currentRoleLabel = getApprovalRoleLabel(currentApprovalStep?.role_code);
+  const nextRoleLabel = getApprovalRoleLabel(nextRoleCode);
+
+  await sendUserNotifications({
+    userEmails: recipientEmails,
+    title: `${context.entityLabel} awaiting ${nextRoleLabel} review`,
+    message: `${context.title} was approved by ${currentRoleLabel} and is now pending ${nextRoleLabel} approval.`,
+    type: "info",
+    event_id: context.notificationEntityId,
+    event_title: context.title,
+    action_url: resolveRoleDashboardUrl(nextRoleCode),
+  });
+};
+
+const notifyLogisticsAndStudentOrganiserHandoff = async ({
+  approvalRequest,
+}) => {
+  if (!isEventEntityType(approvalRequest?.entity_type)) {
+    return;
+  }
+
+  const context = await resolveApprovalNotificationContext(approvalRequest);
+  if (!context?.notificationEntityId || !context?.record) {
+    return;
+  }
+
+  const eventWorkflowPhase = normalizeWorkflowPhase(context.record?.workflow_phase, "");
+  if (eventWorkflowPhase !== WORKFLOW_PHASE.LOGISTICS_APPROVAL) {
+    return;
+  }
+
+  let serviceRequests = [];
+  try {
+    const serviceRequestRows = await queryAll("service_requests", {
+      where: { event_id: context.notificationEntityId },
+      select: "service_role_code,status",
+    });
+    serviceRequests = Array.isArray(serviceRequestRows) ? serviceRequestRows : [];
+  } catch (error) {
+    if (!isMissingRelationError(error)) {
+      throw error;
+    }
+  }
+
+  const pendingServiceRoleCodes = Array.from(
+    new Set(
+      serviceRequests
+        .filter((requestRow) =>
+          ["PENDING", "QUEUED"].includes(
+            normalizeWorkflowStatus(requestRow?.status, "PENDING")
+          )
+        )
+        .map((requestRow) => normalizeRoleCode(requestRow?.service_role_code))
+        .filter((roleCode) => isServiceRoleCode(roleCode))
+    )
+  );
+
+  if (pendingServiceRoleCodes.length > 0) {
+    const serviceRecipientEmails = new Set();
+
+    for (const roleCode of pendingServiceRoleCodes) {
+      const roleEmails = await resolveRoleRecipientEmails({
+        roleCode,
+        campusScope:
+          approvalRequest?.campus_hosted_at || context.record?.campus_hosted_at || null,
+      });
+
+      roleEmails.forEach((email) => serviceRecipientEmails.add(email));
+    }
+
+    if (serviceRecipientEmails.size > 0) {
+      const serviceLabel = pendingServiceRoleCodes
+        .map((roleCode) => getApprovalRoleLabel(roleCode))
+        .join(", ");
+
+      await sendUserNotifications({
+        userEmails: Array.from(serviceRecipientEmails),
+        title: `${context.entityLabel} moved to logistics`,
+        message: `${context.title} has moved to logistics review (${serviceLabel}). Please action it from your queue.`,
+        type: "info",
+        event_id: context.notificationEntityId,
+        event_title: context.title,
+        action_url: "/manage",
+      });
+    }
+  }
+
+  if (context.organizerEmail) {
+    await sendUserNotifications({
+      userEmails: [context.organizerEmail],
+      title: `${context.entityLabel} moved to logistics`,
+      message: `${context.title} has cleared finance approvals and moved to logistics processing.`,
+      type: "success",
+      event_id: context.notificationEntityId,
+      event_title: context.title,
+      action_url: context.actionUrl,
+    });
+  }
+};
 
 const resolveApprovalNotificationContext = async (approvalRequest) => {
   const entityType = normalizeWorkflowStatus(approvalRequest?.entity_type);
@@ -2455,6 +3128,12 @@ router.post("/requests/:requestId/steps/:stepCode/decision", async (req, res) =>
       });
 
       await ensureFinanceStepsAfterDeanTransition({
+        approvalRequest,
+        approvalStep,
+        nowIso,
+      });
+
+      await ensureAccountsStepAfterCfoTransition({
         approvalRequest,
         approvalStep,
         nowIso,
