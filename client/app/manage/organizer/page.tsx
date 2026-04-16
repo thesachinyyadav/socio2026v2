@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { hasAnyRoleCode } from "@/lib/roleDashboards";
 import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 import OrganizerApprovalClient from "./_components/OrganizerApprovalClient";
-import { fetchOrganizerDashboardData } from "./_lib/organizerDashboardData";
+import { fetchOrganizerDashboardData, type OrganizerDashboardData } from "./_lib/organizerDashboardData";
 
 export const dynamic = "force-dynamic";
 
@@ -67,8 +67,8 @@ export default async function OrganizerManagePage() {
 
   const userEmail = String(user.email || "").trim().toLowerCase();
 
-  const fallbackData = { queue: [], metrics: { pendingApprovals: 0 } };
-  let dashboardData = fallbackData;
+  const fallbackData: OrganizerDashboardData = { queue: [], metrics: { pendingApprovals: 0 } };
+  let dashboardData: OrganizerDashboardData = fallbackData;
   let dashboardErrorMessage: string | null = null;
 
   try {
