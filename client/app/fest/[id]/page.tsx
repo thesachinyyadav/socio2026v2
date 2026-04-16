@@ -98,11 +98,11 @@ const buildEndpointCandidates = (apiBase: string, path: string): string[] => {
   const candidates = new Set<string>();
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 
+  candidates.add(normalizedPath);
+
   if (apiBase) {
     candidates.add(`${apiBase}${normalizedPath}`);
   }
-
-  candidates.add(normalizedPath);
   return Array.from(candidates);
 };
 
