@@ -52,6 +52,10 @@ type FestDetailRow = {
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
   contact_email?: string | null;
+  budget_amount?: number | string | null;
+  estimated_budget_amount?: number | string | null;
+  total_estimated_expense?: number | string | null;
+  custom_fields?: unknown;
 };
 
 type UserNameRow = {
@@ -196,6 +200,54 @@ function toTimestamp(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseJsonArraySafely(value: unknown): any[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function getFestBudgetAmount(festRow: FestDetailRow | null | undefined): number {
+  const directBudget =
+    toNumber(festRow?.total_estimated_expense) ||
+    toNumber(festRow?.estimated_budget_amount) ||
+    toNumber(festRow?.budget_amount);
+
+  if (directBudget > 0) {
+    return directBudget;
+  }
+
+  const customFields = parseJsonArraySafely(festRow?.custom_fields);
+  const budgetSettings = customFields.find((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return false;
+    }
+
+    return String((entry as Record<string, unknown>).key || "") === "__budget_approval__";
+  }) as Record<string, unknown> | undefined;
+
+  const value =
+    budgetSettings &&
+    typeof budgetSettings.value === "object" &&
+    budgetSettings.value !== null &&
+    !Array.isArray(budgetSettings.value)
+      ? (budgetSettings.value as Record<string, unknown>)
+      : null;
+
+  const customBudget = toNumber(value?.amount);
+  return customBudget > 0 ? customBudget : 0;
+}
+
 async function buildDepartmentToSchoolLookup(supabase: any): Promise<Map<string, string>> {
   const lookup = new Map<string, string>();
 
@@ -258,7 +310,7 @@ async function fetchFestRowsWithFallback(
   }
 
   const selectClause =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, campus_hosted_at, contact_email";
+    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const legacySelectClause =
     "fest_id, fest_title, opening_date, organizing_dept, contact_email";
 
@@ -274,6 +326,10 @@ async function fetchFestRowsWithFallback(
   const shouldRetryPrimaryWithLegacySelect =
     isMissingColumnError(primaryError, "organizing_school") ||
     isMissingColumnError(primaryError, "campus_hosted_at") ||
+    isMissingColumnError(primaryError, "budget_amount") ||
+    isMissingColumnError(primaryError, "estimated_budget_amount") ||
+    isMissingColumnError(primaryError, "total_estimated_expense") ||
+    isMissingColumnError(primaryError, "custom_fields") ||
     isMissingColumnError(primaryError);
 
   if (primaryError && shouldRetryPrimaryWithLegacySelect) {
@@ -299,6 +355,10 @@ async function fetchFestRowsWithFallback(
   const shouldRetryFallbackWithLegacySelect =
     isMissingColumnError(fallbackError, "organizing_school") ||
     isMissingColumnError(fallbackError, "campus_hosted_at") ||
+    isMissingColumnError(fallbackError, "budget_amount") ||
+    isMissingColumnError(fallbackError, "estimated_budget_amount") ||
+    isMissingColumnError(fallbackError, "total_estimated_expense") ||
+    isMissingColumnError(fallbackError, "custom_fields") ||
     isMissingColumnError(fallbackError);
 
   if (fallbackError && shouldRetryFallbackWithLegacySelect) {
@@ -556,7 +616,9 @@ export async function fetchDeanDashboardData({
           ? normalizeText(festRow?.fest_title) || "Untitled Fest"
           : normalizeText(eventRow?.title) || "Untitled Event",
         entityType: isFestEntity ? "fest" : "event",
-        totalBudget: toNumber(budgetRow?.total_estimated_expense),
+        totalBudget: isFestEntity
+          ? getFestBudgetAmount(festRow)
+          : toNumber(budgetRow?.total_estimated_expense),
         coordinatorName: deriveCoordinatorName(
           organizerEmail,
           organizerEmail ? userNamesByEmail.get(organizerEmail) : null
@@ -688,6 +750,25 @@ export async function fetchDeanDashboardData({
     );
   }
 
+    const kpiFestIds = Array.from(
+      new Set(
+        filteredKpiRequestRows
+          .filter(({ requestRow }) => normalizeEntityType(requestRow.entity_type) === "FEST")
+          .map(({ requestRow }) => normalizeText(requestRow.entity_ref))
+          .filter((entityRef) => entityRef.length > 0)
+      )
+    );
+
+    let kpiFestsById = new Map<string, FestDetailRow>();
+    if (kpiFestIds.length > 0) {
+      const kpiFestRows = await fetchFestRowsWithFallback(supabase, kpiFestIds);
+      kpiFestsById = new Map(
+        kpiFestRows
+          .map((row) => [normalizeText(row.fest_id), row] as const)
+          .filter(([festId]) => festId.length > 0)
+      );
+    }
+
   const departmentMap = new Map<string, { requested: number; approved: number }>();
 
   filteredKpiRequestRows.forEach(({ stepRow, requestRow }) => {
@@ -696,7 +777,7 @@ export async function fetchDeanDashboardData({
     const entityRef = normalizeText(requestRow.entity_ref);
     const budgetValue =
       entityType === "FEST"
-        ? 0
+        ? getFestBudgetAmount(kpiFestsById.get(entityRef) || null)
         : toNumber(kpiBudgetsByEventId.get(entityRef)?.total_estimated_expense);
 
     const existing = departmentMap.get(departmentName) || {
