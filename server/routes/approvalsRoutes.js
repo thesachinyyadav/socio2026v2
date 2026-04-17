@@ -1610,6 +1610,47 @@ const persistApprovalRequestScopeForRouting = async (approvalRequest) => {
   };
 };
 
+const shouldInsertDeanStepForRequest = async (approvalRequest) => {
+  const entityType = String(approvalRequest?.entity_type || "").trim().toUpperCase();
+  // Fests always follow HOD → Dean, so always insert Dean.
+  if (entityType === "FEST" || entityType === "FEST_CHILD_EVENT") {
+    return true;
+  }
+
+  const eventId = resolveEventIdFromApprovalRequest(approvalRequest);
+  if (!eventId) {
+    // Unknown entity scope; preserve legacy behaviour (insert Dean).
+    return true;
+  }
+
+  try {
+    const eventRow = await queryOne("events", {
+      where: { event_id: eventId },
+      select: "event_id,requires_dean_approval,needs_hod_dean_approval",
+    });
+
+    if (!eventRow) {
+      return true;
+    }
+
+    if (eventRow.requires_dean_approval !== undefined && eventRow.requires_dean_approval !== null) {
+      return Boolean(eventRow.requires_dean_approval);
+    }
+
+    // Legacy rows where the new column doesn't exist: fall back to combined flag.
+    return Boolean(eventRow.needs_hod_dean_approval);
+  } catch (error) {
+    if (
+      isMissingRelationError(error) ||
+      isMissingColumnError(error, "requires_dean_approval")
+    ) {
+      return true;
+    }
+
+    throw error;
+  }
+};
+
 const ensureDeanStepAfterHodTransition = async ({ approvalRequest, approvalStep, nowIso }) => {
   const requestDbId = String(approvalRequest?.id || "").trim();
   if (!requestDbId) {
@@ -1631,6 +1672,12 @@ const ensureDeanStepAfterHodTransition = async ({ approvalRequest, approvalStep,
   });
 
   if ((existingDeanSteps || []).length > 0) {
+    return;
+  }
+
+  // Standalone events may have `requires_dean_approval = false` — in that case,
+  // do not inject a Dean step after HOD. Fests always cascade to Dean.
+  if (!(await shouldInsertDeanStepForRequest(approvalRequest))) {
     return;
   }
 

@@ -350,20 +350,18 @@ const resolveSchoolForFest = async (fest) => {
   const directSchool = normalizeText(fest?.organizing_school || fest?.school || fest?.school_id);
   if (directSchool) return directSchool;
 
-  if (!normalizeText(fest?.organizing_dept) && !normalizeText(fest?.organizing_dept_id)) {
+  const deptId = normalizeText(fest?.organizing_dept_id);
+  if (!deptId) {
     return null;
   }
 
-  const mappedSchool = await resolveDepartmentSchoolForApprovals(
-    fest.organizing_dept || fest.organizing_dept_id
-  );
+  const mappedSchool = await resolveDepartmentSchoolForApprovals(deptId);
   if (mappedSchool) {
     return mappedSchool;
   }
 
   const hod = await findApprover({
     roleCode: ROLE_CODES.HOD,
-    department: fest.organizing_dept,
     department_id: fest.organizing_dept_id || null,
     campus: fest.campus_hosted_at,
   });
@@ -643,7 +641,6 @@ const updateFestWorkflow = async (festId, workflowStatus, extraUpdates = {}) => 
 const submitToHod = async ({ fest, requester }) => {
   const hod = await findApprover({
     roleCode: ROLE_CODES.HOD,
-    department: fest.organizing_dept,
     department_id: fest.organizing_dept_id || null,
     campus: fest.campus_hosted_at,
     excludeEmail: fest.contact_email,
@@ -653,10 +650,10 @@ const submitToHod = async ({ fest, requester }) => {
 
   if (!hodAvailable) {
     // No HOD assigned — route directly to Dean if available
+    const school = await resolveSchoolForFest(fest);
     const dean = await findApprover({
       roleCode: ROLE_CODES.DEAN,
-      department: fest.organizing_dept,
-      department_id: fest.organizing_dept_id || null,
+      school,
       campus: fest.campus_hosted_at,
       excludeEmail: fest.contact_email,
     });
@@ -687,13 +684,47 @@ const submitToHod = async ({ fest, requester }) => {
       return { updatedFest, dean, routedToDean: true };
     }
 
-    // No HOD or Dean — proceed to PENDING_HOD status and wait for assignment
+    // No HOD or Dean for this scope — skip dept approval.
+    // If the fest is budget-related, route straight to CFO; otherwise mark fully approved.
     const currentVersion = Number(fest.workflow_version) || 1;
     const nextVersion = normalizeToken(fest.workflow_status) === FEST_STATUS.REJECTED
       ? currentVersion + 1 : currentVersion;
 
-    const updatedFest = await updateFestWorkflow(fest.fest_id, FEST_STATUS.PENDING_HOD, {
+    const budgetAmount = getFestBudgetAmount(fest);
+    if (budgetAmount > 0) {
+      const cfo = await findApprover({
+        roleCode: ROLE_CODES.CFO,
+        campus: fest.campus_hosted_at,
+        excludeEmail: fest.contact_email,
+      });
+
+      if (cfo?.email && normalizeEmail(cfo.email) !== normalizeEmail(requester.email)) {
+        const updatedFest = await updateFestWorkflow(fest.fest_id, FEST_STATUS.PENDING_CFO, {
+          workflow_version: nextVersion,
+          rejected_at: null,
+          rejected_by: null,
+          rejection_reason: null,
+        });
+
+        await logApprovalAction({
+          entityType: "fest",
+          entityId: fest.fest_id,
+          step: "cfo_review",
+          action: "submitted",
+          actorEmail: requester.email,
+          actorRole: "organizer",
+          notes: "No HOD or Dean assigned for this scope; routed to CFO.",
+          version: nextVersion,
+        });
+
+        return { updatedFest, cfo, routedToCfo: true };
+      }
+    }
+
+    const updatedFest = await updateFestWorkflow(fest.fest_id, FEST_STATUS.FULLY_APPROVED, {
       workflow_version: nextVersion,
+      approved_at: new Date().toISOString(),
+      approved_by: normalizeEmail(requester.email),
       rejected_at: null,
       rejected_by: null,
       rejection_reason: null,
@@ -702,15 +733,15 @@ const submitToHod = async ({ fest, requester }) => {
     await logApprovalAction({
       entityType: "fest",
       entityId: fest.fest_id,
-      step: "hod_review",
-      action: "submitted",
+      step: "auto_approval",
+      action: "auto_approved",
       actorEmail: requester.email,
-      actorRole: "organizer",
-      notes: "No HOD or Dean assigned; pending HOD assignment.",
+      actorRole: "system",
+      notes: "No HOD or Dean assigned for this scope; fest auto-approved.",
       version: nextVersion,
     });
 
-    return { updatedFest, hod: null };
+    return { updatedFest, hod: null, autoApproved: true };
   }
 
   if (normalizeEmail(hod.email) === normalizeEmail(requester.email)) {
@@ -748,9 +779,9 @@ const ensureScopedApproverForFest = ({ fest, requester, roleCode }) => {
 
   if (roleCode === ROLE_CODES.HOD) {
     const deptMatch =
+      !fest.organizing_dept_id ||
       (requester.department_id && fest.organizing_dept_id &&
-        requester.department_id === fest.organizing_dept_id) ||
-      matchesScope(requester.department || requester.department_id, fest.organizing_dept);
+        requester.department_id === fest.organizing_dept_id);
     if (!deptMatch) {
       return "Only the HOD of the fest department can take this action.";
     }
@@ -804,9 +835,9 @@ const canAccessFestApprovalContext = async ({ fest, requester, userId }) => {
 
   if (userHasRole(requester, ROLE_CODES.HOD)) {
     const hodDeptMatch =
+      !fest?.organizing_dept_id ||
       (requester?.department_id && fest?.organizing_dept_id &&
-        requester.department_id === fest.organizing_dept_id) ||
-      matchesScope(requester?.department || requester?.department_id, fest?.organizing_dept);
+        requester.department_id === fest.organizing_dept_id);
     if (hodDeptMatch && matchesScope(requester?.campus, fest?.campus_hosted_at)) {
       return true;
     }
@@ -886,7 +917,6 @@ router.get("/:festId/context", async (req, res) => {
     const [hod, dean, cfo, accounts] = await Promise.all([
       findApprover({
         roleCode: ROLE_CODES.HOD,
-        department: fest.organizing_dept,
         department_id: fest.organizing_dept_id || null,
         campus: fest.campus_hosted_at,
       }),
@@ -1712,9 +1742,9 @@ router.get("/approval-queue", async (req, res) => {
     const filtered = (fests || []).filter((fest) => {
       const status = normalizeToken(fest.workflow_status);
       const deptMatches =
+        !fest.organizing_dept_id ||
         (req.userInfo?.department_id && fest.organizing_dept_id &&
-          req.userInfo.department_id === fest.organizing_dept_id) ||
-        matchesScope(req.userInfo?.department, fest.organizing_dept);
+          req.userInfo.department_id === fest.organizing_dept_id);
       const campusMatches = matchesScope(req.userInfo?.campus, fest.campus_hosted_at);
       const schoolMatches = matchesScope(req.userInfo?.school, fest.organizing_school || fest.school);
 

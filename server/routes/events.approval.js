@@ -260,19 +260,33 @@ const resolveSchoolForEvent = async (eventRecord) => {
   );
   if (directSchool) return directSchool;
 
-  const mappedSchool = await resolveDepartmentSchoolForApprovals(
-    eventRecord?.organizing_dept || eventRecord?.organizing_dept_id
-  );
-  if (mappedSchool) return mappedSchool;
+  const deptId = normalizeText(eventRecord?.organizing_dept_id);
+  if (deptId) {
+    const mappedSchool = await resolveDepartmentSchoolForApprovals(deptId);
+    if (mappedSchool) return mappedSchool;
+  }
 
   const hod = await findApprover({
     roleCode: ROLE_CODES.HOD,
-    department: eventRecord?.organizing_dept,
     department_id: eventRecord?.organizing_dept_id || null,
     campus: eventRecord?.campus_hosted_at,
   });
 
   return normalizeText(hod?.school) || null;
+};
+
+const eventRequiresHodApproval = (eventRecord) => {
+  if (eventRecord?.requires_hod_approval !== undefined && eventRecord?.requires_hod_approval !== null) {
+    return asBoolean(eventRecord.requires_hod_approval);
+  }
+  return asBoolean(eventRecord?.needs_hod_dean_approval);
+};
+
+const eventRequiresDeanApproval = (eventRecord) => {
+  if (eventRecord?.requires_dean_approval !== undefined && eventRecord?.requires_dean_approval !== null) {
+    return asBoolean(eventRecord.requires_dean_approval);
+  }
+  return asBoolean(eventRecord?.needs_hod_dean_approval);
 };
 
 const getEventOwnerEmail = (eventRecord) =>
@@ -570,9 +584,9 @@ const notifyEventRejection = async ({ event, stepLabel, notes, reviewer }) => {
 const canAccessStandaloneApprovalContext = async ({ eventRecord, userInfo }) => {
   if (userHasRole(userInfo, ROLE_CODES.HOD)) {
     const deptMatch =
+      !eventRecord?.organizing_dept_id ||
       (userInfo?.department_id && eventRecord?.organizing_dept_id &&
-        userInfo.department_id === eventRecord.organizing_dept_id) ||
-      matchesScope(userInfo?.department || userInfo?.department_id, eventRecord?.organizing_dept);
+        userInfo.department_id === eventRecord.organizing_dept_id);
     if (deptMatch && matchesScope(userInfo?.campus, eventRecord?.campus_hosted_at)) {
       return true;
     }
@@ -675,7 +689,6 @@ router.get("/:eventId/context", async (req, res) => {
     const [hod, dean, cfo, accounts] = await Promise.all([
       findApprover({
         roleCode: ROLE_CODES.HOD,
-        department: event.organizing_dept,
         department_id: event.organizing_dept_id || null,
         campus: event.campus_hosted_at,
       }),
@@ -931,10 +944,11 @@ router.post("/:eventId/submit", async (req, res) => {
       return res.status(403).json({ error: "Only the organizer can submit this standalone event." });
     }
 
-    const needsHodDean = asBoolean(event.needs_hod_dean_approval);
+    const requiresHod = eventRequiresHodApproval(event);
+    const requiresDean = eventRequiresDeanApproval(event);
     const needsBudget = await shouldRouteThroughBudgetStep(event);
 
-    if (!needsHodDean && !needsBudget) {
+    const autoApproveStandalone = async (reason) => {
       const updatedEvent = await updateEventWorkflow(eventId, EVENT_STATUS.AUTO_APPROVED, {
         event_context: EVENT_CONTEXT.STANDALONE,
         created_by_subhead: false,
@@ -950,7 +964,7 @@ router.post("/:eventId/submit", async (req, res) => {
         action: "auto_approved",
         actorEmail: requesterEmail,
         actorRole: "system",
-        notes: "No explicit approval requirement selected.",
+        notes: reason,
         version: nextVersion,
       });
 
@@ -971,20 +985,53 @@ router.post("/:eventId/submit", async (req, res) => {
         next: "service_requests",
         event: updatedEvent,
       });
+    };
+
+    const routeToBudgetStep = async () => {
+      const budgetRouting = await routeStandaloneBudgetStep({
+        event: { ...event, needs_budget_approval: true },
+        requester: req.userInfo,
+        eventId,
+        version: nextVersion,
+      });
+
+      if (budgetRouting.error) {
+        return res.status(400).json({ error: budgetRouting.error });
+      }
+
+      await logApprovalAction({
+        entityId: eventId,
+        step: budgetRouting.status === EVENT_STATUS.PENDING_CFO ? "cfo_review" : "accounts_review",
+        action: "submitted",
+        actorEmail: requesterEmail,
+        actorRole: "organizer",
+        notes: null,
+        version: nextVersion,
+      });
+
+      return res.status(200).json({
+        success: true,
+        status: budgetRouting.status,
+        routed_to: budgetRouting.routedTo,
+        event: budgetRouting.updatedEvent,
+      });
+    };
+
+    // Nothing requested and no budget — auto-approve.
+    if (!requiresHod && !requiresDean && !needsBudget) {
+      return autoApproveStandalone("No explicit approval requirement selected.");
     }
 
-    if (needsHodDean) {
+    // 1) Try HOD if requested.
+    if (requiresHod) {
       const hod = await findApprover({
         roleCode: ROLE_CODES.HOD,
-        department: event.organizing_dept,
         department_id: event.organizing_dept_id || null,
         campus: event.campus_hosted_at,
         excludeEmail: ownerEmail,
       });
 
-      const hodAvailable = hod?.email && normalizeEmail(hod.email) !== ownerEmail;
-
-      if (hodAvailable) {
+      if (hod?.email && normalizeEmail(hod.email) !== ownerEmail) {
         const updatedEvent = await updateEventWorkflow(eventId, EVENT_STATUS.PENDING_HOD, {
           event_context: EVENT_CONTEXT.STANDALONE,
           created_by_subhead: false,
@@ -1045,7 +1092,19 @@ router.post("/:eventId/submit", async (req, res) => {
         });
       }
 
-      // No HOD assigned — try routing directly to Dean
+      await logApprovalAction({
+        entityId: eventId,
+        step: "hod_review",
+        action: "skipped",
+        actorEmail: requesterEmail,
+        actorRole: "system",
+        notes: "No HOD assigned for this department; HOD step skipped.",
+        version: nextVersion,
+      });
+    }
+
+    // 2) Try Dean if requested (or as fallback when HOD was needed but unavailable).
+    if (requiresDean) {
       const school = await resolveSchoolForEvent(event);
       const dean = await findApprover({
         roleCode: ROLE_CODES.DEAN,
@@ -1070,7 +1129,7 @@ router.post("/:eventId/submit", async (req, res) => {
           action: "submitted",
           actorEmail: requesterEmail,
           actorRole: "organizer",
-          notes: "No HOD assigned; routed directly to Dean.",
+          notes: requiresHod ? "Routed to Dean; no HOD assigned." : null,
           version: nextVersion,
         });
 
@@ -1080,7 +1139,7 @@ router.post("/:eventId/submit", async (req, res) => {
         sendUserNotifications({
           userEmails: [dean.email],
           title: `Approval required: ${eventTitle}`,
-          message: `${eventTitle} has been submitted and is awaiting your Dean approval (no HOD is currently assigned for this department).`,
+          message: `${eventTitle} has been submitted and is awaiting your Dean approval.`,
           type: "warning",
           event_id: eventId,
           event_title: eventTitle,
@@ -1115,39 +1174,26 @@ router.post("/:eventId/submit", async (req, res) => {
         });
       }
 
-      // No HOD or Dean — fall through to budget routing below
+      await logApprovalAction({
+        entityId: eventId,
+        step: "dean_review",
+        action: "skipped",
+        actorEmail: requesterEmail,
+        actorRole: "system",
+        notes: "No Dean assigned for this school; Dean step skipped.",
+        version: nextVersion,
+      });
     }
 
-    const budgetRouting = await routeStandaloneBudgetStep({
-      event: {
-        ...event,
-        needs_budget_approval: true,
-      },
-      requester: req.userInfo,
-      eventId,
-      version: nextVersion,
-    });
-
-    if (budgetRouting.error) {
-      return res.status(400).json({ error: budgetRouting.error });
+    // 3) Budget step (CFO → Accounts) if applicable.
+    if (needsBudget) {
+      return routeToBudgetStep();
     }
 
-    await logApprovalAction({
-      entityId: eventId,
-      step: budgetRouting.status === EVENT_STATUS.PENDING_CFO ? "cfo_review" : "accounts_review",
-      action: "submitted",
-      actorEmail: requesterEmail,
-      actorRole: "organizer",
-      notes: null,
-      version: nextVersion,
-    });
-
-    return res.status(200).json({
-      success: true,
-      status: budgetRouting.status,
-      routed_to: budgetRouting.routedTo,
-      event: budgetRouting.updatedEvent,
-    });
+    // 4) Nothing left to route — auto-approve.
+    return autoApproveStandalone(
+      "HOD/Dean could not be assigned for this scope; auto-approved so organiser can proceed."
+    );
   } catch (error) {
     console.error("[EventApproval] submit error:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -1319,8 +1365,9 @@ router.post("/:eventId/hod-dean-action", async (req, res) => {
       return res.status(400).json({ error: "HOD/Dean action applies only to standalone events." });
     }
 
-    const needsHodDean = asBoolean(event.needs_hod_dean_approval);
-    if (!needsHodDean) {
+    const requiresHod = eventRequiresHodApproval(event);
+    const requiresDean = eventRequiresDeanApproval(event);
+    if (!requiresHod && !requiresDean) {
       return res.status(400).json({ error: "This event does not require HOD/Dean approval." });
     }
 
@@ -1343,9 +1390,9 @@ router.post("/:eventId/hod-dean-action", async (req, res) => {
 
       if (!isMasterAdmin(req.userInfo)) {
         const hodDeptMatch =
+          !event.organizing_dept_id ||
           (req.userInfo.department_id && event.organizing_dept_id &&
-            req.userInfo.department_id === event.organizing_dept_id) ||
-          matchesScope(req.userInfo.department, event.organizing_dept);
+            req.userInfo.department_id === event.organizing_dept_id);
         if (!hodDeptMatch) {
           return res.status(403).json({ error: "Only the HOD of this department can act." });
         }
@@ -1370,42 +1417,45 @@ router.post("/:eventId/hod-dean-action", async (req, res) => {
           version,
         });
 
-        const school = await resolveSchoolForEvent(event);
-        const dean = await findApprover({
-          roleCode: ROLE_CODES.DEAN,
-          school,
-          campus: event.campus_hosted_at,
-          excludeEmail: ownerEmail,
-        });
-
-        if (dean?.email && normalizeEmail(dean.email) !== normalizeEmail(req.userInfo.email)) {
-          const updatedEvent = await updateEventWorkflow(eventId, EVENT_STATUS.PENDING_DEAN, {
-            rejected_at: null,
-            rejected_by: null,
-            rejection_reason: null,
+        // Only route to Dean if the organizer explicitly requested Dean approval.
+        if (requiresDean) {
+          const school = await resolveSchoolForEvent(event);
+          const dean = await findApprover({
+            roleCode: ROLE_CODES.DEAN,
+            school,
+            campus: event.campus_hosted_at,
+            excludeEmail: ownerEmail,
           });
 
-          return res.status(200).json({
-            success: true,
-            status: EVENT_STATUS.PENDING_DEAN,
-            routed_to: {
-              role: "dean",
-              name: dean.name || null,
-              email: dean.email,
-            },
-            event: updatedEvent,
+          if (dean?.email && normalizeEmail(dean.email) !== normalizeEmail(req.userInfo.email)) {
+            const updatedEvent = await updateEventWorkflow(eventId, EVENT_STATUS.PENDING_DEAN, {
+              rejected_at: null,
+              rejected_by: null,
+              rejection_reason: null,
+            });
+
+            return res.status(200).json({
+              success: true,
+              status: EVENT_STATUS.PENDING_DEAN,
+              routed_to: {
+                role: "dean",
+                name: dean.name || null,
+                email: dean.email,
+              },
+              event: updatedEvent,
+            });
+          }
+
+          await logApprovalAction({
+            entityId: eventId,
+            step: "dean_review",
+            action: "skipped",
+            actorEmail: req.userInfo.email,
+            actorRole: "system",
+            notes: "No Dean assigned for this school; Dean step skipped.",
+            version,
           });
         }
-
-        await logApprovalAction({
-          entityId: eventId,
-          step: "dean_review",
-          action: "hod_dean_combined",
-          actorEmail: req.userInfo.email,
-          actorRole: "hod_dean",
-          notes: hodNotes,
-          version,
-        });
 
         if (await shouldRouteThroughBudgetStep(event)) {
           const budgetRouting = await routeStandaloneBudgetStep({
@@ -1784,9 +1834,9 @@ router.get("/approval-queue", async (req, res) => {
       const status = normalizeToken(event.workflow_status);
       const context = inferEventContext(event);
       const deptMatches =
+        !event.organizing_dept_id ||
         (req.userInfo?.department_id && event.organizing_dept_id &&
-          req.userInfo.department_id === event.organizing_dept_id) ||
-        matchesScope(req.userInfo?.department, event.organizing_dept);
+          req.userInfo.department_id === event.organizing_dept_id);
       const campusMatches = matchesScope(req.userInfo?.campus, event.campus_hosted_at);
       const schoolMatches = matchesScope(req.userInfo?.school, event.organizing_school || event.school);
 

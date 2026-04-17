@@ -2959,6 +2959,12 @@ router.post(
           !normalizedFestReference &&
           (Boolean(standaloneApprovalPreferences.requiresHodApproval) ||
             Boolean(standaloneApprovalPreferences.requiresDeanApproval)),
+        requires_hod_approval:
+          !normalizedFestReference &&
+          Boolean(standaloneApprovalPreferences.requiresHodApproval),
+        requires_dean_approval:
+          !normalizedFestReference &&
+          Boolean(standaloneApprovalPreferences.requiresDeanApproval),
         needs_budget_approval:
           !normalizedFestReference &&
           Boolean(
@@ -3000,6 +3006,8 @@ router.post(
         const missingWorkflowPhaseColumn = isMissingColumnError(insertError, "workflow_phase");
         const missingEventContextColumn = isMissingColumnError(insertError, "event_context");
         const missingNeedsHodDeanColumn = isMissingColumnError(insertError, "needs_hod_dean_approval");
+        const missingRequiresHodColumn = isMissingColumnError(insertError, "requires_hod_approval");
+        const missingRequiresDeanColumn = isMissingColumnError(insertError, "requires_dean_approval");
         const missingNeedsBudgetColumn = isMissingColumnError(insertError, "needs_budget_approval");
         const missingBudgetAmountColumn = isMissingColumnError(insertError, "budget_amount");
         const missingEstimatedBudgetColumn = isMissingColumnError(insertError, "estimated_budget_amount");
@@ -3014,6 +3022,8 @@ router.post(
           !missingWorkflowPhaseColumn &&
           !missingEventContextColumn &&
           !missingNeedsHodDeanColumn &&
+          !missingRequiresHodColumn &&
+          !missingRequiresDeanColumn &&
           !missingNeedsBudgetColumn &&
           !missingBudgetAmountColumn &&
           !missingEstimatedBudgetColumn &&
@@ -3045,6 +3055,12 @@ router.post(
         }
         if (missingNeedsHodDeanColumn) {
           delete fallbackInsertPayload.needs_hod_dean_approval;
+        }
+        if (missingRequiresHodColumn) {
+          delete fallbackInsertPayload.requires_hod_approval;
+        }
+        if (missingRequiresDeanColumn) {
+          delete fallbackInsertPayload.requires_dean_approval;
         }
         if (missingNeedsBudgetColumn) {
           delete fallbackInsertPayload.needs_budget_approval;
@@ -4034,6 +4050,12 @@ router.put(
           !normalizedFestReference &&
           (Boolean(standaloneApprovalPreferences.requiresHodApproval) ||
             Boolean(standaloneApprovalPreferences.requiresDeanApproval)),
+        requires_hod_approval:
+          !normalizedFestReference &&
+          Boolean(standaloneApprovalPreferences.requiresHodApproval),
+        requires_dean_approval:
+          !normalizedFestReference &&
+          Boolean(standaloneApprovalPreferences.requiresDeanApproval),
         needs_budget_approval:
           !normalizedFestReference &&
           Boolean(
@@ -4110,6 +4132,8 @@ router.put(
           "parent_fest_id",
           "created_by_subhead",
           "needs_hod_dean_approval",
+          "requires_hod_approval",
+          "requires_dean_approval",
           "needs_budget_approval",
           "budget_amount",
           "estimated_budget_amount",
