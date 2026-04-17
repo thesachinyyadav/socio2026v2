@@ -931,6 +931,7 @@ const MappedEventCard = ({
               workflowTitle={event.title}
               approvalRequestId={String((event as any).approval_request_id || "").trim() || null}
               workflowStatus={event.workflow_status || null}
+              eventContext={(event as any).event_context || null}
               buttonLabel="Approvals"
             />
             <Link

@@ -134,6 +134,7 @@ type EventWorkflowRow = {
   approval_request_id?: string | null;
   workflow_status?: string | null;
   workflow_phase?: string | null;
+  event_context?: string | null;
 };
 
 type WorkflowSnapshot = {
@@ -554,9 +555,10 @@ async function loadUsersLookup(input: {
   };
 }
 
-function buildGraph(snapshot: WorkflowSnapshot) {
+function buildGraph(snapshot: WorkflowSnapshot, eventContext?: string | null) {
   const approvalRequest = snapshot.approvalRequest;
   const workflowStatus = snapshot.eventRow?.workflow_status || null;
+  const isUnderFest = normalizeLower(eventContext) === "under_fest";
 
   const approvalSteps = [...snapshot.approvalSteps].sort((a, b) => {
     const seqA = Number(a.sequence_order || 0);
@@ -596,15 +598,19 @@ function buildGraph(snapshot: WorkflowSnapshot) {
         : approvalSteps.find((candidate) => matchesStemStep(nodeKey, candidate)) || null;
     const decision = step ? latestDecisionByStepId.get(step.id) || null : null;
 
-    const status = deriveStemNodeStatus({
-      nodeKey,
-      step,
-      decision,
-      request: approvalRequest,
-      previousStemApproved: previousApproved,
-      fallbackStatus: fallbackStemStatuses[nodeKey],
-      isBudgetRelated,
-    });
+    const inheritedByFest = isUnderFest && (nodeKey === "hod" || nodeKey === "dean");
+
+    const status = inheritedByFest
+      ? "approved"
+      : deriveStemNodeStatus({
+          nodeKey,
+          step,
+          decision,
+          request: approvalRequest,
+          previousStemApproved: previousApproved,
+          fallbackStatus: fallbackStemStatuses[nodeKey],
+          isBudgetRelated,
+        });
 
     const approver = toApproverContext({
       userId: decision?.decided_by_user_id || null,
@@ -620,7 +626,9 @@ function buildGraph(snapshot: WorkflowSnapshot) {
     const reviewNote = stripRevisionPrefix(decision?.comment || (status === "rejected" ? approvalRequest?.latest_comment : null));
 
     let description = "Awaiting update.";
-    if (status === "approved") {
+    if (inheritedByFest) {
+      description = "Auto-approved — inherited from parent fest.";
+    } else if (status === "approved") {
       description = approver.name
         ? `Approved by ${approver.name}`
         : "Approved";
@@ -852,7 +860,7 @@ export function useEventApprovalWorkflow(eventId: string): EventApprovalWorkflow
     try {
       const { data: eventRowData, error: eventRowError } = await supabase
         .from("events")
-        .select("event_id,approval_request_id,workflow_status,workflow_phase")
+        .select("event_id,approval_request_id,workflow_status,workflow_phase,event_context")
         .eq("event_id", normalizedEventId)
         .maybeSingle();
 
