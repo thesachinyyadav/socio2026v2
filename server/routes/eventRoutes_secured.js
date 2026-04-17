@@ -202,6 +202,7 @@ const createTeacherApprovalRequestForChildEvent = async ({ eventRecord, userInfo
       parent_fest_ref: eventRecord.fest_id,
       requested_by_user_id: userInfo?.id || null,
       requested_by_email: userInfo?.email || null,
+      organizing_dept: eventRecord.organizing_dept || null,
       organizing_dept_id: eventRecord.organizing_dept_id || null,
       organizing_school: eventRecord.organizing_school || null,
       campus_hosted_at: eventRecord.campus_hosted_at || null,
@@ -214,11 +215,13 @@ const createTeacherApprovalRequestForChildEvent = async ({ eventRecord, userInfo
     try {
       insertedRequest = await insert("approval_requests", [requestPayload]);
     } catch (insertError) {
-      if (!isMissingColumnError(insertError, "organizing_school")) {
+      const missingSchool = isMissingColumnError(insertError, "organizing_school");
+      const missingDept = isMissingColumnError(insertError, "organizing_dept");
+      if (!missingSchool && !missingDept) {
         throw insertError;
       }
-
-      delete requestPayload.organizing_school;
+      if (missingSchool) delete requestPayload.organizing_school;
+      if (missingDept) delete requestPayload.organizing_dept;
       insertedRequest = await insert("approval_requests", [requestPayload]);
     }
 
@@ -773,6 +776,7 @@ const createApprovalRequestWithSteps = async ({
       parent_fest_ref: parentFestRef,
       requested_by_user_id: userInfo?.id || null,
       requested_by_email: userInfo?.email || null,
+      organizing_dept: organizingDept || null,
       organizing_dept_id: organizingDeptId || null,
       organizing_school: organizingSchool,
       campus_hosted_at: campusHostedAt,
@@ -785,11 +789,13 @@ const createApprovalRequestWithSteps = async ({
     try {
       insertedRequest = await insert("approval_requests", [requestPayload]);
     } catch (insertError) {
-      if (!isMissingColumnError(insertError, "organizing_school")) {
+      const missingSchool = isMissingColumnError(insertError, "organizing_school");
+      const missingDept = isMissingColumnError(insertError, "organizing_dept");
+      if (!missingSchool && !missingDept) {
         throw insertError;
       }
-
-      delete requestPayload.organizing_school;
+      if (missingSchool) delete requestPayload.organizing_school;
+      if (missingDept) delete requestPayload.organizing_dept;
       insertedRequest = await insert("approval_requests", [requestPayload]);
     }
 
@@ -903,6 +909,7 @@ const createStandaloneApprovalRequestForEvent = async ({
     entityRef: eventId,
     parentFestRef: null,
     userInfo,
+    organizingDept: eventRecord?.organizing_dept || null,
     organizingDeptId: eventRecord?.organizing_dept_id || null,
     organizingSchool: eventRecord?.organizing_school || null,
     campusHostedAt: eventRecord?.campus_hosted_at || null,

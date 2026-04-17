@@ -987,7 +987,7 @@ const resolveHodDepartmentScope = async (req) => {
     try {
       const assignments = await queryAll("user_role_assignments", {
         where: { user_id: userId, role_code: ROLE_CODES.HOD },
-        select: "department_id,is_active,valid_from,valid_until",
+        select: "department_id,department_scope,is_active,valid_from,valid_until",
       });
 
       for (const assignment of assignments || []) {
@@ -998,6 +998,12 @@ const resolveHodDepartmentScope = async (req) => {
         const uuidDeptId = String(assignment.department_id || "").trim();
         if (uuidDeptId) {
           departmentIdCandidates.add(uuidDeptId);
+        }
+
+        // Also add text-based department_scope as a direct normalized scope value
+        const textScope = String(assignment.department_scope || "").trim();
+        if (textScope) {
+          addScopeValue(textScope);
         }
       }
     } catch (error) {
@@ -1131,23 +1137,37 @@ const resolveApprovalRequestDepartmentScopeValue = async (approvalRequest) => {
     }
   }
 
-  // Fallback: UUID column on the linked event or fest entity
+  // Try text organizing_dept field on the approval_request directly
+  const directDeptText = String(approvalRequest?.organizing_dept || "").trim();
+  if (directDeptText) {
+    return normalizeDepartmentScopeValue(directDeptText);
+  }
+
+  // Fallback: UUID + text columns on the linked event or fest entity
   const entityType = normalizeWorkflowStatus(approvalRequest?.entity_type);
   const entityRef = String(approvalRequest?.entity_ref || "").trim();
   if (!entityRef) return "";
 
   try {
     let entityDeptId = null;
+    let entityDeptText = null;
     if (["EVENT", "STANDALONE_EVENT", "FEST_CHILD_EVENT"].includes(entityType)) {
-      const event = await queryOne("events", { where: { event_id: entityRef }, select: "organizing_dept_id" });
+      const event = await queryOne("events", { where: { event_id: entityRef }, select: "organizing_dept,organizing_dept_id" });
       entityDeptId = String(event?.organizing_dept_id || "").trim();
+      entityDeptText = String(event?.organizing_dept || "").trim();
     } else if (entityType === "FEST") {
-      const fest = await queryOne("fests", { where: { fest_id: entityRef }, select: "organizing_dept_id" });
-      if (fest) entityDeptId = String(fest?.organizing_dept_id || "").trim();
+      const fest = await queryOne("fests", { where: { fest_id: entityRef }, select: "organizing_dept,organizing_dept_id" });
+      if (fest) {
+        entityDeptId = String(fest?.organizing_dept_id || "").trim();
+        entityDeptText = String(fest?.organizing_dept || "").trim();
+      }
     }
     if (entityDeptId) {
       const name = await resolveDeptNameById(entityDeptId);
       if (name) return normalizeDepartmentScopeValue(name);
+    }
+    if (entityDeptText) {
+      return normalizeDepartmentScopeValue(entityDeptText);
     }
   } catch (error) {
     if (isMissingRelationError(error) || isMissingColumnError(error, "organizing_dept_id")) return "";

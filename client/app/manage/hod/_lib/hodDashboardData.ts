@@ -7,6 +7,7 @@ type ApprovalRequestJoinRow = {
   request_id?: string | null;
   entity_type?: string | null;
   entity_ref?: string | null;
+  organizing_dept?: string | null;
   organizing_dept_id?: string | null;
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
@@ -28,6 +29,7 @@ type EventDetailRow = {
   event_id?: string | null;
   title?: string | null;
   event_date?: string | null;
+  organizing_dept?: string | null;
   organizing_dept_id?: string | null;
   organizing_school?: string | null;
   organizer_email?: string | null;
@@ -40,6 +42,7 @@ type FestDetailRow = {
   fest_id?: string | null;
   fest_title?: string | null;
   opening_date?: string | null;
+  organizing_dept?: string | null;
   organizing_dept_id?: string | null;
   organizing_school?: string | null;
   contact_email?: string | null;
@@ -226,9 +229,9 @@ async function fetchFestRowsFromTableWithFallback(
   error: { code?: string | null; message?: string | null } | null;
 }> {
   const selectClauseWithBudget =
-    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const selectClauseLegacy =
-    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, custom_fields";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from(tableName)
@@ -281,9 +284,9 @@ async function fetchAllFestRowsFromTableWithFallback(
   tableName: string
 ): Promise<FestDetailRow[]> {
   const selectClauseWithBudget =
-    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const selectClauseLegacy =
-    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, custom_fields";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from(tableName)
@@ -545,6 +548,7 @@ export async function fetchHodDashboardData({
           request_id,
           entity_type,
           entity_ref,
+          organizing_dept,
           organizing_dept_id,
           campus_hosted_at,
           status,
@@ -590,8 +594,8 @@ export async function fetchHodDashboardData({
   let eventRowsById = new Map<string, EventDetailRow>();
   if (eventIds.length > 0) {
     const fullSelect =
-      "event_id, title, event_date, organizing_dept_id, organizing_school, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
-    const legacySelect = "event_id, title, event_date, organizing_dept_id, organizing_school, organizer_email";
+      "event_id, title, event_date, organizing_dept, organizing_dept_id, organizing_school, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    const legacySelect = "event_id, title, event_date, organizing_dept, organizing_dept_id, organizing_school, organizer_email";
 
     let { data: eventData, error: eventError } = await supabase
       .from("events")
@@ -693,20 +697,36 @@ export async function fetchHodDashboardData({
     );
     const effectiveDeptId = requestDeptId || fallbackDeptId;
 
+    // Text-based department name as fallback when UUID is absent
+    const requestDeptText = normalizeScope(requestRow.organizing_dept);
+    const entityDeptText = normalizeScope(
+      isFestEntity
+        ? festRow?.organizing_dept
+        : eventRowsById.get(entityRef)?.organizing_dept
+    );
+    const effectiveDeptText = requestDeptText || entityDeptText;
+
     if (normalizedDepartmentScopes.length > 0) {
       // UUID scopes: compare directly
       const uuidMatch = normalizedDepartmentScopes.some(
         (scope) => uuidPattern.test(scope) && scope === effectiveDeptId.toLowerCase()
       );
-      // Text scopes: compare normalized dept name
+      // Text scopes via DB name lookup: UUID → dept name from departments table
       const resolvedDeptName = normalizeDepartmentScope(deptNameById.get(effectiveDeptId) || "");
       const nameMatch =
         resolvedDeptName.length > 0 &&
         normalizedDepartmentScopes.some(
           (scope) => !uuidPattern.test(scope) && normalizeDepartmentScope(scope) === resolvedDeptName
         );
+      // Text fallback: compare normalized organizing_dept text against all scopes
+      const normalizedEffectiveDeptText = normalizeDepartmentScope(effectiveDeptText);
+      const textMatch =
+        normalizedEffectiveDeptText.length > 0 &&
+        normalizedDepartmentScopes.some(
+          (scope) => normalizeDepartmentScope(scope) === normalizedEffectiveDeptText
+        );
 
-      if (!uuidMatch && !nameMatch) {
+      if (!uuidMatch && !nameMatch && !textMatch) {
         return false;
       }
     }

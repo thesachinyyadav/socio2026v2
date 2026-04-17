@@ -13,6 +13,7 @@ type AuthUserLike = {
 type RoleAssignmentRow = {
   role_code?: unknown;
   school_scope?: unknown;
+  department_scope?: unknown;
   department_id?: unknown;
   campus_scope?: unknown;
   is_active?: unknown;
@@ -23,6 +24,7 @@ type RoleAssignmentRow = {
 type ActiveRoleAssignment = {
   role_code: string;
   school_scope: string | null;
+  department_scope: string | null;
   department_id: string | null;
   campus_scope: string | null;
 };
@@ -153,7 +155,7 @@ export async function getCurrentUserProfileWithRoleCodes(
 
   let assignmentQuery = await roleLookupClient
     .from("user_role_assignments")
-    .select("id,role_code,school_scope,department_id,campus_scope,is_active,valid_from,valid_until")
+    .select("id,role_code,school_scope,department_scope,department_id,campus_scope,is_active,valid_from,valid_until")
     .eq("user_id", userId);
 
   if (
@@ -163,7 +165,7 @@ export async function getCurrentUserProfileWithRoleCodes(
   ) {
     assignmentQuery = await roleLookupClient
       .from("user_role_assignments")
-      .select("id,role_code,department_id,campus_scope,is_active,valid_from,valid_until")
+      .select("id,role_code,department_scope,department_id,campus_scope,is_active,valid_from,valid_until")
       .eq("user_id", userId);
   }
 
@@ -180,6 +182,7 @@ export async function getCurrentUserProfileWithRoleCodes(
     .map((assignment) => ({
       role_code: normalizeRoleCode(assignment.role_code),
       school_scope: normalizeNullableText(assignment.school_scope),
+      department_scope: normalizeNullableText(assignment.department_scope),
       department_id: normalizeNullableText(assignment.department_id),
       campus_scope: normalizeNullableText(assignment.campus_scope),
     }))
@@ -249,7 +252,7 @@ export async function getCurrentUserProfileWithRoleCodes(
         const roleAssignmentSummary = {
           role_code: assignment.role_code,
           role_tag: roleTag,
-          department_scope: null,
+          department_scope: assignment.department_scope,
           department_id: assignment.department_id,
           department_label: departmentLabel,
           campus_scope: assignment.campus_scope,
