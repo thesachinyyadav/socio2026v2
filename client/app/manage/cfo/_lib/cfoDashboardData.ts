@@ -72,6 +72,7 @@ type DepartmentLookupRow = {
 export interface CfoDashboardData {
   queue: CfoApprovalQueueItem[];
   metrics: CfoDashboardMetrics;
+  history: import("../types").ApprovalHistoryItem[];
 }
 
 function toNumber(value: unknown): number {
@@ -896,6 +897,8 @@ export async function fetchCfoDashboardData({
     { requested: 0, approved: 0 }
   );
 
+  const history = await fetchCfoDecisionHistory(supabase);
+
   return {
     queue,
     metrics: {
@@ -905,5 +908,90 @@ export async function fetchCfoDashboardData({
       highValuePendingBudget,
       l2Threshold: normalizedThreshold,
     },
+    history,
   };
+}
+
+async function fetchCfoDecisionHistory(supabase: any): Promise<import("../types").ApprovalHistoryItem[]> {
+  const { data, error } = await supabase
+    .from("approval_decisions")
+    .select(`
+      id,
+      decision,
+      comment,
+      decided_by_email,
+      role_code,
+      created_at,
+      approval_requests!inner (
+        id,
+        entity_type,
+        entity_ref,
+        organizing_dept_id
+      )
+    `)
+    .in("role_code", ["CFO", "L3_CFO", "CAMPUS_DIRECTOR_CFO"])
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error || !Array.isArray(data)) return [];
+
+  const eventIds: string[] = [];
+  const festIds: string[] = [];
+  const allDeptIds: string[] = [];
+  for (const row of data as any[]) {
+    const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+    if (!req) continue;
+    const et = String(req.entity_type || "").toUpperCase();
+    const ref = String(req.entity_ref || "").trim();
+    if (!ref) continue;
+    if (et === "FEST") festIds.push(ref); else eventIds.push(ref);
+    const dId = String(req.organizing_dept_id || "").trim();
+    if (dId) allDeptIds.push(dId);
+  }
+
+  const eventNamesById = new Map<string, string>();
+  const festNamesById = new Map<string, string>();
+  const deptNamesById = new Map<string, string>();
+
+  if (eventIds.length > 0) {
+    const { data: evRows } = await supabase.from("events").select("event_id,title").in("event_id", eventIds);
+    if (Array.isArray(evRows)) for (const r of evRows as any[]) eventNamesById.set(String(r.event_id || ""), String(r.title || ""));
+  }
+  if (festIds.length > 0) {
+    const { data: fRows } = await supabase.from("fests").select("fest_id,fest_title").in("fest_id", festIds);
+    if (Array.isArray(fRows)) for (const r of fRows as any[]) festNamesById.set(String(r.fest_id || ""), String(r.fest_title || ""));
+  }
+  if (allDeptIds.length > 0) {
+    const uniqueDeptIds = [...new Set(allDeptIds)];
+    const { data: dRows } = await supabase.from("departments").select("id,name").in("id", uniqueDeptIds);
+    if (Array.isArray(dRows) && dRows.length > 0) {
+      for (const r of dRows as any[]) deptNamesById.set(String(r.id), String(r.name || ""));
+    } else {
+      const { data: dFallback } = await supabase.from("departments_courses").select("id,department_name").in("id", uniqueDeptIds);
+      if (Array.isArray(dFallback)) for (const r of dFallback as any[]) deptNamesById.set(String(r.id), String(r.department_name || ""));
+    }
+  }
+
+  return (data as any[]).flatMap((row) => {
+    const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+    if (!req) return [];
+    const entityType = String(req.entity_type || "").toUpperCase();
+    const entityRef = String(req.entity_ref || "").trim();
+    if (!entityRef) return [];
+    const decision = String(row.decision || "").toLowerCase();
+    if (!["approved", "rejected", "returned_for_revision"].includes(decision)) return [];
+    const deptId = String(req.organizing_dept_id || "").trim();
+    return [{
+      id: String(row.id || ""),
+      requestId: String(req.id || ""),
+      entityRef,
+      entityType: entityType === "FEST" ? "fest" : ("event" as "event" | "fest"),
+      eventName: entityType === "FEST" ? festNamesById.get(entityRef) || "Untitled Fest" : eventNamesById.get(entityRef) || "Untitled Event",
+      departmentName: (deptId && deptNamesById.get(deptId)) || "Unknown Department",
+      decision: decision as "approved" | "rejected" | "returned_for_revision",
+      comment: row.comment ? String(row.comment) : null,
+      decidedByEmail: String(row.decided_by_email || ""),
+      decidedAt: String(row.created_at || ""),
+    }];
+  });
 }

@@ -12,7 +12,7 @@ type EventRow = {
   event_id?: string | null;
   title?: string | null;
   event_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   organizer_email?: string | null;
   fest?: string | null;
@@ -25,7 +25,7 @@ type FestRow = {
   fest_id?: string | null;
   fest_title?: string | null;
   opening_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   contact_email?: string | null;
   budget_amount?: number | string | null;
@@ -38,7 +38,7 @@ type ApprovalRequestQueueRow = {
   id?: string | null;
   entity_type?: string | null;
   entity_ref?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
   submitted_at?: string | null;
@@ -394,9 +394,9 @@ async function fetchFestRowsWithFallback(supabase: any, festIds: string[]): Prom
   }
 
   const fullSelect =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const minimalSelect =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense";
 
   const { data: festsData, error: festsError } = await supabase
     .from("fests")
@@ -508,7 +508,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
       id,
       entity_type,
       entity_ref,
-      organizing_dept,
+      organizing_dept_id,
       organizing_school,
       submitted_at,
       created_at
@@ -527,7 +527,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
       id,
       entity_type,
       entity_ref,
-      organizing_dept,
+      organizing_dept_id,
       submitted_at,
       created_at
     )
@@ -658,9 +658,9 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
   let approvalEventById = new Map<string, EventRow>();
   if (approvalEventIds.length > 0) {
     const fullApprovalEventSelect =
-      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest,budget_amount,estimated_budget_amount,total_estimated_expense";
+      "event_id,title,event_date,organizing_dept_id,organizing_school,organizer_email,fest,budget_amount,estimated_budget_amount,total_estimated_expense";
     const legacyApprovalEventSelect =
-      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest";
+      "event_id,title,event_date,organizing_dept_id,organizing_school,organizer_email,fest";
 
     let { data: approvalEventRowsData, error: approvalEventRowsError } = await supabase
       .from("events")
@@ -763,6 +763,41 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
     });
   }
 
+  // Build department name lookup for L4 approval items
+  const allApprovalDeptIds = Array.from(
+    new Set([
+      ...Array.from(approvalEventById.values()).map((r) => normalizeText(r.organizing_dept_id)).filter(Boolean),
+      ...Array.from(approvalFestsById.values()).map((r) => normalizeText(r.organizing_dept_id)).filter(Boolean),
+      ...pendingRequestRows.map((r) => normalizeText(r.organizing_dept_id)).filter(Boolean),
+    ])
+  );
+  let approvalDeptNameById = new Map<string, string>();
+  if (allApprovalDeptIds.length > 0) {
+    const { data: deptRowsData } = await supabase
+      .from("departments")
+      .select("id, name")
+      .in("id", allApprovalDeptIds);
+    if (Array.isArray(deptRowsData)) {
+      approvalDeptNameById = new Map(
+        (deptRowsData as Array<{ id: string; name: string }>).map((r) => [String(r.id), String(r.name || "")])
+      );
+    }
+    if (approvalDeptNameById.size === 0) {
+      const { data: fallbackRows } = await supabase
+        .from("departments_courses")
+        .select("id, department_name")
+        .in("id", allApprovalDeptIds);
+      if (Array.isArray(fallbackRows)) {
+        approvalDeptNameById = new Map(
+          (fallbackRows as Array<{ id: string; department_name: string }>).map((r) => [
+            String(r.id),
+            String(r.department_name || ""),
+          ])
+        );
+      }
+    }
+  }
+
   const organizerEmails = Array.from(
     new Set(
       [
@@ -840,10 +875,13 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
         normalizeText(requestRow.created_at) ||
         normalizeText(stepRow.created_at) ||
         null,
-      departmentName:
-        normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept) ||
-        normalizeText(requestRow.organizing_dept) ||
-        "Unknown Department",
+      departmentName: (() => {
+        const dId = normalizeText(
+          requestRow.organizing_dept_id ||
+          (isFestEntity ? festRow?.organizing_dept_id : eventRow?.organizing_dept_id)
+        );
+        return (dId && approvalDeptNameById.get(dId)) || "Unknown Department";
+      })(),
       schoolName:
         normalizeText(isFestEntity ? festRow?.organizing_school : eventRow?.organizing_school) ||
         normalizeText(requestRow.organizing_school) ||
@@ -881,10 +919,11 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
   );
 
   let eventDetailsById = new Map<string, EventRow>();
+  let settlementDeptNameById = new Map<string, string>();
   if (eventIds.length > 0) {
     const { data: eventRowsData, error: eventRowsError } = await supabase
       .from("events")
-      .select("event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest")
+      .select("event_id,title,event_date,organizing_dept_id,organizing_school,organizer_email,fest")
       .in("event_id", eventIds);
 
     if (eventRowsError) {
@@ -897,6 +936,34 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
         .map((row) => [normalizeText(row.event_id), row] as const)
         .filter(([eventId]) => eventId.length > 0)
     );
+
+    const settleDeptIds = Array.from(
+      new Set(eventRows.map((r) => normalizeText(r.organizing_dept_id)).filter(Boolean))
+    );
+    if (settleDeptIds.length > 0) {
+      const { data: sdRows } = await supabase
+        .from("departments")
+        .select("id, name")
+        .in("id", settleDeptIds);
+      if (Array.isArray(sdRows) && sdRows.length > 0) {
+        settlementDeptNameById = new Map(
+          (sdRows as Array<{ id: string; name: string }>).map((r) => [String(r.id), String(r.name || "")])
+        );
+      } else {
+        const { data: sdFallback } = await supabase
+          .from("departments_courses")
+          .select("id, department_name")
+          .in("id", settleDeptIds);
+        if (Array.isArray(sdFallback)) {
+          settlementDeptNameById = new Map(
+            (sdFallback as Array<{ id: string; department_name: string }>).map((r) => [
+              String(r.id),
+              String(r.department_name || ""),
+            ])
+          );
+        }
+      }
+    }
   }
 
   const [cateringResult, resourcesResult, documentsResult] = await Promise.all([
@@ -985,7 +1052,10 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
         budgetId: normalizeText(budgetRow.id),
         eventId,
         eventName: normalizeText(eventRow?.title) || "Untitled Event",
-        departmentName: normalizeText(eventRow?.organizing_dept) || "Unknown Department",
+        departmentName: (() => {
+          const dId = normalizeText(eventRow?.organizing_dept_id);
+          return (dId && settlementDeptNameById.get(dId)) || "Unknown Department";
+        })(),
         totalEstimatedExpense: toNumber(budgetRow.total_estimated_expense),
         advanceRequestedAmount,
         advancePaidAmount,
@@ -1014,7 +1084,10 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
         budgetId: normalizeText(budgetRow.id),
         eventId,
         eventName: normalizeText(eventRow?.title) || "Untitled Event",
-        departmentName: normalizeText(eventRow?.organizing_dept) || "Unknown Department",
+        departmentName: (() => {
+          const dId = normalizeText(eventRow?.organizing_dept_id);
+          return (dId && settlementDeptNameById.get(dId)) || "Unknown Department";
+        })(),
         schoolName: normalizeText(eventRow?.organizing_school) || "Unknown School",
         totalEstimatedExpense,
         totalActualExpense,
@@ -1032,10 +1105,97 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
       return rightAbsoluteVariance - leftAbsoluteVariance;
     });
 
+  const history = await fetchFinanceDecisionHistory(supabase);
+
   return {
     approvals,
     advances,
     settlements,
+    history,
     warnings,
   };
+}
+
+async function fetchFinanceDecisionHistory(supabase: any): Promise<import("./../../finance/types").ApprovalHistoryItem[]> {
+  const { data, error } = await supabase
+    .from("approval_decisions")
+    .select(`
+      id,
+      decision,
+      comment,
+      decided_by_email,
+      role_code,
+      created_at,
+      approval_requests!inner (
+        id,
+        entity_type,
+        entity_ref,
+        organizing_dept_id
+      )
+    `)
+    .in("role_code", ["ACCOUNTS", "FINANCE_OFFICER", "FINANCE", "FINANCE_OFFICE"])
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error || !Array.isArray(data)) return [];
+
+  const eventIds: string[] = [];
+  const festIds: string[] = [];
+  const allDeptIds: string[] = [];
+  for (const row of data as any[]) {
+    const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+    if (!req) continue;
+    const et = String(req.entity_type || "").toUpperCase();
+    const ref = String(req.entity_ref || "").trim();
+    if (!ref) continue;
+    if (et === "FEST") festIds.push(ref); else eventIds.push(ref);
+    const dId = String(req.organizing_dept_id || "").trim();
+    if (dId) allDeptIds.push(dId);
+  }
+
+  const eventNamesById = new Map<string, string>();
+  const festNamesById = new Map<string, string>();
+  const deptNamesById = new Map<string, string>();
+
+  if (eventIds.length > 0) {
+    const { data: evRows } = await supabase.from("events").select("event_id,title").in("event_id", eventIds);
+    if (Array.isArray(evRows)) for (const r of evRows as any[]) eventNamesById.set(String(r.event_id || ""), String(r.title || ""));
+  }
+  if (festIds.length > 0) {
+    const { data: fRows } = await supabase.from("fests").select("fest_id,fest_title").in("fest_id", festIds);
+    if (Array.isArray(fRows)) for (const r of fRows as any[]) festNamesById.set(String(r.fest_id || ""), String(r.fest_title || ""));
+  }
+  if (allDeptIds.length > 0) {
+    const uniqueDeptIds = [...new Set(allDeptIds)];
+    const { data: dRows } = await supabase.from("departments").select("id,name").in("id", uniqueDeptIds);
+    if (Array.isArray(dRows) && dRows.length > 0) {
+      for (const r of dRows as any[]) deptNamesById.set(String(r.id), String(r.name || ""));
+    } else {
+      const { data: dFallback } = await supabase.from("departments_courses").select("id,department_name").in("id", uniqueDeptIds);
+      if (Array.isArray(dFallback)) for (const r of dFallback as any[]) deptNamesById.set(String(r.id), String(r.department_name || ""));
+    }
+  }
+
+  return (data as any[]).flatMap((row) => {
+    const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+    if (!req) return [];
+    const entityType = String(req.entity_type || "").toUpperCase();
+    const entityRef = String(req.entity_ref || "").trim();
+    if (!entityRef) return [];
+    const decision = String(row.decision || "").toLowerCase();
+    if (!["approved", "rejected", "returned_for_revision"].includes(decision)) return [];
+    const deptId = String(req.organizing_dept_id || "").trim();
+    return [{
+      id: String(row.id || ""),
+      requestId: String(req.id || ""),
+      entityRef,
+      entityType: entityType === "FEST" ? "fest" : ("event" as "event" | "fest"),
+      eventName: entityType === "FEST" ? festNamesById.get(entityRef) || "Untitled Fest" : eventNamesById.get(entityRef) || "Untitled Event",
+      departmentName: (deptId && deptNamesById.get(deptId)) || "Unknown Department",
+      decision: decision as "approved" | "rejected" | "returned_for_revision",
+      comment: row.comment ? String(row.comment) : null,
+      decidedByEmail: String(row.decided_by_email || ""),
+      decidedAt: String(row.created_at || ""),
+    }];
+  });
 }

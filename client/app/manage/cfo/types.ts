@@ -21,3 +21,16 @@ export interface CfoDashboardMetrics {
 }
 
 export type CfoApprovalAction = "approve" | "reject" | "return";
+
+export interface ApprovalHistoryItem {
+  id: string;
+  requestId: string;
+  entityRef: string;
+  entityType: "event" | "fest";
+  eventName: string;
+  departmentName: string;
+  decision: "approved" | "rejected" | "returned_for_revision";
+  comment: string | null;
+  decidedByEmail: string;
+  decidedAt: string;
+}

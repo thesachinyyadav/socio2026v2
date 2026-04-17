@@ -227,6 +227,7 @@ export default async function ServiceRoleManagePage({
         departmentName={departmentName}
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}
+        initialHistory={[]}
         dashboardTitle={`${roleConfig.label} Dashboard`}
         pendingMetricLabel="Pending Service Requests"
         emptyStateTitle={`No pending ${roleConfig.label} requests`}

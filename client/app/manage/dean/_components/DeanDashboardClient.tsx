@@ -7,15 +7,15 @@ import { toast } from "sonner";
 import ApprovalDecisionModal from "../../hod/_components/ApprovalDecisionModal";
 import DeanApprovalTable from "./DeanApprovalTable";
 import {
+  ApprovalHistoryItem,
   DeanApprovalAction,
   DeanApprovalQueueItem,
   DeanDashboardMetrics,
   DeanDepartmentBudgetKpi,
 } from "../types";
-import {
-  actionBadgeProps,
-  usePersistedDecisions,
-} from "../../_shared/usePersistedDecisions";
+import { usePersistedDecisions } from "../../_shared/usePersistedDecisions";
+
+type DashboardTab = "pending" | "approved" | "rejected" | "returned";
 
 interface DeanDashboardClientProps {
   schoolName: string;
@@ -23,6 +23,7 @@ interface DeanDashboardClientProps {
   initialQueue: DeanApprovalQueueItem[];
   initialMetrics: DeanDashboardMetrics;
   initialDepartmentKpis: DeanDepartmentBudgetKpi[];
+  initialHistory: ApprovalHistoryItem[];
 }
 
 type ModalState = {
@@ -105,6 +106,7 @@ export default function DeanDashboardClient({
   initialQueue,
   initialMetrics,
   initialDepartmentKpis,
+  initialHistory,
 }: DeanDashboardClientProps) {
   const router = useRouter();
 
@@ -117,9 +119,10 @@ export default function DeanDashboardClient({
   const [completedActions, setCompletedActions] = useState<CompletedActionMap>({});
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState | null>(null);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("pending");
   const completionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const { decisions: persistedDecisions, saveDecision } =
+  const { saveDecision } =
     usePersistedDecisions<DeanApprovalAction>("socio_decisions_dean");
 
   const departmentOptions = useMemo(
@@ -138,13 +141,9 @@ export default function DeanDashboardClient({
     return queue.filter((item) => item.departmentName === selectedDepartment);
   }, [queue, selectedDepartment]);
 
-  const recentlyDecided = useMemo(() => {
-    const queueIds = new Set(queue.map((r) => r.id));
-    return Object.values(persistedDecisions)
-      .filter((d) => !queueIds.has(d.requestId))
-      .sort((a, b) => new Date(b.decidedAt).getTime() - new Date(a.decidedAt).getTime())
-      .slice(0, 20);
-  }, [queue, persistedDecisions]);
+  const approvedHistory = useMemo(() => initialHistory.filter((h) => h.decision === "approved"), [initialHistory]);
+  const rejectedHistory = useMemo(() => initialHistory.filter((h) => h.decision === "rejected"), [initialHistory]);
+  const returnedHistory = useMemo(() => initialHistory.filter((h) => h.decision === "returned_for_revision"), [initialHistory]);
 
   useEffect(() => {
     return () => {
@@ -284,11 +283,33 @@ export default function DeanDashboardClient({
     });
   };
 
+  const historyTabs = [
+    { key: "pending" as const, label: "Pending", count: queue.length },
+    { key: "approved" as const, label: "Approved", count: approvedHistory.length },
+    { key: "rejected" as const, label: "Rejected", count: rejectedHistory.length },
+    { key: "returned" as const, label: "Returned for Revision", count: returnedHistory.length },
+  ];
+
+  const activeHistoryRows =
+    activeTab === "approved"
+      ? approvedHistory
+      : activeTab === "rejected"
+        ? rejectedHistory
+        : activeTab === "returned"
+          ? returnedHistory
+          : [];
+
+  function decisionBadge(decision: ApprovalHistoryItem["decision"]) {
+    if (decision === "approved") return { label: "Approved", className: "bg-emerald-100 text-emerald-800" };
+    if (decision === "rejected") return { label: "Rejected", className: "bg-rose-100 text-rose-800" };
+    return { label: "Returned for Revision", className: "bg-amber-100 text-amber-800" };
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900">Dean Approval Dashboard</h1>
-        <p className="mt-2 text-sm text-slate-600">Department Scope: {schoolName || "My Department"}</p>
+        <p className="mt-2 text-sm text-slate-600">School Scope: {schoolName || "My School"}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -318,157 +339,174 @@ export default function DeanDashboardClient({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Pending L2 Queue</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Includes event and fest requests routed to your department scope.
-            </p>
-          </div>
-
-          <div className="w-full sm:w-72">
-            <label
-              htmlFor="dean-department-filter"
-              className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
+      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        {historyTabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                isActive
+                  ? "bg-[#154CB3] text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
             >
-              Filter by Department
-            </label>
-            <select
-              id="dean-department-filter"
-              value={selectedDepartment}
-              onChange={(event) => setSelectedDepartment(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
-            >
-              <option value="all">All Departments</option>
-              {departmentOptions.map((departmentName) => (
-                <option key={departmentName} value={departmentName}>
-                  {departmentName}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+              {tab.label} ({tab.count})
+            </button>
+          );
+        })}
       </div>
 
-      <DeanApprovalTable
-        rows={filteredQueue}
-        completedActions={completedActions}
-        activeRequestId={activeRequestId}
-        onApprove={(requestId) => {
-          void submitAction({ requestId, action: "approve" });
-        }}
-        onReturn={(requestId) => {
-          openDecisionModal(requestId, "return");
-        }}
-        onDecline={(requestId) => {
-          openDecisionModal(requestId, "decline");
-        }}
-      />
-
-      <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">
-            Budget Requested vs Approved by Department
-          </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Comparison uses dean approval outcomes in your department scope.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {departmentKpis.map((kpi) => {
-            const ratio =
-              kpi.requestedBudget > 0
-                ? Math.min(100, Math.round((kpi.approvedBudget / kpi.requestedBudget) * 100))
-                : 0;
-
-            return (
-              <article
-                key={kpi.departmentName}
-                className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {kpi.departmentName}
+      {activeTab === "pending" && (
+        <>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Pending L2 Queue</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Includes event and fest requests routed to your school scope.
                 </p>
-                <p className="mt-2 text-sm text-slate-700">
-                  Requested: {currencyFormatter.format(kpi.requestedBudget || 0)}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-emerald-700">
-                  Approved: {currencyFormatter.format(kpi.approvedBudget || 0)}
-                </p>
-                <div className="mt-3 h-2 w-full rounded-full bg-slate-200">
-                  <div
-                    className={`h-2 rounded-full bg-emerald-500 ${getProgressWidthClass(ratio)}`}
-                  />
-                </div>
-                <p className="mt-1 text-xs text-slate-500">{ratio}% approved</p>
-              </article>
-            );
-          })}
-          {departmentKpis.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
-              No department-level KPI data available yet.
+              </div>
+
+              <div className="w-full sm:w-72">
+                <label
+                  htmlFor="dean-department-filter"
+                  className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
+                >
+                  Filter by Department
+                </label>
+                <select
+                  id="dean-department-filter"
+                  value={selectedDepartment}
+                  onChange={(event) => setSelectedDepartment(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                >
+                  <option value="all">All Departments</option>
+                  {departmentOptions.map((departmentName) => (
+                    <option key={departmentName} value={departmentName}>
+                      {departmentName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          ) : null}
-        </div>
-      </div>
-
-      {recentlyDecided.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Recently Decided</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Actions taken by you in the past 30 days.
-          </p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Event / Fest
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Decided At
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentlyDecided.map((d) => {
-                  const badge = actionBadgeProps(d.action);
-                  return (
-                    <tr key={d.requestId} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-slate-800">{d.eventName}</p>
-                        <p className="text-xs text-slate-500 capitalize">{d.entityType}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
-                        {formatDecidedAt(d.decidedAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
-        </div>
+
+          <DeanApprovalTable
+            rows={filteredQueue}
+            completedActions={completedActions}
+            activeRequestId={activeRequestId}
+            onApprove={(requestId) => {
+              void submitAction({ requestId, action: "approve" });
+            }}
+            onReturn={(requestId) => {
+              openDecisionModal(requestId, "return");
+            }}
+            onDecline={(requestId) => {
+              openDecisionModal(requestId, "decline");
+            }}
+          />
+
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Budget Requested vs Approved by Department
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Comparison uses dean approval outcomes in your school scope.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {departmentKpis.map((kpi) => {
+                const ratio =
+                  kpi.requestedBudget > 0
+                    ? Math.min(100, Math.round((kpi.approvedBudget / kpi.requestedBudget) * 100))
+                    : 0;
+
+                return (
+                  <article
+                    key={kpi.departmentName}
+                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {kpi.departmentName}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Requested: {currencyFormatter.format(kpi.requestedBudget || 0)}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-emerald-700">
+                      Approved: {currencyFormatter.format(kpi.approvedBudget || 0)}
+                    </p>
+                    <div className="mt-3 h-2 w-full rounded-full bg-slate-200">
+                      <div
+                        className={`h-2 rounded-full bg-emerald-500 ${getProgressWidthClass(ratio)}`}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{ratio}% approved</p>
+                  </article>
+                );
+              })}
+              {departmentKpis.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+                  No department-level KPI data available yet.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Volunteers — placeholder for future implementation */}
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Volunteers</h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Volunteer assignments and tracking for your school scope will appear here.
-          This section is under development — data and fields will be added in a future update.
-        </p>
-      </div>
+      {activeTab !== "pending" && (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          {activeHistoryRows.length === 0 ? (
+            <div className="p-10 text-center text-sm text-slate-500">
+              No {activeTab === "approved" ? "approved" : activeTab === "rejected" ? "rejected" : "returned"} requests recorded.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Event / Fest</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Department</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Note</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Decided At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activeHistoryRows.map((item) => {
+                    const badge = decisionBadge(item.decision);
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/60">
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-slate-800">{item.eventName}</p>
+                          <p className="text-xs text-slate-500 capitalize">{item.entityType}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{item.departmentName}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600 max-w-xs">
+                          {item.comment || <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                          {formatDecidedAt(item.decidedAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <ApprovalDecisionModal
         isOpen={Boolean(modalState)}

@@ -562,23 +562,34 @@ const resolveStandaloneApprovalPreferences = (
   fallback = { requiresHodApproval: false, requiresDeanApproval: false },
   _isStandaloneEvent = false
 ) => {
-  const combinedPreference = parseBooleanPreference(
-    payload?.needs_hod_dean_approval ?? payload?.needsHodDeanApproval
-  );
-
-  if (combinedPreference !== null) {
-    return {
-      requiresHodApproval: combinedPreference,
-      requiresDeanApproval: combinedPreference,
-    };
-  }
-
+  // Individual field preferences take priority over the combined flag.
+  // The form always sends requires_hod_approval and requires_dean_approval
+  // independently, so we use them first.
   const hodPreference = parseBooleanPreference(
     payload?.requires_hod_approval ?? payload?.standaloneRequiresHodApproval
   );
   const deanPreference = parseBooleanPreference(
     payload?.requires_dean_approval ?? payload?.standaloneRequiresDeanApproval
   );
+
+  if (hodPreference !== null && deanPreference !== null) {
+    return {
+      requiresHodApproval: hodPreference,
+      requiresDeanApproval: deanPreference,
+    };
+  }
+
+  // Fall back to combined flag only when individual fields are absent.
+  const combinedPreference = parseBooleanPreference(
+    payload?.needs_hod_dean_approval ?? payload?.needsHodDeanApproval
+  );
+
+  if (combinedPreference !== null) {
+    return {
+      requiresHodApproval: hodPreference !== null ? hodPreference : combinedPreference,
+      requiresDeanApproval: deanPreference !== null ? deanPreference : combinedPreference,
+    };
+  }
 
   return {
     requiresHodApproval:
@@ -839,10 +850,7 @@ const createStandaloneApprovalRequestForEvent = async ({
   const approvalSteps = [];
   let stepSequence = 1;
 
-  const requiresDepartmentApproval =
-    Boolean(requiresHodApproval) || Boolean(requiresDeanApproval);
-
-  if (requiresDepartmentApproval) {
+  if (Boolean(requiresHodApproval)) {
     approvalSteps.push({
       stepCode: "HOD",
       roleCode: ROLE_CODES.HOD,
@@ -851,7 +859,9 @@ const createStandaloneApprovalRequestForEvent = async ({
       requiredCount: 1,
     });
     stepSequence += 1;
+  }
 
+  if (Boolean(requiresDeanApproval)) {
     approvalSteps.push({
       stepCode: "DEAN",
       roleCode: ROLE_CODES.DEAN,
@@ -1181,19 +1191,34 @@ const createServiceRequestsForEvent = async ({
       return { createdCount: 0, requestedRoleCodes };
     }
 
+    const SERVICE_TYPE_BY_ROLE = {
+      SERVICE_IT: "it",
+      SERVICE_VENUE: "venue",
+      SERVICE_CATERING: "catering",
+      SERVICE_STALLS: "stalls",
+    };
+
     const nowIso = new Date().toISOString();
-    const rows = rolesToCreate.map((roleCode, index) => ({
-      service_request_id: `SR-${eventId}-${Date.now()}-${index + 1}`,
-      event_id: eventId,
-      approval_request_id: approvalRequestId,
-      service_role_code: roleCode,
-      requested_by_user_id: userInfo?.id || null,
-      requested_by_email: userInfo?.email || null,
-      status: serviceRequestStatus,
-      details: getServiceRequestDetails(additionalRequests, roleCode),
-      created_at: nowIso,
-      updated_at: nowIso,
-    }));
+    const rows = rolesToCreate.map((roleCode, index) => {
+      const normalizedCode = String(roleCode || "").trim().toUpperCase();
+      return {
+        service_request_id: `SR-${eventId}-${Date.now()}-${index + 1}`,
+        entity_type: "event",
+        entity_id: eventId,
+        event_id: eventId,
+        service_type: SERVICE_TYPE_BY_ROLE[normalizedCode] || "other",
+        service_role_code: roleCode,
+        approval_request_id: approvalRequestId,
+        requester_email: userInfo?.email || null,
+        requested_by_user_id: userInfo?.id || null,
+        requested_by_email: userInfo?.email || null,
+        status: serviceRequestStatus,
+        details: getServiceRequestDetails(additionalRequests, roleCode),
+        resubmission_count: 0,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+    });
 
     const inserted = await insert("service_requests", rows);
 
@@ -1210,6 +1235,12 @@ const createServiceRequestsForEvent = async ({
     if (String(error?.code || "") === "23505") {
       console.warn("[EventCreate] Duplicate pending service requests detected; skipping duplicate insert.");
       return { createdCount: 0, requestedRoleCodes: [] };
+    }
+
+    const errorCode = String(error?.code || "").toUpperCase();
+    if (errorCode === "42703" || errorCode === "23502" || errorCode === "PGRST204") {
+      console.warn("[EventCreate] Service request schema mismatch; skipping service request creation:", error.message);
+      return { createdCount: 0, requestedRoleCodes };
     }
 
     throw error;

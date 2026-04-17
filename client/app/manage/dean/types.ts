@@ -22,3 +22,16 @@ export interface DeanDashboardMetrics {
 }
 
 export type DeanApprovalAction = "approve" | "return" | "decline";
+
+export interface ApprovalHistoryItem {
+  id: string;
+  requestId: string;
+  entityRef: string;
+  entityType: "event" | "fest";
+  eventName: string;
+  departmentName: string;
+  decision: "approved" | "rejected" | "returned_for_revision";
+  comment: string | null;
+  decidedByEmail: string;
+  decidedAt: string;
+}

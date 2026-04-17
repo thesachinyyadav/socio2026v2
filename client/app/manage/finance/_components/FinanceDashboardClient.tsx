@@ -17,12 +17,11 @@ import {
   FinanceSettlementItem,
 } from "../types";
 import {
-  actionBadgeProps,
   SpinnerIcon,
   usePersistedDecisions,
 } from "../../_shared/usePersistedDecisions";
 
-type FinanceTab = "approvals" | "advances" | "settlements" | "recent";
+type FinanceTab = "approvals" | "advances" | "settlements" | "approved" | "rejected" | "returned";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -65,29 +64,25 @@ export default function FinanceDashboardClient({
   const [activeDecisionId, setActiveDecisionId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const { decisions: persistedDecisions, saveDecision } =
+  const { saveDecision } =
     usePersistedDecisions<FinanceApprovalAction>("socio_decisions_finance");
 
-  const pendingApprovalIds = useMemo(
-    () => new Set(initialData.approvals.map((a) => a.id)),
-    [initialData.approvals]
-  );
+  const history = initialData.history ?? [];
 
-  const recentlyDecided = useMemo(() => {
-    return Object.values(persistedDecisions)
-      .filter((d) => !pendingApprovalIds.has(d.requestId))
-      .sort((a, b) => new Date(b.decidedAt).getTime() - new Date(a.decidedAt).getTime())
-      .slice(0, 20);
-  }, [persistedDecisions, pendingApprovalIds]);
+  const approvedHistory = useMemo(() => history.filter((h) => h.decision === "approved"), [history]);
+  const rejectedHistory = useMemo(() => history.filter((h) => h.decision === "rejected"), [history]);
+  const returnedHistory = useMemo(() => history.filter((h) => h.decision === "returned_for_revision"), [history]);
 
   const tabs = useMemo(
     () => [
       { key: "approvals" as const, label: "Budget Approvals (L4)", count: initialData.approvals.length },
       { key: "advances" as const, label: "Vendor Advances", count: initialData.advances.length },
       { key: "settlements" as const, label: "Final Settlements", count: initialData.settlements.length },
-      { key: "recent" as const, label: "Recently Decided", count: recentlyDecided.length },
+      { key: "approved" as const, label: "Approved", count: approvedHistory.length },
+      { key: "rejected" as const, label: "Rejected", count: rejectedHistory.length },
+      { key: "returned" as const, label: "Returned for Revision", count: returnedHistory.length },
     ],
-    [initialData.approvals.length, initialData.advances.length, initialData.settlements.length, recentlyDecided.length]
+    [initialData.approvals.length, initialData.advances.length, initialData.settlements.length, approvedHistory.length, rejectedHistory.length, returnedHistory.length]
   );
 
   const setFeedbackMessage = (message: string) => {
@@ -542,54 +537,62 @@ export default function FinanceDashboardClient({
         </div>
       )}
 
-      {activeTab === "recent" && (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {recentlyDecided.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
-              No decisions recorded in the past 30 days.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Event / Fest
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Decided At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentlyDecided.map((d) => {
-                    const badge = actionBadgeProps(d.action);
-                    return (
-                      <tr key={d.requestId} className="hover:bg-slate-50/60">
-                        <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-slate-800">{d.eventName}</p>
-                          <p className="text-xs text-slate-500 capitalize">{d.entityType}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {formatDate(d.decidedAt)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      {(activeTab === "approved" || activeTab === "rejected" || activeTab === "returned") && (() => {
+        const rows = activeTab === "approved" ? approvedHistory : activeTab === "rejected" ? rejectedHistory : returnedHistory;
+        const badgeFn = (decision: string) => {
+          if (decision === "approved") return { label: "Approved", className: "bg-emerald-100 text-emerald-800" };
+          if (decision === "rejected") return { label: "Rejected", className: "bg-rose-100 text-rose-800" };
+          return { label: "Returned for Revision", className: "bg-amber-100 text-amber-800" };
+        };
+        return (
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {rows.length === 0 ? (
+              <div className="p-10 text-center text-sm text-slate-500">
+                No {activeTab === "approved" ? "approved" : activeTab === "rejected" ? "rejected" : "returned"} decisions recorded.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Event / Fest</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Department</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Note</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Decided At</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rows.map((item) => {
+                      const badge = badgeFn(item.decision);
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/60">
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-medium text-slate-800">{item.eventName}</p>
+                            <p className="text-xs text-slate-500 capitalize">{item.entityType}</p>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-700">{item.departmentName}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-600 max-w-xs">
+                            {item.comment || <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                            {formatDate(item.decidedAt)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </section>
   );
 }

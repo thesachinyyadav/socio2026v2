@@ -70,6 +70,7 @@ export interface DeanDashboardData {
   queue: DeanApprovalQueueItem[];
   metrics: DeanDashboardMetrics;
   departmentKpis: DeanDepartmentBudgetKpi[];
+  history: import("../types").ApprovalHistoryItem[];
 }
 
 function toNumber(value: unknown): number {
@@ -898,6 +899,8 @@ export async function fetchDeanDashboardData({
     }))
     .sort((left, right) => left.departmentName.localeCompare(right.departmentName));
 
+  const history = await fetchDeanDecisionHistory(supabase, normalizedSchoolId, deptIdToSchoolLookup);
+
   return {
     queue,
     metrics: {
@@ -905,5 +908,114 @@ export async function fetchDeanDashboardData({
       pendingBudgetTotal,
     },
     departmentKpis,
+    history,
   };
+}
+
+async function fetchDeanDecisionHistory(
+  supabase: any,
+  normalizedSchoolId: string,
+  deptIdToSchoolLookup: Map<string, string>
+): Promise<import("../types").ApprovalHistoryItem[]> {
+  const { data, error } = await supabase
+    .from("approval_decisions")
+    .select(`
+      id,
+      decision,
+      comment,
+      decided_by_email,
+      role_code,
+      created_at,
+      approval_requests!inner (
+        id,
+        entity_type,
+        entity_ref,
+        organizing_dept_id,
+        organizing_school
+      )
+    `)
+    .in("role_code", ["DEAN"])
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error || !Array.isArray(data)) return [];
+
+  const eventIds: string[] = [];
+  const festIds: string[] = [];
+  for (const row of data as any[]) {
+    const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+    if (!req) continue;
+    const entityType = String(req.entity_type || "").toUpperCase();
+    const ref = String(req.entity_ref || "").trim();
+    if (!ref) continue;
+    if (entityType === "FEST") festIds.push(ref);
+    else eventIds.push(ref);
+  }
+
+  const eventNamesById = new Map<string, string>();
+  const festNamesById = new Map<string, string>();
+  const deptNamesById = new Map<string, string>();
+
+  if (eventIds.length > 0) {
+    const { data: evRows } = await supabase.from("events").select("event_id,title,organizing_dept_id").in("event_id", eventIds);
+    if (Array.isArray(evRows)) for (const r of evRows as any[]) eventNamesById.set(String(r.event_id || ""), String(r.title || ""));
+  }
+  if (festIds.length > 0) {
+    const { data: fRows } = await supabase.from("fests").select("fest_id,fest_title").in("fest_id", festIds);
+    if (Array.isArray(fRows)) for (const r of fRows as any[]) festNamesById.set(String(r.fest_id || ""), String(r.fest_title || ""));
+  }
+
+  const allDeptIds = Array.from(
+    new Set((data as any[]).map((row) => {
+      const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+      return String(req?.organizing_dept_id || "").trim();
+    }).filter(Boolean))
+  );
+  if (allDeptIds.length > 0) {
+    const { data: dRows } = await supabase.from("departments").select("id,name").in("id", allDeptIds);
+    if (Array.isArray(dRows) && dRows.length > 0) {
+      for (const r of dRows as any[]) deptNamesById.set(String(r.id), String(r.name || ""));
+    } else {
+      const { data: dFallback } = await supabase.from("departments_courses").select("id,department_name").in("id", allDeptIds);
+      if (Array.isArray(dFallback)) for (const r of dFallback as any[]) deptNamesById.set(String(r.id), String(r.department_name || ""));
+    }
+  }
+
+  const items: import("../types").ApprovalHistoryItem[] = [];
+
+  for (const row of data as any[]) {
+    const req = Array.isArray(row.approval_requests) ? row.approval_requests[0] : row.approval_requests;
+    if (!req) continue;
+
+    const entityType = String(req.entity_type || "").toUpperCase();
+    const entityRef = String(req.entity_ref || "").trim();
+    if (!entityRef) continue;
+
+    const deptId = String(req.organizing_dept_id || "").trim();
+    const directSchool = normalizeScope(req.organizing_school);
+    const mappedSchool = resolveSchoolFromDeptId(deptIdToSchoolLookup, deptId);
+    const scopeCandidate = directSchool || mappedSchool;
+
+    if (normalizedSchoolId && scopeCandidate && scopeCandidate !== normalizedSchoolId) continue;
+
+    const decision = String(row.decision || "").toLowerCase();
+    if (!["approved", "rejected", "returned_for_revision"].includes(decision)) continue;
+
+    items.push({
+      id: String(row.id || ""),
+      requestId: String(req.id || ""),
+      entityRef,
+      entityType: entityType === "FEST" ? "fest" : "event",
+      eventName: entityType === "FEST"
+        ? festNamesById.get(entityRef) || "Untitled Fest"
+        : eventNamesById.get(entityRef) || "Untitled Event",
+      departmentName: (deptId && deptNamesById.get(deptId)) || "Unknown Department",
+      decision: decision as "approved" | "rejected" | "returned_for_revision",
+      comment: row.comment ? String(row.comment) : null,
+      decidedByEmail: String(row.decided_by_email || ""),
+      decidedAt: String(row.created_at || ""),
+    });
+  }
+
+  return items;
 }

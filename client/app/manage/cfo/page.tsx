@@ -102,6 +102,7 @@ export default async function CfoManagePage() {
       highValuePendingBudget: 0,
       l2Threshold,
     },
+    history: [],
   };
 
   let dashboardData: Awaited<ReturnType<typeof fetchCfoDashboardData>> = fallbackDashboardData;
@@ -133,6 +134,7 @@ export default async function CfoManagePage() {
         campusName={isMasterAdmin ? "All Campuses" : campusName || "My Campus"}
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}
+        initialHistory={dashboardData.history ?? []}
       />
     </main>
   );
