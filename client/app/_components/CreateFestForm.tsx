@@ -39,7 +39,7 @@ const isValidEmail = (value: unknown): boolean =>
   EMAIL_REGEX.test(normalizeEmail(value));
 
 const isChristUniversityEmail = (value: unknown): boolean =>
-  normalizeEmail(value).endsWith(CHRIST_EMAIL_DOMAIN);
+  normalizeEmail(value).includes("christuniversity.in");
 
 const normalizePhone = (value: unknown): string => String(value ?? "").trim();
 

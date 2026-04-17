@@ -765,7 +765,7 @@ const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const normalizePhone = (value) => String(value || "").trim();
 const isValidEmail = (value) => EMAIL_REGEX.test(normalizeEmail(value));
 const isChristUniversityEmail = (value) =>
-  normalizeEmail(value).endsWith(CHRIST_EMAIL_DOMAIN);
+  normalizeEmail(value).includes(CHRIST_EMAIL_DOMAIN);
 
 const normalizeEventHead = (head) => {
   if (typeof head === "string") {
