@@ -177,6 +177,7 @@ export default async function HodManagePage() {
       deptBudgetUsedYtd: 0,
       pendingL1Approvals: 0,
     },
+    history: [],
   };
 
   let dashboardData: Awaited<ReturnType<typeof fetchHodDashboardData>> = fallbackDashboardData;
@@ -208,6 +209,7 @@ export default async function HodManagePage() {
         departmentName={departmentName}
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}
+        initialHistory={dashboardData.history ?? []}
       />
     </main>
   );

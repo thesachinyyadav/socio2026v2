@@ -6,16 +6,16 @@ import { toast } from "sonner";
 
 import ApprovalDecisionModal from "../../hod/_components/ApprovalDecisionModal";
 import CfoApprovalTable from "./CfoApprovalTable";
-import { CfoApprovalAction, CfoApprovalQueueItem, CfoDashboardMetrics } from "../types";
-import {
-  actionBadgeProps,
-  usePersistedDecisions,
-} from "../../_shared/usePersistedDecisions";
+import { ApprovalHistoryItem, CfoApprovalAction, CfoApprovalQueueItem, CfoDashboardMetrics } from "../types";
+import { usePersistedDecisions } from "../../_shared/usePersistedDecisions";
+
+type DashboardTab = "pending" | "approved" | "rejected" | "returned";
 
 interface CfoDashboardClientProps {
   campusName: string;
   initialQueue: CfoApprovalQueueItem[];
   initialMetrics: CfoDashboardMetrics;
+  initialHistory: ApprovalHistoryItem[];
 }
 
 type ModalState = {
@@ -96,6 +96,7 @@ export default function CfoDashboardClient({
   campusName,
   initialQueue,
   initialMetrics,
+  initialHistory,
 }: CfoDashboardClientProps) {
   const router = useRouter();
 
@@ -106,9 +107,10 @@ export default function CfoDashboardClient({
   const [completedActions, setCompletedActions] = useState<CompletedActionMap>({});
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState | null>(null);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("pending");
   const completionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const { decisions: persistedDecisions, saveDecision } =
+  const { saveDecision } =
     usePersistedDecisions<CfoApprovalAction>("socio_decisions_cfo");
 
   const schoolOptions = useMemo(
@@ -130,13 +132,9 @@ export default function CfoDashboardClient({
       .sort((left, right) => left.localeCompare(right));
   }, [queue, selectedSchool]);
 
-  const recentlyDecided = useMemo(() => {
-    const queueIds = new Set(queue.map((r) => r.id));
-    return Object.values(persistedDecisions)
-      .filter((d) => !queueIds.has(d.requestId))
-      .sort((a, b) => new Date(b.decidedAt).getTime() - new Date(a.decidedAt).getTime())
-      .slice(0, 20);
-  }, [queue, persistedDecisions]);
+  const approvedHistory = useMemo(() => initialHistory.filter((h) => h.decision === "approved"), [initialHistory]);
+  const rejectedHistory = useMemo(() => initialHistory.filter((h) => h.decision === "rejected"), [initialHistory]);
+  const returnedHistory = useMemo(() => initialHistory.filter((h) => h.decision === "returned_for_revision"), [initialHistory]);
 
   useEffect(() => {
     if (selectedDepartment === "all") {
@@ -310,6 +308,28 @@ export default function CfoDashboardClient({
         )
       : 0;
 
+  const historyTabs = [
+    { key: "pending" as const, label: "Pending", count: queue.length },
+    { key: "approved" as const, label: "Approved", count: approvedHistory.length },
+    { key: "rejected" as const, label: "Rejected", count: rejectedHistory.length },
+    { key: "returned" as const, label: "Returned for Revision", count: returnedHistory.length },
+  ];
+
+  const activeHistoryRows =
+    activeTab === "approved"
+      ? approvedHistory
+      : activeTab === "rejected"
+        ? rejectedHistory
+        : activeTab === "returned"
+          ? returnedHistory
+          : [];
+
+  function decisionBadge(decision: ApprovalHistoryItem["decision"]) {
+    if (decision === "approved") return { label: "Approved", className: "bg-emerald-100 text-emerald-800" };
+    if (decision === "rejected") return { label: "Rejected", className: "bg-rose-100 text-rose-800" };
+    return { label: "Returned for Revision", className: "bg-amber-100 text-amber-800" };
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -360,122 +380,148 @@ export default function CfoDashboardClient({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Pending L3 Queue</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Includes dean-approved requests pending CFO budget review.
-            </p>
-          </div>
-
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[30rem]">
-            <div>
-              <label
-                htmlFor="cfo-school-filter"
-                className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
-              >
-                Filter by School
-              </label>
-              <select
-                id="cfo-school-filter"
-                value={selectedSchool}
-                onChange={(event) => setSelectedSchool(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
-              >
-                <option value="all">All Schools</option>
-                {schoolOptions.map((schoolName) => (
-                  <option key={schoolName} value={schoolName}>
-                    {schoolName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="cfo-department-filter"
-                className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
-              >
-                Filter by Department
-              </label>
-              <select
-                id="cfo-department-filter"
-                value={selectedDepartment}
-                onChange={(event) => setSelectedDepartment(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
-              >
-                <option value="all">All Departments</option>
-                {departmentOptions.map((departmentName) => (
-                  <option key={departmentName} value={departmentName}>
-                    {departmentName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        {historyTabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                isActive
+                  ? "bg-[#154CB3] text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          );
+        })}
       </div>
 
-      <CfoApprovalTable
-        rows={filteredQueue}
-        completedActions={completedActions}
-        activeRequestId={activeRequestId}
-        onApprove={(requestId) => {
-          void submitAction({ requestId, action: "approve" });
-        }}
-        onReject={(requestId) => {
-          openDecisionModal(requestId, "reject");
-        }}
-        onReturn={(requestId) => {
-          openDecisionModal(requestId, "return");
-        }}
-      />
+      {activeTab === "pending" && (
+        <>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Pending L3 Queue</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Includes dean-approved requests pending CFO budget review.
+                </p>
+              </div>
 
-      {recentlyDecided.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Recently Decided</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Actions taken by you in the past 30 days.
-          </p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Event / Fest
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Decided At
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentlyDecided.map((d) => {
-                  const badge = actionBadgeProps(d.action);
-                  return (
-                    <tr key={d.requestId} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-slate-800">{d.eventName}</p>
-                        <p className="text-xs text-slate-500 capitalize">{d.entityType}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
-                        {formatDecidedAt(d.decidedAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[30rem]">
+                <div>
+                  <label
+                    htmlFor="cfo-school-filter"
+                    className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
+                  >
+                    Filter by School
+                  </label>
+                  <select
+                    id="cfo-school-filter"
+                    value={selectedSchool}
+                    onChange={(event) => setSelectedSchool(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                  >
+                    <option value="all">All Schools</option>
+                    {schoolOptions.map((schoolName) => (
+                      <option key={schoolName} value={schoolName}>
+                        {schoolName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="cfo-department-filter"
+                    className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
+                  >
+                    Filter by Department
+                  </label>
+                  <select
+                    id="cfo-department-filter"
+                    value={selectedDepartment}
+                    onChange={(event) => setSelectedDepartment(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                  >
+                    <option value="all">All Departments</option>
+                    {departmentOptions.map((departmentName) => (
+                      <option key={departmentName} value={departmentName}>
+                        {departmentName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <CfoApprovalTable
+            rows={filteredQueue}
+            completedActions={completedActions}
+            activeRequestId={activeRequestId}
+            onApprove={(requestId) => {
+              void submitAction({ requestId, action: "approve" });
+            }}
+            onReject={(requestId) => {
+              openDecisionModal(requestId, "reject");
+            }}
+            onReturn={(requestId) => {
+              openDecisionModal(requestId, "return");
+            }}
+          />
+        </>
+      )}
+
+      {activeTab !== "pending" && (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          {activeHistoryRows.length === 0 ? (
+            <div className="p-10 text-center text-sm text-slate-500">
+              No {activeTab === "approved" ? "approved" : activeTab === "rejected" ? "rejected" : "returned"} requests recorded.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Event / Fest</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Department</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Note</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Decided At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activeHistoryRows.map((item) => {
+                    const badge = decisionBadge(item.decision);
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/60">
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-slate-800">{item.eventName}</p>
+                          <p className="text-xs text-slate-500 capitalize">{item.entityType}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{item.departmentName}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600 max-w-xs">
+                          {item.comment || <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                          {formatDecidedAt(item.decidedAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

@@ -73,6 +73,7 @@ export default async function FinanceManagePage() {
     approvals: [],
     advances: [],
     settlements: [],
+    history: [],
     warnings: [],
   };
 

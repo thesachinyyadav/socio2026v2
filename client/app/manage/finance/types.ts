@@ -58,10 +58,24 @@ export interface FinanceDashboardData {
   approvals: FinanceL4ApprovalItem[];
   advances: FinanceAdvanceRequestItem[];
   settlements: FinanceSettlementItem[];
+  history: ApprovalHistoryItem[];
   warnings: string[];
 }
 
 export interface FinanceActionResult {
   ok: boolean;
   message: string;
+}
+
+export interface ApprovalHistoryItem {
+  id: string;
+  requestId: string;
+  entityRef: string;
+  entityType: "event" | "fest";
+  eventName: string;
+  departmentName: string;
+  decision: "approved" | "rejected" | "returned_for_revision";
+  comment: string | null;
+  decidedByEmail: string;
+  decidedAt: string;
 }

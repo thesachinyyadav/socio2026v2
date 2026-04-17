@@ -159,6 +159,7 @@ export default async function DeanManagePage() {
       pendingBudgetTotal: 0,
     },
     departmentKpis: [],
+    history: [],
   };
   let dashboardData: Awaited<ReturnType<typeof fetchDeanDashboardData>> = fallbackDashboardData;
   let dashboardErrorMessage: string | null = null;
@@ -188,6 +189,7 @@ export default async function DeanManagePage() {
         initialQueue={dashboardData.queue}
         initialMetrics={dashboardData.metrics}
         initialDepartmentKpis={dashboardData.departmentKpis}
+        initialHistory={dashboardData.history ?? []}
       />
     </main>
   );
