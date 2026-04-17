@@ -767,7 +767,7 @@ export async function triggerLogisticsApprovals(eventIdInput: string): Promise<L
     firstNonEmptyValue(eventRow, ["organizer_email", "organiser_email", "requested_by_email"]) ||
     normalizeText(authContext.user?.email);
 
-  const department = firstNonEmptyValue(eventRow, ["organizing_dept", "department", "dept"]);
+  const department = firstNonEmptyValue(eventRow, ["department", "dept"]);
   const school = firstNonEmptyValue(eventRow, ["organizing_school", "school"]);
   const campus = firstNonEmptyValue(eventRow, ["campus_hosted_at", "campus"]);
 
@@ -797,7 +797,6 @@ export async function triggerLogisticsApprovals(eventIdInput: string): Promise<L
       approval_level: level,
       status: "pending",
       requested_by_email: organizerEmail || null,
-      organizing_dept: department || null,
       organizing_school: school || null,
       campus_hosted_at: campus || null,
       is_budget_related: false,
@@ -872,7 +871,7 @@ export async function fetchLogisticsDashboardData(
   const { data: requestRowsData, error: requestRowsError } = await client
     .from("approval_requests")
     .select(
-      "id,request_id,event_id,entity_ref,approval_level,status,submitted_at,created_at,requested_by_email,organizing_dept,organizing_school,campus_hosted_at"
+      "id,request_id,event_id,entity_ref,approval_level,status,submitted_at,created_at,requested_by_email,organizing_school,campus_hosted_at"
     )
     .eq("approval_level", config.approvalLevel)
     .eq("status", "pending")
@@ -952,8 +951,7 @@ export async function fetchLogisticsDashboardData(
         requestedByEmail: normalizeText(requestRow.requested_by_email) || null,
         submittedAt: normalizeText(requestRow.submitted_at || requestRow.created_at) || null,
         departmentName:
-          firstNonEmptyValue(eventRow, ["organizing_dept", "department"]) ||
-          normalizeText(requestRow.organizing_dept) ||
+          firstNonEmptyValue(eventRow, ["department"]) ||
           null,
         schoolName:
           firstNonEmptyValue(eventRow, ["organizing_school", "school"]) ||

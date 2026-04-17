@@ -295,6 +295,84 @@ const promoteQueuedServiceRequestsForEvent = async (eventId) => {
   }
 };
 
+const LOGISTICS_LEVEL_BY_SERVICE = {
+  it: "L5_IT",
+  venue: "L5_VENUE",
+  catering: "L5_CATERING",
+  stalls: "L5_STALLS",
+};
+
+const createLogisticsApprovalRequestsForEvent = async (eventId) => {
+  const normalizedEventId = String(eventId || "").trim();
+  if (!normalizedEventId) return;
+
+  try {
+    const eventRecord = await queryOne("events", { where: { event_id: normalizedEventId } });
+    if (!eventRecord) return;
+
+    const additionalRequests =
+      eventRecord.additional_requests && typeof eventRecord.additional_requests === "object"
+        ? eventRecord.additional_requests
+        : {};
+
+    const requestedLevels = Object.entries(LOGISTICS_LEVEL_BY_SERVICE)
+      .filter(([serviceKey]) => {
+        const service = additionalRequests[serviceKey];
+        return service && (service.enabled === true || service.enabled === "true");
+      })
+      .map(([, level]) => level);
+
+    if (requestedLevels.length === 0) return;
+
+    const existingRows = await queryAll("approval_requests", {
+      where: { event_id: normalizedEventId },
+      select: "approval_level,status",
+    }).catch(() => []);
+
+    const activeLevels = new Set(
+      (existingRows || [])
+        .filter((row) => {
+          const st = String(row?.status || "").toLowerCase();
+          return st === "pending" || st === "under_review" || st === "approved";
+        })
+        .map((row) => String(row?.approval_level || "").toUpperCase())
+    );
+
+    const nowIso = new Date().toISOString();
+    const organizerEmail = String(eventRecord.organizer_email || eventRecord.created_by || "").trim();
+    const organizingSchool = String(eventRecord.organizing_school || "").trim() || null;
+    const campusHostedAt = String(eventRecord.campus_hosted_at || "").trim() || null;
+
+    const rowsToInsert = requestedLevels
+      .filter((level) => !activeLevels.has(level))
+      .map((level) => ({
+        request_id: `AR-${normalizedEventId}-${level.toLowerCase()}-${Date.now()}`,
+        entity_type: "EVENT",
+        entity_ref: normalizedEventId,
+        event_id: normalizedEventId,
+        approval_level: level,
+        status: "pending",
+        requested_by_email: organizerEmail || null,
+        organizing_school: organizingSchool,
+        campus_hosted_at: campusHostedAt,
+        is_budget_related: false,
+        submitted_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso,
+        latest_comment: `Auto-generated after approval for ${level} service.`,
+      }));
+
+    if (rowsToInsert.length === 0) return;
+
+    await insert("approval_requests", rowsToInsert);
+  } catch (error) {
+    if (isMissingRelationError(error) || isMissingColumnError(error, "approval_level")) {
+      return;
+    }
+    console.warn("[ApprovalsRoute] Failed to create logistics approval requests:", error?.message);
+  }
+};
+
 const isEventInLogisticsPhase = (eventRecord) => {
   const workflowPhase = normalizeWorkflowPhase(eventRecord?.workflow_phase, "");
   if (workflowPhase) {
@@ -412,6 +490,7 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
 
     if (normalizedRequestStatus === "APPROVED") {
       await promoteQueuedServiceRequestsForEvent(eventId);
+      await createLogisticsApprovalRequestsForEvent(eventId);
     }
 
     const serviceApprovalState = await recomputeEventServiceApprovalState(eventId);
