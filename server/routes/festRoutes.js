@@ -1,4 +1,5 @@
 import express from "express";
+import supabase from "../config/supabaseClient.js";
 import { getPathFromStorageUrl, deleteFileFromLocal } from "../utils/fileUtils.js";
 import { v4 as uuidv4 } from "uuid";
 import { queryAll, queryOne, insert, update, remove } from "../config/database.js";
@@ -13,6 +14,7 @@ import {
 import { sendBroadcastNotification, sendUserNotifications } from "./notificationRoutes.js";
 import { pushFestToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { getFestTableForDatabase } from "../utils/festTableResolver.js";
+import { resolveDepartmentId } from "./departmentsRoutes.js";
 import { ROLE_CODES, hasAnyRoleCode } from "../utils/roleAccessService.js";
 import { resolveRoleMatrixApprover } from "../utils/roleMatrixApprover.js";
 import {
@@ -1742,6 +1744,7 @@ router.post(
         fest_image_url: festData.festImageUrl || festData.fest_image_url || null,
         organizing_school: school,
         organizing_dept: dept,
+        organizing_dept_id: await resolveDepartmentId(dept).catch(() => null),
         department_access: festData.departmentAccess || festData.department_access || [],
         category: festData.category || "",
         contact_email: contactEmail,
@@ -1998,6 +2001,19 @@ router.put(
       const updateData = req.body;
       const existingFest = req.resource; // From ownership middleware
 
+      // Capture pre-update budget state to detect changes for approval chain reset.
+      const existingLifecycleStatus = String(existingFest?.status || "").trim().toLowerCase();
+      const existingWorkflowStatus = String(existingFest?.workflow_status || "").trim().toLowerCase();
+      const isFestUnderApproval =
+        existingLifecycleStatus === "pending_approvals" ||
+        /^pending_level_[1-4]$/.test(existingWorkflowStatus);
+      const preBudgetAmount =
+        parsePositiveNumber(existingFest?.total_estimated_expense) ||
+        parsePositiveNumber(existingFest?.estimated_budget_amount) ||
+        parsePositiveNumber(existingFest?.budget_amount) ||
+        0;
+      const preIsBudgetRelated = asBoolean(existingFest?.is_budget_related);
+
       // Get the new title
       const incomingTitle = updateData.fest_title ?? updateData.festTitle ?? updateData.title;
       const normalizedNewTitle =
@@ -2226,6 +2242,7 @@ router.put(
         ["fest_image_url", incomingImageUrl],
         ["organizing_school", normalizedOrganizingSchool],
         ["organizing_dept", normalizedOrganizingDept],
+        ["organizing_dept_id", normalizedOrganizingDept !== undefined ? await resolveDepartmentId(normalizedOrganizingDept).catch(() => null) : undefined],
         ["category", updateData.category],
         ["contact_email", normalizedContactEmail],
         ["contact_phone", normalizedContactPhone],
@@ -2352,6 +2369,37 @@ router.put(
         }
       } else {
         console.log(`✅ Fest updated successfully: ${festId}`);
+      }
+
+      // If budget changed while fest was under approval → reset all approval steps.
+      if (isFestUnderApproval && !req.userInfo?.is_masteradmin) {
+        const postBudgetAmount = resolvedBudgetAmount || 0;
+        const postIsBudgetRelated = isBudgetRelated;
+        const budgetChanged =
+          postBudgetAmount !== preBudgetAmount || postIsBudgetRelated !== preIsBudgetRelated;
+        if (budgetChanged) {
+          const { data: approvalReq } = await supabase
+            .from("approval_requests")
+            .select("id")
+            .eq("entity_ref", festId)
+            .in("status", ["UNDER_REVIEW", "DRAFT"])
+            .maybeSingle();
+          if (approvalReq?.id) {
+            await supabase
+              .from("approval_steps")
+              .update({ status: "PENDING", decided_at: null })
+              .eq("approval_request_id", approvalReq.id);
+            await supabase.from("approval_chain_log").insert({
+              entity_type: "fest",
+              entity_id: festId,
+              step: "organiser_action",
+              action: "resubmitted",
+              actor_email: req.userInfo?.email || "unknown",
+              actor_role: "ORGANIZER",
+              notes: `Budget updated from ₹${preBudgetAmount} to ₹${postBudgetAmount}. Approval chain restarted.`,
+            });
+          }
+        }
       }
 
       let workflowApprovalRequest = null;

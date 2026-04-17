@@ -1,4 +1,5 @@
 import express from "express";
+import supabase from "../config/supabaseClient.js";
 import {
   queryAll,
   queryOne,
@@ -25,6 +26,7 @@ import {
 import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { ROLE_CODES, hasAnyRoleCode } from "../utils/roleAccessService.js";
 import { resolveRoleMatrixApprover } from "../utils/roleMatrixApprover.js";
+import { resolveDepartmentId } from "./departmentsRoutes.js";
 import {
   LIFECYCLE_STATUS,
   deriveLifecycleStatus,
@@ -281,6 +283,10 @@ const resolveWorkflowPhaseFromWorkflowStatus = (workflowStatus) => {
 
   if (normalizedStatus === "pending_accounts") {
     return WORKFLOW_PHASE.FINANCE_APPROVAL_ACCOUNTS;
+  }
+
+  if (normalizedStatus === "organiser_approved") {
+    return WORKFLOW_PHASE.LOGISTICS_APPROVAL;
   }
 
   if (["auto_approved", "fully_approved", "live"].includes(normalizedStatus)) {
@@ -2821,6 +2827,8 @@ router.post(
       const initialWorkflowStatus =
         normalizedFestReference && userIsOrganizerStudentOnly
           ? "pending_organiser"
+          : normalizedFestReference && !userIsOrganizerStudentOnly && !shouldSaveAsDraft && !shouldArchiveOnCreate
+          ? "organiser_approved"
           : !normalizedFestReference && !shouldSaveAsDraft && !shouldArchiveOnCreate
           ? !standaloneApprovalPreferences.requiresHodApproval &&
             !standaloneApprovalPreferences.requiresDeanApproval &&
@@ -2845,7 +2853,9 @@ router.post(
       const initialWorkflowPhase = resolveWorkflowPhaseForEventState({
         workflowStatus: initialWorkflowStatus,
         approvalState:
-          initialWorkflowStatus === "draft" || initialWorkflowStatus === "auto_approved"
+          initialWorkflowStatus === "draft" ||
+          initialWorkflowStatus === "auto_approved" ||
+          initialWorkflowStatus === "organiser_approved"
             ? "APPROVED"
             : "UNDER_REVIEW",
         serviceApprovalState: initialServiceApprovalStateOnCreate,
@@ -2880,6 +2890,7 @@ router.post(
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_school: organizingSchool,
         organizing_dept: organizing_dept || null,
+        organizing_dept_id: await resolveDepartmentId(organizing_dept).catch(() => null),
         fest_id: normalizedFestReference,
         parent_fest_id: normalizedFestReference,
         event_context: normalizedFestReference ? "under_fest" : "standalone",
@@ -3391,7 +3402,20 @@ router.put(
       const { eventId } = req.params;
       const event = req.resource; // Existing event from middleware
       const files = req.files;
-      
+
+      // Capture pre-update budget state to detect changes for approval chain reset.
+      const existingLifecycleStatus = String(event?.status || "").trim().toLowerCase();
+      const existingWorkflowStatus = String(event?.workflow_status || "").trim().toLowerCase();
+      const isEventUnderApproval =
+        existingLifecycleStatus === "pending_approvals" ||
+        /^pending_level_[1-4]$/.test(existingWorkflowStatus);
+      const preBudgetAmount =
+        parseFloat(event?.total_estimated_expense) ||
+        parseFloat(event?.estimated_budget_amount) ||
+        parseFloat(event?.budget_amount) ||
+        0;
+      const preIsBudgetRelated = Boolean(event?.is_budget_related || event?.claims_applicable);
+
       if (process.env.NODE_ENV !== "production") {
         console.log("=== PUT EVENT RECEIVED ===");
         console.log("req.body.title:", req.body.title);
@@ -3490,11 +3514,13 @@ router.put(
       } = req.body;
 
       const userIsOrganizerStudentOnly = isOrganizerStudentOnlyUser(req.userInfo);
-      // Fall back to the existing event's fest_id if not provided in the update body.
-      // This preserves fest association and prevents accidental removal.
+      // Fall back to the existing event's fest_id / parent_fest_id if not provided in the
+      // update body. Checking parent_fest_id ensures sub-events that pre-date the fest_id
+      // column are never misclassified as standalone.
       const normalizedFestReference =
         normalizeFestReference(fest_id ?? fest) ||
-        normalizeFestReference(event?.fest_id ?? event?.fest);
+        normalizeFestReference(event?.fest_id ?? event?.fest) ||
+        normalizeFestReference(event?.parent_fest_id);
 
       const rawArchivePreference =
         is_archived !== undefined && is_archived !== null && String(is_archived).trim() !== ""
@@ -3940,6 +3966,7 @@ router.put(
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
         organizing_school: organizingSchool,
         organizing_dept: organizing_dept || null,
+        organizing_dept_id: await resolveDepartmentId(organizing_dept).catch(() => null),
         fest_id: normalizedFestReference,
         parent_fest_id: normalizedFestReference,
         event_context: normalizedFestReference ? "under_fest" : "standalone",
@@ -4112,6 +4139,37 @@ router.put(
         throw new Error("Event update failed - could not verify update");
       }
 
+      // If budget changed while event was under approval → reset all approval steps.
+      if (isEventUnderApproval && !req.userInfo?.is_masteradmin) {
+        const postBudgetAmount = standaloneBudgetAmountForPersistence || 0;
+        const postIsBudgetRelated = Boolean(isStandaloneBudgetRelated);
+        const budgetChanged =
+          postBudgetAmount !== preBudgetAmount || postIsBudgetRelated !== preIsBudgetRelated;
+        if (budgetChanged) {
+          const { data: approvalReq } = await supabase
+            .from("approval_requests")
+            .select("id")
+            .eq("entity_ref", eventId)
+            .in("status", ["UNDER_REVIEW", "DRAFT"])
+            .maybeSingle();
+          if (approvalReq?.id) {
+            await supabase
+              .from("approval_steps")
+              .update({ status: "PENDING", decided_at: null })
+              .eq("approval_request_id", approvalReq.id);
+            await supabase.from("approval_chain_log").insert({
+              entity_type: "event",
+              entity_id: eventId,
+              step: "organiser_action",
+              action: "resubmitted",
+              actor_email: req.userInfo?.email || "unknown",
+              actor_role: "ORGANIZER",
+              notes: `Budget updated from ₹${preBudgetAmount} to ₹${postBudgetAmount}. Approval chain restarted.`,
+            });
+          }
+        }
+      }
+
       let activationState = resolveActivationState(
         updatedEvent?.approval_state,
         updatedEvent?.service_approval_state
@@ -4230,7 +4288,9 @@ router.put(
             approvalRequestId: updatedEvent?.approval_request_id || null,
             isBudgetRelated: isStandalonePublish ? standaloneBudgetRelated : undefined,
             lifecycleStatus: LIFECYCLE_STATUS.PUBLISHED,
-            workflowPhase: WORKFLOW_PHASE.APPROVED,
+            workflowPhase: normalizedFestReference
+              ? WORKFLOW_PHASE.LOGISTICS_APPROVAL
+              : WORKFLOW_PHASE.APPROVED,
           });
 
           activationState = publishResult.activationState;

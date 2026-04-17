@@ -19,6 +19,7 @@ import type {
   UserRoleRow,
   VenueOption,
 } from "./types";
+import { fetchDepartments, deriveSchools } from "@/app/lib/departmentsCatalog";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -1132,32 +1133,45 @@ async function resolveDepartmentScopeDetails(
   let schoolName: string | null = null;
 
   if (normalizedScope) {
-    const fallbackDepartment = FALLBACK_DEPARTMENT_OPTIONS.find(
-      (option) => normalizeNullableText(option.id) === normalizedScope
-    );
-
-    if (fallbackDepartment) {
-      departmentLabel = normalizeNullableText(fallbackDepartment.department_name) || normalizedScope;
-      schoolName = normalizeNullableText(fallbackDepartment.school);
-    }
-
-    const { data, error } = await adminClient
-      .from("departments_courses")
-      .select("id,department_name,school")
-      .eq("id", normalizedScope)
+    // Try the canonical departments table first (post-migration 034)
+    const { data: deptData, error: deptError } = await adminClient
+      .from("departments")
+      .select("id,name,code,school")
+      .or(`id.eq.${normalizedScope},code.eq.${normalizedScope}`)
       .maybeSingle();
 
-    if (error) {
-      if (!(isMissingRelationError(error) || isMissingColumnError(error))) {
-        throw new Error(error.message || "Failed to validate the selected department.");
-      }
-    } else if (!data && !fallbackDepartment) {
-      throw new Error("Selected department does not exist.");
-    }
+    if (!deptError && deptData && typeof deptData === "object") {
+      departmentLabel = normalizeNullableText((deptData as any).name) || normalizedScope;
+      schoolName = normalizeNullableText((deptData as any).school);
+    } else {
+      // Fallback: try legacy departments_courses (pre-migration)
+      const { data: legacyData, error: legacyError } = await adminClient
+        .from("departments_courses")
+        .select("id,department_name,school")
+        .eq("id", normalizedScope)
+        .maybeSingle();
 
-    if (data && typeof data === "object") {
-      departmentLabel = normalizeNullableText((data as any).department_name) || departmentLabel || normalizedScope;
-      schoolName = normalizeNullableText((data as any).school) || schoolName;
+      if (legacyError) {
+        if (!(isMissingRelationError(legacyError) || isMissingColumnError(legacyError))) {
+          throw new Error(legacyError.message || "Failed to validate the selected department.");
+        }
+      }
+
+      if (legacyData && typeof legacyData === "object") {
+        departmentLabel = normalizeNullableText((legacyData as any).department_name) || normalizedScope;
+        schoolName = normalizeNullableText((legacyData as any).school);
+      } else if (!legacyData) {
+        // Last resort: match against FALLBACK_DEPARTMENT_OPTIONS by id/code
+        const fallback = FALLBACK_DEPARTMENT_OPTIONS.find(
+          (opt) => normalizeNullableText(opt.id) === normalizedScope
+        );
+        if (fallback) {
+          departmentLabel = normalizeNullableText(fallback.department_name) || normalizedScope;
+          schoolName = normalizeNullableText(fallback.school);
+        } else if (!deptData) {
+          throw new Error("Selected department does not exist.");
+        }
+      }
     }
   }
 
@@ -1481,56 +1495,28 @@ async function buildRolesAnalytics(adminClient: any): Promise<RolesAnalytics> {
 export async function getRolesTableData(): Promise<RolesPageData> {
   const { adminClient } = await assertMasterAdmin();
 
-  const [usersRows, roleAssignments, departmentRows] =
-    await Promise.all([
-      fetchUsersWithFallback(adminClient),
-      fetchRoleAssignments(adminClient),
-      fetchRowsWithSelectFallback(adminClient, "departments_courses", [
-        "id,department_name,school",
-        "id,department_name",
-        "id",
-      ]),
-    ]);
+  const [usersRows, roleAssignments, catalogDepts] = await Promise.all([
+    fetchUsersWithFallback(adminClient),
+    fetchRoleAssignments(adminClient),
+    fetchDepartments(),
+  ]);
 
   const assignmentFallbackMap = buildAssignmentFallbackMap(
     roleAssignments,
     usersRows.map((row: any) => row.id)
   );
 
-  const resolvedDepartmentRows =
-    Array.isArray(departmentRows) && departmentRows.length > 0 ? departmentRows : FALLBACK_DEPARTMENT_OPTIONS;
-
-  const departments: DepartmentOption[] = resolvedDepartmentRows
-    .map((row: any) => ({
-      id: String(row.id),
-      department_name: String(row.department_name || "Unnamed Department"),
-      school: row.school ? String(row.school) : null,
+  // Map DepartmentEntry (catalog shape) → DepartmentOption (role matrix shape)
+  const departments: DepartmentOption[] = catalogDepts
+    .map((d) => ({
+      id: d.id,
+      department_name: d.name,
+      school: d.school && d.school !== "ALL" ? d.school : null,
     }))
-    .sort((left: DepartmentOption, right: DepartmentOption) =>
-      left.department_name.localeCompare(right.department_name)
-    );
+    .sort((a, b) => a.department_name.localeCompare(b.department_name));
 
-  const schoolMap = new Map<string, SchoolOption>();
-  FALLBACK_SCHOOL_NAMES.forEach((schoolName) => {
-    schoolMap.set(schoolName, {
-      id: schoolName,
-      name: schoolName,
-    });
-  });
-
-  departments.forEach((department) => {
-    const schoolName = normalizeNullableText(department.school);
-    if (!schoolName) {
-      return;
-    }
-
-    if (!schoolMap.has(schoolName)) {
-      schoolMap.set(schoolName, {
-        id: schoolName,
-        name: schoolName,
-      });
-    }
-  });
+  const schoolEntries = deriveSchools(catalogDepts);
+  const schools: SchoolOption[] = schoolEntries.map((s) => ({ id: s.id, name: s.name }));
 
   const venues = buildVenueOptions([], [], usersRows);
 
@@ -1547,16 +1533,12 @@ export async function getRolesTableData(): Promise<RolesPageData> {
   return {
     users: usersRows.map((row: any) => normalizeUserRecord(row, assignmentFallbackMap.get(String(row.id)))),
     departments,
-    schools: Array.from(schoolMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    schools,
     campuses: Array.from(campusesSet.values())
       .filter((campus) => !isExcludedCampusValue(campus))
       .sort((a, b) => {
-        if (a === PRIMARY_CAMPUS && b !== PRIMARY_CAMPUS) {
-          return -1;
-        }
-        if (b === PRIMARY_CAMPUS && a !== PRIMARY_CAMPUS) {
-          return 1;
-        }
+        if (a === PRIMARY_CAMPUS && b !== PRIMARY_CAMPUS) return -1;
+        if (b === PRIMARY_CAMPUS && a !== PRIMARY_CAMPUS) return 1;
         return a.localeCompare(b);
       }),
     venues,

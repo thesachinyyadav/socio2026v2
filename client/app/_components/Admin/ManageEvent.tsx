@@ -18,8 +18,8 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   EventFormData,
   eventFormSchema,
-  departments as departmentOptions,
-  schools as schoolOptions,
+  departments as fallbackDepartmentOptions,
+  schools as fallbackSchoolOptions,
   categories as categoryOptions,
   christCampuses,
   additionalRequestsDefaultValues,
@@ -751,6 +751,7 @@ interface EventFormProps {
   isArchiveUpdating?: boolean;
   onToggleArchive?: () => void;
   lifecycleStatus?: string | null;
+  isBudgetLocked?: boolean;
 }
 
 const baseButtonClasses =
@@ -829,11 +830,11 @@ const normalizeDepartmentAccess = (value: unknown): string[] =>
   Array.from(
     new Set(
       normalizeStringArray(value).map((entry) => {
-        const directValueMatch = departmentOptions.find((dept) => dept.value === entry);
+        const directValueMatch = fallbackDepartmentOptions.find((dept) => dept.value === entry);
         if (directValueMatch) return directValueMatch.value;
 
         const canonicalEntry = toCanonical(entry);
-        const mapped = departmentOptions.find(
+        const mapped = fallbackDepartmentOptions.find(
           (dept) =>
             toCanonical(dept.value) === canonicalEntry ||
             toCanonical(dept.label) === canonicalEntry
@@ -866,14 +867,14 @@ const normalizeSchoolValue = (value: unknown): string => {
   const first = normalizeStringArray(value)[0];
   if (!first) return "";
 
-  const directValueMatch = schoolOptions.find((school) => school.value === first);
+  const directValueMatch = fallbackSchoolOptions.find((school) => school.value === first);
   if (directValueMatch) return directValueMatch.value;
 
-  const directLabelMatch = schoolOptions.find((school) => school.label === first);
+  const directLabelMatch = fallbackSchoolOptions.find((school) => school.label === first);
   if (directLabelMatch) return directLabelMatch.value;
 
   const canonicalEntry = toCanonical(first);
-  const mapped = schoolOptions.find(
+  const mapped = fallbackSchoolOptions.find(
     (school) =>
       toCanonical(school.value) === canonicalEntry ||
       toCanonical(school.label) === canonicalEntry
@@ -1476,8 +1477,31 @@ export default function EventForm({
   isArchiveUpdating,
   onToggleArchive,
   lifecycleStatus,
+  isBudgetLocked = false,
 }: EventFormProps) {
   const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState(fallbackDepartmentOptions);
+  const [schoolOptions, setSchoolOptions] = useState(fallbackSchoolOptions);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        const rows: { id: string; name: string; school: string }[] = Array.isArray(json?.departments) ? json.departments : [];
+        if (rows.length === 0) return;
+        setDepartmentOptions(rows.map((d) => ({ value: d.id, label: d.name })));
+        const seen = new Set<string>();
+        const schools: { value: string; label: string }[] = [];
+        rows.forEach((d) => {
+          if (d.school && d.school !== "ALL" && !seen.has(d.school)) {
+            seen.add(d.school);
+            schools.push({ value: d.school, label: d.school });
+          }
+        });
+        if (schools.length > 0) setSchoolOptions(schools.sort((a, b) => a.label.localeCompare(b.label)));
+      })
+      .catch(() => {});
+  }, []);
 
   const { userData: subheadCheckUserData } = useAuth();
   const subheadUserRecord =
@@ -1879,6 +1903,7 @@ export default function EventForm({
     control,
     name: "budgetAmount",
   });
+  const [budgetUnlocked, setBudgetUnlocked] = useState(false);
   const watchedItEnabled = useWatch({
     control,
     name: "additionalRequests.it.enabled",
@@ -4047,8 +4072,56 @@ export default function EventForm({
                   <div
                     id="standalone-budget-step"
                     tabIndex={-1}
-                    className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"
+                    className="space-y-4"
                   >
+                    {/* Note box — always visible */}
+                    {isBudgetLocked ? (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                        <p className="font-semibold text-base mb-1">⚠ Editing budget will restart the approval chain</p>
+                        <p className="text-amber-800">
+                          This event is under approval review. Changing the budget amount or funding requirement will <strong>reset all approval steps</strong> — approvers will need to review from the beginning.
+                        </p>
+                        <p className="mt-2 text-amber-700">
+                          If the budget is correct, leave it unchanged and only edit other details.
+                        </p>
+                        {!budgetUnlocked ? (
+                          <button
+                            type="button"
+                            onClick={() => setBudgetUnlocked(true)}
+                            className="mt-3 px-4 py-1.5 rounded-md border border-amber-600 bg-amber-100 text-amber-900 text-xs font-semibold hover:bg-amber-200 transition-colors"
+                          >
+                            Yes, I want to edit the budget anyway →
+                          </button>
+                        ) : (
+                          <p className="mt-3 text-xs font-semibold text-amber-900 bg-amber-100 rounded px-3 py-1.5 inline-block">
+                            Budget editing unlocked — saving changes will restart approval.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+                        <p className="font-semibold mb-1">Important — Budget changes trigger re-approval</p>
+                        <p className="text-blue-800">
+                          Once this event is sent for approval, any change to the budget amount or funding requirement will <strong>restart the entire approval chain</strong> from the beginning.
+                        </p>
+                        <p className="mt-2 text-blue-700">
+                          Make sure the budget amount is correct before submitting for approval.
+                        </p>
+                        {!budgetUnlocked && (
+                          <button
+                            type="button"
+                            onClick={() => setBudgetUnlocked(true)}
+                            className="mt-3 px-4 py-1.5 rounded-md border border-blue-400 bg-blue-100 text-blue-900 text-xs font-semibold hover:bg-blue-200 transition-colors"
+                          >
+                            Edit budget →
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Budget inputs — locked until unlocked */}
+                    <div className={`space-y-4 ${!budgetUnlocked ? "opacity-50 pointer-events-none select-none" : ""}`}>
+                    <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
                     <h3 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
                       Does this event require a budget approval?
                     </h3>
@@ -4060,7 +4133,6 @@ export default function EventForm({
                       <p className="font-semibold text-[#063168]">Approval route preview</p>
                       <p className="mt-1 text-gray-700">{standaloneBudgetRoutePreviewText}</p>
                     </div>
-
                     <input
                       id="provideClaims"
                       type="checkbox"
@@ -4158,6 +4230,8 @@ export default function EventForm({
                         </p>
                       </div>
                     )}
+                    </div>
+                    </div>
                   </div>
                 )}
 

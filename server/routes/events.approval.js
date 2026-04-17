@@ -775,10 +775,15 @@ router.post("/:eventId/submit", async (req, res) => {
         return res.status(400).json({ error: "Parent fest not found." });
       }
 
-      const parentStatus = normalizeToken(parentFest.workflow_status);
-      if (![EVENT_STATUS.FULLY_APPROVED, EVENT_STATUS.LIVE].includes(parentStatus)) {
+      const parentWorkflowStatus = normalizeToken(parentFest.workflow_status);
+      const parentLifecycleStatus = normalizeToken(parentFest.status);
+      const parentFestIsApproved =
+        [EVENT_STATUS.FULLY_APPROVED, EVENT_STATUS.LIVE].includes(parentWorkflowStatus) ||
+        ["approved", "published"].includes(parentLifecycleStatus);
+
+      if (!parentFestIsApproved) {
         return res.status(400).json({
-          error: "Parent fest is not yet approved. Events can only be created once the fest is fully approved.",
+          error: "Parent fest must be fully approved before adding sub-events.",
         });
       }
 
@@ -806,6 +811,7 @@ router.post("/:eventId/submit", async (req, res) => {
         const updatedEvent = await updateEventWorkflow(eventId, EVENT_STATUS.ORGANISER_APPROVED, {
           event_context: EVENT_CONTEXT.UNDER_FEST,
           parent_fest_id: parentFestId,
+          workflow_phase: "logistics_approval",
           workflow_version: nextVersion,
           rejected_at: null,
           rejected_by: null,

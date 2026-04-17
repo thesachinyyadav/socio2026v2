@@ -831,8 +831,19 @@ function DepartmentAndCategoryInputs({
     setIsCategoryDropdownOpen(false);
   };
 
-  const departments = baseDepartments;
-  
+  const [departments, setDepartments] = useState(baseDepartments);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        const rows: { id: string; name: string }[] = Array.isArray(json?.departments) ? json.departments : [];
+        if (rows.length > 0) setDepartments(rows.map((d) => ({ value: d.id, label: d.name })));
+      })
+      .catch(() => {});
+  }, []);
+
+
   const categories = [
     { value: "technology", label: "Technology" },
     { value: "academic", label: "Academic" },
@@ -1058,6 +1069,7 @@ interface CreateFestProps {
   total_estimated_expense?: number | string | null;
   lifecycleStatus?: string | null;
   subheads?: string[];
+  isBudgetLocked?: boolean;
 }
 
 const FullPageSpinner: React.FC<{ text: string }> = ({ text }) => (
@@ -1113,6 +1125,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const customFields = parseFestCustomFields(props?.customFields);
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
+  const isBudgetLocked = props?.isBudgetLocked === true;
   const initialBudgetSettings = extractBudgetSettingsFromCustomFields(customFields);
   const directBudgetAmountFromProps =
     toPositiveNumber(props?.total_estimated_expense) ||
@@ -1140,6 +1153,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const [requiresBudgetApproval, setRequiresBudgetApproval] = useState(
     initialBudgetSettings?.requiresBudgetApproval ?? false
   );
+  const [budgetUnlocked, setBudgetUnlocked] = useState(false);
   const [requiresHodApproval, setRequiresHodApproval] = useState(true);
   const [requiresDeanApproval, setRequiresDeanApproval] = useState(true);
   const [budgetAmount, setBudgetAmount] = useState(
@@ -1147,6 +1161,29 @@ function CreateFestForm(props?: CreateFestProps) {
       (directBudgetAmountFromProps > 0 ? String(directBudgetAmountFromProps) : "")
   );
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+  const [festDepartmentOptions, setFestDepartmentOptions] = useState(baseDepartments);
+  const [festSchoolOptions, setFestSchoolOptions] = useState(schoolOptions);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        const rows: { id: string; name: string; school: string }[] = Array.isArray(json?.departments) ? json.departments : [];
+        if (rows.length === 0) return;
+        setFestDepartmentOptions(rows.map((d) => ({ value: d.id, label: d.name })));
+        const seen = new Set<string>();
+        const schools: { value: string; label: string }[] = [];
+        rows.forEach((d) => {
+          if (d.school && d.school !== "ALL" && !seen.has(d.school)) {
+            seen.add(d.school);
+            schools.push({ value: d.school, label: d.school });
+          }
+        });
+        if (schools.length > 0) setFestSchoolOptions(schools.sort((a, b) => a.label.localeCompare(b.label)));
+      })
+      .catch(() => {});
+  }, []);
+
   const [formData, setFormData] = useState<CreateFestState>({
     title,
     openingDate,
@@ -3136,7 +3173,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm sm:text-base`}
                   >
                     <option value="">Select school</option>
-                    {schoolOptions.map((school) => (
+                    {festSchoolOptions.map((school) => (
                       <option key={school.value} value={school.value}>
                         {school.label}
                       </option>
@@ -3161,7 +3198,7 @@ function CreateFestForm(props?: CreateFestProps) {
                     <span className="text-red-500">*</span>
                   </label>
                   <datalist id="organizing-dept-list">
-                    {baseDepartments
+                    {festDepartmentOptions
                       .filter((d) => d.value !== "all_departments")
                       .map((dept) => (
                         <option key={dept.value} value={dept.label} />
@@ -4026,77 +4063,123 @@ function CreateFestForm(props?: CreateFestProps) {
 
                 {creationStep === "budget" && (
                   <div className="space-y-6">
-                    <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
-                      <h3 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
-                        Does this fest require a budget approval?
-                      </h3>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Select Yes to add budget requirements and amount details.
-                      </p>
-                      <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
-                        <p className="font-semibold text-[#063168]">Approval route preview</p>
-                        <p className="mt-1 text-gray-700">
-                          HOD and Dean approvals are enabled. {" "}
-                          {requiresBudgetApproval
-                            ? "CFO approval is also required because budget approval is enabled."
-                            : "CFO approval is skipped because budget approval is disabled."}
+                    {/* Note box — always visible, never locked */}
+                    {isBudgetLocked ? (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                        <p className="font-semibold text-base mb-1">⚠ Editing budget will restart the approval chain</p>
+                        <p className="text-amber-800">
+                          This fest is currently under approval review. Changing the budget amount or funding requirement will <strong>reset all approval steps</strong> — approvers will need to review from the beginning.
                         </p>
+                        <p className="mt-2 text-amber-700">
+                          If the budget is correct, leave it unchanged and only edit other details.
+                        </p>
+                        {!budgetUnlocked && (
+                          <button
+                            type="button"
+                            onClick={() => setBudgetUnlocked(true)}
+                            className="mt-3 px-4 py-1.5 rounded-md border border-amber-600 bg-amber-100 text-amber-900 text-xs font-semibold hover:bg-amber-200 transition-colors"
+                          >
+                            Yes, I want to edit the budget anyway →
+                          </button>
+                        )}
+                        {budgetUnlocked && (
+                          <p className="mt-3 text-xs font-semibold text-amber-900 bg-amber-100 rounded px-3 py-1.5 inline-block">
+                            Budget editing unlocked — saving changes will restart approval.
+                          </p>
+                        )}
                       </div>
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setRequiresBudgetApproval(true)}
-                          className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
-                            requiresBudgetApproval
-                              ? "bg-[#154CB3] border-[#154CB3] text-white"
-                              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRequiresBudgetApproval(false)}
-                          className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
-                            !requiresBudgetApproval
-                              ? "bg-[#154CB3] border-[#154CB3] text-white"
-                              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          No
-                        </button>
-                      </div>
-                    </div>
-
-                    {requiresBudgetApproval && (
-                      <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
-                        <label
-                          htmlFor="festBudgetAmount"
-                          className="block text-sm font-semibold text-gray-700"
-                        >
-                          Budget amount
-                        </label>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Enter the total amount required for approval.
+                    ) : (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+                        <p className="font-semibold mb-1">Important — Budget changes trigger re-approval</p>
+                        <p className="text-blue-800">
+                          Once this fest is sent for approval, any change to the budget amount or funding requirement will <strong>restart the entire approval chain</strong> from the beginning.
                         </p>
-                        <div className="mt-3 max-w-sm">
-                          <input
-                            id="festBudgetAmount"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={budgetAmount}
-                            onChange={(e) => setBudgetAmount(e.target.value)}
-                            className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
-                            placeholder="Enter amount"
-                          />
-                        </div>
-                        <p className="mt-3 text-sm font-semibold text-[#063168]">
-                          Entered amount: ₹
-                          {Number(toPositiveNumber(budgetAmount) || 0).toLocaleString("en-IN")}
+                        <p className="mt-2 text-blue-700">
+                          Make sure the budget amount is correct before submitting for approval.
                         </p>
+                        {!budgetUnlocked && (
+                          <button
+                            type="button"
+                            onClick={() => setBudgetUnlocked(true)}
+                            className="mt-3 px-4 py-1.5 rounded-md border border-blue-400 bg-blue-100 text-blue-900 text-xs font-semibold hover:bg-blue-200 transition-colors"
+                          >
+                            Edit budget →
+                          </button>
+                        )}
                       </div>
                     )}
+
+                    {/* Budget inputs — locked until unlocked */}
+                    <div className={`space-y-4 ${!budgetUnlocked ? "opacity-50 pointer-events-none select-none" : ""}`}>
+                      <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                        <h3 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
+                          Does this fest require a budget approval?
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          Select Yes to add budget requirements and amount details.
+                        </p>
+                        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                          <p className="font-semibold text-[#063168]">Approval route preview</p>
+                          <p className="mt-1 text-gray-700">
+                            HOD and Dean approvals are enabled. {" "}
+                            {requiresBudgetApproval
+                              ? "CFO approval is also required because budget approval is enabled."
+                              : "CFO approval is skipped because budget approval is disabled."}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setRequiresBudgetApproval(true)}
+                            className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                              requiresBudgetApproval
+                                ? "bg-[#154CB3] border-[#154CB3] text-white"
+                                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRequiresBudgetApproval(false)}
+                            className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
+                              !requiresBudgetApproval
+                                ? "bg-[#154CB3] border-[#154CB3] text-white"
+                                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            No
+                          </button>
+                        </div>
+                      </div>
+
+                      {requiresBudgetApproval && (
+                        <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
+                          <label htmlFor="festBudgetAmount" className="block text-sm font-semibold text-gray-700">
+                            Budget amount
+                          </label>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Enter the total amount required for approval.
+                          </p>
+                          <div className="mt-3 max-w-sm">
+                            <input
+                              id="festBudgetAmount"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={budgetAmount}
+                              onChange={(e) => setBudgetAmount(e.target.value)}
+                              className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                              placeholder="Enter amount"
+                            />
+                          </div>
+                          <p className="mt-3 text-sm font-semibold text-[#063168]">
+                            Entered amount: ₹
+                            {Number(toPositiveNumber(budgetAmount) || 0).toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

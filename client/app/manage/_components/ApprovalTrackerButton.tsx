@@ -128,10 +128,28 @@ function buildSummaryRow(
   };
 }
 
+function buildInheritedRow(stage: WorkflowQuickSummaryStageId): WorkflowQuickSummaryItem {
+  return {
+    id: stage,
+    label: STAGE_LABELS[stage],
+    status: "approved",
+    statusLabel: "Via Fest",
+    timestamp: null,
+    note: null,
+  };
+}
+
 function getFallbackSummary(
   workflowStatus?: string | null,
-  stages: WorkflowQuickSummaryStageId[] = ["L1_HOD", "L2_DEAN"]
+  stages: WorkflowQuickSummaryStageId[] = ["L1_HOD", "L2_DEAN"],
+  eventContext?: string | null
 ): WorkflowQuickSummaryItem[] {
+  if (normalizeLower(eventContext) === "under_fest") {
+    return (stages.length > 0 ? stages : (["L1_HOD", "L2_DEAN"] as WorkflowQuickSummaryStageId[]))
+      .filter((s) => s === "L1_HOD" || s === "L2_DEAN")
+      .map(buildInheritedRow);
+  }
+
   const token = normalizeLower(workflowStatus);
   const statusByStage: Record<WorkflowQuickSummaryStageId, ApprovalVisualStatus> = {
     L1_HOD: "blocked",
@@ -227,6 +245,7 @@ async function fetchQuickSummaryFromSupabase(input: {
   workflowId: string;
   approvalRequestId?: string | null;
   workflowStatus?: string | null;
+  eventContext?: string | null;
 }): Promise<WorkflowQuickSummaryItem[]> {
   const workflowId = String(input.workflowId || "").trim();
   if (!workflowId) {
@@ -295,7 +314,7 @@ async function fetchQuickSummaryFromSupabase(input: {
     requestId = Array.isArray(requestRows) && requestRows[0]?.id ? String(requestRows[0].id) : "";
   }
 
-  const fallbackSummary = getFallbackSummary(workflowStatus);
+  const fallbackSummary = getFallbackSummary(workflowStatus, undefined, input.eventContext);
 
   if (!requestId) {
     return fallbackSummary;
@@ -339,6 +358,9 @@ async function fetchQuickSummaryFromSupabase(input: {
 
   const presentStages = STAGE_ORDER.filter((stage) => stepByStage[stage]);
   if (presentStages.length === 0) {
+    if (normalizeLower(input.eventContext) === "under_fest") {
+      return (["L1_HOD", "L2_DEAN"] as WorkflowQuickSummaryStageId[]).map(buildInheritedRow);
+    }
     return fallbackSummary;
   }
 
@@ -371,10 +393,11 @@ async function loadQuickSummaryWithCache(input: {
   workflowId: string;
   approvalRequestId?: string | null;
   workflowStatus?: string | null;
+  eventContext?: string | null;
 }): Promise<WorkflowQuickSummaryItem[]> {
   const cacheKey = `${input.workflowType}:${String(input.workflowId || "").trim()}`;
   if (!cacheKey) {
-    return getFallbackSummary(input.workflowStatus);
+    return getFallbackSummary(input.workflowStatus, undefined, input.eventContext);
   }
 
   const cached = quickSummaryCache.get(cacheKey);
@@ -427,6 +450,7 @@ export default function ApprovalTrackerButton({
   workflowTitle,
   approvalRequestId,
   workflowStatus,
+  eventContext,
   buttonLabel = "Approvals",
   className,
 }: {
@@ -435,6 +459,7 @@ export default function ApprovalTrackerButton({
   workflowTitle?: string;
   approvalRequestId?: string | null;
   workflowStatus?: string | null;
+  eventContext?: string | null;
   buttonLabel?: string;
   className?: string;
 }) {
@@ -442,7 +467,7 @@ export default function ApprovalTrackerButton({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<WorkflowQuickSummaryItem[]>(
-    getFallbackSummary(workflowStatus)
+    getFallbackSummary(workflowStatus, undefined, eventContext)
   );
 
   const closeTimerRef = useRef<number | null>(null);
@@ -455,7 +480,7 @@ export default function ApprovalTrackerButton({
   const refreshSummary = useMemo(
     () => async () => {
       if (!stableWorkflowId) {
-        setSummary(getFallbackSummary(workflowStatus));
+        setSummary(getFallbackSummary(workflowStatus, undefined, eventContext));
         setIsLoading(false);
         return;
       }
@@ -469,17 +494,18 @@ export default function ApprovalTrackerButton({
           workflowId: stableWorkflowId,
           approvalRequestId,
           workflowStatus,
+          eventContext,
         });
 
         setSummary(nextSummary);
       } catch (fetchError) {
         setError(fetchError instanceof Error ? fetchError.message : "Unable to load approval summary.");
-        setSummary(getFallbackSummary(workflowStatus));
+        setSummary(getFallbackSummary(workflowStatus, undefined, eventContext));
       } finally {
         setIsLoading(false);
       }
     },
-    [approvalRequestId, stableWorkflowId, workflowStatus, workflowType]
+    [approvalRequestId, eventContext, stableWorkflowId, workflowStatus, workflowType]
   );
 
   useEffect(() => {
