@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles } from "lucide-react";
 
 import {
   ApprovalStatusIcon,
@@ -553,43 +552,22 @@ export default function ApprovalTrackerButton({
           }
         }}
       >
-        <Link
-          href={workflowHref}
-          title={workflowTitle || `${workflowType} workflow`}
-          className="inline-flex items-center gap-2 rounded-full border border-[#154cb3]/20 bg-[#154cb3]/5 px-3 py-1.5 text-sm font-semibold text-[#154cb3] transition-all hover:border-[#154cb3]/40 hover:bg-[#154cb3]/10"
-          aria-label={`Open ${workflowType} workflow tracker`}
-        >
-          <span>{buttonLabel}</span>
+        <div className="group inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-[#154cb3]">
+          <span className="group-hover:underline group-hover:underline-offset-2">{buttonLabel}</span>
           <ApprovalStatusIcon status={dominantStatus} className="h-4 w-4" animatePending />
-        </Link>
+        </div>
 
         {isPopoverOpen ? (
-          <div className="absolute bottom-full right-0 z-50 mb-3 w-[min(26rem,calc(100vw-1.25rem))] rounded-2xl border border-white/35 bg-white/20 p-3 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.6)] backdrop-blur-2xl sm:w-[22rem]">
-            <div className="mb-3 flex items-start gap-2 rounded-xl border border-white/25 bg-white/15 px-3 py-2">
-              <Sparkles className="mt-0.5 h-4 w-4 text-sky-700" aria-hidden="true" />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-700">
-                  Quick Insights
-                </p>
-                <p className="mt-0.5 text-xs text-slate-700/90">
-                  Hover summary covers every approver this workflow needs. Click to open the full mindmap.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
+          <div className="absolute bottom-full right-0 z-50 mb-3 w-72 rounded-2xl border border-white/35 bg-white/20 p-2.5 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.6)] backdrop-blur-2xl">
+            <div className="space-y-1.5">
               {summary.map((row) => (
                 <div
                   key={row.id}
-                  className="flex items-start justify-between rounded-xl border border-white/35 bg-white/35 px-3 py-2"
+                  className="flex items-center justify-between rounded-xl border border-white/35 bg-white/35 px-2.5 py-1.5"
                 >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{row.label}</p>
-                    {row.timestamp ? <p className="text-[11px] text-slate-600">{row.timestamp}</p> : null}
-                    {row.note ? <p className="mt-1 text-[11px] text-rose-700">{row.note}</p> : null}
-                  </div>
-                  <div className="ml-3 inline-flex items-center gap-1.5 rounded-full border border-white/50 bg-white/55 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    <ApprovalStatusIcon status={row.status} className="h-3.5 w-3.5" animatePending />
+                  <p className="text-xs font-semibold text-slate-800">{row.label}</p>
+                  <div className="ml-2 inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/55 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                    <ApprovalStatusIcon status={row.status} className="h-3 w-3" animatePending />
                     {row.statusLabel}
                   </div>
                 </div>
@@ -597,10 +575,19 @@ export default function ApprovalTrackerButton({
             </div>
 
             {isLoading ? (
-              <p className="mt-3 text-[11px] text-slate-600">Refreshing approval status...</p>
+              <p className="mt-2 text-[10px] text-slate-500">Refreshing...</p>
             ) : null}
 
-            {error ? <p className="mt-3 text-[11px] text-rose-700">{error}</p> : null}
+            {error ? <p className="mt-2 text-[10px] text-rose-700">{error}</p> : null}
+
+            <div className="mt-2 flex justify-center">
+              <Link
+                href={workflowHref}
+                className="text-[11px] font-medium text-[#154cb3] hover:underline hover:underline-offset-2 hover:text-[#0f3a8a]"
+              >
+                Click here to view full details
+              </Link>
+            </div>
           </div>
         ) : null}
       </div>
