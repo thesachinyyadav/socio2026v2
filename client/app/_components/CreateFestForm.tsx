@@ -1165,6 +1165,8 @@ function CreateFestForm(props?: CreateFestProps) {
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [festDepartmentOptions, setFestDepartmentOptions] = useState(baseDepartments);
   const [festSchoolOptions, setFestSchoolOptions] = useState(schoolOptions);
+  const [deptCodeByUUID, setDeptCodeByUUID] = useState<Map<string, string>>(new Map());
+  const [editModeDeptId, setEditModeDeptId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/departments")
@@ -1173,6 +1175,9 @@ function CreateFestForm(props?: CreateFestProps) {
         const rows: { id: string; name: string; code: string | null; school: string }[] = Array.isArray(json?.departments) ? json.departments : [];
         if (rows.length === 0) return;
         setFestDepartmentOptions(rows.map((d) => ({ value: d.code || d.id, label: d.name })));
+        const uuidMap = new Map<string, string>();
+        rows.forEach((d) => { if (d.id && (d.code || d.id)) uuidMap.set(d.id, d.code || d.id); });
+        setDeptCodeByUUID(uuidMap);
         const seen = new Set<string>();
         const schools: { value: string; label: string }[] = [];
         rows.forEach((d) => {
@@ -1185,6 +1190,12 @@ function CreateFestForm(props?: CreateFestProps) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!editModeDeptId || deptCodeByUUID.size === 0) return;
+    const code = deptCodeByUUID.get(editModeDeptId);
+    if (code) setFormData((prev) => ({ ...prev, organizingDept: code }));
+  }, [editModeDeptId, deptCodeByUUID]);
 
   const [formData, setFormData] = useState<CreateFestState>({
     title,
@@ -1336,7 +1347,7 @@ function CreateFestForm(props?: CreateFestProps) {
               contactPhone: normalizePhone(data.fest.contact_phone || ""),
               eventHeads: transformedEventHeads,
               organizingSchool: data.fest.organizing_school || "",
-              organizingDept: data.fest.organizing_dept || "",
+              organizingDept: deptCodeByUUID.get(data.fest.organizing_dept_id) || "",
               venue: data.fest.venue || "",
               status: deriveFestStatusFromDates(loadedOpeningDate, loadedClosingDate),
               registration_deadline: "",
@@ -1352,6 +1363,7 @@ function CreateFestForm(props?: CreateFestProps) {
               customFields: parsedCustomFields,
               subheads: data.fest.subheads || [],
             });
+            if (data.fest.organizing_dept_id) setEditModeDeptId(data.fest.organizing_dept_id);
             setRequiresBudgetApproval(parsedBudgetSettings?.requiresBudgetApproval ?? false);
             setRequiresHodApproval(true);
             setRequiresDeanApproval(true);
@@ -1658,8 +1670,6 @@ function CreateFestForm(props?: CreateFestProps) {
           case "organizingDept":
             if (!(value as string).trim())
               newErrors.organizingDept = "Organizing department is required";
-            else if ((value as string).length > 100)
-              newErrors.organizingDept = "Max 100 characters";
             else delete newErrors.organizingDept;
             break;
           case "campusHostedAt":
@@ -3195,24 +3205,19 @@ function CreateFestForm(props?: CreateFestProps) {
                     htmlFor="organizingDept"
                     className="block mb-2 text-sm font-medium text-gray-700"
                   >
-                    Organizing department (Select or Type):{" "}
+                    Organizing Department:{" "}
                     <span className="text-red-500">*</span>
                   </label>
-                  <datalist id="organizing-dept-list">
-                    {festDepartmentOptions
-                      .filter((d) => d.value !== "all_departments")
-                      .map((dept) => (
-                        <option key={dept.value} value={dept.label} />
-                      ))}
-                  </datalist>
-                  <input
-                    type="text"
+                  <select
                     id="organizingDept"
-                    list="organizing-dept-list"
-                    placeholder="Select or type organizing department"
+                    name="organizingDept"
                     value={formData.organizingDept}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData((prev) => ({ ...prev, organizingDept: val }));
+                      validateField("organizingDept", val);
+                    }}
+                    onBlur={(e) => validateField("organizingDept", e.target.value)}
                     required
                     aria-describedby={
                       errors.organizingDept ? "organizingDept-error" : undefined
@@ -3222,7 +3227,16 @@ function CreateFestForm(props?: CreateFestProps) {
                         ? "border-red-500"
                         : "border-gray-300"
                     } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm sm:text-base`}
-                  />
+                  >
+                    <option value="">Select organizing department</option>
+                    {festDepartmentOptions
+                      .filter((d) => d.value !== "all_departments")
+                      .map((dept) => (
+                        <option key={dept.value} value={dept.value}>
+                          {dept.label}
+                        </option>
+                      ))}
+                  </select>
                   {errors.organizingDept && (
                     <p
                       id="organizingDept-error"

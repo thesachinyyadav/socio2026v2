@@ -229,9 +229,9 @@ async function fetchFestRowsFromTableWithFallback(
   error: { code?: string | null; message?: string | null } | null;
 }> {
   const selectClauseWithBudget =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const selectClauseLegacy =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, custom_fields";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from(tableName)
@@ -284,9 +284,9 @@ async function fetchAllFestRowsFromTableWithFallback(
   tableName: string
 ): Promise<FestDetailRow[]> {
   const selectClauseWithBudget =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const selectClauseLegacy =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_dept_id, organizing_school, contact_email, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, contact_email, custom_fields";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from(tableName)
@@ -534,34 +534,49 @@ export async function fetchHodDashboardData({
   );
   const normalizedCampusScope = normalizeScope(campusScope);
 
-  let pendingQuery = supabase
-    .from("approval_steps")
-    .select(
-      `
+  const approvalRequestSelectFull = `
         id,
-        step_code,
-        role_code,
+        request_id,
+        entity_type,
+        entity_ref,
+        organizing_dept,
+        organizing_dept_id,
+        campus_hosted_at,
         status,
-        created_at,
-        approval_requests!inner (
-          id,
-          request_id,
-          entity_type,
-          entity_ref,
-          organizing_dept,
-          organizing_dept_id,
-          campus_hosted_at,
-          status,
-          submitted_at,
-          created_at
-        )
-      `
-    )
+        submitted_at,
+        created_at
+      `;
+
+  const approvalRequestSelectLegacy = `
+        id,
+        request_id,
+        entity_type,
+        entity_ref,
+        organizing_dept_id,
+        campus_hosted_at,
+        status,
+        submitted_at,
+        created_at
+      `;
+
+  let { data: pendingData, error: pendingError } = await supabase
+    .from("approval_steps")
+    .select(`id, step_code, role_code, status, created_at, approval_requests!inner (${approvalRequestSelectFull})`)
     .eq("role_code", "HOD")
     .eq("status", "PENDING")
     .order("created_at", { ascending: true });
 
-  const { data: pendingData, error: pendingError } = await pendingQuery;
+  // Retry without organizing_dept if the column doesn't exist yet
+  if (pendingError && isMissingColumnError(pendingError, "organizing_dept")) {
+    const retry = await supabase
+      .from("approval_steps")
+      .select(`id, step_code, role_code, status, created_at, approval_requests!inner (${approvalRequestSelectLegacy})`)
+      .eq("role_code", "HOD")
+      .eq("status", "PENDING")
+      .order("created_at", { ascending: true });
+    pendingData = retry.data;
+    pendingError = retry.error;
+  }
 
   if (pendingError) {
     throw new Error(`Failed to load HOD approvals: ${pendingError.message}`);
@@ -594,8 +609,8 @@ export async function fetchHodDashboardData({
   let eventRowsById = new Map<string, EventDetailRow>();
   if (eventIds.length > 0) {
     const fullSelect =
-      "event_id, title, event_date, organizing_dept, organizing_dept_id, organizing_school, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
-    const legacySelect = "event_id, title, event_date, organizing_dept, organizing_dept_id, organizing_school, organizer_email";
+      "event_id, title, event_date, organizing_dept_id, organizing_school, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    const legacySelect = "event_id, title, event_date, organizing_dept_id, organizing_school, organizer_email";
 
     let { data: eventData, error: eventError } = await supabase
       .from("events")

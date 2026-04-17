@@ -6,7 +6,7 @@ import { SpinnerIcon } from "../../_shared/usePersistedDecisions";
 interface HodApprovalTableProps {
   rows: HodApprovalQueueItem[];
   completedActions: Record<string, HodApprovalAction>;
-  activeRequestId: string | null;
+  activeAction: { requestId: string; action: string } | null;
   onApprove: (requestId: string) => void;
   onReturn: (requestId: string) => void;
   onDecline: (requestId: string) => void;
@@ -41,7 +41,7 @@ function formatDateLabel(dateValue: string | null): string {
 export default function HodApprovalTable({
   rows,
   completedActions,
-  activeRequestId,
+  activeAction,
   onApprove,
   onReturn,
   onDecline,
@@ -85,7 +85,7 @@ export default function HodApprovalTable({
 
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => {
-              const isWorking = activeRequestId === row.id;
+              const isWorking = activeAction?.requestId === row.id;
               const completedAction = completedActions[row.id] || null;
               const isCompleted = Boolean(completedAction);
               const isFest = row.entityType === "fest";
@@ -134,7 +134,7 @@ export default function HodApprovalTable({
                           disabled={isWorking}
                           className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {isWorking ? <SpinnerIcon /> : null}
+                          {isWorking && activeAction?.action === "approve" ? <SpinnerIcon /> : null}
                           Approve
                         </button>
                         <button
@@ -143,7 +143,7 @@ export default function HodApprovalTable({
                           disabled={isWorking}
                           className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-900 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {isWorking ? <SpinnerIcon /> : null}
+                          {isWorking && activeAction?.action === "return" ? <SpinnerIcon /> : null}
                           Return for Revision
                         </button>
                         <button
@@ -152,7 +152,7 @@ export default function HodApprovalTable({
                           disabled={isWorking}
                           className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {isWorking ? <SpinnerIcon /> : null}
+                          {isWorking && activeAction?.action === "decline" ? <SpinnerIcon /> : null}
                           Decline
                         </button>
                       </div>

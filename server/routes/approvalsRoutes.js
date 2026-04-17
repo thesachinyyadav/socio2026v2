@@ -1152,14 +1152,12 @@ const resolveApprovalRequestDepartmentScopeValue = async (approvalRequest) => {
     let entityDeptId = null;
     let entityDeptText = null;
     if (["EVENT", "STANDALONE_EVENT", "FEST_CHILD_EVENT"].includes(entityType)) {
-      const event = await queryOne("events", { where: { event_id: entityRef }, select: "organizing_dept,organizing_dept_id" });
+      const event = await queryOne("events", { where: { event_id: entityRef }, select: "organizing_dept_id" });
       entityDeptId = String(event?.organizing_dept_id || "").trim();
-      entityDeptText = String(event?.organizing_dept || "").trim();
     } else if (entityType === "FEST") {
-      const fest = await queryOne("fests", { where: { fest_id: entityRef }, select: "organizing_dept,organizing_dept_id" });
+      const fest = await queryOne("fests", { where: { fest_id: entityRef }, select: "organizing_dept_id" });
       if (fest) {
         entityDeptId = String(fest?.organizing_dept_id || "").trim();
-        entityDeptText = String(fest?.organizing_dept || "").trim();
       }
     }
     if (entityDeptId) {

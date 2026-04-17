@@ -195,6 +195,17 @@ const createTeacherApprovalRequestForChildEvent = async ({ eventRecord, userInfo
     const nowIso = new Date().toISOString();
     const isBudgetRelated = Number(eventRecord.registration_fee || 0) > 0;
 
+    const childDeptId = eventRecord.organizing_dept_id || null;
+    let childDeptText = eventRecord.organizing_dept || null;
+    if (!childDeptText && childDeptId) {
+      const { data: deptRow } = await supabase
+        .from("departments")
+        .select("name")
+        .eq("id", childDeptId)
+        .maybeSingle();
+      childDeptText = deptRow?.name || null;
+    }
+
     const requestPayload = {
       request_id: requestId,
       entity_type: "FEST_CHILD_EVENT",
@@ -202,8 +213,8 @@ const createTeacherApprovalRequestForChildEvent = async ({ eventRecord, userInfo
       parent_fest_ref: eventRecord.fest_id,
       requested_by_user_id: userInfo?.id || null,
       requested_by_email: userInfo?.email || null,
-      organizing_dept: eventRecord.organizing_dept || null,
-      organizing_dept_id: eventRecord.organizing_dept_id || null,
+      organizing_dept: childDeptText,
+      organizing_dept_id: childDeptId,
       organizing_school: eventRecord.organizing_school || null,
       campus_hosted_at: eventRecord.campus_hosted_at || null,
       is_budget_related: isBudgetRelated,
@@ -904,13 +915,24 @@ const createStandaloneApprovalRequestForEvent = async ({
     return null;
   }
 
+  const organizingDeptId = eventRecord?.organizing_dept_id || null;
+  let organizingDeptText = eventRecord?.organizing_dept || null;
+  if (!organizingDeptText && organizingDeptId) {
+    const { data: deptRow } = await supabase
+      .from("departments")
+      .select("name")
+      .eq("id", organizingDeptId)
+      .maybeSingle();
+    organizingDeptText = deptRow?.name || null;
+  }
+
   const approvalRequest = await createApprovalRequestWithSteps({
     entityType: "STANDALONE_EVENT",
     entityRef: eventId,
     parentFestRef: null,
     userInfo,
-    organizingDept: eventRecord?.organizing_dept || null,
-    organizingDeptId: eventRecord?.organizing_dept_id || null,
+    organizingDept: organizingDeptText,
+    organizingDeptId,
     organizingSchool: eventRecord?.organizing_school || null,
     campusHostedAt: eventRecord?.campus_hosted_at || null,
     isBudgetRelated: Boolean(isBudgetRelated),

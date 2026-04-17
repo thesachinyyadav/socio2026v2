@@ -223,24 +223,22 @@ async function resolveRequestScopeFromEntity(
   if (entityType === "FEST" && entityRef) {
     const { data: festData } = await supabase
       .from("fests")
-      .select("organizing_dept,organizing_dept_id,campus_hosted_at")
+      .select("organizing_dept_id,campus_hosted_at")
       .eq("fest_id", entityRef)
       .maybeSingle();
 
     const festRow = (festData as FestScopeRow | null) || null;
     departmentScope = departmentScope || normalizeUUID(festRow?.organizing_dept_id);
-    departmentText = departmentText || normalizeDepartmentScope(festRow?.organizing_dept);
     campusScope = campusScope || normalizeScope(festRow?.campus_hosted_at);
   } else if (entityRef) {
     const { data: eventData } = await supabase
       .from("events")
-      .select("organizing_dept,organizing_dept_id,campus_hosted_at")
+      .select("organizing_dept_id,campus_hosted_at")
       .eq("event_id", entityRef)
       .maybeSingle();
 
     const eventRow = (eventData as EventScopeRow | null) || null;
     departmentScope = departmentScope || normalizeUUID(eventRow?.organizing_dept_id);
-    departmentText = departmentText || normalizeDepartmentScope(eventRow?.organizing_dept);
     campusScope = campusScope || normalizeScope(eventRow?.campus_hosted_at);
   }
 
@@ -328,11 +326,27 @@ export async function PATCH(
       return jsonError(400, "A note is required for this action.");
     }
 
-    const { data: approvalData, error: approvalError } = await supabase
+    let { data: approvalData, error: approvalError } = await supabase
       .from("approval_requests")
       .select("id,request_id,entity_type,entity_ref,status,organizing_dept,organizing_dept_id,campus_hosted_at")
       .eq("id", requestId)
       .maybeSingle();
+
+    // Retry without organizing_dept if column doesn't exist yet
+    if (
+      approvalError &&
+      (String(approvalError.message || "").toLowerCase().includes("organizing_dept") ||
+        String(approvalError.code || "").toUpperCase() === "42703" ||
+        String(approvalError.code || "").toUpperCase() === "PGRST204")
+    ) {
+      const retry = await supabase
+        .from("approval_requests")
+        .select("id,request_id,entity_type,entity_ref,status,organizing_dept_id,campus_hosted_at")
+        .eq("id", requestId)
+        .maybeSingle();
+      approvalData = retry.data;
+      approvalError = retry.error;
+    }
 
     if (approvalError) {
       return jsonError(500, `Failed to fetch approval request: ${approvalError.message}`);

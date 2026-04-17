@@ -502,8 +502,16 @@ export const createFestApprovalRequest = async ({
     return null;
   }
 
-  const departmentScope = festRecord?.organizing_dept || null;
   const departmentIdScope = festRecord?.organizing_dept_id || null;
+  let departmentScope = festRecord?.organizing_dept || null;
+  if (!departmentScope && departmentIdScope) {
+    const { data: deptRow } = await supabase
+      .from("departments")
+      .select("name")
+      .eq("id", departmentIdScope)
+      .maybeSingle();
+    departmentScope = deptRow?.name || null;
+  }
   const schoolScope = festRecord?.organizing_school || null;
   const campusScope =
     festRecord?.campus_hosted_at || festRecord?.department_hosted_at || null;
@@ -546,8 +554,8 @@ export const createFestApprovalRequest = async ({
       parent_fest_ref: null,
       requested_by_user_id: userInfo?.id || null,
       requested_by_email: userInfo?.email || null,
-      organizing_dept: festRecord?.organizing_dept || null,
-      organizing_dept_id: festRecord?.organizing_dept_id || null,
+      organizing_dept: departmentScope,
+      organizing_dept_id: departmentIdScope,
       organizing_school: festRecord?.organizing_school || null,
       campus_hosted_at:
         festRecord?.campus_hosted_at || festRecord?.department_hosted_at || null,
