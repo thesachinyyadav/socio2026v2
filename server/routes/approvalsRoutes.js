@@ -114,6 +114,26 @@ const resolveLifecycleStatusFromWorkflow = ({
   return normalizeLifecycleStatus(currentStatus, LIFECYCLE_STATUS.DRAFT);
 };
 
+const resolveEventLifecycleStatusFromWorkflow = ({
+  currentStatus,
+  approvalState,
+  serviceApprovalState,
+}) => {
+  const normalizedApprovalState = normalizeWorkflowStatus(approvalState, "PENDING");
+  const normalizedServiceState = normalizeWorkflowStatus(serviceApprovalState, "APPROVED");
+
+  if (normalizedApprovalState === "APPROVED" && normalizedServiceState === "APPROVED") {
+    // Events should go live immediately once all required approvals are done.
+    return LIFECYCLE_STATUS.PUBLISHED;
+  }
+
+  return resolveLifecycleStatusFromWorkflow({
+    currentStatus,
+    approvalState,
+    serviceApprovalState,
+  });
+};
+
 const WORKFLOW_PHASE = Object.freeze({
   DRAFT: "draft",
   DEPT_APPROVAL: "dept_approval",
@@ -398,7 +418,7 @@ const syncApprovalOutcomeToEvent = async ({ approvalRequest, requestStatus, deci
       normalizedRequestStatus,
       serviceApprovalState
     );
-    const lifecycleStatus = resolveLifecycleStatusFromWorkflow({
+    const lifecycleStatus = resolveEventLifecycleStatusFromWorkflow({
       currentStatus: eventRecord?.status,
       approvalState: normalizedRequestStatus,
       serviceApprovalState,
@@ -643,7 +663,7 @@ const syncServiceOutcomeToEvent = async ({ serviceRequest, decidedByEmail, comme
       currentApprovalState,
       serviceApprovalState
     );
-    const lifecycleStatus = resolveLifecycleStatusFromWorkflow({
+    const lifecycleStatus = resolveEventLifecycleStatusFromWorkflow({
       currentStatus: eventRecord?.status,
       approvalState: currentApprovalState,
       serviceApprovalState,
@@ -2664,8 +2684,14 @@ const notifyDecisionToOrganizer = async ({
         message = `${context.title} has cleared budget approvals and moved to logistics processing.`;
         type = "info";
       } else {
-        title = `${context.entityLabel} fully approved`;
-        message = `${context.title} has been fully approved. You can now publish it.`;
+          const isEventApproval = isEventEntityType(approvalRequest?.entity_type);
+          if (isEventApproval) {
+            title = `${context.entityLabel} published`;
+            message = `${context.title} has been fully approved and published automatically.`;
+          } else {
+            title = `${context.entityLabel} fully approved`;
+            message = `${context.title} has been fully approved. You can now publish it.`;
+          }
         type = "success";
       }
     } else {
