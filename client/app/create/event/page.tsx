@@ -391,12 +391,24 @@ export default function CreateEventPage() {
         .trim()
         .toUpperCase();
       const activationState = String(
-        result?.workflow?.activation_state || result?.event?.activation_state || ""
+        result?.workflow?.activation_state ||
+          result?.event?.activation_state ||
+          result?.activation_state ||
+          ""
       )
         .trim()
         .toUpperCase();
+      const hasPendingApprovalFlag = Boolean(
+        result?.pending_hod_review ||
+          result?.pending_dean_review ||
+          result?.pending_cfo_review ||
+          result?.pending_teacher_review ||
+          result?.approval_request_id
+      );
       const workflowOutcome: EventSubmitResult["workflowOutcome"] =
-        approvalState === "UNDER_REVIEW" || activationState === "PENDING"
+        approvalState === "UNDER_REVIEW" ||
+        activationState === "PENDING" ||
+        hasPendingApprovalFlag
           ? "approval_pending"
           : "published";
 

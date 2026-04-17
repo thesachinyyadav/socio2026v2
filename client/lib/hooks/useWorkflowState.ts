@@ -174,8 +174,10 @@ export type WorkflowTimelineEvent = {
   source: "submission" | "approval" | "service" | "incident";
 };
 
+export type WorkflowQuickSummaryStageId = "L1_HOD" | "L2_DEAN" | "L3_CFO" | "L4_ACCOUNTS";
+
 export type WorkflowQuickSummaryItem = {
-  id: "L1_HOD" | "L2_DEAN";
+  id: WorkflowQuickSummaryStageId;
   label: string;
   status: ApprovalVisualStatus;
   statusLabel: string;

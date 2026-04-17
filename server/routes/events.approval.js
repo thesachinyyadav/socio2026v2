@@ -15,7 +15,7 @@ import {
   sendUnderFestEventApprovedEmail,
   sendUnderFestEventToOrganiserEmail,
 } from "../utils/emailService.js";
-import { sendBroadcastNotification } from "./notificationRoutes.js";
+import { sendBroadcastNotification, sendUserNotifications } from "./notificationRoutes.js";
 import { shouldSendFinalApprovalBroadcast } from "../utils/notificationLifecycle.js";
 
 const router = express.Router();
@@ -927,6 +927,35 @@ router.post("/:eventId/submit", async (req, res) => {
         notes: null,
         version: nextVersion,
       });
+
+      const eventTitle = normalizeText(event.title) || eventId;
+      const approvalLink = buildHodDeanLink(eventId);
+
+      sendUserNotifications({
+        userEmails: [hod.email],
+        title: `Approval required: ${eventTitle}`,
+        message: `${eventTitle} has been submitted and is awaiting your HOD approval.`,
+        type: "warning",
+        event_id: eventId,
+        event_title: eventTitle,
+        action_url: approvalLink,
+      }).catch((err) => {
+        console.error("[EventApproval] HOD notification failed:", err);
+      });
+
+      if (ownerEmail) {
+        sendUserNotifications({
+          userEmails: [ownerEmail],
+          title: "Event sent for approval",
+          message: `${eventTitle} has been sent for HOD approval. You will get updates as each step is reviewed.`,
+          type: "info",
+          event_id: eventId,
+          event_title: eventTitle,
+          action_url: approvalLink,
+        }).catch((err) => {
+          console.error("[EventApproval] organizer notification failed:", err);
+        });
+      }
 
       return res.status(200).json({
         success: true,

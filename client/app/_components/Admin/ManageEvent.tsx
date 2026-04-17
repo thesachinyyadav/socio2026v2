@@ -2845,7 +2845,7 @@ export default function EventForm({
                 {successAction === "draft"
                   ? "Draft Saved!"
                   : publishFeedback?.mode === "approval_pending"
-                  ? "Event Sent for Approval!"
+                  ? "Sent for approval!"
                   : `Event ${
                       isEditMode && wasDraftOnSubmit ? "Published!" : isEditMode ? "Updated!" : "Published!"
                     }`}
@@ -2853,13 +2853,20 @@ export default function EventForm({
               <p className="text-gray-600 mb-6 text-sm sm:text-base">
                 {successAction === "draft"
                   ? "Your event has been saved as a draft. It is hidden until you publish it."
-                  : publishFeedback?.message ||
+                  : publishFeedback?.mode === "approval_pending" ? (
+                    <>
+                      Event saved as draft. Submitted to HOD for approval.<br />
+                      You will be notified at each step.
+                    </>
+                  ) : (
+                    publishFeedback?.message ||
                     `Your event has been successfully ${
                       isEditMode && wasDraftOnSubmit ? "published" : isEditMode ? "updated" : "published"
-                    }.`}
+                    }.`
+                  )}
               </p>
               {publishFeedback?.mode === "approval_pending" ? (
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row-reverse sm:justify-center gap-3">
                   <button
                     onClick={() => {
                       setModalVisible(false);
@@ -2869,18 +2876,18 @@ export default function EventForm({
                       setPublishedEventId(null);
                       setTimeout(() => {
                         setIsNavigating(true);
-                        router.push("/");
+                        router.push("/create/event");
                       }, 300);
                     }}
-                    className={`${primaryButtonClasses} flex-1`}
+                    className="w-full sm:w-auto px-6 py-3 bg-[#FFCC00] text-[#063168] rounded-lg font-medium hover:bg-opacity-90 transition-all duration-150 ease-in-out text-center text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:ring-offset-2 flex items-center justify-center"
                   >
-                    Homepage
+                    Add an event to fest
                   </button>
                   <button
                     onClick={handleNavigationToDashboard}
-                    className={`${primaryButtonClasses} flex-1`}
+                    className="w-full sm:w-auto px-6 py-3 bg-transparent text-[#154CB3] rounded-lg font-medium hover:bg-blue-50 transition-all duration-150 ease-in-out text-center text-sm sm:text-base border-2 border-[#154CB3] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2"
                   >
-                    Manage Events
+                    Back to Dashboard
                   </button>
                 </div>
               ) : (

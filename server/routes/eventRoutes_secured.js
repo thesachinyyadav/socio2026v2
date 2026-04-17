@@ -2467,13 +2467,6 @@ router.post(
       const shouldSaveAsDraft = shouldSaveAsDraftByInput || userIsOrganizerStudentOnly;
       const isStandaloneEvent = !normalizedFestId;
 
-      // Spec: Events must be created under an approved fest — standalone events are not permitted.
-      if (isStandaloneEvent) {
-        return res.status(400).json({
-          error: "Events must be created under an approved fest. Please create or select a fest first.",
-        });
-      }
-
       const shouldRemainDraftUntilApproval = shouldSaveAsDraft || isStandaloneEvent;
       const shouldArchiveOnCreate =
         asBoolean(is_archived) && !shouldSaveAsDraft && !userIsOrganizerStudentOnly;
@@ -3441,13 +3434,6 @@ router.put(
       const normalizedFestReference =
         normalizeFestReference(fest_id ?? fest) ||
         normalizeFestReference(event?.fest_id ?? event?.fest);
-
-      // Spec: All events must be under an approved fest — reject if fest_id would be cleared.
-      if (!normalizedFestReference) {
-        return res.status(400).json({
-          error: "Events must be associated with an approved fest and cannot be made standalone.",
-        });
-      }
 
       const rawArchivePreference =
         is_archived !== undefined && is_archived !== null && String(is_archived).trim() !== ""

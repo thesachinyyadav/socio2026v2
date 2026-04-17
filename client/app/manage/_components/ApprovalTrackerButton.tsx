@@ -12,8 +12,18 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import type {
   WorkflowQuickSummaryItem,
+  WorkflowQuickSummaryStageId,
   WorkflowType,
 } from "@/lib/hooks/useWorkflowState";
+
+const STAGE_LABELS: Record<WorkflowQuickSummaryStageId, string> = {
+  L1_HOD: "HOD Approval",
+  L2_DEAN: "Dean Approval",
+  L3_CFO: "CFO Approval",
+  L4_ACCOUNTS: "Accounts Approval",
+};
+
+const STAGE_ORDER: WorkflowQuickSummaryStageId[] = ["L1_HOD", "L2_DEAN", "L3_CFO", "L4_ACCOUNTS"];
 
 const QUICK_SUMMARY_CACHE_TTL_MS = 45_000;
 
@@ -102,55 +112,83 @@ function stripRevisionPrefix(value?: string | null): string | null {
   return text;
 }
 
-function getFallbackSummary(workflowStatus?: string | null): WorkflowQuickSummaryItem[] {
-  const token = normalizeLower(workflowStatus);
-
-  let hodStatus: ApprovalVisualStatus = "blocked";
-  let deanStatus: ApprovalVisualStatus = "blocked";
-
-  if (token.includes("pending_hod") || token.includes("pending_level_1")) {
-    hodStatus = "pending";
-    deanStatus = "blocked";
-  } else if (token.includes("pending_dean") || token.includes("pending_level_2")) {
-    hodStatus = "approved";
-    deanStatus = "pending";
-  } else if (token.includes("approved") || token.includes("live")) {
-    hodStatus = "approved";
-    deanStatus = "approved";
-  } else if (token.includes("rejected") || token.includes("return")) {
-    hodStatus = "rejected";
-    deanStatus = "blocked";
-  }
-
-  return [
-    {
-      id: "L1_HOD",
-      label: "HOD Approval",
-      status: hodStatus,
-      statusLabel: getStatusLabel(hodStatus),
-      timestamp: null,
-      note: null,
-    },
-    {
-      id: "L2_DEAN",
-      label: "Dean Approval",
-      status: deanStatus,
-      statusLabel: getStatusLabel(deanStatus),
-      timestamp: null,
-      note: null,
-    },
-  ];
+function buildSummaryRow(
+  stage: WorkflowQuickSummaryStageId,
+  status: ApprovalVisualStatus,
+  timestamp: string | null = null,
+  note: string | null = null
+): WorkflowQuickSummaryItem {
+  return {
+    id: stage,
+    label: STAGE_LABELS[stage],
+    status,
+    statusLabel: getStatusLabel(status),
+    timestamp,
+    note,
+  };
 }
 
-function inferStepStage(step: ApprovalStepRow): "L1_HOD" | "L2_DEAN" | null {
+function getFallbackSummary(
+  workflowStatus?: string | null,
+  stages: WorkflowQuickSummaryStageId[] = ["L1_HOD", "L2_DEAN"]
+): WorkflowQuickSummaryItem[] {
+  const token = normalizeLower(workflowStatus);
+  const statusByStage: Record<WorkflowQuickSummaryStageId, ApprovalVisualStatus> = {
+    L1_HOD: "blocked",
+    L2_DEAN: "blocked",
+    L3_CFO: "blocked",
+    L4_ACCOUNTS: "blocked",
+  };
+
+  if (token.includes("pending_hod") || token.includes("pending_level_1")) {
+    statusByStage.L1_HOD = "pending";
+  } else if (token.includes("pending_dean") || token.includes("pending_level_2")) {
+    statusByStage.L1_HOD = "approved";
+    statusByStage.L2_DEAN = "pending";
+  } else if (token.includes("pending_cfo") || token.includes("pending_level_3")) {
+    statusByStage.L1_HOD = "approved";
+    statusByStage.L2_DEAN = "approved";
+    statusByStage.L3_CFO = "pending";
+  } else if (token.includes("pending_accounts") || token.includes("pending_level_4")) {
+    statusByStage.L1_HOD = "approved";
+    statusByStage.L2_DEAN = "approved";
+    statusByStage.L3_CFO = "approved";
+    statusByStage.L4_ACCOUNTS = "pending";
+  } else if (token.includes("approved") || token.includes("live")) {
+    statusByStage.L1_HOD = "approved";
+    statusByStage.L2_DEAN = "approved";
+    statusByStage.L3_CFO = "approved";
+    statusByStage.L4_ACCOUNTS = "approved";
+  } else if (token.includes("rejected") || token.includes("return")) {
+    statusByStage.L1_HOD = "rejected";
+  }
+
+  return stages.map((stage) => buildSummaryRow(stage, statusByStage[stage]));
+}
+
+function inferStepStage(step: ApprovalStepRow): WorkflowQuickSummaryStageId | null {
   const signature = `${normalizeToken(step.step_code)} ${normalizeToken(step.role_code)}`;
 
-  if (signature.includes("HOD") || signature.includes("L1_HOD")) {
+  if (signature.includes("L1_HOD") || signature.includes("HOD")) {
     return "L1_HOD";
   }
 
-  if (signature.includes("DEAN") || signature.includes("L2_DEAN")) {
+  if (signature.includes("L2_DEAN") || signature.includes("DEAN")) {
     return "L2_DEAN";
+  }
+
+  if (signature.includes("L3_CFO") || signature.includes("CFO")) {
+    return "L3_CFO";
+  }
+
+  if (
+    signature.includes("L4_ACCOUNTS") ||
+    signature.includes("ACCOUNTS") ||
+    signature.includes("ACCOUNT") ||
+    signature.includes("FINANCE_OFFICER") ||
+    signature.includes("FINANCE")
+  ) {
+    return "L4_ACCOUNTS";
   }
 
   return null;
@@ -289,7 +327,7 @@ async function fetchQuickSummaryFromSupabase(input: {
     latestDecisionByStepId.set(stepId, decision);
   });
 
-  const stepByStage: Partial<Record<"L1_HOD" | "L2_DEAN", ApprovalStepRow>> = {};
+  const stepByStage: Partial<Record<WorkflowQuickSummaryStageId, ApprovalStepRow>> = {};
   steps.forEach((step) => {
     const stage = inferStepStage(step);
     if (!stage || stepByStage[stage]) {
@@ -299,43 +337,33 @@ async function fetchQuickSummaryFromSupabase(input: {
     stepByStage[stage] = step;
   });
 
-  const hodStep = stepByStage.L1_HOD || null;
-  const deanStep = stepByStage.L2_DEAN || null;
+  const presentStages = STAGE_ORDER.filter((stage) => stepByStage[stage]);
+  if (presentStages.length === 0) {
+    return fallbackSummary;
+  }
 
-  const hodDecision = hodStep ? latestDecisionByStepId.get(hodStep.id) || null : null;
-  const deanDecision = deanStep ? latestDecisionByStepId.get(deanStep.id) || null : null;
+  const fallbackByStage = new Map<WorkflowQuickSummaryStageId, ApprovalVisualStatus>(
+    getFallbackSummary(workflowStatus, presentStages).map((row) => [row.id, row.status])
+  );
 
-  const hodStatus = deriveStatusFromStepAndDecision({
-    step: hodStep,
-    decision: hodDecision,
-    fallback: fallbackSummary[0].status,
+  let previousApproved = true;
+  return presentStages.map((stage) => {
+    const step = stepByStage[stage] || null;
+    const decision = step ? latestDecisionByStepId.get(step.id) || null : null;
+    const fallback: ApprovalVisualStatus = previousApproved
+      ? fallbackByStage.get(stage) || "blocked"
+      : "blocked";
+
+    const status = deriveStatusFromStepAndDecision({ step, decision, fallback });
+    previousApproved = previousApproved && status === "approved";
+
+    return buildSummaryRow(
+      stage,
+      status,
+      normalizeTimestamp(decision?.created_at || step?.decided_at || step?.updated_at || null),
+      stripRevisionPrefix(decision?.comment || null)
+    );
   });
-
-  const deanFallback: ApprovalVisualStatus = hodStatus === "approved" ? fallbackSummary[1].status : "blocked";
-  const deanStatus = deriveStatusFromStepAndDecision({
-    step: deanStep,
-    decision: deanDecision,
-    fallback: deanFallback,
-  });
-
-  return [
-    {
-      id: "L1_HOD",
-      label: "HOD Approval",
-      status: hodStatus,
-      statusLabel: getStatusLabel(hodStatus),
-      timestamp: normalizeTimestamp(hodDecision?.created_at || hodStep?.decided_at || hodStep?.updated_at || null),
-      note: stripRevisionPrefix(hodDecision?.comment || null),
-    },
-    {
-      id: "L2_DEAN",
-      label: "Dean Approval",
-      status: deanStatus,
-      statusLabel: getStatusLabel(deanStatus),
-      timestamp: normalizeTimestamp(deanDecision?.created_at || deanStep?.decided_at || deanStep?.updated_at || null),
-      note: stripRevisionPrefix(deanDecision?.comment || null),
-    },
-  ];
 }
 
 async function loadQuickSummaryWithCache(input: {
@@ -518,7 +546,7 @@ export default function ApprovalTrackerButton({
                   Quick Insights
                 </p>
                 <p className="mt-0.5 text-xs text-slate-700/90">
-                  Hover summary covers L1 and L2 gatekeepers. Click to open the full workflow mindmap.
+                  Hover summary covers every approver this workflow needs. Click to open the full mindmap.
                 </p>
               </div>
             </div>
