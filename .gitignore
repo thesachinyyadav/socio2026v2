@@ -45,6 +45,14 @@ desktop.ini
 .*/skills/
 skills/
 
+# Claude-related files
+.claude/
+**/.claude/
+CLAUDE.md
+**/CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.local.md
+
 # Database dumps and misc
 # Keep socios.sql tracked; ignore other top-level SQL files
 /*.sql
@@ -61,3 +69,5 @@ attendance_collaboration_plan_2026_04_01.md
 system-architecture-prd.md
 socio_module_11.html
 test.htm
+REGRESSION_FIXES.md
+REGRESSION_REPORT.md
