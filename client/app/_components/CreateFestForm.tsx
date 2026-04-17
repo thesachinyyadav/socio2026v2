@@ -1126,6 +1126,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const customFields = parseFestCustomFields(props?.customFields);
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
+  const pathname = usePathname();
   const isBudgetLocked = props?.isBudgetLocked === true;
   const initialBudgetSettings = extractBudgetSettingsFromCustomFields(customFields);
   const directBudgetAmountFromProps =
@@ -1236,7 +1237,6 @@ function CreateFestForm(props?: CreateFestProps) {
     currentDateRef.current = today;
   }, []);
 
-  const pathname = usePathname();
   const router = useRouter();
   const isEditModeFromPath = pathname.startsWith("/edit/fest");
   const festIdFromPath = isEditModeFromPath ? pathname.split("/").pop() : null;

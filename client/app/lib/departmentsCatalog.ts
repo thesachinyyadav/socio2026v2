@@ -1,5 +1,3 @@
-"use server";
-
 import { resolveBackendApiBase } from "@/lib/backendApi";
 
 export interface DepartmentEntry {
