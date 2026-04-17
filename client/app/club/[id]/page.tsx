@@ -3,23 +3,27 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { getCentreBySlug, Centre } from "@/app/lib/centresData";
+import { getCentreBySlug, ClubRecord } from "@/app/actions/clubs";
 import Footer from "@/app/_components/Home/Footer";
 
 const CentreDetailsPage = () => {
   const params = useParams();
   const slug = params.id as string;
-  const [centre, setCentre] = useState<Centre | null>(null);
+  const [centre, setCentre] = useState<ClubRecord | null>(null);
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showJoinMessage, setShowJoinMessage] = useState(false);
 
   useEffect(() => {
-    if (slug) {
-      const foundCentre = getCentreBySlug(slug);
-      setCentre(foundCentre || null);
-      setLoading(false);
+    async function fetchCentre() {
+      if (slug) {
+        setLoading(true);
+        const foundCentre = await getCentreBySlug(slug);
+        setCentre(foundCentre);
+        setLoading(false);
+      }
     }
+    fetchCentre();
   }, [slug]);
 
   if (loading) {
@@ -49,10 +53,10 @@ const CentreDetailsPage = () => {
       {/* Hero Section */}
       <div className="relative w-full h-64 sm:h-80 md:h-96">
         <div className="absolute inset-0">
-          {centre.image && !imageError ? (
+          {centre.club_banner_url && !imageError ? (
             <img
-              src={centre.image}
-              alt={centre.title}
+              src={centre.club_banner_url}
+              alt={centre.club_name}
               className="w-full h-full object-cover"
               onError={() => setImageError(true)}
             />
@@ -75,11 +79,13 @@ const CentreDetailsPage = () => {
 
         <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8 text-white">
           <div className="container mx-auto max-w-7xl">
-            <span className="inline-block px-3 py-1 text-xs bg-[#154CB3] text-white rounded-full mb-3">
-              {centre.category}
-            </span>
+            {centre.category && (
+              <span className="inline-block px-3 py-1 text-xs bg-[#154CB3] text-white rounded-full mb-3 uppercase tracking-wide font-medium">
+                {centre.category}
+              </span>
+            )}
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-2">
-              {centre.title}
+              {centre.club_name}
             </h1>
             {centre.subtitle && (
               <p className="text-lg sm:text-xl text-white/90">
@@ -97,8 +103,8 @@ const CentreDetailsPage = () => {
           <div className="lg:col-span-2">
             <section className="mb-8">
               <h2 className="text-2xl font-bold text-[#063168] mb-4">About</h2>
-              <p className="text-gray-700 leading-relaxed text-lg">
-                {centre.description}
+              <p className="text-gray-700 leading-relaxed text-lg whitespace-pre-wrap">
+                {centre.club_description || "No description provided."}
               </p>
             </section>
 
@@ -141,9 +147,9 @@ const CentreDetailsPage = () => {
                 Quick Links
               </h3>
               
-              {centre.externalLink && (
+              {centre.club_web_link && (
                 <a
-                  href={centre.externalLink}
+                  href={centre.club_web_link}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 w-full bg-[#154CB3] text-white py-3 px-4 rounded-lg hover:bg-[#063168] transition duration-200 mb-4"
@@ -163,29 +169,41 @@ const CentreDetailsPage = () => {
                 <span>Browse All Centres</span>
               </Link>
 
-              <button
-                type="button"
-                onClick={() => setShowJoinMessage(true)}
-                className="mt-4 flex items-center justify-center gap-2 w-full border-2 border-[#063168] text-[#063168] py-3 px-4 rounded-lg hover:bg-[#063168] hover:text-white transition duration-200"
-              >
-                <span>Join {centre.title}</span>
-              </button>
+              {centre.club_registrations ? (
+                <button
+                  type="button"
+                  onClick={() => setShowJoinMessage(true)}
+                  className="mt-4 flex items-center justify-center gap-2 w-full border-2 border-[#063168] text-[#063168] py-3 px-4 rounded-lg hover:bg-[#063168] hover:text-white transition duration-200"
+                >
+                  <span>Join {centre.club_name}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-4 flex items-center justify-center gap-2 w-full border-2 border-gray-300 text-gray-500 bg-gray-50 py-3 px-4 rounded-lg cursor-not-allowed transition duration-200"
+                >
+                  <span>Registrations Closed</span>
+                </button>
+              )}
 
-              {showJoinMessage && (
-                <p className="mt-3 text-sm text-[#063168] bg-white border border-[#d6e4fb] rounded-lg px-3 py-2">
-                  Registrations opening soon.
+              {showJoinMessage && centre.club_registrations && (
+                <p className="mt-3 text-sm text-[#063168] bg-white border border-[#d6e4fb] rounded-lg px-3 py-2 text-center">
+                  Registrations coming soon!
                 </p>
               )}
             </div>
 
-            <div className="bg-[#f5f8fe] rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-[#154CB3] mb-4">
-                Category
-              </h3>
-              <span className="inline-block px-4 py-2 bg-white text-[#154CB3] border border-[#154CB3] rounded-full text-sm font-medium">
-                {centre.category}
-              </span>
-            </div>
+            {centre.category && (
+              <div className="bg-[#f5f8fe] rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-[#154CB3] mb-4">
+                  Category
+                </h3>
+                <span className="inline-block px-4 py-2 bg-white text-[#154CB3] border border-[#154CB3] rounded-full text-sm font-medium uppercase tracking-wide">
+                  {centre.category}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </main>
