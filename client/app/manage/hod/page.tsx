@@ -54,14 +54,13 @@ function collectHodDepartmentScopes(userProfile: Record<string, unknown>): strin
     if (
       String(assignment.role_code || "").trim().toUpperCase() === "HOD" &&
       isAssignmentActive(assignment) &&
-      normalizeScope(assignment.department_scope).length > 0
+      normalizeScope(assignment.department_id).length > 0
     ) {
-      addScope(assignment.department_scope);
+      addScope(assignment.department_id);
     }
   });
 
   addScope(userProfile.department_id);
-  addScope(userProfile.department);
   addScope(userProfile.role_matrix_department);
 
   const roleMatrixAssignments = Array.isArray(userProfile.role_matrix_assignments)
@@ -73,7 +72,7 @@ function collectHodDepartmentScopes(userProfile: Record<string, unknown>): strin
       return;
     }
 
-    addScope(assignment.department_scope);
+    addScope(assignment.department_id);
     addScope(assignment.department_label);
   });
 

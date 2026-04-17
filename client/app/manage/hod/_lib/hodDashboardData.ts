@@ -7,7 +7,7 @@ type ApprovalRequestJoinRow = {
   request_id?: string | null;
   entity_type?: string | null;
   entity_ref?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   campus_hosted_at?: string | null;
   status?: string | null;
   submitted_at?: string | null;
@@ -27,7 +27,7 @@ type EventDetailRow = {
   event_id?: string | null;
   title?: string | null;
   event_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizer_email?: string | null;
   budget_amount?: number | string | null;
   estimated_budget_amount?: number | string | null;
@@ -38,7 +38,7 @@ type FestDetailRow = {
   fest_id?: string | null;
   fest_title?: string | null;
   opening_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   contact_email?: string | null;
   budget_amount?: number | string | null;
   estimated_budget_amount?: number | string | null;
@@ -55,7 +55,7 @@ type BudgetRow = {
 type EventScopeJoinRow = {
   event_id?: string | null;
   event_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   campus_hosted_at?: string | null;
 };
 
@@ -222,9 +222,9 @@ async function fetchFestRowsFromTableWithFallback(
   error: { code?: string | null; message?: string | null } | null;
 }> {
   const selectClauseWithBudget =
-    "fest_id, fest_title, opening_date, organizing_dept, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const selectClauseLegacy =
-    "fest_id, fest_title, opening_date, organizing_dept, contact_email, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, contact_email, custom_fields";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from(tableName)
@@ -277,9 +277,9 @@ async function fetchAllFestRowsFromTableWithFallback(
   tableName: string
 ): Promise<FestDetailRow[]> {
   const selectClauseWithBudget =
-    "fest_id, fest_title, opening_date, organizing_dept, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const selectClauseLegacy =
-    "fest_id, fest_title, opening_date, organizing_dept, contact_email, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, contact_email, custom_fields";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from(tableName)
@@ -541,7 +541,7 @@ export async function fetchHodDashboardData({
           request_id,
           entity_type,
           entity_ref,
-          organizing_dept,
+          organizing_dept_id,
           campus_hosted_at,
           status,
           submitted_at,
@@ -586,8 +586,8 @@ export async function fetchHodDashboardData({
   let eventRowsById = new Map<string, EventDetailRow>();
   if (eventIds.length > 0) {
     const fullSelect =
-      "event_id, title, event_date, organizing_dept, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
-    const legacySelect = "event_id, title, event_date, organizing_dept, organizer_email";
+      "event_id, title, event_date, organizing_dept_id, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    const legacySelect = "event_id, title, event_date, organizing_dept_id, organizer_email";
 
     let { data: eventData, error: eventError } = await supabase
       .from("events")
@@ -631,6 +631,27 @@ export async function fetchHodDashboardData({
     );
   }
 
+  // Batch-fetch department names for display
+  const allDeptIds = Array.from(
+    new Set([
+      ...requestRows.map((r) => normalizeText(r.organizing_dept_id)).filter(Boolean),
+      ...Array.from(eventRowsById.values()).map((e) => normalizeText(e.organizing_dept_id)).filter(Boolean),
+      ...Array.from(festRowsById.values()).map((f) => normalizeText(f.organizing_dept_id)).filter(Boolean),
+    ])
+  );
+  let deptNameById = new Map<string, string>();
+  if (allDeptIds.length > 0) {
+    const { data: deptRows } = await supabase
+      .from("departments")
+      .select("id, name")
+      .in("id", allDeptIds);
+    if (Array.isArray(deptRows)) {
+      deptNameById = new Map(
+        (deptRows as Array<{ id: string; name: string }>).map((r) => [String(r.id), String(r.name || "")])
+      );
+    }
+  }
+
   const scopedPendingRows = pendingRows.filter((stepRow) => {
     const requestRow = toSingleRecord(stepRow.approval_requests);
     if (!requestRow) {
@@ -644,17 +665,17 @@ export async function fetchHodDashboardData({
       ? resolveFestRowByReference(festRowsById, entityRef)
       : null;
 
-    const requestDepartmentScope = normalizeDepartmentScope(requestRow.organizing_dept);
-    const fallbackDepartmentScope = normalizeDepartmentScope(
+    const requestDeptId = normalizeText(requestRow.organizing_dept_id);
+    const fallbackDeptId = normalizeText(
       isFestEntity
-        ? festRow?.organizing_dept
-        : eventRowsById.get(entityRef)?.organizing_dept
+        ? festRow?.organizing_dept_id
+        : eventRowsById.get(entityRef)?.organizing_dept_id
     );
-    const effectiveDepartmentScope = requestDepartmentScope || fallbackDepartmentScope;
+    const effectiveDeptId = requestDeptId || fallbackDeptId;
 
     if (
       normalizedDepartmentScopes.length > 0 &&
-      !normalizedDepartmentScopes.includes(effectiveDepartmentScope)
+      !normalizedDepartmentScopes.includes(effectiveDeptId)
     ) {
       return false;
     }
@@ -777,10 +798,10 @@ export async function fetchHodDashboardData({
         ? normalizeText(festRow?.fest_id) || entityRef
         : entityRef;
 
-      const departmentName =
-        normalizeText(requestRow.organizing_dept) ||
-        normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept) ||
-        "Unknown Department";
+      const deptId =
+        normalizeText(requestRow.organizing_dept_id) ||
+        normalizeText(isFestEntity ? festRow?.organizing_dept_id : eventRow?.organizing_dept_id);
+      const departmentName = (deptId && deptNameById.get(deptId)) || "Unknown Department";
 
       return {
         id: normalizeText(requestRow.id),
@@ -814,7 +835,7 @@ export async function fetchHodDashboardData({
         events!inner (
           event_id,
           event_date,
-          organizing_dept,
+          organizing_dept_id,
           campus_hosted_at
         )
       `
@@ -837,8 +858,8 @@ export async function fetchHodDashboardData({
     const eventScopeRow = toSingleRecord(row.events);
 
     if (normalizedDepartmentScopes.length > 0) {
-      const eventDepartmentScope = normalizeDepartmentScope(eventScopeRow?.organizing_dept);
-      if (!normalizedDepartmentScopes.includes(eventDepartmentScope)) {
+      const eventDeptId = normalizeText(eventScopeRow?.organizing_dept_id);
+      if (!normalizedDepartmentScopes.includes(eventDeptId)) {
         return false;
       }
     }

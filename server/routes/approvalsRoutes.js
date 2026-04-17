@@ -1599,27 +1599,17 @@ const persistApprovalRequestScopeForRouting = async (approvalRequest) => {
     return approvalRequest;
   }
 
-  const currentDepartment = String(approvalRequest?.organizing_dept || "").trim();
   const currentDeptId = String(approvalRequest?.organizing_dept_id || "").trim();
   const currentSchool = String(approvalRequest?.organizing_school || "").trim();
   const currentCampus = String(approvalRequest?.campus_hosted_at || "").trim();
 
   const updates = {};
 
-  if (!currentDepartment) {
-    const resolvedDepartment = await resolveApprovalRequestDepartmentScopeValue(
-      approvalRequest
-    );
-    if (resolvedDepartment) {
-      updates.organizing_dept = resolvedDepartment;
-    }
-  }
-
-  // Also populate organizing_dept_id (UUID) if missing
+  // Populate organizing_dept_id (UUID) if missing
   if (!currentDeptId) {
-    const nameToLookup = currentDepartment || updates.organizing_dept;
-    if (nameToLookup) {
-      const resolvedId = await resolveDepartmentId(nameToLookup).catch(() => null);
+    const resolvedDepartment = await resolveApprovalRequestDepartmentScopeValue(approvalRequest);
+    if (resolvedDepartment) {
+      const resolvedId = await resolveDepartmentId(resolvedDepartment).catch(() => null);
       if (resolvedId) {
         updates.organizing_dept_id = resolvedId;
       }
@@ -1627,10 +1617,7 @@ const persistApprovalRequestScopeForRouting = async (approvalRequest) => {
   }
 
   if (!currentSchool) {
-    const resolvedSchool = await resolveApprovalRequestSchoolScopeValue({
-      ...approvalRequest,
-      organizing_dept: currentDepartment || updates.organizing_dept || null,
-    });
+    const resolvedSchool = await resolveApprovalRequestSchoolScopeValue(approvalRequest);
 
     if (resolvedSchool) {
       updates.organizing_school = resolvedSchool;
@@ -1656,7 +1643,7 @@ const persistApprovalRequestScopeForRouting = async (approvalRequest) => {
       updated_at: nowIso,
     },
     where: { id: approvalRequest.id },
-    removableColumns: ["organizing_dept", "organizing_dept_id", "organizing_school", "campus_hosted_at"],
+    removableColumns: ["organizing_dept_id", "organizing_school", "campus_hosted_at"],
   });
 
   if (!persisted) {
@@ -2571,7 +2558,7 @@ const notifyNextApprovalStageRole = async ({
     roleCode: nextRoleCode,
     campusScope: approvalRequest?.campus_hosted_at,
     schoolScope: approvalRequest?.organizing_school,
-    departmentScope: approvalRequest?.organizing_dept,
+    departmentScope: approvalRequest?.organizing_dept_id,
     excludeEmails: [approvalRequest?.requested_by_email, actorEmail],
   });
 
@@ -3166,7 +3153,6 @@ router.get("/queues/:roleCode", async (req, res) => {
         status: approvalRequest.status,
         entity_type: approvalRequest.entity_type,
         entity_ref: approvalRequest.entity_ref,
-        organizing_dept: approvalRequest.organizing_dept,
         organizing_dept_id: approvalRequest.organizing_dept_id,
         organizing_school: approvalRequest.organizing_school,
         campus_hosted_at: approvalRequest.campus_hosted_at,

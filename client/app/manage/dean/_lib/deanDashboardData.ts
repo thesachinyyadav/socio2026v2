@@ -11,7 +11,7 @@ type ApprovalRequestJoinRow = {
   request_id?: string | null;
   entity_type?: string | null;
   entity_ref?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
   status?: string | null;
@@ -38,7 +38,7 @@ type EventDetailRow = {
   event_id?: string | null;
   title?: string | null;
   event_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
   organizer_email?: string | null;
@@ -51,7 +51,7 @@ type FestDetailRow = {
   fest_id?: string | null;
   fest_title?: string | null;
   opening_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
   contact_email?: string | null;
@@ -268,56 +268,47 @@ function getFestBudgetAmount(festRow: FestDetailRow | null | undefined): number 
 }
 
 async function buildDepartmentToSchoolLookup(supabase: any): Promise<Map<string, string>> {
+  // Returns Map<dept_uuid, school_name> for resolving school from organizing_dept_id
   const lookup = new Map<string, string>();
 
-  const addMapping = (departmentValue: unknown, schoolValue: unknown) => {
-    const normalizedSchool = normalizeScope(schoolValue);
-    if (!normalizedSchool) {
-      return;
-    }
-
-    const candidates = buildDepartmentScopeCandidates(departmentValue);
-    candidates.forEach((candidate) => {
-      lookup.set(candidate, normalizedSchool);
-    });
-  };
-
   const { data: departmentRows, error: departmentError } = await supabase
-    .from("departments_courses")
-    .select("department_name,school");
+    .from("departments")
+    .select("id,name,school");
 
   if (!departmentError && Array.isArray(departmentRows)) {
     (departmentRows as any[]).forEach((row) => {
-      addMapping(row?.department_name, row?.school);
-    });
-  }
-
-  const { data: departmentSchoolRows, error: departmentSchoolError } = await supabase
-    .from("department_school")
-    .select("department_name,school");
-
-  if (!departmentSchoolError && Array.isArray(departmentSchoolRows)) {
-    (departmentSchoolRows as any[]).forEach((row) => {
-      addMapping(row?.department_name, row?.school);
+      const deptId = String(row?.id || "").trim();
+      const school = normalizeScope(row?.school);
+      if (deptId && school) {
+        lookup.set(deptId, school);
+      }
     });
   }
 
   return lookup;
 }
 
-function resolveSchoolFromDepartment(
-  departmentToSchoolLookup: Map<string, string>,
-  departmentValue: unknown
-): string {
-  const candidates = buildDepartmentScopeCandidates(departmentValue);
-  for (const candidate of candidates) {
-    const school = departmentToSchoolLookup.get(candidate);
-    if (school) {
-      return school;
-    }
+function buildDeptNameLookup(deptToSchoolMap: Map<string, string>, supabaseDeptRows: any[]): Map<string, string> {
+  // Returns Map<dept_uuid, dept_name>
+  const lookup = new Map<string, string>();
+  if (Array.isArray(supabaseDeptRows)) {
+    supabaseDeptRows.forEach((row: any) => {
+      const deptId = String(row?.id || "").trim();
+      const name = String(row?.name || "").trim();
+      if (deptId && name) {
+        lookup.set(deptId, name);
+      }
+    });
   }
+  return lookup;
+}
 
-  return "";
+function resolveSchoolFromDeptId(
+  deptIdToSchoolLookup: Map<string, string>,
+  deptId: unknown
+): string {
+  const id = String(deptId || "").trim();
+  return (id && deptIdToSchoolLookup.get(id)) || "";
 }
 
 async function fetchFestRowsWithFallback(
@@ -329,9 +320,9 @@ async function fetchFestRowsWithFallback(
   }
 
   const selectClause =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const legacySelectClause =
-    "fest_id, fest_title, opening_date, organizing_dept, contact_email";
+    "fest_id, fest_title, opening_date, organizing_dept_id, contact_email";
 
   const { data: primaryData, error: primaryError } = await supabase
     .from("fests")
@@ -407,9 +398,9 @@ async function fetchEventRowsById(
   }
 
   const fullSelect =
-    "event_id, title, event_date, organizing_dept, organizing_school, campus_hosted_at, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    "event_id, title, event_date, organizing_dept_id, organizing_school, campus_hosted_at, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
   const legacySelect =
-    "event_id, title, event_date, organizing_dept, organizing_school, campus_hosted_at, organizer_email";
+    "event_id, title, event_date, organizing_dept_id, organizing_school, campus_hosted_at, organizer_email";
 
   let { data, error } = await supabase
     .from("events")
@@ -471,7 +462,7 @@ export async function fetchDeanDashboardData({
           request_id,
           entity_type,
           entity_ref,
-          organizing_dept,
+          organizing_dept_id,
           organizing_school,
           campus_hosted_at,
           status,
@@ -491,7 +482,7 @@ export async function fetchDeanDashboardData({
           request_id,
           entity_type,
           entity_ref,
-          organizing_dept,
+          organizing_dept_id,
           campus_hosted_at,
           status,
           submitted_at,
@@ -567,7 +558,26 @@ export async function fetchDeanDashboardData({
     );
   }
 
-  const departmentToSchoolLookup = await buildDepartmentToSchoolLookup(supabase);
+  const deptIdToSchoolLookup = await buildDepartmentToSchoolLookup(supabase);
+
+  // Batch-fetch department names for display
+  const allDeptIds = Array.from(
+    new Set([
+      ...pendingRequestRows.map((r) => String(r.organizing_dept_id || "")).filter(Boolean),
+      ...Array.from(eventRowsById.values()).map((e) => String(e.organizing_dept_id || "")).filter(Boolean),
+      ...Array.from(festRowsById.values()).map((f) => String(f.organizing_dept_id || "")).filter(Boolean),
+    ])
+  );
+  let deptNameById = new Map<string, string>();
+  if (allDeptIds.length > 0) {
+    const { data: deptRows } = await supabase
+      .from("departments")
+      .select("id, name")
+      .in("id", allDeptIds);
+    if (Array.isArray(deptRows)) {
+      deptNameById = buildDeptNameLookup(deptIdToSchoolLookup, deptRows);
+    }
+  }
 
   let budgetsByEventId = new Map<string, BudgetRow>();
   if (eventIds.length > 0) {
@@ -638,11 +648,10 @@ export async function fetchDeanDashboardData({
       const directSchoolScope =
         normalizeScope(isFestEntity ? festRow?.organizing_school : eventRow?.organizing_school) ||
         normalizeScope(requestRow.organizing_school);
-      const mappedSchoolScope = resolveSchoolFromDepartment(
-        departmentToSchoolLookup,
-        normalizeText(requestRow.organizing_dept) ||
-          normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept)
-      );
+      const deptId =
+        String(requestRow.organizing_dept_id || "") ||
+        String((isFestEntity ? festRow?.organizing_dept_id : eventRow?.organizing_dept_id) || "");
+      const mappedSchoolScope = resolveSchoolFromDeptId(deptIdToSchoolLookup, deptId);
       const scopeCandidate = directSchoolScope || mappedSchoolScope;
 
       if (normalizedSchoolId && scopeCandidate !== normalizedSchoolId) {
@@ -683,10 +692,12 @@ export async function fetchDeanDashboardData({
           normalizeText(requestRow.created_at) ||
           normalizeText(stepRow.created_at) ||
           null,
-        departmentName:
-          normalizeText(requestRow.organizing_dept) ||
-          normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept) ||
-          "Unknown Department",
+        departmentName: (() => {
+          const dId =
+            String(requestRow.organizing_dept_id || "") ||
+            String((isFestEntity ? festRow?.organizing_dept_id : eventRow?.organizing_dept_id) || "");
+          return (dId && deptNameById.get(dId)) || "Unknown Department";
+        })(),
       };
     })
     .filter((row): row is DeanApprovalQueueItem => Boolean(row && row.id.length > 0));
@@ -701,7 +712,7 @@ export async function fetchDeanDashboardData({
           id,
           entity_type,
           entity_ref,
-          organizing_dept,
+          organizing_dept_id,
           organizing_school
         )
       `;
@@ -714,7 +725,7 @@ export async function fetchDeanDashboardData({
           id,
           entity_type,
           entity_ref,
-          organizing_dept
+          organizing_dept_id
         )
       `;
 
@@ -765,10 +776,7 @@ export async function fetchDeanDashboardData({
     }
 
     const directSchoolScope = normalizeScope(requestRow.organizing_school);
-    const mappedSchoolScope = resolveSchoolFromDepartment(
-      departmentToSchoolLookup,
-      requestRow.organizing_dept
-    );
+    const mappedSchoolScope = resolveSchoolFromDeptId(deptIdToSchoolLookup, requestRow.organizing_dept_id);
 
     const scopeCandidate = directSchoolScope || mappedSchoolScope;
     return scopeCandidate === normalizedSchoolId;
@@ -838,7 +846,8 @@ export async function fetchDeanDashboardData({
   const departmentMap = new Map<string, { requested: number; approved: number }>();
 
   filteredKpiRequestRows.forEach(({ stepRow, requestRow }) => {
-    const departmentName = normalizeText(requestRow.organizing_dept) || "Unknown Department";
+    const deptId = String(requestRow.organizing_dept_id || "").trim();
+    const departmentName = (deptId && deptNameById.get(deptId)) || "Unknown Department";
     const entityType = normalizeEntityType(requestRow.entity_type);
     const entityRef = normalizeText(requestRow.entity_ref);
     const budgetValue =

@@ -6,7 +6,7 @@ type ApprovalRequestJoinRow = {
   id?: string | null;
   entity_type?: string | null;
   entity_ref?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   campus_hosted_at?: string | null;
   submitted_at?: string | null;
@@ -34,7 +34,7 @@ type EventJoinRow = {
   event_id?: string | null;
   title?: string | null;
   event_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   organizer_email?: string | null;
   fest_id?: string | null;
@@ -48,7 +48,7 @@ type FestJoinRow = {
   fest_id?: string | null;
   fest_title?: string | null;
   opening_date?: string | null;
-  organizing_dept?: string | null;
+  organizing_dept_id?: string | null;
   organizing_school?: string | null;
   contact_email?: string | null;
   budget_amount?: number | string | null;
@@ -65,7 +65,7 @@ type UserNameRow = {
 
 type DepartmentLookupRow = {
   id?: string | null;
-  department_name?: string | null;
+  name?: string | null;
   school?: string | null;
 };
 
@@ -279,8 +279,8 @@ function resolveDepartmentName(
   eventRow: EventJoinRow,
   departmentLookup: DepartmentLookupRow | null
 ): string {
-  const directDepartment = normalizeText(eventRow.organizing_dept);
-  const mappedDepartment = normalizeText(departmentLookup?.department_name);
+  const directDepartment = normalizeText(eventRow.organizing_dept_id);
+  const mappedDepartment = normalizeText(departmentLookup?.name);
 
   if (mappedDepartment) {
     return mappedDepartment;
@@ -313,9 +313,9 @@ async function fetchFestRowsWithFallback(supabase: any, festIds: string[]): Prom
   }
 
   const fullSelect =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense, custom_fields";
   const minimalSelect =
-    "fest_id, fest_title, opening_date, organizing_dept, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    "fest_id, fest_title, opening_date, organizing_dept_id, organizing_school, campus_hosted_at, contact_email, budget_amount, estimated_budget_amount, total_estimated_expense";
 
   const { data: festsData, error: festsError } = await supabase
     .from("fests")
@@ -405,7 +405,7 @@ export async function fetchCfoDashboardData({
       id,
       entity_type,
       entity_ref,
-      organizing_dept,
+      organizing_dept_id,
       organizing_school,
       campus_hosted_at,
       submitted_at,
@@ -424,7 +424,7 @@ export async function fetchCfoDashboardData({
       id,
       entity_type,
       entity_ref,
-      organizing_dept,
+      organizing_dept_id,
       campus_hosted_at,
       submitted_at,
       created_at
@@ -549,9 +549,9 @@ export async function fetchCfoDashboardData({
   let pendingEventsById = new Map<string, EventJoinRow>();
   if (pendingEventIds.length > 0) {
     const fullEventSelect =
-      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest_id,campus_hosted_at,budget_amount,estimated_budget_amount,total_estimated_expense";
+      "event_id,title,event_date,organizing_dept_id,organizing_school,organizer_email,fest_id,campus_hosted_at,budget_amount,estimated_budget_amount,total_estimated_expense";
     const legacyEventSelect =
-      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest_id,campus_hosted_at";
+      "event_id,title,event_date,organizing_dept_id,organizing_school,organizer_email,fest_id,campus_hosted_at";
 
     const buildEventsQuery = (selectClause: string) => {
       let query = supabase.from("events").select(selectClause).in("event_id", pendingEventIds);
@@ -611,7 +611,7 @@ export async function fetchCfoDashboardData({
   const departmentIdCandidates = Array.from(
     new Set(
       [...Array.from(pendingEventsById.values()), ...Array.from(pendingFestsById.values())]
-        .map((row) => normalizeText(row.organizing_dept))
+        .map((row) => normalizeText(row.organizing_dept_id))
         .filter((value) => value.length > 0)
     )
   );
@@ -621,8 +621,8 @@ export async function fetchCfoDashboardData({
 
   if (departmentIds.length > 0) {
     const { data: departmentRows, error: departmentError } = await supabase
-      .from("departments_courses")
-      .select("id, department_name, school")
+      .from("departments")
+      .select("id, name, school")
       .in("id", departmentIds);
 
     if (departmentError) {
@@ -699,15 +699,15 @@ export async function fetchCfoDashboardData({
         isFestEntity ? festRow?.contact_email : eventRow?.organizer_email
       ).toLowerCase();
       const departmentId =
-        normalizeText(isFestEntity ? festRow?.organizing_dept : eventRow?.organizing_dept) ||
-        normalizeText(requestRow.organizing_dept);
+        normalizeText(isFestEntity ? festRow?.organizing_dept_id : eventRow?.organizing_dept_id) ||
+        normalizeText(requestRow.organizing_dept_id);
       const schoolId =
         normalizeText(isFestEntity ? festRow?.organizing_school : eventRow?.organizing_school) ||
         normalizeText(requestRow.organizing_school);
 
       const departmentLookup = departmentById.get(departmentId) || null;
       const fallbackEventRow: EventJoinRow = {
-        organizing_dept: departmentId,
+        organizing_dept_id: departmentId,
         organizing_school: schoolId,
       };
 
@@ -716,7 +716,7 @@ export async function fetchCfoDashboardData({
         : resolveSchoolName(eventRow || fallbackEventRow, departmentLookup);
 
       const departmentName = isFestEntity
-        ? normalizeText(departmentLookup?.department_name) || departmentId || "Unknown Department"
+        ? normalizeText(departmentLookup?.name) || departmentId || "Unknown Department"
         : resolveDepartmentName(eventRow || fallbackEventRow, departmentLookup);
 
       return {

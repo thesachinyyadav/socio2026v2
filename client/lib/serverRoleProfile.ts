@@ -13,7 +13,7 @@ type AuthUserLike = {
 type RoleAssignmentRow = {
   role_code?: unknown;
   school_scope?: unknown;
-  department_scope?: unknown;
+  department_id?: unknown;
   campus_scope?: unknown;
   is_active?: unknown;
   valid_from?: unknown;
@@ -23,7 +23,7 @@ type RoleAssignmentRow = {
 type ActiveRoleAssignment = {
   role_code: string;
   school_scope: string | null;
-  department_scope: string | null;
+  department_id: string | null;
   campus_scope: string | null;
 };
 
@@ -153,7 +153,7 @@ export async function getCurrentUserProfileWithRoleCodes(
 
   let assignmentQuery = await roleLookupClient
     .from("user_role_assignments")
-    .select("id,role_code,school_scope,department_scope,campus_scope,is_active,valid_from,valid_until")
+    .select("id,role_code,school_scope,department_id,campus_scope,is_active,valid_from,valid_until")
     .eq("user_id", userId);
 
   if (
@@ -162,7 +162,7 @@ export async function getCurrentUserProfileWithRoleCodes(
   ) {
     assignmentQuery = await roleLookupClient
       .from("user_role_assignments")
-      .select("id,role_code,department_scope,campus_scope,is_active,valid_from,valid_until")
+      .select("id,role_code,department_id,campus_scope,is_active,valid_from,valid_until")
       .eq("user_id", userId);
   }
 
@@ -179,7 +179,7 @@ export async function getCurrentUserProfileWithRoleCodes(
     .map((assignment) => ({
       role_code: normalizeRoleCode(assignment.role_code),
       school_scope: normalizeNullableText(assignment.school_scope),
-      department_scope: normalizeNullableText(assignment.department_scope),
+      department_id: normalizeNullableText(assignment.department_id),
       campus_scope: normalizeNullableText(assignment.campus_scope),
     }))
     .filter((assignment) => assignment.role_code.length > 0);
@@ -209,9 +209,9 @@ export async function getCurrentUserProfileWithRoleCodes(
   const departmentScopeIds = Array.from(
     new Set(
       activeAssignments
-        .map((assignment) => normalizeNullableText(assignment.department_scope))
+        .map((assignment) => normalizeNullableText(assignment.department_id))
         .filter(
-          (departmentScope): departmentScope is string => Boolean(departmentScope)
+          (departmentId): departmentId is string => Boolean(departmentId)
         )
     )
   );
@@ -219,14 +219,14 @@ export async function getCurrentUserProfileWithRoleCodes(
   const departmentNameById = new Map<string, string>();
   if (departmentScopeIds.length > 0) {
     const { data: departmentRows, error: departmentError } = await roleLookupClient
-      .from("departments_courses")
-      .select("id,department_name")
+      .from("departments")
+      .select("id,name")
       .in("id", departmentScopeIds);
 
     if (!departmentError && Array.isArray(departmentRows)) {
       departmentRows.forEach((row: any) => {
         const departmentId = normalizeText(row?.id);
-        const departmentName = normalizeText(row?.department_name);
+        const departmentName = normalizeText(row?.name);
         if (departmentId && departmentName) {
           departmentNameById.set(departmentId, departmentName);
         }
@@ -237,9 +237,9 @@ export async function getCurrentUserProfileWithRoleCodes(
   const uniqueRoleMatrixAssignments = Array.from(
     new Map(
       activeAssignments.map((assignment) => {
-        const departmentLabel = assignment.department_scope
-          ? departmentNameById.get(assignment.department_scope) ||
-            assignment.department_scope
+        const departmentLabel = assignment.department_id
+          ? departmentNameById.get(assignment.department_id) ||
+            assignment.department_id
           : null;
         const roleTag =
           roleNameByCode.get(assignment.role_code) ||
@@ -248,13 +248,13 @@ export async function getCurrentUserProfileWithRoleCodes(
         const roleAssignmentSummary = {
           role_code: assignment.role_code,
           role_tag: roleTag,
-          department_scope: assignment.department_scope,
+          department_id: assignment.department_id,
           department_label: departmentLabel,
           campus_scope: assignment.campus_scope,
         };
 
         const key = `${assignment.role_code}|${
-          assignment.department_scope || ""
+          assignment.department_id || ""
         }|${assignment.campus_scope || ""}`;
         return [key, roleAssignmentSummary] as const;
       })
@@ -274,7 +274,7 @@ export async function getCurrentUserProfileWithRoleCodes(
       .map(
         (assignment) =>
           normalizeNullableText(assignment.department_label) ||
-          normalizeNullableText(assignment.department_scope)
+          normalizeNullableText(assignment.department_id)
       )
       .find((department): department is string => Boolean(department)) || null;
 
@@ -335,12 +335,12 @@ export async function getCurrentUserProfileWithRoleCodes(
     role_assignments: normalizedAssignments,
     role_codes: roleCodes,
     department_id:
-      normalizeNullableText(hodScope?.department_scope) ||
+      normalizeNullableText(hodScope?.department_id) ||
       normalizeNullableText(profile.department_id) ||
       null,
     school_id:
       normalizeNullableText(deanScope?.school_scope) ||
-      normalizeNullableText(deanScope?.department_scope) ||
+      normalizeNullableText(deanScope?.department_id) ||
       normalizeNullableText(profile.school_id) ||
       null,
     campus:
