@@ -16,6 +16,9 @@ type EventRow = {
   organizing_school?: string | null;
   organizer_email?: string | null;
   fest?: string | null;
+  budget_amount?: number | string | null;
+  estimated_budget_amount?: number | string | null;
+  total_estimated_expense?: number | string | null;
 };
 
 type FestRow = {
@@ -338,6 +341,22 @@ function parseJsonArraySafely(value: unknown): any[] {
   return [];
 }
 
+function getEventBudgetAmount(
+  eventRow: EventRow | null | undefined,
+  budgetRow: BudgetRow | null | undefined
+): number {
+  const directBudget =
+    toNumber(eventRow?.total_estimated_expense) ||
+    toNumber(eventRow?.estimated_budget_amount) ||
+    toNumber(eventRow?.budget_amount);
+
+  if (directBudget > 0) {
+    return directBudget;
+  }
+
+  return toNumber(budgetRow?.total_estimated_expense);
+}
+
 function getFestBudgetAmount(festRow: FestRow | null | undefined): number {
   const directBudget =
     toNumber(festRow?.total_estimated_expense) ||
@@ -638,10 +657,30 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
 
   let approvalEventById = new Map<string, EventRow>();
   if (approvalEventIds.length > 0) {
-    const { data: approvalEventRowsData, error: approvalEventRowsError } = await supabase
+    const fullApprovalEventSelect =
+      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest,budget_amount,estimated_budget_amount,total_estimated_expense";
+    const legacyApprovalEventSelect =
+      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest";
+
+    let { data: approvalEventRowsData, error: approvalEventRowsError } = await supabase
       .from("events")
-      .select("event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest")
+      .select(fullApprovalEventSelect)
       .in("event_id", approvalEventIds);
+
+    if (
+      approvalEventRowsError &&
+      (isMissingColumnError(approvalEventRowsError, "budget_amount") ||
+        isMissingColumnError(approvalEventRowsError, "estimated_budget_amount") ||
+        isMissingColumnError(approvalEventRowsError, "total_estimated_expense") ||
+        isMissingColumnError(approvalEventRowsError))
+    ) {
+      const retry = await supabase
+        .from("events")
+        .select(legacyApprovalEventSelect)
+        .in("event_id", approvalEventIds);
+      approvalEventRowsData = retry.data;
+      approvalEventRowsError = retry.error;
+    }
 
     if (approvalEventRowsError) {
       throw new Error(`Failed to load event details for L4 queue: ${approvalEventRowsError.message}`);
@@ -815,7 +854,7 @@ export async function fetchFinanceDashboardData({ supabase }: { supabase: any })
       ),
       totalEstimatedExpense: isFestEntity
         ? getFestBudgetAmount(festRow)
-        : toNumber(budgetRow?.total_estimated_expense),
+        : getEventBudgetAmount(eventRow, budgetRow),
     });
   });
 

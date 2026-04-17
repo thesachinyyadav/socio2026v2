@@ -39,6 +39,9 @@ type EventJoinRow = {
   organizer_email?: string | null;
   fest_id?: string | null;
   campus_hosted_at?: string | null;
+  budget_amount?: number | string | null;
+  estimated_budget_amount?: number | string | null;
+  total_estimated_expense?: number | string | null;
 };
 
 type FestJoinRow = {
@@ -148,6 +151,22 @@ function parseJsonArraySafely(value: unknown): any[] {
   }
 
   return [];
+}
+
+function getEventBudgetAmount(
+  eventRow: EventJoinRow | null | undefined,
+  budgetRow: BudgetJoinRow | null | undefined
+): number {
+  const directBudget =
+    toNumber(eventRow?.total_estimated_expense) ||
+    toNumber(eventRow?.estimated_budget_amount) ||
+    toNumber(eventRow?.budget_amount);
+
+  if (directBudget > 0) {
+    return directBudget;
+  }
+
+  return toNumber(budgetRow?.total_estimated_expense);
 }
 
 function getFestBudgetAmount(festRow: FestJoinRow | null | undefined): number {
@@ -529,18 +548,34 @@ export async function fetchCfoDashboardData({
 
   let pendingEventsById = new Map<string, EventJoinRow>();
   if (pendingEventIds.length > 0) {
-    let pendingEventsQuery = supabase
-      .from("events")
-      .select(
-        "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest_id,campus_hosted_at"
-      )
-      .in("event_id", pendingEventIds);
+    const fullEventSelect =
+      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest_id,campus_hosted_at,budget_amount,estimated_budget_amount,total_estimated_expense";
+    const legacyEventSelect =
+      "event_id,title,event_date,organizing_dept,organizing_school,organizer_email,fest_id,campus_hosted_at";
 
-    if (normalizedCampus) {
-      pendingEventsQuery = pendingEventsQuery.eq("campus_hosted_at", normalizedCampus);
+    const buildEventsQuery = (selectClause: string) => {
+      let query = supabase.from("events").select(selectClause).in("event_id", pendingEventIds);
+      if (normalizedCampus) {
+        query = query.eq("campus_hosted_at", normalizedCampus);
+      }
+      return query;
+    };
+
+    let { data: pendingEventsData, error: pendingEventsError } = await buildEventsQuery(
+      fullEventSelect
+    );
+
+    if (
+      pendingEventsError &&
+      (isMissingColumnError(pendingEventsError, "budget_amount") ||
+        isMissingColumnError(pendingEventsError, "estimated_budget_amount") ||
+        isMissingColumnError(pendingEventsError, "total_estimated_expense") ||
+        isMissingColumnError(pendingEventsError))
+    ) {
+      const retry = await buildEventsQuery(legacyEventSelect);
+      pendingEventsData = retry.data;
+      pendingEventsError = retry.error;
     }
-
-    const { data: pendingEventsData, error: pendingEventsError } = await pendingEventsQuery;
 
     if (pendingEventsError) {
       throw new Error(`Failed to load CFO event details: ${pendingEventsError.message}`);
@@ -692,7 +727,7 @@ export async function fetchCfoDashboardData({
           : normalizeText(eventRow?.title) || "Untitled Event",
         totalBudget: isFestEntity
           ? getFestBudgetAmount(festRow)
-          : toNumber(budgetRow?.total_estimated_expense),
+          : getEventBudgetAmount(eventRow, budgetRow),
         coordinatorName: deriveCoordinatorName(
           organizerEmail,
           organizerEmail ? userNamesByEmail.get(organizerEmail) : null

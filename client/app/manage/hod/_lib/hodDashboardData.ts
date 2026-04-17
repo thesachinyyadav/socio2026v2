@@ -29,6 +29,9 @@ type EventDetailRow = {
   event_date?: string | null;
   organizing_dept?: string | null;
   organizer_email?: string | null;
+  budget_amount?: number | string | null;
+  estimated_budget_amount?: number | string | null;
+  total_estimated_expense?: number | string | null;
 };
 
 type FestDetailRow = {
@@ -364,6 +367,22 @@ function parseJsonArraySafely(value: unknown): any[] {
   return [];
 }
 
+function getEventBudgetAmount(
+  eventRow: EventDetailRow | null | undefined,
+  budgetRow: BudgetRow | null | undefined
+): number {
+  const directBudget =
+    toNumber(eventRow?.total_estimated_expense) ||
+    toNumber(eventRow?.estimated_budget_amount) ||
+    toNumber(eventRow?.budget_amount);
+
+  if (directBudget > 0) {
+    return directBudget;
+  }
+
+  return toNumber(budgetRow?.total_estimated_expense);
+}
+
 function getFestBudgetAmount(festRow: FestDetailRow | null | undefined): number {
   const directBudget =
     toNumber(festRow?.total_estimated_expense) ||
@@ -566,10 +585,29 @@ export async function fetchHodDashboardData({
 
   let eventRowsById = new Map<string, EventDetailRow>();
   if (eventIds.length > 0) {
-    const { data: eventData, error: eventError } = await supabase
+    const fullSelect =
+      "event_id, title, event_date, organizing_dept, organizer_email, budget_amount, estimated_budget_amount, total_estimated_expense";
+    const legacySelect = "event_id, title, event_date, organizing_dept, organizer_email";
+
+    let { data: eventData, error: eventError } = await supabase
       .from("events")
-      .select("event_id, title, event_date, organizing_dept, organizer_email")
+      .select(fullSelect)
       .in("event_id", eventIds);
+
+    if (
+      eventError &&
+      (isMissingColumnError(eventError, "budget_amount") ||
+        isMissingColumnError(eventError, "estimated_budget_amount") ||
+        isMissingColumnError(eventError, "total_estimated_expense") ||
+        isMissingColumnError(eventError))
+    ) {
+      const retry = await supabase
+        .from("events")
+        .select(legacySelect)
+        .in("event_id", eventIds);
+      eventData = retry.data;
+      eventError = retry.error;
+    }
 
     if (eventError) {
       throw new Error(`Failed to load event details: ${eventError.message}`);
@@ -725,7 +763,7 @@ export async function fetchHodDashboardData({
         organizerEmail ? userNamesByEmail.get(organizerEmail) : null
       );
 
-      const eventBudget = !isFestEntity ? budgetsByEventId.get(entityRef) : null;
+      const eventBudget = !isFestEntity ? budgetsByEventId.get(entityRef) || null : null;
       const festBudget = isFestEntity ? getFestBudgetAmount(festRow) : 0;
       const displayName = isFestEntity
         ? normalizeText(festRow?.fest_title) || "Untitled Fest"
@@ -751,7 +789,7 @@ export async function fetchHodDashboardData({
         entityType: isFestEntity ? "fest" : "event",
         totalBudget: isFestEntity
           ? festBudget
-          : toNumber(eventBudget?.total_estimated_expense),
+          : getEventBudgetAmount(eventRow, eventBudget),
         coordinatorName,
         departmentName,
         eventDate: displayDate,

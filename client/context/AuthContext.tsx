@@ -53,6 +53,8 @@ type UserData = {
   organization_type?: 'christ_member' | 'outsider';
   visitor_id?: string | null;
   outsider_name_edit_used?: boolean | null;
+  subhead_fest_ids?: string[];
+  owned_fest_ids?: string[];
 };
 
 type AuthContextType = {

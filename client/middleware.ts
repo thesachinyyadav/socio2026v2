@@ -253,6 +253,38 @@ export async function middleware(req: NextRequest) {
       return res;
     }
 
+    const normalizedEmail = String(user.email || "").trim().toLowerCase();
+    let subheadFestCount = 0;
+    let ownedFestCount = 0;
+    if (normalizedEmail) {
+      const { data: subheadRows, error: subheadError } = await supabase
+        .from("fest_subheads")
+        .select("fest_id")
+        .eq("user_email", normalizedEmail)
+        .eq("is_active", true);
+
+      if (!subheadError && Array.isArray(subheadRows)) {
+        subheadFestCount = subheadRows.length;
+      } else if (subheadError && isRoleLookupBypassError(subheadError)) {
+        subheadFestCount = 1;
+      }
+
+      const { data: ownedFestRows, error: ownedFestError } = await supabase
+        .from("fests")
+        .select("fest_id")
+        .or(
+          `created_by.eq.${normalizedEmail},contact_email.eq.${normalizedEmail}`
+        );
+
+      if (!ownedFestError && Array.isArray(ownedFestRows)) {
+        ownedFestCount = ownedFestRows.length;
+      } else if (ownedFestError && isRoleLookupBypassError(ownedFestError)) {
+        ownedFestCount = 1;
+      }
+    }
+    const isSubhead = subheadFestCount > 0;
+    const ownsFests = ownedFestCount > 0;
+
     const resolvedUserData = mergeUserDataWithAssignmentRoleCodes(
       normalizedUserData,
       roleAssignments
@@ -298,7 +330,22 @@ export async function middleware(req: NextRequest) {
       isCfo ||
       isStudentOrganiser ||
       isFinanceOfficer ||
-      hasServiceRole;
+      hasServiceRole ||
+      isSubhead;
+    const isSubheadOnly =
+      isSubhead &&
+      !isMasterAdmin &&
+      !isOrganiser &&
+      !isHod &&
+      !isDean &&
+      !isCfo &&
+      !isStudentOrganiser &&
+      !isFinanceOfficer &&
+      !hasServiceRole;
+    // Subheads may only create events, never fests.
+    if (isSubheadOnly && pathname.startsWith("/create/fest")) {
+      return redirect("/error");
+    }
     const canAccessHodRoute =
       isMasterAdmin || isHod;
     const canAccessDeanRoute =
@@ -343,7 +390,7 @@ export async function middleware(req: NextRequest) {
       normalizedUniversityRole === "stalls_misc" ||
       normalizedUniversityRole === "stalls";
     const canAccessOrganizerManagementRoute =
-      isMasterAdmin || isOrganiser;
+      isMasterAdmin || ownsFests;
     const canAccessServiceRoleRoute = matchedServiceRoleRoute
       ? isMasterAdmin || hasServiceRoleAccess(resolvedUserData, matchedServiceRoleRoute)
       : true;

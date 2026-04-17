@@ -295,6 +295,41 @@ export async function getCurrentUserProfileWithRoleCodes(
     normalizeText(assignment.campus_scope)
   );
 
+  const normalizedEmail = normalizeText(profile.email).toLowerCase();
+
+  const subheadFestIds: string[] = [];
+  if (normalizedEmail) {
+    const { data: subheadRows, error: subheadError } = await roleLookupClient
+      .from("fest_subheads")
+      .select("fest_id,is_active")
+      .eq("user_email", normalizedEmail)
+      .eq("is_active", true);
+
+    if (!subheadError && Array.isArray(subheadRows)) {
+      for (const row of subheadRows as Array<{ fest_id?: unknown }>) {
+        const festId = normalizeText(row?.fest_id);
+        if (festId) subheadFestIds.push(festId);
+      }
+    }
+  }
+
+  const ownedFestIds: string[] = [];
+  if (normalizedEmail) {
+    const { data: ownedRows, error: ownedError } = await roleLookupClient
+      .from("fests")
+      .select("fest_id,created_by,contact_email")
+      .or(
+        `created_by.eq.${normalizedEmail},contact_email.eq.${normalizedEmail}`
+      );
+
+    if (!ownedError && Array.isArray(ownedRows)) {
+      for (const row of ownedRows as Array<{ fest_id?: unknown }>) {
+        const festId = normalizeText(row?.fest_id);
+        if (festId) ownedFestIds.push(festId);
+      }
+    }
+  }
+
   const enrichedProfile: Record<string, unknown> = {
     ...profile,
     role_assignments: normalizedAssignments,
@@ -312,6 +347,8 @@ export async function getCurrentUserProfileWithRoleCodes(
       normalizeNullableText(campusScope?.campus_scope) ||
       normalizeNullableText(profile.campus) ||
       null,
+    subhead_fest_ids: Array.from(new Set(subheadFestIds)),
+    owned_fest_ids: Array.from(new Set(ownedFestIds)),
   };
 
   if (uniqueRoleMatrixAssignments.length > 0) {

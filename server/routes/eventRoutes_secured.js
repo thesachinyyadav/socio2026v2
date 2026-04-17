@@ -2398,18 +2398,38 @@ router.post(
   ]),
   authenticateUser,           // Verify JWT token
   getUserInfo(),           // Get user info from DB via helper
-  (req, res, next) => {
+  async (req, res, next) => {
     const canCreateEvent =
       isMasterAdminUser(req.userInfo) ||
       isOrganizerTeacherUser(req.userInfo) ||
       hasAnyRoleCode(getRoleCodes(req.userInfo), [ROLE_CODES.ORGANIZER_STUDENT]);
 
-    if (!canCreateEvent) {
+    if (canCreateEvent) {
+      return next();
+    }
+
+    const fallbackFestId = normalizeFestReference(req.body?.fest_id ?? req.body?.fest);
+    if (!fallbackFestId) {
       return res.status(403).json({
-        error: "Access denied: Organizer Teacher or Organizer Student privileges required",
+        error: "Access denied: Organizer privileges or a fest subhead assignment are required",
       });
     }
 
+    const subheadMembership = await queryOne("fest_subheads", {
+      where: {
+        fest_id: fallbackFestId,
+        user_email: normalizeEmailAddress(req.userInfo?.email || ""),
+        is_active: true,
+      },
+    });
+
+    if (!subheadMembership) {
+      return res.status(403).json({
+        error: "Access denied: You are not assigned as a subhead for this fest",
+      });
+    }
+
+    req.userInfo = { ...(req.userInfo || {}), _isSubheadSubmitter: true };
     return next();
   },
   async (req, res) => {
@@ -2458,8 +2478,49 @@ router.post(
 
       const userIsMasterAdmin = isMasterAdminUser(req.userInfo);
       const userIsOrganizerTeacher = isOrganizerTeacherUser(req.userInfo);
-      const userIsOrganizerStudentOnly = isOrganizerStudentOnlyUser(req.userInfo);
       const normalizedFestId = normalizeFestReference(fest_id ?? fest);
+      const requesterEmailForFestChecks = normalizeEmailAddress(
+        req.userInfo?.email || ""
+      );
+
+      // A user "owns" the target fest if they are its creator / contact.
+      // Subhead-style pre-approval is required for anyone who does NOT own
+      // the target fest — including is_organiser users invited as subheads.
+      let preloadedParentFest = null;
+      let userOwnsTargetFest = false;
+      let userIsSubheadOfTargetFest = Boolean(req.userInfo?._isSubheadSubmitter);
+      if (normalizedFestId) {
+        preloadedParentFest = await queryFestById(normalizedFestId);
+        if (preloadedParentFest) {
+          const festCreatedBy = normalizeEmailAddress(preloadedParentFest.created_by || "");
+          const festContactEmail = normalizeEmailAddress(preloadedParentFest.contact_email || "");
+          userOwnsTargetFest =
+            userIsMasterAdmin ||
+            (requesterEmailForFestChecks.length > 0 &&
+              (requesterEmailForFestChecks === festCreatedBy ||
+                requesterEmailForFestChecks === festContactEmail));
+
+          if (!userOwnsTargetFest && !userIsSubheadOfTargetFest) {
+            const subheadRow = await queryOne("fest_subheads", {
+              where: {
+                fest_id: normalizedFestId,
+                user_email: requesterEmailForFestChecks,
+                is_active: true,
+              },
+            });
+            userIsSubheadOfTargetFest = Boolean(subheadRow);
+          }
+        }
+      }
+
+      // "Restricted submitter" = creating an event under a fest the user does
+      // not own. This covers pure subheads, org-students, and is_organiser
+      // users who were invited as subheads of someone else's fest. The flow
+      // forces draft + pending_organiser so the fest owner can review.
+      const userIsOrganizerStudentOnly =
+        isOrganizerStudentOnlyUser(req.userInfo) ||
+        Boolean(req.userInfo?._isSubheadSubmitter) ||
+        (Boolean(normalizedFestId) && userIsSubheadOfTargetFest && !userOwnsTargetFest);
 
       const shouldSaveAsDraftByInput =
         asBoolean(is_draft) ||
@@ -2503,7 +2564,7 @@ router.post(
       let childFestApproved = false;
 
       if (normalizedFestId) {
-        parentFest = await queryFestById(normalizedFestId);
+        parentFest = preloadedParentFest || (await queryFestById(normalizedFestId));
 
         if (!parentFest) {
           return res.status(404).json({

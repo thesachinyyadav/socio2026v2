@@ -33,6 +33,7 @@ import {
   ChevronDown,
   History,
   Pencil,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   getAccessibleServiceRoleDashboards,
@@ -991,6 +992,24 @@ export default function ManageDashboard() {
   const isFinanceOfficer =
     Boolean((userData as any)?.is_finance_officer) ||
     hasAnyRoleCode(userRecord, ["ACCOUNTS"]);
+  const subheadFestIds = Array.isArray((userData as any)?.subhead_fest_ids)
+    ? ((userData as any).subhead_fest_ids as string[])
+    : [];
+  const ownedFestIds = Array.isArray((userData as any)?.owned_fest_ids)
+    ? ((userData as any).owned_fest_ids as string[])
+    : [];
+  const isSubhead = subheadFestIds.length > 0;
+  const ownsFests = ownedFestIds.length > 0;
+  const isSubheadOnly =
+    isSubhead &&
+    !isMasterAdmin &&
+    !isOrganiser &&
+    !isStudentOrganiser &&
+    !isHod &&
+    !isDean &&
+    !isCfo &&
+    !isFinanceOfficer;
+  const canSeeOrganiserInbox = isMasterAdmin || ownsFests;
   const accessibleServiceRoleDashboards = useMemo(
     () =>
       getAccessibleServiceRoleDashboards(
@@ -2266,11 +2285,20 @@ export default function ManageDashboard() {
           </h1>
 
           <div className="flex items-center gap-3">
-            <Link href="/create/fest">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
-                <Plus className="w-4 h-4" /> Create Fest
+            {canSeeOrganiserInbox && (
+              <Link href="/manage/organizer">
+                <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-amber-700 font-semibold border-2 border-amber-400 rounded-full hover:bg-amber-50 transition-colors shadow-sm text-sm">
+                  <ClipboardCheck className="w-4 h-4" /> Organiser Inbox
                 </button>
-            </Link>
+              </Link>
+            )}
+            {!isSubheadOnly && (
+              <Link href="/create/fest">
+                <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                  <Plus className="w-4 h-4" /> Create Fest
+                </button>
+              </Link>
+            )}
             <Link href="/create/event">
                 <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                 <Plus className="w-4 h-4" /> Create Event

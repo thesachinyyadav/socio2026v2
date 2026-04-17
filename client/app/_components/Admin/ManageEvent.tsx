@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { hasAnyRoleCode } from "@/lib/roleDashboards";
 import {
   useForm,
   SubmitHandler,
@@ -1436,6 +1437,28 @@ export default function EventForm({
 }: EventFormProps) {
   const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
 
+  const { userData: subheadCheckUserData } = useAuth();
+  const subheadUserRecord =
+    (subheadCheckUserData as Record<string, unknown> | null) || null;
+  const subheadFestIds = Array.isArray(subheadUserRecord?.subhead_fest_ids)
+    ? ((subheadUserRecord!.subhead_fest_ids as unknown[]).map((value) =>
+        String(value || "").trim()
+      ).filter((value) => value.length > 0))
+    : [];
+  const hasRole = (code: string) =>
+    hasAnyRoleCode(subheadUserRecord, [code]);
+  const isSubheadOnlySubmitter =
+    subheadFestIds.length > 0 &&
+    !Boolean(subheadCheckUserData?.is_masteradmin) &&
+    !Boolean(subheadCheckUserData?.is_organiser) &&
+    !hasRole("ORGANIZER_TEACHER") &&
+    !Boolean((subheadCheckUserData as any)?.is_organiser_student) &&
+    !hasRole("ORGANIZER_STUDENT");
+  const subheadFestIdSet = useMemo(
+    () => new Set(subheadFestIds.map((value) => value.toLowerCase())),
+    [subheadFestIds.join("|")]
+  );
+
   useEffect(() => {
     async function fetchFests() {
       try {
@@ -1443,6 +1466,13 @@ export default function EventForm({
         if (fests) {
           const options: FestOption[] = fests
             .filter((f: any) => !isArchivedFest(f))
+            .filter((f: any) => {
+              if (!isSubheadOnlySubmitter) return true;
+              const festValue = normalizeFestOptionValue(f)
+                .trim()
+                .toLowerCase();
+              return festValue.length > 0 && subheadFestIdSet.has(festValue);
+            })
             .map((f: any) => {
               const approvalWorkflow = extractFestApprovalWorkflow(f);
 
@@ -1476,32 +1506,35 @@ export default function EventForm({
                 requiresCfoApproval: extractFestCfoRequirement(f),
               };
             });
-          setFetchedFests([
-            {
-              value: "none",
-              label: "None",
-              departmentAccess: [],
-              organizingSchool: "",
-              organizingDept: "",
-              category: "",
-              campusHostedAt: "",
-              allowedCampuses: [],
-              allowOutsiders: false,
-              approvalState: "",
-              activationState: "",
-              requiresHodApproval: false,
-              requiresDeanApproval: false,
-              requiresCfoApproval: false,
-            },
-            ...options,
-          ]);
+          const baseOptions: FestOption[] = isSubheadOnlySubmitter
+            ? options
+            : [
+                {
+                  value: "none",
+                  label: "None",
+                  departmentAccess: [],
+                  organizingSchool: "",
+                  organizingDept: "",
+                  category: "",
+                  campusHostedAt: "",
+                  allowedCampuses: [],
+                  allowOutsiders: false,
+                  approvalState: "",
+                  activationState: "",
+                  requiresHodApproval: false,
+                  requiresDeanApproval: false,
+                  requiresCfoApproval: false,
+                },
+                ...options,
+              ];
+          setFetchedFests(baseOptions);
         }
       } catch (error) {
         console.error("Failed to fetch fests:", error);
       }
     }
     fetchFests();
-  }, []);
+  }, [isSubheadOnlySubmitter, subheadFestIdSet]);
 
   const router = useRouter();
   const pathname = usePathname();

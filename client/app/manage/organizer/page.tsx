@@ -2,7 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { hasAnyRoleCode } from "@/lib/roleDashboards";
 import { getCurrentUserProfileWithRoleCodes } from "@/lib/serverRoleProfile";
 import OrganizerApprovalClient from "./_components/OrganizerApprovalClient";
 import { fetchOrganizerDashboardData, type OrganizerDashboardData } from "./_lib/organizerDashboardData";
@@ -57,11 +56,16 @@ export default async function OrganizerManagePage() {
   }
 
   const isMasterAdmin = Boolean(userProfile.is_masteradmin);
-  const isOrganizerTeacher =
-    hasAnyRoleCode(userProfile, ["ORGANIZER_TEACHER"]) ||
-    Boolean(userProfile.is_organiser);
+  const ownedFestIds = Array.isArray(
+    (userProfile as { owned_fest_ids?: unknown }).owned_fest_ids
+  )
+    ? ((userProfile as { owned_fest_ids?: unknown[] }).owned_fest_ids as unknown[])
+        .map((value) => String(value || "").trim())
+        .filter((value) => value.length > 0)
+    : [];
+  const ownsFests = ownedFestIds.length > 0;
 
-  if (!isOrganizerTeacher && !isMasterAdmin) {
+  if (!ownsFests && !isMasterAdmin) {
     redirect("/error");
   }
 
