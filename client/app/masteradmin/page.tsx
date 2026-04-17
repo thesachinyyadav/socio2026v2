@@ -28,6 +28,7 @@ import {
   Eye,
   ChevronRight,
   GitBranch,
+  Building2,
 } from "lucide-react";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
 
@@ -305,7 +306,7 @@ export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "notifications" | "report" | "settings" | "pipeline"
+    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "notifications" | "report" | "settings" | "pipeline" | "clubs"
   >("dashboard");
   const authToken = session?.access_token || null;
 
@@ -1075,6 +1076,7 @@ export default function MasterAdminPage() {
     { id: "users" as const, label: "Users", icon: <Users className="w-4 h-4" />, count: users.length },
     { id: "events" as const, label: "Events", icon: <CalendarDays className="w-4 h-4" />, count: events.length },
     { id: "fests" as const, label: "Fests", icon: <Trophy className="w-4 h-4" />, count: fests.length },
+    { id: "clubs" as const, label: "Clubs and Centres", icon: <Building2 className="w-4 h-4" /> },
     { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-4 h-4" /> },
     { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" /> },
   ];
@@ -1363,6 +1365,15 @@ export default function MasterAdminPage() {
             <Settings className="w-10 h-10 mx-auto mb-3 text-slate-300" />
             <p className="font-medium text-slate-600">Settings</p>
             <p className="text-sm mt-1">Platform configuration coming soon.</p>
+          </div>
+        )}
+
+        {/* Clubs placeholder */}
+        {activeTab === "clubs" && (
+          <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+            <Building2 className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+            <p className="font-medium text-slate-600">Clubs and Centres</p>
+            <p className="text-sm mt-1">Management for clubs and centres coming soon.</p>
           </div>
         )}
 
