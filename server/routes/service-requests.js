@@ -31,6 +31,36 @@ const EVENT_CONTEXT = Object.freeze({
   UNDER_FEST: "under_fest",
 });
 
+const FEST_WORKFLOW_SERVICE_READY = new Set([
+  "pending_cfo",
+  "pending_accounts",
+  "fully_approved",
+  "live",
+  "approved",
+  "published",
+]);
+
+const EVENT_WORKFLOW_SERVICE_READY_UNDER_FEST = new Set([
+  "organiser_approved",
+  "pending_cfo",
+  "pending_accounts",
+  "fully_approved",
+  "live",
+  "approved",
+  "published",
+]);
+
+const EVENT_WORKFLOW_SERVICE_READY_STANDALONE = new Set([
+  "auto_approved",
+  "pending_cfo",
+  "cfo_approved",
+  "pending_accounts",
+  "fully_approved",
+  "live",
+  "approved",
+  "published",
+]);
+
 const normalizeText = (value) => String(value || "").trim();
 const normalizeToken = (value) => normalizeText(value).toLowerCase();
 const normalizeEmail = (value) => normalizeText(value).toLowerCase();
@@ -41,6 +71,77 @@ const asBoolean = (value) =>
   normalizeToken(value) === "true" ||
   normalizeToken(value) === "yes" ||
   normalizeToken(value) === "on";
+
+const isMissingRelationError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
+};
+
+const isLifecycleReadyForServices = (value) => {
+  const normalized = normalizeToken(value);
+  return normalized === "approved" || normalized === "published";
+};
+
+const isFestReadyForServices = (fest) => {
+  const workflowStatus = normalizeToken(fest?.workflow_status);
+  const approvalState = normalizeToken(fest?.approval_state);
+  const activationState = normalizeToken(fest?.activation_state);
+
+  return (
+    FEST_WORKFLOW_SERVICE_READY.has(workflowStatus) ||
+    isLifecycleReadyForServices(fest?.status) ||
+    approvalState === "approved" ||
+    activationState === "active"
+  );
+};
+
+const isEventReadyForServices = ({ event, context }) => {
+  const workflowStatus = normalizeToken(event?.workflow_status);
+  const approvalState = normalizeToken(event?.approval_state);
+  const activationState = normalizeToken(event?.activation_state);
+  const workflowAllowed =
+    context === EVENT_CONTEXT.UNDER_FEST
+      ? EVENT_WORKFLOW_SERVICE_READY_UNDER_FEST.has(workflowStatus)
+      : EVENT_WORKFLOW_SERVICE_READY_STANDALONE.has(workflowStatus);
+
+  return (
+    workflowAllowed ||
+    isLifecycleReadyForServices(event?.status) ||
+    approvalState === "approved" ||
+    activationState === "active"
+  );
+};
+
+const queryFestById = async (festId) => {
+  const normalizedFestId = normalizeText(festId);
+  if (!normalizedFestId) {
+    return null;
+  }
+
+  for (const tableName of ["fests", "fest"]) {
+    try {
+      const fest = await queryOne(tableName, { where: { fest_id: normalizedFestId } });
+      if (fest) {
+        return fest;
+      }
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  return null;
+};
 
 const isMasterAdmin = (userInfo) => {
   if (!userInfo) return false;
@@ -145,7 +246,7 @@ const canRequesterManageEvent = async (event, requester) => {
     return false;
   }
 
-  const parentFest = await queryOne("fests", { where: { fest_id: getParentFestId(event) } });
+  const parentFest = await queryFestById(getParentFestId(event));
   if (!parentFest) return false;
 
   return (
@@ -262,15 +363,14 @@ router.post("/", async (req, res) => {
     let entityRecord = null;
 
     if (entityType === "fest") {
-      const fest = await queryOne("fests", { where: { fest_id: entityId } });
+      const fest = await queryFestById(entityId);
       if (!fest) {
         return res.status(404).json({ error: "Fest not found." });
       }
 
-      const status = normalizeToken(fest.workflow_status);
-      if (!["fully_approved", "live"].includes(status)) {
+      if (!isFestReadyForServices(fest)) {
         return res.status(400).json({
-          error: "Fest must be fully approved or live before requesting services.",
+          error: "Fest must complete initial approvals before requesting services.",
         });
       }
 
@@ -285,20 +385,17 @@ router.post("/", async (req, res) => {
       }
 
       const context = inferEventContext(event);
-      const status = normalizeToken(event.workflow_status);
 
-      if (context === EVENT_CONTEXT.UNDER_FEST) {
-        if (!["organiser_approved", "fully_approved", "live"].includes(status)) {
+      if (!isEventReadyForServices({ event, context })) {
+        if (context === EVENT_CONTEXT.UNDER_FEST) {
           return res.status(400).json({
-            error: "Under-fest events must be organiser approved before requesting services.",
+            error: "Under-fest events must complete initial approvals before requesting services.",
           });
         }
-      } else {
-        if (!["fully_approved", "auto_approved", "live"].includes(status)) {
-          return res.status(400).json({
-            error: "Standalone events must be fully approved or auto-approved before requesting services.",
-          });
-        }
+
+        return res.status(400).json({
+          error: "Standalone events must complete approvals before requesting services.",
+        });
       }
 
       requesterAllowed = await canRequesterManageEvent(event, req.userInfo);
@@ -434,7 +531,7 @@ router.post("/:requestId/action", async (req, res) => {
 
     let entityRecord = null;
     if (entityType === "fest") {
-      entityRecord = await queryOne("fests", { where: { fest_id: entityId } });
+      entityRecord = await queryFestById(entityId);
     } else {
       entityRecord = await queryOne("events", { where: { event_id: entityId } });
     }

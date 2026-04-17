@@ -104,7 +104,7 @@ export default function EditEventPage() {
   // (pending_dean, dept_approved, pending_cfo, cfo_approved, fully_approved, live etc.)
   const SERVICE_ALLOWED_STATUSES = [
     'pending_dean', 'dept_approved', 'pending_cfo', 'cfo_approved', 
-    'pending_accounts', 'fully_approved', 'live', 'organiser_approved'
+    'pending_accounts', 'fully_approved', 'live', 'organiser_approved', 'approved', 'published'
   ];
   const isUnlockedForServices = SERVICE_ALLOWED_STATUSES.includes(workflowStatus || '');
 

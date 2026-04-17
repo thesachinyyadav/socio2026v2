@@ -111,7 +111,12 @@ const EditPage = () => {
   
   // Service requests allowed if it's past HOD/Dean stage (pending_cfo, pending_accounts, fully_approved, live)
   const isUnlockedForServices = [
-    'pending_cfo', 'pending_accounts', 'fully_approved', 'live'
+    'pending_cfo',
+    'pending_accounts',
+    'fully_approved',
+    'live',
+    'approved',
+    'published',
   ].includes(workflowStatus || '');
 
   const isPendingApprovalLocked =

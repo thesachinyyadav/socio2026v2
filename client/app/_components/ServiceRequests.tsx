@@ -21,6 +21,7 @@ import {
   MoreHorizontal
 } from "lucide-react";
 import { toast } from "sonner";
+import { buildServerApiUrl } from "../../lib/apiBase";
 
 interface ServiceRequest {
   id: string;
@@ -68,21 +69,39 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
   const [selectedService, setSelectedService] = useState(SERVICE_TYPES[0].id);
   const [details, setDetails] = useState<any>({});
 
-  const API_URL = "";
+  const readApiBodySafely = async (response: Response): Promise<any> => {
+    const rawText = await response.text();
+    if (!rawText) return null;
+
+    try {
+      return JSON.parse(rawText);
+    } catch {
+      return { error: rawText };
+    }
+  };
 
   const fetchRequests = async () => {
-    if (!authToken) return;
+    if (!authToken) {
+      setRequests([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const res = await fetch(`${API_URL}/api/service-requests/by-entity/${entityType}/${entityId}`, {
+      const res = await fetch(buildServerApiUrl(`/service-requests/by-entity/${entityType}/${entityId}`), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
+
       if (res.ok) {
-        const data = await res.json();
-        setRequests(data);
+        const data = await readApiBodySafely(res);
+        setRequests(Array.isArray(data) ? data : []);
+      } else {
+        setRequests([]);
       }
     } catch (err) {
       console.error("Failed to fetch service requests:", err);
+      setRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -90,10 +109,16 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
 
   useEffect(() => {
     fetchRequests();
-  }, [entityId, authToken]);
+  }, [entityType, entityId, authToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!authToken) {
+      toast.error("Your session expired. Please sign in again.");
+      return;
+    }
+
     if (!isUnlocked) {
       toast.error("Service requests are only available after initial approval.");
       return;
@@ -101,7 +126,7 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
     
     try {
       setIsSubmitting(true);
-      const res = await fetch(`${API_URL}/api/service-requests`, {
+      const res = await fetch(buildServerApiUrl("/service-requests"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,14 +140,15 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
         })
       });
 
+      const payload = await readApiBodySafely(res);
+
       if (res.ok) {
         toast.success("Service request submitted successfully.");
         setShowForm(false);
         setDetails({});
-        fetchRequests();
+        await fetchRequests();
       } else {
-        const error = await res.json();
-        toast.error(error.error || "Failed to submit request.");
+        toast.error(payload?.error || payload?.message || "Failed to submit request.");
       }
     } catch (err) {
       toast.error("An error occurred.");
@@ -165,7 +191,13 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h3 className="font-bold text-slate-800">New Service Request</h3>
-            <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-slate-400 hover:text-slate-600"
+              aria-label="Close service request form"
+              title="Close"
+              type="button"
+            >
               <XCircle className="w-5 h-5" />
             </button>
           </div>
@@ -204,6 +236,7 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
                     <input 
                       type="date"
                       required
+                      aria-label="Venue requirement date"
                       className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
                       onChange={(e) => setDetails({ ...details, date: e.target.value })}
                     />
@@ -223,6 +256,7 @@ export default function ServiceRequests({ entityType, entityId, isUnlocked, auth
                     <textarea 
                       required
                       rows={3}
+                      aria-label="Venue setup notes"
                       className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
                       onChange={(e) => setDetails({ ...details, setup_notes: e.target.value })}
                     />
