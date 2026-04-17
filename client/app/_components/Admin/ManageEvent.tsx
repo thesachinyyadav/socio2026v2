@@ -1212,6 +1212,48 @@ const STANDALONE_FLOW_STEPS = [
 type StandaloneFlowStep =
   (typeof STANDALONE_FLOW_STEPS)[number]["key"];
 
+const STANDALONE_STEP_FIELD_MAP: Record<StandaloneFlowStep, string[]> = {
+  details: [
+    "eventTitle",
+    "eventDate",
+    "endDate",
+    "eventTime",
+    "festEvent",
+    "registrationDeadline",
+    "detailedDescription",
+    "organizingSchool",
+    "organizingDept",
+    "department",
+    "category",
+    "location",
+    "registrationFee",
+    "contactEmail",
+    "contactPhone",
+    "whatsappLink",
+    "isTeamEvent",
+    "minParticipants",
+    "maxParticipants",
+    "campusHostedAt",
+    "allowedCampuses",
+    "allowOutsiders",
+    "outsiderRegistrationFee",
+    "outsiderMaxParticipants",
+    "imageFile",
+    "bannerFile",
+    "pdfFile",
+    "rules",
+    "prizes",
+    "scheduleItems",
+    "customFields",
+    "additionalRequests",
+  ],
+  budget: ["provideClaims", "budgetAmount"],
+  approvals: [
+    "standaloneRequiresHodApproval",
+    "standaloneRequiresDeanApproval",
+  ],
+};
+
 type AdditionalRequestStepKey =
   (typeof ADDITIONAL_REQUEST_STEPS)[number]["key"];
 
@@ -1601,6 +1643,8 @@ export default function EventForm({
     useState(0);
   const [standaloneFlowStep, setStandaloneFlowStep] =
     useState<StandaloneFlowStep>("details");
+  const [maxUnlockedStandaloneFlowStepIndex, setMaxUnlockedStandaloneFlowStepIndex] =
+    useState(0);
 
   const validateAdditionalRequestStep = React.useCallback(
     async (stepIndex: number) => {
@@ -2123,6 +2167,15 @@ export default function EventForm({
     }
   }, [goToStandaloneFlowStep, standaloneFlowStep]);
 
+  const validateStandaloneFlowStep = React.useCallback(
+    async (stepKey: StandaloneFlowStep) => {
+      const fields = STANDALONE_STEP_FIELD_MAP[stepKey];
+      if (!fields || fields.length === 0) return true;
+      return trigger(fields as any, { shouldFocus: true });
+    },
+    [trigger]
+  );
+
   const lastAutoFilledFestRef = useRef<string | null>(null);
   const prevHasFestSelectedRef = useRef(hasFestSelected);
   const prevItEnabledRef = useRef(Boolean(watchedItEnabled));
@@ -2135,6 +2188,9 @@ export default function EventForm({
   useEffect(() => {
     if (hasFestSelected && standaloneFlowStep !== "details") {
       setStandaloneFlowStep("details");
+    }
+    if (hasFestSelected) {
+      setMaxUnlockedStandaloneFlowStepIndex(0);
     }
   }, [hasFestSelected, standaloneFlowStep]);
 
@@ -2494,16 +2550,24 @@ export default function EventForm({
   };
 
   const handleStepperAwareSubmit = React.useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    async (event: React.FormEvent<HTMLFormElement>) => {
       if (showStandaloneFlowStepper && !standaloneFlowIsFinalStep) {
         event.preventDefault();
 
+        const isValid = await validateStandaloneFlowStep(standaloneFlowStep);
+        if (!isValid) {
+          scrollToFirstValidationError(errors);
+          return;
+        }
+
         if (standaloneFlowStep === "details") {
+          setMaxUnlockedStandaloneFlowStepIndex((prev) => Math.max(prev, 1));
           goToStandaloneFlowStep("budget");
           return;
         }
 
         if (standaloneFlowStep === "budget") {
+          setMaxUnlockedStandaloneFlowStepIndex((prev) => Math.max(prev, 2));
           goToStandaloneFlowStep("approvals");
           return;
         }
@@ -2512,13 +2576,16 @@ export default function EventForm({
       void handleSubmit(processSubmit, handleInvalidSubmit)(event);
     },
     [
+      errors,
       goToStandaloneFlowStep,
       handleInvalidSubmit,
       handleSubmit,
       processSubmit,
+      scrollToFirstValidationError,
       showStandaloneFlowStepper,
       standaloneFlowIsFinalStep,
       standaloneFlowStep,
+      validateStandaloneFlowStep,
     ]
   );
 
@@ -2999,17 +3066,30 @@ export default function EventForm({
                     {STANDALONE_FLOW_STEPS.map((step, index) => {
                       const isActive = step.key === standaloneFlowStep;
                       const isCompleted = index < standaloneFlowStepIndex;
+                      const isLocked = index > maxUnlockedStandaloneFlowStepIndex;
 
                       return (
                         <React.Fragment key={step.key}>
                           <button
                             type="button"
-                            onClick={() => goToStandaloneFlowStep(step.key)}
+                            onClick={() => {
+                              if (isLocked) return;
+                              goToStandaloneFlowStep(step.key);
+                            }}
+                            disabled={isLocked}
+                            aria-disabled={isLocked || undefined}
+                            title={
+                              isLocked
+                                ? "Complete the current page to unlock this step"
+                                : undefined
+                            }
                             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                               isActive
                                 ? "border-blue-600 bg-blue-600 text-white shadow-sm"
                                 : isCompleted
                                 ? "border-green-600 bg-green-50 text-green-700"
+                                : isLocked
+                                ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                                 : "border-blue-200 bg-white text-blue-700 hover:border-blue-400"
                             }`}
                             aria-current={isActive ? "step" : undefined}

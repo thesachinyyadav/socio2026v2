@@ -45,6 +45,12 @@ desktop.ini
 .*/skills/
 skills/
 
+# MCP local config
+.mcp.json
+**/.mcp.json
+.mcp.local.json
+**/.mcp.local.json
+
 # Claude-related files
 .claude/
 **/.claude/
