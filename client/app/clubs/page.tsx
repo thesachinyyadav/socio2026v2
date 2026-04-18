@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 import { CentreClubCard } from "../_components/Discover/ClubCard";
 import Footer from "../_components/Home/Footer";
-import { getCentres } from "@/app/actions/clubs";
+import { getAllOrganizations } from "@/app/actions/clubs";
 import { ClubRecord } from "@/app/actions/clubs";
 
 interface FilterOption {
@@ -80,7 +80,7 @@ const CentresPageContent = () => {
   useEffect(() => {
     let isMounted = true;
 
-    getCentres().then((data) => {
+    getAllOrganizations().then((data) => {
       if (!isMounted) return;
 
       setAllCentres(data);
@@ -193,10 +193,10 @@ const CentresPageContent = () => {
           <div className="flex flex-row items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
             <div className="min-w-0">
               <h1 className="text-2xl sm:text-3xl font-black text-[#154CB3] leading-tight">
-                Explore centres & cells
+                Explore centres, cells & clubs
               </h1>
               <p className="text-gray-500 mt-1 text-sm sm:text-base">
-                Browse through all specialized centres and cells at Christ University that enhance academic excellence, research, innovation, and student development.
+                Browse all centres, cells, and clubs at Christ University that support academic excellence, research, innovation, and student development.
               </p>
             </div>
             <Link
@@ -242,14 +242,14 @@ const CentresPageContent = () => {
               className="order-1 lg:order-2 w-full lg:w-[420px] xl:w-[460px] lg:ml-6"
             >
               <label htmlFor="clubs-page-search" className="sr-only">
-                Search centres and cells
+                Search centres, cells, and clubs
               </label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <input
                     id="clubs-page-search"
                     type="text"
-                    placeholder="Search by centre name, category, or description"
+                    placeholder="Search by name, category, subtitle, or description"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full rounded-full border border-gray-300 px-4 py-2.5 pr-20 text-sm sm:text-base focus:outline-none focus:ring-1 focus:ring-[#154CB3] focus:border-[#154CB3]"
@@ -292,7 +292,7 @@ const CentresPageContent = () => {
           </div>
 
           <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3 sm:mb-4">
-            {`${activeFilter === "All" ? "All" : activeFilter} centres (${filteredCentres.length})`}
+            {`${activeFilter === "All" ? "All" : activeFilter} organizations (${filteredCentres.length})`}
           </h2>
 
           <div>
@@ -311,7 +311,7 @@ const CentresPageContent = () => {
                       link={centre.club_web_link ?? undefined}
                       slug={centre.slug ?? undefined}
                       image={centre.club_banner_url ?? undefined}
-                      type="center"
+                      type={centre.type === "club" ? "club" : "center"}
                     />
                   </div>
                 ))}
@@ -329,10 +329,10 @@ const CentresPageContent = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <h3 className="mt-2 text-lg sm:text-xl font-bold text-gray-700 mb-2">
-                  No centres found
+                  No organizations found
                 </h3>
                 <p className="text-gray-500 text-sm sm:text-base">
-                  Try adjusting your filters to find more centres, or explore a different category.
+                  Try adjusting your filters to find more organizations, or explore a different category.
                 </p>
               </div>
             )}
