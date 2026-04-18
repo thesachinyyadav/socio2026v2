@@ -1,0 +1,189 @@
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
+// Helper to determine organization type
+const getOrganizationType = (email: string): 'christ_member' | 'outsider' => {
+  const lowerEmail = email.toLowerCase();
+  const domain = lowerEmail.split('@')[1] || "";
+  if (domain.endsWith('christuniversity.in')) return 'christ_member';
+  return 'outsider';
+};
+
+// Create or update user in database (server-side for speed)
+async function createUserInDatabase(user: any) {
+  try {
+    const orgType = getOrganizationType(user.email);
+
+    let fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
+    let registerNumber = null;
+    let course = null;
+
+    if (orgType === 'christ_member') {
+      const emailParts = user.email.split("@");
+      if (emailParts.length === 2) {
+        const domainParts = emailParts[1].split(".");
+        if (domainParts.length > 0) {
+          const possibleCourse = domainParts[0].toUpperCase();
+          if (possibleCourse && possibleCourse !== "CHRISTUNIVERSITY") {
+            course = possibleCourse;
+          }
+        }
+      }
+
+      if (user.user_metadata?.last_name) {
+        const lastNameStr = user.user_metadata.last_name.trim();
+        if (/^\d+$/.test(lastNameStr)) {
+          registerNumber = lastNameStr;
+        }
+      } else if (fullName) {
+        const nameParts = fullName.split(" ");
+        if (nameParts.length > 1) {
+          const lastPart = nameParts[nameParts.length - 1].trim();
+          if (/^\d+$/.test(lastPart)) {
+            registerNumber = lastPart;
+            fullName = nameParts.slice(0, nameParts.length - 1).join(" ");
+          }
+        }
+      }
+    }
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+      name: fullName || user.email?.split("@")[0],
+      avatar_url: user.user_metadata?.avatar_url,
+      register_number: registerNumber,
+      course: course
+    };
+
+    // Send user creation request asynchronously - don't block redirect
+    fetch(`${API_URL}/api/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: payload }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error("User creation failed:", response.status, errorData);
+        } else {
+          console.log(`✅ User record created/updated for: ${user.email}`);
+        }
+      })
+      .catch(err => {
+        console.error("User creation request failed:", err);
+      });
+
+  } catch (error) {
+    console.error("Error preparing user data:", error);
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const requestUrl = new URL(request.url);
+
+  // Robust origin detection: 
+  // 1. First choice: Environment variable
+  // 2. Second choice: X-Forwarded-Host or Host header
+  // 3. Fallback: current request URL origin
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || requestUrl.protocol.replace(':', '');
+  const headerOrigin = host ? `${protocol}://${host}` : null;
+
+  const origin = APP_URL || headerOrigin || requestUrl.origin;
+
+  const code = requestUrl.searchParams.get("code");
+
+  if (!code) {
+    console.warn("Auth callback invoked without a 'code' parameter.");
+    return NextResponse.redirect(`${origin}/?error=no_code`);
+  }
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  try {
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+      code
+    );
+    if (exchangeError) {
+      console.error(
+        "Error exchanging code for session:",
+        exchangeError.message
+      );
+      return NextResponse.redirect(`${origin}/?error=auth_exchange_failed`);
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error(
+        "Error getting session after exchange:",
+        sessionError.message
+      );
+      return NextResponse.redirect(`${origin}/?error=session_fetch_failed`);
+    }
+
+    if (!session || !session.user || !session.user.email) {
+      console.warn(
+        "No session or user email found after successful code exchange."
+      );
+      await supabase.auth.signOut();
+      return NextResponse.redirect(`${origin}/?error=auth_incomplete`);
+    }
+
+    // Create/update user in database asynchronously (don't wait to avoid slow redirects)
+    // If it fails, user will be created on next page load via AuthContext
+    createUserInDatabase(session.user).catch(err =>
+      console.error("Background user creation failed:", err)
+    );
+
+    // Allow all Gmail users (both Christ members and outsiders)
+    console.log(`Auth callback successful for: ${session.user.email}`);
+    return NextResponse.redirect(`${origin}/auth/verify`);
+  } catch (error) {
+    console.error("Unexpected error in auth callback:", error);
+    const cookieStore = await cookies();
+    const supabaseClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+    await supabaseClient.auth.signOut();
+    return NextResponse.redirect(`${origin}/?error=callback_exception`);
+  }
+}
+

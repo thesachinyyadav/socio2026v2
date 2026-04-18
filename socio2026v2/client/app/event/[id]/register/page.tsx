@@ -1,0 +1,1209 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import {
+  useEvents,
+  FetchedEvent as ContextFetchedEvent,
+} from "../../../../context/EventContext";
+import { useAuth } from "../../../../context/AuthContext";
+import { dayjs } from "@/lib/dateUtils";
+import { CustomFieldRenderer, validateCustomFields, CustomField } from "../../../_components/UI/CustomFieldRenderer";
+
+interface Teammate {
+  name: string;
+  registerNumber: string;
+  email: string;
+}
+
+interface FormErrors {
+  teamName?: string;
+  teammates: Array<{
+    name?: string;
+    registerNumber?: string;
+    email?: string;
+  }>;
+  customFields?: Record<string, string>;
+}
+
+// Helper function to generate Google Calendar URL
+const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventTime?: string): string | null => {
+  try {
+    const dateObj = dayjs(eventDate);
+    
+    let startDateTime: string;
+    let endDateTime: string;
+    
+    if (eventTime) {
+      // Parse the time (format: HH:mm or HH:mm AM/PM)
+      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if AM/PM is present
+        if (period === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        const startDate = dateObj.hour(hours).minute(minutes);
+        const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
+        
+        startDateTime = startDate.format('YYYYMMDDTHHmmss');
+        endDateTime = endDate.format('YYYYMMDDTHHmmss');
+      } else {
+        // If time parsing fails, use date only
+        startDateTime = dateObj.format('YYYYMMDD');
+        endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+      }
+    } else {
+      // No time provided, use all-day event format
+      startDateTime = dateObj.format('YYYYMMDD');
+      endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
+    }
+    
+    // Build Google Calendar URL
+    const baseUrl = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_BASE_URL!;
+    const params = new URLSearchParams({
+      text: eventTitle,
+      dates: `${startDateTime}/${endDateTime}`,
+      details: `Register for ${eventTitle} on SOCIO platform`
+    });
+    
+    return `${baseUrl}&${params.toString()}`;
+  } catch (error) {
+    console.error('Error generating calendar URL:', error);
+    return null;
+  }
+};
+
+const Page = () => {
+  const routeParams = useParams();
+  const router = useRouter();
+  const { userData, isLoading: authIsLoading } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+  const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
+
+  const { allEvents, isLoading: contextIsLoading, error: contextError } = useEvents();
+  const eventId = routeParams?.id;
+
+  // State
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [eventLoading, setEventLoading] = useState(true);
+  const [eventPageError, setEventPageError] = useState<string | null>(null);
+
+  const [isIndividualEvent, setIsIndividualEvent] = useState(false);
+  const [minTeammates, setMinTeammates] = useState(1);
+  const [maxTeammates, setMaxTeammates] = useState(1);
+  const [visibleTeammateCount, setVisibleTeammateCount] = useState(1);
+
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [formData, setFormData] = useState<{
+    teamName: string;
+    teammates: Teammate[];
+  }>({
+    teamName: "",
+    teammates: [{ name: "", registerNumber: "", email: "" }],
+  });
+  const [errors, setErrors] = useState<FormErrors>({
+    teamName: "",
+    teammates: [{}],
+    customFields: {},
+  });
+  const [customFieldResponses, setCustomFieldResponses] = useState<Record<string, string | number>>({});
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [registrationId, setRegistrationId] = useState<string | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(
+    null
+  );
+  const [openVisitorHelpFor, setOpenVisitorHelpFor] = useState<number | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!eventId) {
+      setEventPageError("Event ID is missing or invalid.");
+      setEventLoading(false);
+      return;
+    }
+    if (contextIsLoading) {
+      setEventLoading(true);
+      return;
+    }
+    if (contextError) {
+      setEventPageError(contextError);
+      setSelectedEvent(null);
+      setEventLoading(false);
+      return;
+    }
+    if (allEvents.length > 0) {
+      const foundEvent = allEvents.find((e) => e.event_id === eventId);
+      if (foundEvent) {
+        const isEventArchived = Boolean(foundEvent.is_archived);
+
+        if (isEventArchived && authIsLoading) {
+          setEventLoading(true);
+          return;
+        }
+
+        if (isEventArchived && !isAdminOrOrganizer) {
+          setSelectedEvent(null);
+          setEventPageError("This event is archived and registration is closed.");
+          setEventLoading(false);
+          return;
+        }
+
+        // Parse custom_fields - handle all possible formats
+        let parsedCustomFields: any[] = [];
+        const rawCustomFields: unknown = foundEvent.custom_fields;
+        
+        // Handle JSON string (cast to unknown first to allow string check)
+        if (typeof rawCustomFields === 'string' && (rawCustomFields as string).trim() !== '') {
+          try {
+            const parsed = JSON.parse(rawCustomFields as string);
+            if (Array.isArray(parsed)) {
+              parsedCustomFields = parsed;
+            }
+          } catch (e) {
+            console.warn('Failed to parse custom_fields JSON:', e);
+            parsedCustomFields = [];
+          }
+        } 
+        // Handle array directly
+        else if (Array.isArray(rawCustomFields)) {
+          parsedCustomFields = rawCustomFields;
+        }
+        
+        // Debug log to help troubleshoot
+        console.log('🔍 Custom Fields Debug:', {
+          eventId: foundEvent.event_id,
+          rawCustomFields,
+          parsedCustomFields,
+          rawType: typeof rawCustomFields,
+          isArray: Array.isArray(rawCustomFields),
+          fieldCount: parsedCustomFields.length
+        });
+        
+        setSelectedEvent({
+          ...foundEvent,
+          custom_fields: parsedCustomFields,
+        });
+        setEventPageError(null);
+        const teamSize = foundEvent.participants_per_team ?? 1;
+        const minTeamSizeRaw = Number((foundEvent as any).min_participants ?? (teamSize > 1 ? 2 : 1));
+        const minTeamSize =
+          teamSize > 1 ? Math.min(Math.max(minTeamSizeRaw, 2), teamSize) : 1;
+        setMinTeammates(minTeamSize);
+        setMaxTeammates(teamSize);
+        setIsIndividualEvent(teamSize <= 1);
+      } else {
+        setSelectedEvent(null);
+        setEventPageError(`Event with ID "${eventId}" not found.`);
+      }
+      setEventLoading(false);
+    }
+  }, [eventId, allEvents, contextIsLoading, contextError, authIsLoading, isAdminOrOrganizer]);
+
+  useEffect(() => {
+    if (selectedEvent && !authIsLoading && userData) {
+      const teamSize = selectedEvent.participants_per_team ?? 1;
+      const minTeamSizeRaw = Number(
+        (selectedEvent as any).min_participants ?? (teamSize > 1 ? 2 : 1)
+      );
+      const minimumVisibleTeammates =
+        teamSize > 1 ? Math.min(Math.max(minTeamSizeRaw, 2), teamSize) : 1;
+      const individual = teamSize <= 1;
+
+      const firstTeammateData: Teammate = {
+        name: userData.name || "",
+        registerNumber:
+          userData.register_number != null
+            ? String(userData.register_number)
+            : "",
+        email: userData.email || "",
+      };
+
+      const initialTeammates: Teammate[] = [];
+      const initialErrorsTeammates: FormErrors["teammates"] = [];
+
+      initialTeammates.push({ ...firstTeammateData });
+      initialErrorsTeammates.push({});
+
+      if (!individual) {
+        for (let i = 1; i < teamSize; i++) {
+          initialTeammates.push({ name: "", registerNumber: "", email: "" });
+          initialErrorsTeammates.push({});
+        }
+      }
+
+      setFormData((prev) => ({
+        teamName: individual ? "" : prev.teamName,
+        teammates: initialTeammates,
+      }));
+      setErrors((prev) => ({
+        teamName: individual ? "" : prev.teamName,
+        teammates: initialErrorsTeammates,
+      }));
+      setVisibleTeammateCount(minimumVisibleTeammates);
+    }
+  }, [selectedEvent, userData, authIsLoading]);
+
+  const isRequiredTeammate = (index: number): boolean => {
+    if (isIndividualEvent) {
+      return index === 0;
+    }
+    return index < minTeammates;
+  };
+
+  const validateField = (
+    field: keyof Teammate | "teamName",
+    value: string,
+    index?: number
+  ): string => {
+    let error = "";
+    const trimmedValue = typeof value === "string" ? value.trim() : "";
+
+    if (!trimmedValue) {
+      const isFirstTeammate = index === 0;
+      if (field === "registerNumber" && typeof index === "number") {
+        if (isRequiredTeammate(index)) {
+          error = "This field is required";
+        }
+      } else if (
+        (field === "name" || field === "email") &&
+        typeof index === "number" &&
+        !isFirstTeammate
+      ) {
+      } else {
+        error = "This field is required";
+      }
+    } else if (field === "registerNumber") {
+      const isRegisterNumber = /^\d{7}$/.test(trimmedValue);
+      const isVisitorId = /^VIS[A-Z0-9]+$/i.test(trimmedValue);
+      const isStaffId = /^STF[A-Z0-9]+$/i.test(trimmedValue);
+      if (!isRegisterNumber && !isVisitorId && !isStaffId) {
+        error = "Register number must be 7 digits or a valid Visitor/Staff ID (VIS.../STF...)";
+      }
+    } else if (
+      field === "email" &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)
+    ) {
+      error = "Invalid email format";
+    }
+    return error;
+  };
+
+  const handleTeamNameChange = (value: string) => {
+    setFormData({ ...formData, teamName: value });
+    if (errors.teamName || value.trim()) {
+      setErrors((prev) => ({
+        ...prev,
+        teamName: validateField("teamName", value),
+      }));
+    }
+  };
+
+  const handleTeammateChange = (
+    index: number,
+    field: keyof Teammate,
+    value: string
+  ) => {
+    const updatedTeammates = [...formData.teammates];
+    updatedTeammates[index] = {
+      ...updatedTeammates[index],
+      [field]: value,
+    };
+    setFormData({ ...formData, teammates: updatedTeammates });
+
+    if (errors.teammates[index]?.[field] || value.trim()) {
+      const newTeammateErrors = [...errors.teammates];
+      newTeammateErrors[index] = {
+        ...newTeammateErrors[index],
+        [field]: validateField(field, value, index),
+      };
+      setErrors((prev) => ({ ...prev, teammates: newTeammateErrors }));
+    }
+  };
+
+  const handleAddTeammate = () => {
+    setVisibleTeammateCount((prev) => Math.min(prev + 1, maxTeammates));
+  };
+
+  const handleRemoveTeammate = () => {
+    if (visibleTeammateCount <= minTeammates) {
+      return;
+    }
+
+    const removedIndex = visibleTeammateCount - 1;
+
+    setVisibleTeammateCount((prev) => Math.max(minTeammates, prev - 1));
+
+    setFormData((prev) => {
+      const updatedTeammates = [...prev.teammates];
+      if (updatedTeammates[removedIndex]) {
+        updatedTeammates[removedIndex] = {
+          name: "",
+          registerNumber: "",
+          email: "",
+        };
+      }
+      return {
+        ...prev,
+        teammates: updatedTeammates,
+      };
+    });
+
+    setErrors((prev) => {
+      const updatedTeammateErrors = [...prev.teammates];
+      if (updatedTeammateErrors[removedIndex]) {
+        updatedTeammateErrors[removedIndex] = {};
+      }
+      return {
+        ...prev,
+        teammates: updatedTeammateErrors,
+      };
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegistrationError(null);
+
+    let hasErrors = false;
+    const newErrors: FormErrors = {
+      teamName: "",
+      teammates: formData.teammates.map(() => ({})),
+      customFields: {},
+    };
+
+    if (!isIndividualEvent) {
+      const teamNameError = validateField("teamName", formData.teamName);
+      if (teamNameError) {
+        newErrors.teamName = teamNameError;
+        hasErrors = true;
+      }
+    }
+
+    // Validate custom fields
+    const eventCustomFields = selectedEvent?.custom_fields as CustomField[] | undefined;
+    if (eventCustomFields && eventCustomFields.length > 0) {
+      const customFieldValidation = validateCustomFields(eventCustomFields, customFieldResponses);
+      if (!customFieldValidation.isValid) {
+        newErrors.customFields = customFieldValidation.errors;
+        hasErrors = true;
+      }
+    }
+
+    const activeTeammates = formData.teammates.slice(0, visibleTeammateCount);
+
+    activeTeammates.forEach((teammate, i) => {
+      const currentTeammateErrors: FormErrors["teammates"][0] = {};
+      const fieldsToValidate: (keyof Teammate)[] = [];
+
+      if (i === 0) {
+        fieldsToValidate.push("name", "email");
+      }
+
+      const shouldValidateRegisterNumber =
+        isRequiredTeammate(i) || teammate.registerNumber.trim().length > 0;
+      if (shouldValidateRegisterNumber) {
+        fieldsToValidate.push("registerNumber");
+      }
+
+      fieldsToValidate.forEach((field) => {
+        const value = teammate[field];
+        const error = validateField(field, value, i);
+        if (error) {
+          currentTeammateErrors[field] = error;
+          hasErrors = true;
+        }
+      });
+      newErrors.teammates[i] = currentTeammateErrors;
+    });
+
+    const registerNumberUsage = new Map<string, number[]>();
+    activeTeammates.forEach((teammate, index) => {
+      const regNum = teammate.registerNumber.trim();
+
+      if (regNum && !newErrors.teammates[index]?.registerNumber) {
+        if (!registerNumberUsage.has(regNum)) {
+          registerNumberUsage.set(regNum, []);
+        }
+        registerNumberUsage.get(regNum)!.push(index);
+      }
+    });
+
+    registerNumberUsage.forEach((indices, regNum) => {
+      if (indices.length > 1) {
+        indices.forEach((dupIndex) => {
+          if (!newErrors.teammates[dupIndex].registerNumber) {
+            newErrors.teammates[dupIndex].registerNumber =
+              "Register number must be unique.";
+            hasErrors = true;
+          }
+        });
+      }
+    });
+
+    setErrors(newErrors);
+
+    if (!hasErrors && selectedEvent?.event_id) {
+      setSubmitLoading(true);
+
+      const teammatesToSubmit = activeTeammates
+        .map((tm, index) => ({
+          name: tm.name.trim(),
+          registerNumber: tm.registerNumber.trim(),
+          email: tm.email.trim(),
+          isRequired: isRequiredTeammate(index),
+        }))
+        .filter((tm) => {
+          if (tm.isRequired) {
+            return true;
+          }
+          return Boolean(tm.name || tm.registerNumber || tm.email);
+        })
+        .map(({ isRequired, ...teammate }) => teammate);
+
+      const payload = {
+        eventId: selectedEvent.event_id,
+        teamName: isIndividualEvent ? null : formData.teamName.trim() || null,
+        teammates: teammatesToSubmit,
+        custom_field_responses: Object.keys(customFieldResponses).length > 0 ? customFieldResponses : null,
+      };
+
+      try {
+        const response = await fetch(`${API_URL}/api/register`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        setSubmitLoading(false);
+
+        if (response.ok) {
+          const responseData = await response.json();
+          const regId = responseData.registration?.registration_id;
+          if (regId && eventId) {
+            router.push(`/event/${eventId}/ticket/${regId}`);
+          } else {
+            setRegistrationId(regId || null);
+            setShowSuccessMessage(true);
+          }
+        } else {
+          const errorData = await response.json();
+          setRegistrationError(
+            errorData.error ||
+              errorData.message ||
+              "Registration failed. Please try again."
+          );
+          console.error("Registration failed:", errorData);
+        }
+      } catch (error) {
+        setSubmitLoading(false);
+        setRegistrationError(
+          "An unexpected error occurred. Please check your connection and try again."
+        );
+        console.error(
+          "Network or unexpected error during registration:",
+          error
+        );
+      }
+    } else if (!selectedEvent?.event_id) {
+      setRegistrationError(
+        "Cannot submit registration: Event details are missing."
+      );
+    }
+  };
+
+  if (eventLoading || authIsLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[80vh]">
+        <svg
+          className="animate-spin h-8 w-8 text-[#063168]"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          ></circle>
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+      </div>
+    );
+  }
+
+  if (eventPageError || !selectedEvent || (!authIsLoading && !userData)) {
+    const handleLoginClick = () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('returnTo', window.location.pathname);
+      }
+      router.push('/auth');
+    };
+
+    return (
+      <div className="flex flex-col justify-center items-center min-h-[80vh] text-center px-4">
+        <p className="text-xl text-gray-700 mb-4">
+          {eventPageError ||
+            (!selectedEvent
+              ? "Could not load event details."
+              : "Please log in or sign up to register for this event")}
+        </p>
+        {!eventPageError && selectedEvent === null && !userData && (
+          <button
+            onClick={handleLoginClick}
+            className="mt-4 bg-[#154CB3] text-white py-2 px-6 rounded hover:bg-[#063168] transition-colors font-medium"
+          >
+            Log in or Sign up
+          </button>
+        )}
+        {(eventPageError || selectedEvent !== null) && (
+          <Link
+            href="/"
+            className="mt-4 bg-[#063168] text-white py-2 px-4 rounded hover:bg-[#154CB3]"
+          >
+            Go to Homepage
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  if (showSuccessMessage) {
+    return (
+      <div>
+        <div className="min-h-[80vh] flex items-center justify-center p-4">
+          <div className="bg-white p-6 sm:p-8 rounded-xl border-2 border-gray-200 text-center w-full max-w-md shadow-lg">
+            <div className="bg-green-100 text-green-800 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-8 h-8"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12.75l6 6 9-13.5"
+                />
+              </svg>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
+              Registration successful!
+            </h2>
+            <p className="text-gray-600 mb-6">
+              You have successfully registered for {selectedEvent.title}.
+            </p>
+
+            <div className="flex flex-col sm:flex-row justify-around gap-3">
+              <Link href={`/Discover`} className="w-full sm:w-auto">
+                <button className="w-full bg-[#154CB3] text-white py-2 px-6 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors">
+                  Back to Discover
+                </button>
+              </Link>
+              <button
+                onClick={() => {
+                  const calendarUrl = generateGoogleCalendarUrl(
+                    selectedEvent.title,
+                    selectedEvent.event_date,
+                    selectedEvent.event_time
+                  );
+                  if (calendarUrl) {
+                    window.open(calendarUrl, '_blank');
+                  }
+                }}
+                className="w-full sm:w-auto bg-blue-100 text-blue-600 py-2 px-6 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-4 h-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                  />
+                </svg>
+                Add to Calendar
+              </button>
+              {selectedEvent.whatsapp_invite_link && (
+                <a
+                  href={selectedEvent.whatsapp_invite_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto"
+                >
+                  <button className="w-full bg-green-200 text-green-600 py-2 px-6 rounded-full font-medium hover:bg-green-300 transition-colors flex items-center justify-center gap-2">
+                    Join Whatsapp Group
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                      />
+                    </svg>
+                  </button>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const registrationFee =
+    selectedEvent.registration_fee != null && selectedEvent.registration_fee > 0
+      ? `₹${selectedEvent.registration_fee}`
+      : "Free";
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-[#063168] text-white p-4 md:p-10">
+        <div className="max-w-6xl mx-auto">
+          <Link
+            href={`/event/${eventId}`}
+            className="flex items-center text-[#FFCC00] mb-4 hover:underline text-sm sm:text-base"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="w-4 h-4 md:w-5 md:h-5 mr-1"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+              />
+            </svg>
+            Back to event
+          </Link>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">
+            {selectedEvent.title || "Event Registration"}
+          </h1>
+          <p className="text-sm sm:text-lg text-gray-200 mt-1">
+            {selectedEvent.organizing_dept || "Department"}
+          </p>
+          <p className="text-xs sm:text-sm text-gray-300 mt-2">
+            {isIndividualEvent
+              ? "Individual Event"
+              : minTeammates === maxTeammates
+              ? `Team Event (${maxTeammates} members)`
+              : `Team Event (${minTeammates}-${maxTeammates} members)`}
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-10">
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6 md:p-8 shadow-md">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4 sm:mb-6">
+            Registration Form
+          </h2>
+
+          {selectedEvent.registration_fee != null &&
+            selectedEvent.registration_fee > 0 && (
+              <div className="mb-6 flex items-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="bg-[#FFCC00] rounded-full w-10 h-10 flex items-center justify-center mr-3 flex-shrink-0">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-6 h-6 text-black"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-gray-800 font-medium">
+                    Registration Fee: {registrationFee}
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    Payment will be collected at the venue (if applicable).
+                  </p>
+                </div>
+              </div>
+            )}
+
+          {registrationError && (
+            <div className="mb-6 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-sm">
+              <p className="font-semibold">Registration Error:</p>
+              <p>{registrationError}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            {!isIndividualEvent && (
+              <div className="mb-6 sm:mb-8">
+                <label
+                  htmlFor="teamName"
+                  className="block mb-2 text-sm sm:text-base font-bold text-[#063168]"
+                >
+                  Team name: <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="teamName"
+                  value={formData.teamName}
+                  onChange={(e) => handleTeamNameChange(e.target.value)}
+                  onBlur={() =>
+                    setErrors((prev) => ({
+                      ...prev,
+                      teamName: validateField("teamName", formData.teamName),
+                    }))
+                  }
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg border ${
+                    errors.teamName ? "border-red-500" : "border-gray-300"
+                  } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent`}
+                  placeholder="Enter team name..."
+                />
+                {errors.teamName && (
+                  <p className="text-red-500 text-xs sm:text-sm mt-1">
+                    {errors.teamName}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {formData.teammates
+              .slice(0, visibleTeammateCount)
+              .map((teammate, index) => {
+                const isMandatoryMember = isRequiredTeammate(index);
+
+                return (
+              <div
+                key={index}
+                className="mb-6 sm:mb-8 p-4 border border-gray-200 rounded-lg bg-gray-50/50"
+              >
+                <div className="flex items-center mb-3 sm:mb-4">
+                  <div className="bg-[#063168] text-white rounded-full w-7 h-7 flex items-center justify-center mr-3 flex-shrink-0">
+                    <span className="text-sm font-semibold">{index + 1}</span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#063168]">
+                    {isIndividualEvent && index === 0
+                      ? "Participant Details"
+                      : index === 0
+                      ? "Participant 1 Details (Team Leader)"
+                      : `Participant ${index + 1} Details${
+                          isMandatoryMember ? ":" : " (Optional):"
+                        }`}
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:gap-6">
+                  {index === 0 && (
+                    <>
+                      <div>
+                        <label
+                          htmlFor={`name-${index}`}
+                          className="block mb-1 sm:mb-2 text-xs sm:text-sm font-medium text-gray-700"
+                        >
+                          Name: <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id={`name-${index}`}
+                          value={teammate.name}
+                          onChange={(e) =>
+                            handleTeammateChange(index, "name", e.target.value)
+                          }
+                          onBlur={() => {
+                            const err = validateField(
+                              "name",
+                              teammate.name,
+                              index
+                            );
+                            const newTeammateErrors = [...errors.teammates];
+                            if (!newTeammateErrors[index])
+                              newTeammateErrors[index] = {};
+                            newTeammateErrors[index].name = err;
+                            setErrors((prev) => ({
+                              ...prev,
+                              teammates: newTeammateErrors,
+                            }));
+                          }}
+                          className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg border ${
+                            errors.teammates[index]?.name
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-gray-100 cursor-not-allowed`}
+                          placeholder="Enter name..."
+                          disabled={true}
+                        />
+                        {errors.teammates[index]?.name && (
+                          <p className="text-red-500 text-xs sm:text-sm mt-1">
+                            {errors.teammates[index].name}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          htmlFor={`email-${index}`}
+                          className="block mb-1 sm:mb-2 text-xs sm:text-sm font-medium text-gray-700"
+                        >
+                          Email: <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          id={`email-${index}`}
+                          value={teammate.email}
+                          onChange={(e) =>
+                            handleTeammateChange(index, "email", e.target.value)
+                          }
+                          onBlur={() => {
+                            const err = validateField(
+                              "email",
+                              teammate.email,
+                              index
+                            );
+                            const newTeammateErrors = [...errors.teammates];
+                            if (!newTeammateErrors[index])
+                              newTeammateErrors[index] = {};
+                            newTeammateErrors[index].email = err;
+                            setErrors((prev) => ({
+                              ...prev,
+                              teammates: newTeammateErrors,
+                            }));
+                          }}
+                          className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg border ${
+                            errors.teammates[index]?.email
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-gray-100 cursor-not-allowed`}
+                          placeholder="Enter email..."
+                          disabled={true}
+                        />
+                        {errors.teammates[index]?.email && (
+                          <p className="text-red-500 text-xs sm:text-sm mt-1">
+                            {errors.teammates[index].email}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label
+                      htmlFor={`register-${index}`}
+                      className="mb-1 sm:mb-2 flex items-center text-xs sm:text-sm font-medium text-gray-700"
+                    >
+                      Register Number / Visitor ID:{" "}
+                      {isMandatoryMember && (
+                        <span className="text-red-500">*</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenVisitorHelpFor((prev) =>
+                            prev === index ? null : index
+                          )
+                        }
+                        aria-label="What is a Visitor ID?"
+                        className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#154CB3] text-[11px] font-bold text-[#154CB3] transition-colors hover:bg-[#154CB3] hover:text-white"
+                      >
+                        ?
+                      </button>
+                    </label>
+                    <input
+                      type="text"
+                      id={`register-${index}`}
+                      value={teammate.registerNumber}
+                      onChange={(e) =>
+                        handleTeammateChange(
+                          index,
+                          "registerNumber",
+                          e.target.value
+                        )
+                      }
+                      onBlur={() => {
+                        const err = validateField(
+                          "registerNumber",
+                          teammate.registerNumber,
+                          index
+                        );
+                        const newTeammateErrors = [...errors.teammates];
+                        if (!newTeammateErrors[index])
+                          newTeammateErrors[index] = {};
+                        newTeammateErrors[index].registerNumber = err;
+                        setErrors((prev) => ({
+                          ...prev,
+                          teammates: newTeammateErrors,
+                        }));
+                      }}
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg border ${
+                        errors.teammates[index]?.registerNumber
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent ${
+                        index === 0 ? "bg-gray-100 cursor-not-allowed" : ""
+                      }`}
+                      placeholder="Enter Register number or Visitor ID..."
+                      disabled={index === 0}
+                    />
+                    {openVisitorHelpFor === index && (
+                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs sm:text-sm text-blue-900">
+                        <p className="font-semibold">What is a Visitor ID?</p>
+                        <p className="mt-1">
+                          Visitor ID is for external participants and usually
+                          starts with <span className="font-semibold">VIS</span>.
+                        </p>
+                        <p className="mt-1">
+                          You will get it after registering on SOCIO. Open your
+                          profile page and check the ID badge (like in your
+                          second screenshot).
+                        </p>
+                        <Link
+                          href="/profile"
+                          className="mt-2 inline-block font-semibold text-[#154CB3] hover:underline"
+                        >
+                          Go to Profile
+                        </Link>
+                      </div>
+                    )}
+                    {errors.teammates[index]?.registerNumber && (
+                      <p className="text-red-500 text-xs sm:text-sm mt-1">
+                        {errors.teammates[index].registerNumber}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+                );
+              })}
+
+            {/* Team Member Management Info Box */}
+            {!isIndividualEvent && (
+              <div className="mt-6 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#063168]">
+                    Minimum members required: {minTeammates}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Add optional members only if needed (up to {maxTeammates}).
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRemoveTeammate}
+                    disabled={visibleTeammateCount <= minTeammates}
+                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Remove Member
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddTeammate}
+                    disabled={visibleTeammateCount >= maxTeammates}
+                    className="rounded-full bg-[#154CB3] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#154cb3eb] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Add Member
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Fields Section - Additional fields created by event organiser */}
+            {Array.isArray(selectedEvent?.custom_fields) && selectedEvent.custom_fields.length > 0 && (
+              <div className="mt-8 sm:mt-10">
+                {/* Section Divider */}
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t-2 border-dashed border-[#154CB3]/20"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-4 text-sm font-medium text-[#154CB3]">
+                      Additional Information Required
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#154CB3] to-[#063168] flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-[#063168]">Additional Details</h3>
+                      <p className="text-xs text-gray-500">Requested by the event organiser</p>
+                    </div>
+                  </div>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full font-medium border border-amber-200 w-fit">
+                    {selectedEvent.custom_fields.length} {selectedEvent.custom_fields.length === 1 ? 'Field' : 'Fields'}
+                  </span>
+                </div>
+                
+                {/* Custom Fields Container */}
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-[#EEF2FF] rounded-xl p-5 sm:p-6 border-2 border-[#154CB3]/10 shadow-sm">
+                  <CustomFieldRenderer
+                    fields={selectedEvent.custom_fields as CustomField[]}
+                    values={customFieldResponses}
+                    onChange={(fieldId, value) => {
+                      setCustomFieldResponses(prev => ({ ...prev, [fieldId]: value }));
+                      // Clear error when user starts typing
+                      if (errors.customFields?.[fieldId]) {
+                        setErrors(prev => ({
+                          ...prev,
+                          customFields: { ...prev.customFields, [fieldId]: "" }
+                        }));
+                      }
+                    }}
+                    errors={errors.customFields}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center w-full sm:w-auto">
+                <div className="bg-yellow-100 p-2 rounded-full mr-3 flex-shrink-0">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-5 h-5 text-yellow-700"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                    />
+                  </svg>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  Make sure to bring your ID card to the venue.
+                </p>
+              </div>
+
+              <div className="w-full sm:w-auto">
+                <button
+                  type="submit"
+                  className="cursor-pointer w-full sm:w-auto bg-[#154CB3] text-white py-2.5 sm:py-3 px-6 sm:px-8 rounded-full font-semibold hover:bg-[#154cb3eb] transition-colors flex items-center justify-center shadow-md"
+                  disabled={submitLoading}
+                >
+                  {submitLoading ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    "Register Now"
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div className="mt-6 sm:mt-8 bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6">
+          <div className="flex items-start">
+            <div className="bg-blue-100 p-2 rounded-full mr-3 mt-1 flex-shrink-0">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-5 h-5 text-blue-700"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-base sm:text-lg font-semibold text-[#063168] mb-2">
+                Important Information
+              </h4>
+              <ul className="text-xs sm:text-sm text-gray-600 space-y-2">
+                {selectedEvent.registration_deadline && (
+                  <li>
+                    • Registration closes on{" "}
+                    {dayjs(selectedEvent.registration_deadline).format(
+                      "MMM Do, YYYY"
+                    )}
+                    .
+                  </li>
+                )}
+                {!isIndividualEvent && (
+                  <li>• All team members must be present at the event.</li>
+                )}
+                {selectedEvent.organizer_email && (
+                  <li>
+                    • For any queries, contact: {selectedEvent.organizer_email}.
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Page;
+
