@@ -8,6 +8,7 @@ import NotificationBell from "./NotificationBell";
 import TermsConsentModal from "./TermsConsentModal";
 import {
   getAccessibleServiceRoleDashboards,
+  hasAnyRoleCode,
 } from "@/lib/roleDashboards";
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -163,7 +164,10 @@ function NavigationBar() {
   const isCfo = Boolean((userData as any)?.is_cfo);
   const isStudentOrganiser = Boolean((userData as any)?.is_organiser_student);
   const isVolunteer = Boolean((userData as any)?.is_volunteer);
-  const isFinanceOfficer = Boolean((userData as any)?.is_finance_officer);
+  const isFinanceOfficer =
+    Boolean((userData as any)?.is_finance_officer) ||
+    Boolean((userData as any)?.is_finance_office) ||
+    hasAnyRoleCode(userRecord, ["ACCOUNTS", "FINANCE_OFFICER"]);
   const accessibleServiceRoleDashboards = getAccessibleServiceRoleDashboards(userRecord, isMasterAdmin);
   // Only allow dashboard if user has that role, or admin (admin handled separately)
   const canOpenManageDashboard = isOrganiser;
