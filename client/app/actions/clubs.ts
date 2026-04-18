@@ -46,40 +46,15 @@ const slugify = (value: string): string =>
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 
-async function createUniqueSlug(baseName: string): Promise<string> {
-  const supabase = getSupabase();
-  const baseSlug = slugify(baseName) || `club-${Date.now().toString(36)}`;
-
-  const { data, error } = await supabase
-    .from("clubs")
-    .select("slug")
-    .ilike("slug", `${baseSlug}%`);
-
-  if (error) {
-    throw new Error(`Unable to validate slug uniqueness: ${error.message}`);
-  }
-
-  const existing = new Set(
-    (data ?? [])
-      .map((row) => String((row as { slug?: string | null }).slug ?? "").toLowerCase())
-      .filter(Boolean)
-  );
-
-  if (!existing.has(baseSlug)) {
-    return baseSlug;
-  }
-
-  let suffix = 2;
-  while (existing.has(`${baseSlug}-${suffix}`)) {
-    suffix += 1;
-  }
-
-  return `${baseSlug}-${suffix}`;
-}
+const createSlugFromClubName = (clubName: string): string => {
+  const baseSlug = slugify(clubName) || "club";
+  return `${baseSlug}-${Date.now().toString(36)}`;
+};
 
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error("Supabase env vars missing");
   return createClient(url, key);
 }
@@ -212,7 +187,7 @@ export async function createClub(input: CreateClubInput): Promise<{
     }
 
     const supabase = getSupabase();
-    const slug = await createUniqueSlug(clubName);
+    const slug = createSlugFromClubName(clubName);
 
     const { data, error } = await supabase
       .from("clubs")
@@ -233,6 +208,12 @@ export async function createClub(input: CreateClubInput): Promise<{
       .single();
 
     if (error) {
+      if (error.code === "23505") {
+        return {
+          ok: false,
+          error: "A club with this slug already exists. Please retry with a different name.",
+        };
+      }
       return { ok: false, error: error.message };
     }
 
