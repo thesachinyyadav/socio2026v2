@@ -8,7 +8,9 @@ interface CardProps {
   link?: string;
   slug?: string;
   image?: string;
-  type: "center" | "club";
+  type: "center" | "club" | "cell";
+  showEditButton?: boolean;
+  editHref?: string;
 }
 
 export const CentreClubCard = ({
@@ -19,6 +21,8 @@ export const CentreClubCard = ({
   slug,
   image,
   type,
+  showEditButton = false,
+  editHref,
 }: CardProps) => {
   const [imageError, setImageError] = useState(false);
   // Use provided slug or create URL-friendly version of title for linking
@@ -28,17 +32,24 @@ export const CentreClubCard = ({
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
   
-  // Always use internal links for centres/clubs
-  const LinkWrapper = ({ children }: { children: React.ReactNode }) => {
-    return (
-      <Link href={`/club/${slugTitle}`} className="w-full block h-full min-w-0">
-        {children}
-      </Link>
-    );
-  };
-
   return (
-    <LinkWrapper>
+    <div className="relative h-full min-w-0">
+      {showEditButton && editHref ? (
+        <Link
+          href={editHref}
+          onClick={(event) => event.stopPropagation()}
+          className="absolute left-3 top-3 z-30 inline-flex items-center gap-1 rounded-full bg-[#154CB3] px-2.5 py-1 text-[11px] font-semibold text-white shadow-md hover:bg-[#0f3f95]"
+          aria-label={`Edit ${title}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M17.414 2.586a2 2 0 010 2.828l-8.9 8.9a1 1 0 01-.39.242l-3 1a1 1 0 01-1.266-1.266l1-3a1 1 0 01.242-.39l8.9-8.9a2 2 0 012.828 0z" />
+            <path d="M4 16a1 1 0 100 2h12a1 1 0 100-2H4z" />
+          </svg>
+          Edit
+        </Link>
+      ) : null}
+
+      <Link href={`/club/${slugTitle}`} className="w-full block h-full min-w-0">
       <div className="bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-md h-full border border-blue-100 group w-full min-w-0">
         <div className="relative h-48 overflow-hidden">
           {image && !imageError ? (
@@ -53,13 +64,13 @@ export const CentreClubCard = ({
               />
               <div className="absolute top-3 right-3 z-20">
                 <div className="bg-[#063168]/90 text-white text-xs uppercase font-bold py-1 px-2 rounded-full">
-                  {type === "center" ? "Centre" : "Club"}
+                  {type === "center" ? "Centre" : type === "cell" ? "Cell" : "Club"}
                 </div>
               </div>
             </>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-[#3D75BD]/5 to-[#063168]/10">
-              {type === "center" ? (
+              {type === "center" || type === "cell" ? (
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="60"
@@ -139,6 +150,7 @@ export const CentreClubCard = ({
           </div>
         </div>
       </div>
-    </LinkWrapper>
+      </Link>
+    </div>
   );
 };

@@ -1,198 +1,223 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { getCentreBySlug, Centre } from "@/app/lib/centresData";
+import supabase from "@/lib/supabaseClient";
+import { ClubRecord } from "@/app/actions/clubs";
+import { useAuth } from "@/context/AuthContext";
 import Footer from "@/app/_components/Home/Footer";
 
-const CentreDetailsPage = () => {
+const ClubDetailsPage = () => {
   const params = useParams();
-  const slug = params.id as string;
-  const [centre, setCentre] = useState<Centre | null>(null);
+  const id = String(params.id ?? "");
+  const { userData, session } = useAuth();
+
+  const [club, setClub] = useState<ClubRecord | null>(null);
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showJoinMessage, setShowJoinMessage] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [joinMessage, setJoinMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (slug) {
-      const foundCentre = getCentreBySlug(slug);
-      setCentre(foundCentre || null);
+    let isMounted = true;
+
+    const fetchClub = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const bySlug = await supabase.from("clubs").select("*").eq("slug", id).maybeSingle();
+        const resolved = bySlug.data
+          ? bySlug
+          : await supabase.from("clubs").select("*").eq("club_id", id).maybeSingle();
+
+        if (!isMounted) return;
+
+        if (resolved.error) {
+          throw new Error(resolved.error.message);
+        }
+
+        const nextClub = (resolved.data ?? null) as ClubRecord | null;
+        setClub(nextClub);
+      } catch (fetchError) {
+        if (!isMounted) return;
+        setError(fetchError instanceof Error ? fetchError.message : "Failed to load club.");
+        setClub(null);
+      } finally {
+        if (!isMounted) return;
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      void fetchClub();
+    } else {
       setLoading(false);
+      setClub(null);
     }
-  }, [slug]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#154CB3]"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-[#154CB3]" />
       </div>
     );
   }
 
-  if (!centre) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-white">
-        <div className="container mx-auto px-4 py-20 text-center">
-          <h1 className="text-4xl font-bold text-[#063168] mb-4">Centre Not Found</h1>
-          <p className="text-gray-600 mb-8">The centre you're looking for doesn't exist.</p>
-          <Link href="/clubs" className="bg-[#154CB3] text-white px-6 py-3 rounded-lg hover:bg-[#063168] transition">
-            Back to Centres
-          </Link>
-        </div>
+      <div className="min-h-screen bg-white px-4 py-20 text-center">
+        <h1 className="text-3xl font-bold text-[#063168]">Failed to load details</h1>
+        <p className="mt-3 text-gray-600">{error}</p>
       </div>
     );
   }
+
+  if (!club) {
+    return (
+      <div className="min-h-screen bg-white px-4 py-20 text-center">
+        <h1 className="text-3xl font-bold text-[#063168]">Organization not found</h1>
+        <p className="mt-3 text-gray-600">The organization you are looking for does not exist.</p>
+      </div>
+    );
+  }
+
+  const entityLabel =
+    club.type === "centre" ? "Centre" : club.type === "cell" ? "Cell" : "Club";
+  const name = club.club_name || entityLabel;
+  const subtitle = club.subtitle || "";
+  const description = club.club_description || "";
+  const bannerUrl = club.club_banner_url || "";
+  const website = club.club_web_link || "";
+  const category = club.category || "Uncategorized";
+  const currentEmail = String(userData?.email || session?.user?.email || "")
+    .trim()
+    .toLowerCase();
+  const editors = Array.isArray(club.club_editors) ? club.club_editors : [];
+  const canEditClub =
+    Boolean(userData?.is_masteradmin) ||
+    editors.some((editor) => String(editor || "").trim().toLowerCase() === currentEmail);
+
+  const handleJoinClick = () => {
+    setJoinMessage(club.club_registrations ? "Coming soon" : "Registrations closed");
+  };
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <div className="relative w-full h-64 sm:h-80 md:h-96">
+      <section className="relative h-[260px] w-full overflow-hidden sm:h-[320px]">
         <div className="absolute inset-0">
-          {centre.image && !imageError ? (
+          {bannerUrl && !imageError ? (
             <img
-              src={centre.image}
-              alt={centre.title}
-              className="w-full h-full object-cover"
+              src={bannerUrl}
+              alt={name}
+              className="h-full w-full object-cover"
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-r from-[#063168] to-[#154CB3]" />
+            <div className="h-full w-full bg-gradient-to-b from-[#9ea2a8] to-[#46484d]" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black opacity-70"></div>
+          <div className="absolute inset-0 bg-black/35" />
         </div>
-        
-        {/* Back Button */}
-        <Link 
-          href="/clubs" 
-          className="absolute top-4 left-4 z-20 flex items-center gap-2 text-white bg-black/30 hover:bg-black/50 px-4 py-2 rounded-full transition"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-          Back
-        </Link>
-
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8 text-white">
-          <div className="container mx-auto max-w-7xl">
-            <span className="inline-block px-3 py-1 text-xs bg-[#154CB3] text-white rounded-full mb-3">
-              {centre.category}
-            </span>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-2">
-              {centre.title}
-            </h1>
-            {centre.subtitle && (
-              <p className="text-lg sm:text-xl text-white/90">
-                {centre.subtitle}
-              </p>
-            )}
-          </div>
+        <div className="absolute left-4 top-4 z-20">
+          <Link
+            href="/clubs"
+            className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/28 px-4 py-2 text-[15px] font-medium text-white backdrop-blur-md transition-colors duration-200 hover:bg-white/36"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 111.414 1.414L7.414 8H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Back
+          </Link>
         </div>
-      </div>
+        {canEditClub ? (
+          <div className="absolute right-6 top-6 z-20">
+            <Link
+              href={`/edit/clubs/${club.club_id}`}
+              className="inline-flex items-center gap-2 rounded-full bg-[#154CB3] px-4 py-2 text-sm font-semibold text-white shadow-lg hover:bg-[#0f3f95]"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M17.414 2.586a2 2 0 010 2.828l-8.9 8.9a1 1 0 01-.39.242l-3 1a1 1 0 01-1.266-1.266l1-3a1 1 0 01.242-.39l8.9-8.9a2 2 0 012.828 0z" />
+                <path d="M4 16a1 1 0 100 2h12a1 1 0 100-2H4z" />
+              </svg>
+               {`Edit ${entityLabel.toLowerCase()}`}
+             </Link>
+           </div>
+         ) : null}
 
-      {/* Content Section */}
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-[#063168] mb-4">About</h2>
-              <p className="text-gray-700 leading-relaxed text-lg">
-                {centre.description}
-              </p>
-            </section>
+        <div className="absolute bottom-10 left-1/2 w-full max-w-6xl -translate-x-1/2 px-6 text-white">
+          <span className="inline-flex rounded-full bg-[#1f57c3] px-4 py-1 text-xs font-bold uppercase tracking-wide text-white">
+            {category}
+          </span>
+          <h1 className="mt-3 text-5xl font-black leading-none">{name}</h1>
+          {subtitle ? <p className="mt-3 text-2xl leading-tight sm:text-4xl">{subtitle}</p> : null}
+        </div>
+      </section>
 
-            {/* Placeholder for future content */}
-            <section className="mb-8 bg-[#f5f8fe] rounded-lg p-6">
-              <h2 className="text-xl font-bold text-[#063168] mb-4">What We Offer</h2>
-              <ul className="space-y-3 text-gray-700">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#154CB3] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Workshops and training programs</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#154CB3] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Research opportunities and resources</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#154CB3] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Networking and collaboration events</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#154CB3] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Mentorship and guidance</span>
-                </li>
-              </ul>
-            </section>
-          </div>
+      <main className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-6 py-10 lg:grid-cols-3">
+        <section className="lg:col-span-2">
+          <h2 className="text-4xl font-bold text-[#063168]">About</h2>
+          <p className="mt-4 text-xl leading-relaxed text-[#334155]">{description}</p>
+        </section>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-[#f5f8fe] rounded-lg p-6 mb-6 sticky top-4">
-              <h3 className="text-lg font-semibold text-[#154CB3] mb-4">
-                Quick Links
-              </h3>
-              
-              {centre.externalLink && (
+        <aside className="space-y-6">
+          <div className="rounded-xl bg-[#f3f6fc] p-6">
+            <h3 className="text-3xl font-bold text-[#1f57c3]">Quick Links</h3>
+            <div className="mt-5 space-y-4">
+              {website ? (
                 <a
-                  href={centre.externalLink}
+                  href={website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full bg-[#154CB3] text-white py-3 px-4 rounded-lg hover:bg-[#063168] transition duration-200 mb-4"
+                  className="block w-full rounded-[10px] bg-[#2253b5] px-4 py-3 text-center text-[17px] font-semibold text-white transition-colors duration-200 hover:bg-[#1b4699]"
                 >
-                  <span>Visit Official Website</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                  </svg>
+                  Visit Official Website
                 </a>
-              )}
-              
+              ) : null}
+
               <Link
                 href="/clubs"
-                className="flex items-center justify-center gap-2 w-full border-2 border-[#154CB3] text-[#154CB3] py-3 px-4 rounded-lg hover:bg-[#154CB3] hover:text-white transition duration-200"
+                className="block w-full rounded-[10px] border-2 border-[#2253b5] px-4 py-3 text-center text-[17px] font-medium text-[#2253b5] transition-colors duration-200 hover:bg-[#e9effb]"
               >
-                <span>Browse All Centres</span>
+                Browse all centres
               </Link>
 
               <button
                 type="button"
-                onClick={() => setShowJoinMessage(true)}
-                className="mt-4 flex items-center justify-center gap-2 w-full border-2 border-[#063168] text-[#063168] py-3 px-4 rounded-lg hover:bg-[#063168] hover:text-white transition duration-200"
+                onClick={handleJoinClick}
+                className="block w-full rounded-[10px] border-2 border-[#133f86] px-4 py-3 text-center text-[17px] font-medium text-[#133f86] transition-colors duration-200 hover:bg-[#edf2fb]"
               >
-                <span>Join {centre.title}</span>
+                Join {name}
               </button>
-
-              {showJoinMessage && (
-                <p className="mt-3 text-sm text-[#063168] bg-white border border-[#d6e4fb] rounded-lg px-3 py-2">
-                  Registrations opening soon.
-                </p>
-              )}
             </div>
 
-            <div className="bg-[#f5f8fe] rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-[#154CB3] mb-4">
-                Category
-              </h3>
-              <span className="inline-block px-4 py-2 bg-white text-[#154CB3] border border-[#154CB3] rounded-full text-sm font-medium">
-                {centre.category}
-              </span>
-            </div>
+            {joinMessage ? (
+              <p className="mt-3 rounded-md border border-[#d7e3f9] bg-white px-3 py-2 text-sm text-[#133f86]">
+                {joinMessage}
+              </p>
+            ) : null}
           </div>
-        </div>
+
+          <div className="rounded-xl bg-[#f3f6fc] p-6">
+            <h3 className="text-3xl font-bold text-[#1f57c3]">Category</h3>
+            <span className="mt-4 inline-flex rounded-full border border-[#2253b5] px-4 py-2 text-base font-medium text-[#2253b5]">
+              {category}
+            </span>
+          </div>
+        </aside>
       </main>
-      
       <Footer />
     </div>
   );
 };
 
-export default CentreDetailsPage;
+export default ClubDetailsPage;

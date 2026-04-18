@@ -1669,6 +1669,12 @@ export default function MasterAdminPage() {
                             <td className="px-6 py-5 text-right align-top">
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <a
+                                  href={`/edit/clubs/${club.club_id}`}
+                                  className="px-3.5 py-1.5 bg-[#154CB3] text-white text-xs font-semibold rounded-lg hover:bg-[#0f3f96] hover:-translate-y-0.5 transition-all"
+                                >
+                                  Edit
+                                </a>
+                                <a
                                   href={`/club/${club.slug || club.club_id}`}
                                   className="px-3.5 py-1.5 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
                                 >

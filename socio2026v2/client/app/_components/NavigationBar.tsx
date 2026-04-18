@@ -21,7 +21,7 @@ const navigationLinks = [
     dropdown: [
       { name: "All Events", href: "/events" },
       { name: "All Fests", href: "/fests" },
-      { name: "Centres & Cells", href: "/clubs" }
+      { name: "Clubs, Centres & Cells", href: "/clubs" }
     ]
   },
   {
