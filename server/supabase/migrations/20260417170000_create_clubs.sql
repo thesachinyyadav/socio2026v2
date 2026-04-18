@@ -15,6 +15,7 @@ create table clubs (
   club_banner_url      text check (club_banner_url like 'https://%' or club_banner_url is null),
   club_registrations   boolean not null default false,
   club_roles_available jsonb not null default '["member", "media", "operations"]'::jsonb,
+  club_campus          jsonb not null default '[]'::jsonb,
   club_editors         jsonb not null default '[]'::jsonb,
   club_web_link        text check (club_web_link like 'https://%' or club_web_link is null),
 
@@ -37,6 +38,7 @@ create index idx_clubs_slug     on clubs (slug);
 -- Comments
 comment on column clubs.club_registrations   is 'true = registrations open, false = closed';
 comment on column clubs.club_roles_available is 'JSON array of available roles e.g. ["member","media","operations"]';
+comment on column clubs.club_campus          is 'JSON array of campuses allowed to register e.g. ["Central Campus (Main)","Kengeri Campus"]';
 comment on column clubs.club_editors         is 'JSON array of editor emails e.g. ["a@org.com","b@org.com"]';
 comment on column clubs.club_web_link        is 'Official club/centre website URL (must be https)';
 comment on column clubs.slug                 is 'URL-safe identifier used in /club/[slug] routes';

@@ -1161,7 +1161,7 @@ export default function MasterAdminPage() {
     { id: "users" as const, label: "Users", icon: <Users className="w-4 h-4" />, count: users.length },
     { id: "events" as const, label: "Events", icon: <CalendarDays className="w-4 h-4" />, count: events.length },
     { id: "fests" as const, label: "Fests", icon: <Trophy className="w-4 h-4" />, count: fests.length },
-    { id: "clubs" as const, label: "Clubs and Centres", icon: <Building2 className="w-4 h-4" /> },
+    { id: "clubs" as const, label: "Centres and Clubs", icon: <Building2 className="w-4 h-4" /> },
     { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-4 h-4" /> },
     { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" /> },
   ];

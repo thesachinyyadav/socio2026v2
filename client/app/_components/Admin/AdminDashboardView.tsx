@@ -641,6 +641,12 @@ export default function AdminDashboardView({
           >
             <Plus className="w-4 h-4" /> Create Fest
           </Link>
+          <Link
+            href="/create/clubs"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold border-2 border-[#154cb3] text-[#154cb3] bg-white px-3.5 py-2 rounded-full hover:bg-blue-50 transition-all"
+          >
+            <Plus className="w-4 h-4" /> Create Club
+          </Link>
         </div>
       </div>
 
