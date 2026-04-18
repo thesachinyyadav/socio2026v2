@@ -43,11 +43,12 @@ export async function getCentreBySlug(slug: string): Promise<ClubRecord | null> 
   const { data, error } = await supabase
     .from("clubs")
     .select("*")
-    .ilike("slug", slug)
+    .eq("slug", slug)
     .single();
 
   if (error) {
-    console.error("getCentreBySlug error:", error.message);
+    if (error.code === "PGRST116") return null; // not found — expected
+    console.error("getCentreBySlug error:", error.message); // real DB error
     return null;
   }
   return data;
