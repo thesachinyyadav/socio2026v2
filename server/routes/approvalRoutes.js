@@ -374,17 +374,19 @@ router.get(
           .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", assignee_user_id: String(user.id) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned — school + campus must both match
+        // Unassigned — school must match; campus must match OR be null (no campus set on the fest)
         let unassigned = [];
-        if (user.school && user.campus) {
+        if (user.school) {
           const { data: unassignedRows } = await supabase
             .from("approvals")
             .select("*")
             .eq("organizing_school_snapshot", user.school)
-            .eq("organizing_campus_snapshot", user.campus)
+            .or(`organizing_campus_snapshot.eq.${user.campus || ""},organizing_campus_snapshot.is.null`)
             .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
-          unassigned = unassignedRows || [];
+          unassigned = (unassignedRows || []).filter(r =>
+            !user.campus || !r.organizing_campus_snapshot || r.organizing_campus_snapshot === user.campus
+          );
         }
 
         const seenIds = new Set();
@@ -401,17 +403,19 @@ router.get(
           .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", assignee_user_id: String(user.id) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned — school + campus must both match
+        // Unassigned — school must match; campus must match OR be null
         let unassigned = [];
-        if (user.school && user.campus) {
+        if (user.school) {
           const { data: unassignedRows } = await supabase
             .from("approvals")
             .select("*")
             .eq("organizing_school_snapshot", user.school)
-            .eq("organizing_campus_snapshot", user.campus)
+            .or(`organizing_campus_snapshot.eq.${user.campus || ""},organizing_campus_snapshot.is.null`)
             .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
-          unassigned = unassignedRows || [];
+          unassigned = (unassignedRows || []).filter(r =>
+            !user.campus || !r.organizing_campus_snapshot || r.organizing_campus_snapshot === user.campus
+          );
         }
 
         // Sequential: HOD must be done before Dean can act
@@ -551,6 +555,80 @@ router.get(
       });
     } catch (error) {
       console.error("[Approvals] GET /approvals/:itemId error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// PATCH /api/approvals/:itemId/workflow – Update stage configuration
+// Creator or masteradmin can update stages before any blocking stage is acted on
+// ---------------------------------------------------------------------------
+router.patch(
+  "/approvals/:itemId/workflow",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const { customStages, budgetItems } = req.body;
+      const user = req.userInfo;
+
+      if (!customStages || !Array.isArray(customStages) || customStages.length === 0) {
+        return res.status(400).json({ error: "customStages array is required" });
+      }
+
+      const record = await queryOne("approvals", { where: { event_or_fest_id: itemId } });
+      if (!record) return res.status(404).json({ error: "Approval record not found" });
+
+      const isCreator = record.submitted_by === user.email;
+      if (!isCreator && !user.is_masteradmin) {
+        return res.status(403).json({ error: "Only the creator or a masteradmin can update the workflow" });
+      }
+
+      // Cannot change workflow once any blocking stage has been acted on
+      const actedOn = (record.stages || []).some(
+        s => s.blocking && (s.status === "approved" || s.status === "rejected")
+      );
+      if (actedOn) {
+        return res.status(409).json({ error: "Workflow cannot be changed after a blocking stage has been acted on" });
+      }
+
+      const orgDept   = record.organizing_department_snapshot;
+      const orgSchool = record.organizing_school_snapshot;
+      const orgCampus = record.organizing_campus_snapshot;
+
+      // Rebuild stages — preserve status of any stage already in the record
+      const existingByRole = {};
+      for (const s of (record.stages || [])) existingByRole[s.role] = s;
+
+      const assigneeCache = {};
+      const newStages = await Promise.all(customStages.map(async (s, idx) => {
+        const existing = existingByRole[s.role];
+        if (existing) {
+          // Preserve existing status + assignee if already assigned
+          return { ...existing, step: idx, label: s.label, blocking: s.blocking };
+        }
+        if (!assigneeCache[s.role]) {
+          assigneeCache[s.role] = await autoAssignUser(s.role, orgDept, orgSchool, orgCampus);
+        }
+        return makeStageObject(idx, s.role, s.label, s.blocking, false, assigneeCache[s.role] || null);
+      }));
+
+      const updates = { stages: newStages, updated_at: new Date().toISOString() };
+      if (Array.isArray(budgetItems)) updates.budget_items = budgetItems;
+
+      const { data: updated } = await supabase
+        .from("approvals")
+        .update(updates)
+        .eq("id", record.id)
+        .select()
+        .single();
+
+      return res.json({ approval: updated });
+    } catch (error) {
+      console.error("[Approvals] PATCH /workflow error:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   }

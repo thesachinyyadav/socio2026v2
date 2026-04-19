@@ -880,6 +880,7 @@ interface ApprovalsSetupViewProps {
   approvalExists: boolean | null;
   isSubmitting: boolean;
   onSubmitForApproval: (customStages: WorkflowStage[], budgetItems: BudgetItem[]) => void;
+  onUpdateWorkflow: (customStages: WorkflowStage[], budgetItems: BudgetItem[]) => void;
   onBackToDetails: () => void;
   session: any;
 }
@@ -891,6 +892,7 @@ function ApprovalsSetupView({
   approvalExists,
   isSubmitting,
   onSubmitForApproval,
+  onUpdateWorkflow,
   onBackToDetails,
 }: ApprovalsSetupViewProps) {
   const [stages, setStages] = React.useState<WorkflowStage[]>(DEFAULT_WORKFLOW_STAGES);
@@ -1144,43 +1146,41 @@ function ApprovalsSetupView({
         <span className="font-semibold">Routing:</span> HOD is auto-assigned by dept + campus · Dean by school + campus · CFO & Finance by campus. Use ↓/↑ to move between sections.
       </div>
 
-      {/* Budget Estimator — shown when CFO or Finance Officer is active */}
+      {/* Budget Estimate — required when CFO or Finance Officer is included */}
       {needsBudget && (
-        <div className="mb-6 rounded-xl border border-green-200 bg-green-50/40 p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-base">💰</span>
-            <h3 className="text-sm font-bold text-green-800">Smart Budget Estimator</h3>
-            <span className="ml-auto text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Required for CFO / Finance review</span>
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-semibold text-gray-800">Budget Estimate</h3>
+            <span className="text-xs text-gray-500">Required for CFO / Finance review</span>
           </div>
-          <p className="text-xs text-green-700 mb-4">
-            Add your expense estimates. This will be reviewed by the CFO / Finance Officer as part of the approval.
+          <p className="text-xs text-gray-500 mb-4">
+            List your expected expenses. This is submitted with the approval request.
           </p>
 
-          {/* Table header */}
-          <div className="grid grid-cols-[1fr_80px_100px_90px_36px] gap-2 mb-1 px-1">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Item Name</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Qty</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Unit Price (₹)</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Total (₹)</span>
+          <div className="grid grid-cols-[1fr_72px_96px_88px_32px] gap-2 mb-1 px-1">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Item</span>
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide text-center">Qty</span>
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide text-right">Unit (₹)</span>
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide text-right">Total (₹)</span>
             <span />
           </div>
 
           <div className="space-y-2">
             {budgetItems.map(b => (
-              <div key={b.id} className="grid grid-cols-[1fr_80px_100px_90px_36px] gap-2 items-center">
+              <div key={b.id} className="grid grid-cols-[1fr_72px_96px_88px_32px] gap-2 items-center">
                 <input
                   type="text"
-                  placeholder="e.g. Sound System Rental"
+                  placeholder="e.g. Sound system rental"
                   value={b.name}
                   onChange={e => updateBudgetRow(b.id, 'name', e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  className="w-full rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
                 />
                 <input
                   type="number"
                   min="1"
                   value={b.quantity}
                   onChange={e => updateBudgetRow(b.id, 'quantity', e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
                 />
                 <input
                   type="number"
@@ -1188,16 +1188,16 @@ function ApprovalsSetupView({
                   step="0.01"
                   value={b.unitPrice}
                   onChange={e => updateBudgetRow(b.id, 'unitPrice', e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
                 />
-                <span className="text-sm font-medium text-gray-700 text-right">
+                <span className="text-sm text-gray-700 text-right tabular-nums">
                   {(b.quantity * b.unitPrice).toLocaleString('en-IN')}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeBudgetRow(b.id)}
-                  className="flex items-center justify-center w-8 h-8 rounded-md text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                  title="Remove row"
+                  className="flex items-center justify-center w-7 h-7 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors text-base leading-none"
+                  title="Remove"
                 >
                   ×
                 </button>
@@ -1205,23 +1205,23 @@ function ApprovalsSetupView({
             ))}
 
             {budgetItems.length === 0 && (
-              <div className="text-center py-6 text-sm text-gray-400 border-2 border-dashed border-green-200 rounded-lg">
-                No budget items yet. Click "Add Expense Item" to start.
+              <div className="text-center py-5 text-sm text-gray-400 border border-dashed border-gray-200 rounded">
+                No items added yet.
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-green-200">
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
             <button
               type="button"
               onClick={addBudgetRow}
-              className="flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-900 transition-colors"
+              className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
-              <span className="text-lg leading-none">+</span> Add Expense Item
+              + Add item
             </button>
             <div className="text-right">
-              <p className="text-xs text-gray-500 mb-0.5">Budget Estimate Pre-Flight</p>
-              <p className="text-xl font-bold text-gray-900">₹{budgetTotal.toLocaleString('en-IN')}</p>
+              <p className="text-xs text-gray-400 mb-0.5">Total estimate</p>
+              <p className="text-lg font-semibold text-gray-900 tabular-nums">₹{budgetTotal.toLocaleString('en-IN')}</p>
             </div>
           </div>
         </div>
@@ -1237,12 +1237,28 @@ function ApprovalsSetupView({
         </button>
 
         {approvalExists ? (
-          <a
-            href={`/approvals/${festId}`}
-            className="w-full sm:w-auto px-6 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-md hover:bg-green-700 transition-colors text-center"
-          >
-            View Approval Status →
-          </a>
+          <div className="flex flex-col sm:flex-row gap-2 flex-1">
+            <button
+              type="button"
+              onClick={() => onUpdateWorkflow(stages.filter(s => s.required || s.enabled !== false), budgetItems)}
+              disabled={isSubmitting || !festId}
+              className="w-full sm:w-auto px-5 py-2.5 bg-[#154CB3] text-white text-sm font-semibold rounded-md hover:bg-[#0f3a7a] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isSubmitting && (
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {isSubmitting ? 'Saving...' : 'Update Workflow'}
+            </button>
+            <a
+              href={`/approvals/${festId}`}
+              className="w-full sm:w-auto px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors text-center"
+            >
+              View Approval Status
+            </a>
+          </div>
         ) : (
           <button
             type="button"
@@ -1256,7 +1272,7 @@ function ApprovalsSetupView({
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             )}
-            {isSubmitting ? 'Submitting...' : 'Submit for Approval →'}
+            {isSubmitting ? 'Submitting...' : 'Submit for Approval'}
           </button>
         )}
       </div>
@@ -2412,10 +2428,33 @@ function CreateFestForm(props?: CreateFestProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to submit for approval');
-      toast.success('Fest submitted for approval!', { duration: 3000 });
+      toast.success('Submitted for approval.', { duration: 3000 });
       router.push(`/approvals/${festId}`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit for approval');
+    } finally {
+      setIsSubmittingApproval(false);
+    }
+  };
+
+  const handleUpdateWorkflow = async (customStages: WorkflowStage[], budgetItems: BudgetItem[]) => {
+    const festId = savedFestId || festIdFromPath;
+    if (!festId || !session?.access_token) return;
+    setIsSubmittingApproval(true);
+    try {
+      const res = await fetch(`${API_URL}/api/approvals/${festId}/workflow`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ customStages, budgetItems }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update workflow');
+      toast.success('Workflow updated.', { duration: 3000 });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update workflow');
     } finally {
       setIsSubmittingApproval(false);
     }
@@ -2894,6 +2933,7 @@ function CreateFestForm(props?: CreateFestProps) {
                   approvalExists={approvalExists}
                   isSubmitting={isSubmittingApproval}
                   onSubmitForApproval={handleSubmitForApproval}
+                  onUpdateWorkflow={handleUpdateWorkflow}
                   onBackToDetails={() => setActiveView('details')}
                   session={session}
                 />
