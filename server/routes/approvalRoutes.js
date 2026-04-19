@@ -205,7 +205,7 @@ router.post(
   checkRoleExpiration,
   async (req, res) => {
     try {
-      const { itemId, type, customStages } = req.body;
+      const { itemId, type, customStages, budgetItems } = req.body;
 
       if (!itemId || !type || !["event", "fest"].includes(type)) {
         return res.status(400).json({ error: "itemId and type ('event' or 'fest') are required" });
@@ -265,6 +265,7 @@ router.post(
         organizing_campus_snapshot:     orgCampus,
         submitted_by:                   req.userInfo.email,
         stages,
+        budget_items:    Array.isArray(budgetItems) ? budgetItems : [],
         went_live_at:    allBlockingSkipped ? nowIso : null,
         action_log:      [],
       };

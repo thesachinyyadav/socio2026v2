@@ -27,6 +27,13 @@ interface ActionLogEntry {
   is_override?: boolean;
 }
 
+interface BudgetItem {
+  id?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 interface ApprovalRecord {
   id: string;
   event_or_fest_id: string;
@@ -39,6 +46,7 @@ interface ApprovalRecord {
   organizing_school_snapshot: string | null;
   submitted_by: string | null;
   action_log: ActionLogEntry[];
+  budget_items?: BudgetItem[];
 }
 
 interface ItemMeta {
@@ -209,12 +217,29 @@ export default function ApprovalsPage() {
 
         {/* Rejection alert */}
         {hasRejection && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-700 font-semibold text-sm">This submission was returned.</p>
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xl">⛔</span>
+              <p className="text-red-700 font-bold text-sm">Submission Returned</p>
+            </div>
             {approval.action_log.filter((e) => e.action === "reject").map((e, i) => (
-              <div key={i} className="mt-2 text-sm text-red-600">
-                <span className="font-medium">{e.step.toUpperCase()}</span> by {e.by} on {formatDate(e.at)}
-                {e.note && <p className="mt-1 italic">"{e.note}"</p>}
+              <div key={i} className={`${i > 0 ? "mt-3 pt-3 border-t border-red-200" : ""}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold bg-red-200 text-red-800 px-2 py-0.5 rounded uppercase">
+                    {e.step}
+                  </span>
+                  <span className="text-xs text-red-500">{e.by} · {formatDate(e.at)}</span>
+                  {e.is_override && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Override</span>
+                  )}
+                </div>
+                {e.note ? (
+                  <p className="text-sm text-red-700 bg-red-100 rounded-lg px-3 py-2 border border-red-200 italic">
+                    "{e.note}"
+                  </p>
+                ) : (
+                  <p className="text-xs text-red-400 italic">No reason provided.</p>
+                )}
               </div>
             ))}
           </div>
@@ -241,6 +266,47 @@ export default function ApprovalsPage() {
             {operationalStages.map((s) => (
               <StepCard key={s.step} label={s.label} status={s.status} />
             ))}
+          </div>
+        )}
+
+        {/* Budget estimate */}
+        {approval.budget_items && approval.budget_items.length > 0 && (
+          <div className="bg-white rounded-xl border border-green-200 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+              💰 Budget Estimate
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="text-left pb-2 font-semibold">Item</th>
+                    <th className="text-center pb-2 font-semibold">Qty</th>
+                    <th className="text-right pb-2 font-semibold">Unit (₹)</th>
+                    <th className="text-right pb-2 font-semibold">Total (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approval.budget_items.map((b, i) => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="py-1.5 text-gray-800">{b.name || "—"}</td>
+                      <td className="py-1.5 text-center text-gray-600">{b.quantity}</td>
+                      <td className="py-1.5 text-right text-gray-600">{b.unitPrice.toLocaleString("en-IN")}</td>
+                      <td className="py-1.5 text-right font-medium text-gray-800">
+                        {(b.quantity * b.unitPrice).toLocaleString("en-IN")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={3} className="pt-3 text-right text-xs font-semibold text-gray-500 uppercase">Total Estimate</td>
+                    <td className="pt-3 text-right text-base font-bold text-gray-900">
+                      ₹{approval.budget_items.reduce((s, b) => s + b.quantity * b.unitPrice, 0).toLocaleString("en-IN")}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         )}
 

@@ -432,7 +432,7 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby={id + "-monthyear"}
-            className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-4 w-full sm:w-80"
+            className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-4 w-[20rem] max-w-[calc(100vw-2rem)]"
           >
             <div className="flex items-center justify-between mb-3">
               <button
@@ -859,6 +859,13 @@ interface WorkflowStage {
   enabled?: boolean;
 }
 
+interface BudgetItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 const DEFAULT_WORKFLOW_STAGES: WorkflowStage[] = [
   { role: 'hod',      label: 'HOD',             desc: 'Head of Dept — matched by dept + campus',   blocking: true, required: true,  enabled: true },
   { role: 'dean',     label: 'Dean',             desc: 'Dean of School — matched by school + campus', blocking: true, required: true,  enabled: true },
@@ -872,7 +879,7 @@ interface ApprovalsSetupViewProps {
   festId: string | null;
   approvalExists: boolean | null;
   isSubmitting: boolean;
-  onSubmitForApproval: (customStages: WorkflowStage[]) => void;
+  onSubmitForApproval: (customStages: WorkflowStage[], budgetItems: BudgetItem[]) => void;
   onBackToDetails: () => void;
   session: any;
 }
@@ -890,6 +897,40 @@ function ApprovalsSetupView({
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
   const [dragSection, setDragSection] = React.useState<'pre' | 'post' | null>(null);
+  const [budgetItems, setBudgetItems] = React.useState<BudgetItem[]>([]);
+
+  const cfoEnabled   = stages.find(s => s.role === 'cfo')?.enabled !== false;
+  const needsBudget  = stages.some(s => (s.role === 'cfo' || s.role === 'accounts') && s.enabled !== false);
+
+  function toggleStage(role: string, enabled: boolean) {
+    setStages(prev => {
+      let updated = prev.map(s => s.role === role ? { ...s, enabled } : s);
+      // CFO on → Finance Officer must also be on and locked; CFO off → Finance can toggle freely
+      if (role === 'cfo' && enabled) {
+        updated = updated.map(s => s.role === 'accounts' ? { ...s, enabled: true } : s);
+      }
+      return updated;
+    });
+  }
+
+  function addBudgetRow() {
+    setBudgetItems(prev => [...prev, { id: crypto.randomUUID(), name: '', quantity: 1, unitPrice: 0 }]);
+  }
+
+  function removeBudgetRow(id: string) {
+    setBudgetItems(prev => prev.filter(b => b.id !== id));
+  }
+
+  function updateBudgetRow(id: string, field: keyof Omit<BudgetItem, 'id'>, value: string) {
+    setBudgetItems(prev => prev.map(b => {
+      if (b.id !== id) return b;
+      if (field === 'name') return { ...b, name: value };
+      const num = parseFloat(value) || 0;
+      return { ...b, [field]: num };
+    }));
+  }
+
+  const budgetTotal = budgetItems.reduce((sum, b) => sum + b.quantity * b.unitPrice, 0);
 
   const preLiveStages  = stages.filter(s => s.blocking);
   const postLiveStages = stages.filter(s => !s.blocking);
@@ -1022,19 +1063,24 @@ function ApprovalsSetupView({
                     >
                       Required
                     </span>
-                  ) : (
-                    <label className="relative inline-flex items-center cursor-pointer" title="Toggle this approval on/off">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={s.enabled !== false}
-                        onChange={() =>
-                          setStages(prev => prev.map(st => st.role === s.role ? { ...st, enabled: !(st.enabled !== false) } : st))
-                        }
-                      />
-                      <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#154CB3]" />
-                    </label>
-                  )}
+                  ) : (() => {
+                    const isLocked = s.role === 'accounts' && cfoEnabled;
+                    return (
+                      <label
+                        className={`relative inline-flex items-center ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                        title={isLocked ? 'Finance Officer is locked ON while CFO is enabled' : 'Toggle this approval on/off'}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={s.enabled !== false}
+                          disabled={isLocked}
+                          onChange={() => !isLocked && toggleStage(s.role, s.enabled === false)}
+                        />
+                        <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#154CB3]" />
+                      </label>
+                    );
+                  })()}
                   {!s.required && (
                     <button
                       type="button"
@@ -1098,6 +1144,89 @@ function ApprovalsSetupView({
         <span className="font-semibold">Routing:</span> HOD is auto-assigned by dept + campus · Dean by school + campus · CFO & Finance by campus. Use ↓/↑ to move between sections.
       </div>
 
+      {/* Budget Estimator — shown when CFO or Finance Officer is active */}
+      {needsBudget && (
+        <div className="mb-6 rounded-xl border border-green-200 bg-green-50/40 p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">💰</span>
+            <h3 className="text-sm font-bold text-green-800">Smart Budget Estimator</h3>
+            <span className="ml-auto text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Required for CFO / Finance review</span>
+          </div>
+          <p className="text-xs text-green-700 mb-4">
+            Add your expense estimates. This will be reviewed by the CFO / Finance Officer as part of the approval.
+          </p>
+
+          {/* Table header */}
+          <div className="grid grid-cols-[1fr_80px_100px_90px_36px] gap-2 mb-1 px-1">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Item Name</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Qty</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Unit Price (₹)</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Total (₹)</span>
+            <span />
+          </div>
+
+          <div className="space-y-2">
+            {budgetItems.map(b => (
+              <div key={b.id} className="grid grid-cols-[1fr_80px_100px_90px_36px] gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="e.g. Sound System Rental"
+                  value={b.name}
+                  onChange={e => updateBudgetRow(b.id, 'name', e.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  value={b.quantity}
+                  onChange={e => updateBudgetRow(b.id, 'quantity', e.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={b.unitPrice}
+                  onChange={e => updateBudgetRow(b.id, 'unitPrice', e.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                />
+                <span className="text-sm font-medium text-gray-700 text-right">
+                  {(b.quantity * b.unitPrice).toLocaleString('en-IN')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeBudgetRow(b.id)}
+                  className="flex items-center justify-center w-8 h-8 rounded-md text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  title="Remove row"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+
+            {budgetItems.length === 0 && (
+              <div className="text-center py-6 text-sm text-gray-400 border-2 border-dashed border-green-200 rounded-lg">
+                No budget items yet. Click "Add Expense Item" to start.
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-green-200">
+            <button
+              type="button"
+              onClick={addBudgetRow}
+              className="flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-900 transition-colors"
+            >
+              <span className="text-lg leading-none">+</span> Add Expense Item
+            </button>
+            <div className="text-right">
+              <p className="text-xs text-gray-500 mb-0.5">Budget Estimate Pre-Flight</p>
+              <p className="text-xl font-bold text-gray-900">₹{budgetTotal.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
         <button
           type="button"
@@ -1117,7 +1246,7 @@ function ApprovalsSetupView({
         ) : (
           <button
             type="button"
-            onClick={() => onSubmitForApproval(stages.filter(s => s.required || s.enabled !== false))}
+            onClick={() => onSubmitForApproval(stages.filter(s => s.required || s.enabled !== false), budgetItems)}
             disabled={isSubmitting || !festId}
             className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-semibold rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
@@ -2268,7 +2397,7 @@ function CreateFestForm(props?: CreateFestProps) {
     setActiveView('approvals');
   };
 
-  const handleSubmitForApproval = async (customStages: WorkflowStage[]) => {
+  const handleSubmitForApproval = async (customStages: WorkflowStage[], budgetItems: BudgetItem[]) => {
     const festId = savedFestId || festIdFromPath;
     if (!festId || !session?.access_token) return;
     setIsSubmittingApproval(true);
@@ -2279,7 +2408,7 @@ function CreateFestForm(props?: CreateFestProps) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ itemId: festId, type: 'fest', customStages }),
+        body: JSON.stringify({ itemId: festId, type: 'fest', customStages, budgetItems }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to submit for approval');
@@ -2724,7 +2853,7 @@ function CreateFestForm(props?: CreateFestProps) {
             </div>
           </div>
           <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-12">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-visible">
               {/* Tab header */}
               <div className="flex border-b border-gray-200">
                 <button
