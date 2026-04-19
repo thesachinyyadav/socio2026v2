@@ -6,6 +6,16 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
+interface ApprovalStage {
+  step: number;
+  role: string;
+  label: string;
+  status: string;
+  assignee_user_id: string | null;
+  routing_state: string;
+  blocking: boolean;
+}
+
 interface QueueItem {
   id: string;
   event_or_fest_id: string;
@@ -15,8 +25,7 @@ interface QueueItem {
   organizing_department_snapshot: string | null;
   organizing_school_snapshot: string | null;
   created_at: string;
-  stage1_hod: string;
-  stage2_dean: string;
+  stages: ApprovalStage[];
   _queue_role: string;
 }
 
@@ -73,7 +82,12 @@ export default function DeanDashboard() {
           Authorization: `Bearer ${session!.access_token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ step: "dean", action, note: note || null, type: item.type }),
+        body: JSON.stringify({
+          step_index: item.stages?.find((s) => s.role === "dean")?.step ?? 1,
+          action,
+          note: note || null,
+          type: item.type,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -131,9 +145,15 @@ export default function DeanDashboard() {
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">
                       {item.type}
                     </span>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                      HOD approved
-                    </span>
+                    {(() => {
+                      const hodStage = item.stages?.find((s) => s.role === "hod");
+                      const hodDone = !hodStage || hodStage.status === "approved" || hodStage.status === "skipped";
+                      return hodDone ? (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          HOD {hodStage?.status ?? "cleared"}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <p className="text-sm text-gray-500 mt-0.5">
                     {item.organizing_school_snapshot || "—"}

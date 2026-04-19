@@ -5,25 +5,29 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
+interface ApprovalStage {
+  step: number;
+  role: string;
+  label: string;
+  status: string;
+  assignee_user_id: string | null;
+  routing_state: string;
+  blocking: boolean;
+}
+
 interface ApprovalRow {
   id: string;
   event_or_fest_id: string;
   type: "event" | "fest";
-  stage1_hod: string;
-  stage2_dean: string;
-  stage3_cfo: string;
-  stage4_accounts: string;
-  current_stage: number;
+  stages: ApprovalStage[];
   went_live_at: string | null;
   created_at: string;
   submitted_by: string | null;
   organizing_department_snapshot: string | null;
   organizing_school_snapshot: string | null;
-  stage1_hod_routing_state: string;
-  stage2_dean_routing_state: string;
 }
 
-type FilterMode = "all" | "unassigned" | "stage1" | "stage2";
+type FilterMode = "all" | "unassigned" | "blocking_pending" | "operational";
 
 const STATUS_BADGE: Record<string, string> = {
   pending:  "bg-yellow-100 text-yellow-800",
@@ -60,7 +64,8 @@ export default function ApprovalsManager() {
   const [overrideModal, setOverrideModal] = useState<{
     itemId: string;
     type: string;
-    step: string;
+    step_index: number;
+    stepLabel: string;
   } | null>(null);
   const [overrideNote, setOverrideNote] = useState("");
   const [isOverriding, setIsOverriding] = useState(false);
@@ -68,19 +73,14 @@ export default function ApprovalsManager() {
 
   useEffect(() => {
     fetchApprovals();
-  }, [filter, page, session]);
+  }, [filter, page, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchApprovals() {
     if (!session) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-      });
-      if (filter === "unassigned") params.set("unassigned", "true");
-      if (filter === "stage1") params.set("stage", "1");
-      if (filter === "stage2") params.set("stage", "2");
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (filter !== "all") params.set("filter", filter);
 
       const res = await fetch(`${API_URL}/api/approvals?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -107,7 +107,7 @@ export default function ApprovalsManager() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          step: overrideModal.step,
+          step_index: overrideModal.step_index,
           action,
           note: overrideNote || null,
           type: overrideModal.type,
@@ -129,6 +129,12 @@ export default function ApprovalsManager() {
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+  const FILTER_LABELS: Record<FilterMode, string> = {
+    all:              "All",
+    unassigned:       "Unassigned",
+    blocking_pending: "Blocking Pending",
+    operational:      "Operational",
+  };
 
   return (
     <div className="space-y-4">
@@ -136,7 +142,7 @@ export default function ApprovalsManager() {
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold text-gray-900 flex-1">Approval Records</h2>
         <div className="flex gap-2 flex-wrap">
-          {(["all", "unassigned", "stage1", "stage2"] as FilterMode[]).map((f) => (
+          {(["all", "unassigned", "blocking_pending", "operational"] as FilterMode[]).map((f) => (
             <button
               key={f}
               onClick={() => { setFilter(f); setPage(1); }}
@@ -146,7 +152,7 @@ export default function ApprovalsManager() {
                   : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
               }`}
             >
-              {f === "all" ? "All" : f === "unassigned" ? "Unassigned" : f === "stage1" ? "Stage 1" : "Stage 2"}
+              {FILTER_LABELS[f]}
             </button>
           ))}
         </div>
@@ -162,11 +168,13 @@ export default function ApprovalsManager() {
       ) : (
         <div className="space-y-2">
           {approvals.map((row) => {
-            const needsHodAssignment = row.stage1_hod_routing_state === "waiting_for_assignment";
-            const needsDeanAssignment = row.stage2_dean_routing_state === "waiting_for_assignment";
-            const hasUnassigned = needsHodAssignment || needsDeanAssignment;
-            const nextPendingStep =
-              row.stage1_hod === "pending" ? "hod" : row.stage2_dean === "pending" ? "dean" : null;
+            const stages = row.stages || [];
+            const hasUnassigned = stages.some(
+              (s) => s.routing_state === "waiting_for_assignment" && s.status === "pending"
+            );
+            const nextPendingStage = stages.find((s) => s.status === "pending");
+            const firstPendingBlocking = stages.find((s) => s.blocking && s.status === "pending");
+            const isLive = !!row.went_live_at;
 
             return (
               <div
@@ -185,10 +193,11 @@ export default function ApprovalsManager() {
                       <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">
                         {row.type}
                       </span>
+                      {isLive && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Live</span>
+                      )}
                       {hasUnassigned && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                          Unassigned
-                        </span>
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Unassigned</span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -196,26 +205,30 @@ export default function ApprovalsManager() {
                       {row.organizing_department_snapshot ? ` · ${row.organizing_department_snapshot}` : ""}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      By {row.submitted_by || "—"} · {pendingDuration(row.created_at)} ago · Stage {row.current_stage}
+                      By {row.submitted_by || "—"} · {pendingDuration(row.created_at)} ago
+                      {firstPendingBlocking ? ` · Waiting: ${firstPendingBlocking.label}` : isLive ? " · Live" : ""}
                     </p>
                   </div>
 
-                  {/* Step statuses */}
+                  {/* Stage status dots — show first 4 blocking stages */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs text-gray-400">HOD:</span>
-                    <StatusDot status={row.stage1_hod} />
-                    <span className="text-xs text-gray-400 ml-1">Dean:</span>
-                    <StatusDot status={row.stage2_dean} />
+                    {stages.filter((s) => s.blocking).map((s) => (
+                      <div key={s.step} className="flex items-center gap-1">
+                        <span className="text-xs text-gray-400">{s.label}:</span>
+                        <StatusDot status={s.status} />
+                      </div>
+                    ))}
                   </div>
 
                   {/* Override button */}
-                  {nextPendingStep && (
+                  {nextPendingStage && (
                     <button
                       onClick={() =>
                         setOverrideModal({
-                          itemId: row.event_or_fest_id,
-                          type: row.type,
-                          step: nextPendingStep,
+                          itemId:    row.event_or_fest_id,
+                          type:      row.type,
+                          step_index: nextPendingStage.step,
+                          stepLabel:  nextPendingStage.label,
                         })
                       }
                       className="px-3 py-1 text-xs rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50 shrink-0"
@@ -240,9 +253,7 @@ export default function ApprovalsManager() {
           >
             ← Prev
           </button>
-          <span className="text-sm text-gray-600">
-            {page} / {totalPages}
-          </span>
+          <span className="text-sm text-gray-600">{page} / {totalPages}</span>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
@@ -258,7 +269,7 @@ export default function ApprovalsManager() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">
-              Master Admin Override — {overrideModal.step.toUpperCase()}
+              Master Admin Override — {overrideModal.stepLabel}
             </h2>
             <p className="text-sm text-gray-600">
               This action will be audit-marked as a Master Admin override.

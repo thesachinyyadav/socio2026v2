@@ -28,19 +28,13 @@ async function fetchItemMeta(itemId, type) {
 
 async function findHodForSchool(school) {
   if (!school) return null;
-  const rows = await queryAll("users", {
-    where: { is_hod: true, school },
-    limit: 1,
-  });
+  const rows = await queryAll("users", { where: { is_hod: true, school }, limit: 1 });
   return rows[0] || null;
 }
 
 async function findDeanForSchool(school) {
   if (!school) return null;
-  const rows = await queryAll("users", {
-    where: { is_dean: true, school },
-    limit: 1,
-  });
+  const rows = await queryAll("users", { where: { is_dean: true, school }, limit: 1 });
   return rows[0] || null;
 }
 
@@ -68,11 +62,114 @@ function appendActionLog(existingLog, entry) {
   return [...log, { ...entry, at: new Date().toISOString() }];
 }
 
-// Check if Phase 1 is complete for this approval record
-// Phase 1 scope: hod + dean must both be approved (or skipped)
-function isPhase1Complete(record) {
-  const done = (v) => v === "approved" || v === "skipped";
-  return done(record.stage1_hod) && done(record.stage2_dean);
+// Phase 1 complete = all blocking stages are approved or skipped
+function isPhase1Complete(stages) {
+  return stages
+    .filter((s) => s.blocking)
+    .every((s) => s.status === "approved" || s.status === "skipped");
+}
+
+// Map role key → user flag field
+const ROLE_TO_USER_FLAG = {
+  hod:           "is_hod",
+  dean:          "is_dean",
+  cfo:           "is_cfo",
+  accounts:      "is_accounts_office",
+  it:            "is_it_support",
+  venue:         "is_vendor_manager",
+  catering:      "is_vendor_manager",
+  stalls:        "is_stalls",
+  miscellaneous: "is_vendor_manager",
+};
+
+// Build the stages array from workflow_config at submission time
+async function buildStagesFromWorkflowConfig(orgSchool, itemType, parentFestId) {
+  const isUnderFest = itemType === "event" && !!parentFestId;
+  const appliesToKey = isUnderFest
+    ? "under_fest_event"
+    : itemType === "fest"
+    ? "fest"
+    : "standalone_event";
+
+  // Fetch ordered, enabled steps that apply to this item type
+  const { data: configs, error } = await supabase
+    .from("workflow_config")
+    .select("*")
+    .eq("enabled", true)
+    .contains("applies_to", [appliesToKey])
+    .order("order_index", { ascending: true });
+
+  if (error || !configs?.length) {
+    // Fallback: default 9-step chain if workflow_config is empty or errors
+    console.warn("[Approvals] workflow_config fetch failed, using defaults:", error?.message);
+    return buildDefaultStages(orgSchool, isUnderFest, await findHodForSchool(orgSchool), await findDeanForSchool(orgSchool));
+  }
+
+  const hodUser = isUnderFest ? null : await findHodForSchool(orgSchool);
+  const deanUser = isUnderFest ? null : await findDeanForSchool(orgSchool);
+
+  return configs.map((config, idx) => {
+    const isBlocking = config.is_blocking;
+    const skipThisStage = isUnderFest && isBlocking;
+
+    let assigneeUserId = null;
+    let routingState = "waiting_for_assignment";
+
+    if (!skipThisStage) {
+      if (config.step_key === "hod" && hodUser) {
+        assigneeUserId = hodUser.id;
+        routingState = "assigned";
+      } else if (config.step_key === "dean" && deanUser) {
+        assigneeUserId = deanUser.id;
+        routingState = "assigned";
+      }
+    }
+
+    return {
+      step:             idx,
+      role:             config.step_key,
+      label:            config.step_label,
+      status:           skipThisStage ? "skipped" : "pending",
+      assignee_user_id: skipThisStage ? null : assigneeUserId,
+      routing_state:    skipThisStage ? "assigned" : routingState,
+      blocking:         isBlocking,
+    };
+  });
+}
+
+// Hardcoded fallback in case workflow_config table is empty
+function buildDefaultStages(orgSchool, isUnderFest, hodUser, deanUser) {
+  const blocking = [
+    { role: "hod",      label: "HOD",             is_blocking: true },
+    { role: "dean",     label: "Dean",             is_blocking: true },
+    { role: "cfo",      label: "CFO/Campus Dir",   is_blocking: true },
+    { role: "accounts", label: "Accounts Office",  is_blocking: true },
+  ];
+  const operational = [
+    { role: "it",            label: "IT Support",       is_blocking: false },
+    { role: "venue",         label: "Venue",            is_blocking: false },
+    { role: "catering",      label: "Catering Vendors", is_blocking: false },
+    { role: "stalls",        label: "Stalls/Misc",      is_blocking: false },
+    { role: "miscellaneous", label: "Miscellaneous",    is_blocking: false },
+  ];
+  return [...blocking, ...operational].map((cfg, idx) => {
+    const skipThisStage = isUnderFest && cfg.is_blocking;
+    let assigneeUserId = null;
+    let routingState = "waiting_for_assignment";
+    if (!skipThisStage) {
+      if (cfg.role === "hod" && hodUser)  { assigneeUserId = hodUser.id;  routingState = "assigned"; }
+      if (cfg.role === "dean" && deanUser) { assigneeUserId = deanUser.id; routingState = "assigned"; }
+    }
+    return {
+      step:             idx,
+      role:             cfg.role,
+      label:            cfg.label,
+      status:           skipThisStage ? "skipped" : "pending",
+      assignee_user_id: skipThisStage ? null : assigneeUserId,
+      routing_state:    skipThisStage ? "assigned" : routingState,
+      blocking:         cfg.is_blocking,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -92,9 +189,7 @@ router.post(
       }
 
       // Prevent duplicate submission
-      const existing = await queryOne("approvals", {
-        where: { event_or_fest_id: itemId, type },
-      });
+      const existing = await queryOne("approvals", { where: { event_or_fest_id: itemId, type } });
       if (existing) {
         return res.status(409).json({
           error: "Approval request already exists for this item",
@@ -115,59 +210,59 @@ router.post(
         return res.status(403).json({ error: "Only the creator can submit this item for approval" });
       }
 
-      const orgDept = item.organizing_dept || null;
-      const orgSchool = item.organizing_school || null;
-      const parentFestId = item.fest_id || null;
+      const orgDept    = item.organizing_dept  || null;
+      const orgSchool  = item.organizing_school || null;
+      const parentFestId = item.fest_id         || null;
+      const isUnderFest  = type === "event" && !!parentFestId;
 
-      // Under-fest events always skip ALL Stage 1 approvals (HOD, Dean, CFO, Finance)
-      // The fest itself handles Stage 1; events under it go straight to Stage 2
-      const allStage1Skipped = type === "event" && !!parentFestId;
-
-      // Auto-assign HOD and Dean
-      const hodUser = allStage1Skipped ? null : await findHodForSchool(orgSchool);
-      const deanUser = allStage1Skipped ? null : await findDeanForSchool(orgSchool);
+      const stages = await buildStagesFromWorkflowConfig(orgSchool, type, parentFestId);
+      const allBlockingSkipped = stages.filter(s => s.blocking).every(s => s.status === "skipped");
 
       const nowIso = new Date().toISOString();
 
       const newRecord = {
-        event_or_fest_id: itemId,
+        event_or_fest_id:               itemId,
         type,
-        parent_fest_id: parentFestId,
+        parent_fest_id:                 parentFestId,
         organizing_department_snapshot: orgDept,
-        organizing_school_snapshot: orgSchool,
-        submitted_by: req.userInfo.email,
-
-        stage1_hod: allStage1Skipped ? "skipped" : "pending",
-        stage2_dean: allStage1Skipped ? "skipped" : "pending",
-        stage3_cfo: allStage1Skipped ? "skipped" : "pending",
-        stage4_accounts: allStage1Skipped ? "skipped" : "pending",
-
-        current_stage: allStage1Skipped ? 2 : 1,
-        went_live_at: allStage1Skipped ? nowIso : null,
-
-        stage1_hod_assignee_user_id: hodUser ? hodUser.id : null,
-        stage1_hod_routing_state: hodUser ? "assigned" : "waiting_for_assignment",
-
-        stage2_dean_assignee_user_id: deanUser ? deanUser.id : null,
-        stage2_dean_routing_state: deanUser ? "assigned" : "waiting_for_assignment",
-
-        action_log: [],
+        organizing_school_snapshot:     orgSchool,
+        submitted_by:                   req.userInfo.email,
+        stages,
+        went_live_at:    allBlockingSkipped ? nowIso : null,
+        action_log:      [],
       };
 
       const [created] = await insert("approvals", newRecord);
 
-      // Auto go-live for under-fest events with inherited Stage 1
-      if (allStage1Skipped) {
+      // Under-fest events go live immediately (all blocking skipped)
+      if (allBlockingSkipped && isUnderFest) {
         await setEventOrFestLive(itemId, type);
       }
 
-      // Notify assigned approvers
-      if (hodUser) {
-        await sendApprovalNotification(
-          hodUser.email,
-          "New Approval Request",
-          `An ${type} "${item.title || item.fest_title}" requires your approval as HOD.`
-        );
+      // Notify assigned HOD/Dean
+      const hodStage  = stages.find(s => s.role === "hod"  && s.assignee_user_id);
+      const deanStage = stages.find(s => s.role === "dean" && s.assignee_user_id);
+      const itemTitle = item.title || item.fest_title || itemId;
+
+      if (hodStage?.assignee_user_id) {
+        const hodUser = await queryOne("users", { where: { id: hodStage.assignee_user_id } });
+        if (hodUser?.email) {
+          await sendApprovalNotification(
+            hodUser.email,
+            "New Approval Request",
+            `A ${type} "${itemTitle}" requires your approval as HOD.`
+          );
+        }
+      }
+      if (deanStage?.assignee_user_id) {
+        const deanUser = await queryOne("users", { where: { id: deanStage.assignee_user_id } });
+        if (deanUser?.email) {
+          await sendApprovalNotification(
+            deanUser.email,
+            "New Approval Request",
+            `A ${type} "${itemTitle}" requires your approval as Dean.`
+          );
+        }
       }
 
       console.log(`[Approvals] Created record for ${type} ${itemId} by ${req.userInfo.email}`);
@@ -190,7 +285,7 @@ router.get(
   requireMasterAdmin,
   async (req, res) => {
     try {
-      const { unassigned, type, stage, page = 1, pageSize = 20 } = req.query;
+      const { filter, type, page = 1, pageSize = 20 } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
 
       let query = supabase
@@ -200,11 +295,13 @@ router.get(
         .range(offset, offset + parseInt(pageSize) - 1);
 
       if (type) query = query.eq("type", type);
-      if (stage) query = query.eq("current_stage", parseInt(stage));
-      if (unassigned === "true") {
-        query = query.or(
-          "stage1_hod_routing_state.eq.waiting_for_assignment,stage2_dean_routing_state.eq.waiting_for_assignment"
-        );
+
+      if (filter === "blocking_pending") {
+        query = query.filter("stages", "cs", JSON.stringify([{ blocking: true, status: "pending" }]));
+      } else if (filter === "operational") {
+        query = query.not("went_live_at", "is", null);
+      } else if (filter === "unassigned") {
+        query = query.filter("stages", "cs", JSON.stringify([{ routing_state: "waiting_for_assignment", status: "pending" }]));
       }
 
       const { data, error, count } = await query;
@@ -232,31 +329,27 @@ router.get(
       const results = [];
 
       if (user.is_hod) {
-        // Records explicitly assigned to this HOD
+        // Records assigned to this HOD
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
-          .eq("stage1_hod_assignee_user_id", user.id)
-          .eq("stage1_hod", "pending")
-          .eq("current_stage", 1)
+          .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", assignee_user_id: String(user.id) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned records in this HOD's school (fallback when auto-assign missed them)
-        let unassignedForHod = [];
+        // Unassigned records in this HOD's school
+        let unassigned = [];
         if (user.school) {
-          const { data: unassigned } = await supabase
+          const { data: unassignedRows } = await supabase
             .from("approvals")
             .select("*")
-            .eq("stage1_hod_routing_state", "waiting_for_assignment")
             .eq("organizing_school_snapshot", user.school)
-            .eq("stage1_hod", "pending")
-            .eq("current_stage", 1)
+            .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
-          unassignedForHod = unassigned || [];
+          unassigned = unassignedRows || [];
         }
 
         const seenIds = new Set();
-        for (const r of [...(assigned || []), ...unassignedForHod]) {
+        for (const r of [...(assigned || []), ...unassigned]) {
           if (!seenIds.has(r.id)) {
             seenIds.add(r.id);
             results.push({ ...r, _queue_role: "hod" });
@@ -265,39 +358,39 @@ router.get(
       }
 
       if (user.is_dean) {
-        // Records explicitly assigned to this Dean
+        // Records assigned to this Dean
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
-          .eq("stage2_dean_assignee_user_id", user.id)
-          .eq("stage2_dean", "pending")
-          .in("stage1_hod", ["approved", "skipped"])
+          .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", assignee_user_id: String(user.id) }]))
           .order("created_at", { ascending: true });
 
         // Unassigned records in this Dean's school
-        let unassignedForDean = [];
+        let unassigned = [];
         if (user.school) {
-          const { data: unassigned } = await supabase
+          const { data: unassignedRows } = await supabase
             .from("approvals")
             .select("*")
-            .eq("stage2_dean_routing_state", "waiting_for_assignment")
             .eq("organizing_school_snapshot", user.school)
-            .eq("stage2_dean", "pending")
-            .in("stage1_hod", ["approved", "skipped"])
+            .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
-          unassignedForDean = unassigned || [];
+          unassigned = unassignedRows || [];
         }
 
+        // Combine and filter: HOD stage must be done before Dean can see items
         const seenIds = new Set();
-        for (const r of [...(assigned || []), ...unassignedForDean]) {
-          if (!seenIds.has(r.id)) {
+        for (const r of [...(assigned || []), ...unassigned]) {
+          if (seenIds.has(r.id)) continue;
+          const hodStage = r.stages?.find(s => s.role === "hod");
+          const hodDone = !hodStage || hodStage.status === "approved" || hodStage.status === "skipped";
+          if (hodDone) {
             seenIds.add(r.id);
             results.push({ ...r, _queue_role: "dean" });
           }
         }
       }
 
-      // Enrich with item title
+      // Enrich with item title + date
       const enriched = await Promise.all(
         results.map(async (r) => {
           try {
@@ -305,7 +398,7 @@ router.get(
             return {
               ...r,
               item_title: item?.title || item?.fest_title || r.event_or_fest_id,
-              item_date: item?.event_date || item?.opening_date || null,
+              item_date:  item?.event_date || item?.opening_date || null,
             };
           } catch {
             return r;
@@ -322,7 +415,7 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
-// GET /api/approvals/:itemId – Get approval record (creator or masteradmin)
+// GET /api/approvals/:itemId – Get approval record (creator or approver)
 // ---------------------------------------------------------------------------
 router.get(
   "/approvals/:itemId",
@@ -333,14 +426,12 @@ router.get(
     try {
       const { itemId } = req.params;
       const { type } = req.query;
+      const user = req.userInfo;
 
       let record;
       if (type) {
-        record = await queryOne("approvals", {
-          where: { event_or_fest_id: itemId, type },
-        });
+        record = await queryOne("approvals", { where: { event_or_fest_id: itemId, type } });
       } else {
-        // Try event first, then fest
         record =
           (await queryOne("approvals", { where: { event_or_fest_id: itemId, type: "event" } })) ||
           (await queryOne("approvals", { where: { event_or_fest_id: itemId, type: "fest" } }));
@@ -350,35 +441,28 @@ router.get(
         return res.status(404).json({ error: "Approval record not found" });
       }
 
-      // Access: creator, assigned approver, or masteradmin
-      const isCreator = record.submitted_by === req.userInfo.email;
-      const isHodAssignee = record.stage1_hod_assignee_user_id === req.userInfo.id;
-      const isDeanAssignee = record.stage2_dean_assignee_user_id === req.userInfo.id;
-      const canView =
-        isCreator ||
-        isHodAssignee ||
-        isDeanAssignee ||
-        req.userInfo.is_masteradmin ||
-        req.userInfo.is_hod ||
-        req.userInfo.is_dean;
+      const isCreator    = record.submitted_by === user.email;
+      const isApprover   = record.stages?.some(s => s.assignee_user_id === String(user.id));
+      const isSchoolUser = record.organizing_school_snapshot === user.school &&
+                           (user.is_hod || user.is_dean);
+      const canView      = isCreator || isApprover || isSchoolUser || user.is_masteradmin;
 
       if (!canView) {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Enrich with item metadata
       const item = await fetchItemMeta(itemId, record.type);
 
       return res.json({
         approval: record,
         item: item
           ? {
-              title: item.title || item.fest_title,
-              type: record.type,
-              organizing_dept: item.organizing_dept,
+              title:            item.title || item.fest_title,
+              type:             record.type,
+              organizing_dept:  item.organizing_dept,
               organizing_school: item.organizing_school,
-              event_date: item.event_date || item.opening_date,
-              created_by: item.created_by,
+              event_date:       item.event_date || item.opening_date,
+              created_by:       item.created_by,
             }
           : null,
       });
@@ -390,7 +474,7 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
-// PATCH /api/approvals/:itemId/action – Approve / Reject / Override
+// PATCH /api/approvals/:itemId/action – Approve / Reject a stage
 // ---------------------------------------------------------------------------
 router.patch(
   "/approvals/:itemId/action",
@@ -400,16 +484,11 @@ router.patch(
   async (req, res) => {
     try {
       const { itemId } = req.params;
-      const { step, action, note, type } = req.body;
+      // Accept step_index (preferred) or step (role string, backward compat)
+      const { step_index, step: stepRole, action, note, type } = req.body;
 
-      if (!step || !action) {
-        return res.status(400).json({ error: "step and action are required" });
-      }
-      if (!["approve", "reject"].includes(action)) {
+      if (!action || !["approve", "reject"].includes(action)) {
         return res.status(400).json({ error: "action must be 'approve' or 'reject'" });
-      }
-      if (!["hod", "dean"].includes(step)) {
-        return res.status(400).json({ error: "step must be 'hod' or 'dean' for Phase 1" });
       }
 
       const user = req.userInfo;
@@ -428,107 +507,98 @@ router.patch(
         return res.status(404).json({ error: "Approval record not found" });
       }
 
-      // Collects auto-assign updates to merge before writing
-      let updates_pre_action = {};
+      const stages = record.stages;
+      if (!Array.isArray(stages) || stages.length === 0) {
+        return res.status(500).json({ error: "Approval record has no stages" });
+      }
 
-      // Authorization per step
-      const hodSchoolMatch =
-        user.is_hod &&
-        user.school &&
-        record.organizing_school_snapshot &&
-        user.school === record.organizing_school_snapshot;
+      // Resolve which stage index to act on
+      let targetIdx = step_index;
+      if (targetIdx === undefined && stepRole) {
+        // Backward compat: find first pending stage with this role
+        targetIdx = stages.findIndex(s => s.role === stepRole && s.status === "pending");
+      }
 
-      const deanSchoolMatch =
-        user.is_dean &&
-        user.school &&
-        record.organizing_school_snapshot &&
-        user.school === record.organizing_school_snapshot;
+      if (targetIdx === undefined || targetIdx === null || targetIdx < 0 || targetIdx >= stages.length) {
+        return res.status(400).json({ error: "Invalid step_index — stage not found" });
+      }
 
-      if (step === "hod") {
-        const isAssignedHod = user.is_hod && record.stage1_hod_assignee_user_id === user.id;
-        const canActAsHod = isAssignedHod || hodSchoolMatch;
-        if (!canActAsHod && !isMasterAdmin) {
-          return res.status(403).json({ error: "Only the assigned HOD (or HOD of the same school) or Master Admin can act on this step" });
-        }
-        if (record.stage1_hod !== "pending") {
-          return res.status(409).json({ error: `HOD step is already ${record.stage1_hod}` });
-        }
-        // Auto-assign this HOD if record was unassigned
-        if (!record.stage1_hod_assignee_user_id && canActAsHod) {
-          updates_pre_action = {
-            stage1_hod_assignee_user_id: user.id,
-            stage1_hod_routing_state: "assigned",
-          };
+      const targetStage = stages[targetIdx];
+
+      if (targetStage.status !== "pending") {
+        return res.status(409).json({ error: `Stage ${targetIdx} (${targetStage.role}) is already ${targetStage.status}` });
+      }
+
+      // Sequential blocking check: all preceding blocking stages must be done
+      if (targetStage.blocking) {
+        const unfinishedBlocker = stages
+          .slice(0, targetIdx)
+          .find(s => s.blocking && s.status !== "approved" && s.status !== "skipped");
+        if (unfinishedBlocker) {
+          return res.status(400).json({
+            error: `Stage ${unfinishedBlocker.step} (${unfinishedBlocker.label}) must be completed before this step`,
+          });
         }
       }
 
-      if (step === "dean") {
-        const isAssignedDean = user.is_dean && record.stage2_dean_assignee_user_id === user.id;
-        const canActAsDean = isAssignedDean || deanSchoolMatch;
-        if (!canActAsDean && !isMasterAdmin) {
-          return res.status(403).json({ error: "Only the assigned Dean (or Dean of the same school) or Master Admin can act on this step" });
-        }
-        if (record.stage2_dean !== "pending") {
-          return res.status(409).json({ error: `Dean step is already ${record.stage2_dean}` });
-        }
-        // Enforce sequential order: HOD must be approved first
-        if (record.stage1_hod !== "approved" && record.stage1_hod !== "skipped") {
-          return res.status(400).json({ error: "HOD must approve before Dean can act" });
-        }
-        // Auto-assign this Dean if record was unassigned
-        if (!record.stage2_dean_assignee_user_id && canActAsDean) {
-          updates_pre_action = {
-            ...updates_pre_action,
-            stage2_dean_assignee_user_id: user.id,
-            stage2_dean_routing_state: "assigned",
-          };
-        }
+      // Authorization: assigned user OR school-matched role user OR masteradmin
+      const requiredFlag  = ROLE_TO_USER_FLAG[targetStage.role];
+      const hasRole       = requiredFlag ? !!user[requiredFlag] : false;
+      const isAssigned    = targetStage.assignee_user_id && targetStage.assignee_user_id === String(user.id);
+      const schoolMatch   = hasRole && user.school && user.school === record.organizing_school_snapshot;
+      const canAct        = isAssigned || schoolMatch || isMasterAdmin;
+
+      if (!canAct) {
+        return res.status(403).json({
+          error: `Not authorized to act on the ${targetStage.label} step`,
+        });
       }
+
+      // Auto-assign if unassigned and this user is acting
+      const preAssign = (!targetStage.assignee_user_id && (isAssigned || schoolMatch))
+        ? { assignee_user_id: String(user.id), routing_state: "assigned" }
+        : {};
 
       const newStatus = action === "approve" ? "approved" : "rejected";
 
-      const updatedLog = appendActionLog(record.action_log, {
-        step,
-        action,
-        by: user.name || user.email,
-        byEmail: user.email,
-        note: note || null,
-        is_override: isMasterAdmin && step === "hod"
-          ? !user.is_hod
-          : isMasterAdmin && step === "dean"
-          ? !user.is_dean
-          : false,
-      });
+      // Build new stages array immutably
+      const newStages = stages.map((s, idx) =>
+        idx === targetIdx ? { ...s, ...preAssign, status: newStatus } : s
+      );
 
-      const fieldMap = { hod: "stage1_hod", dean: "stage2_dean" };
-      const updates = {
-        ...updates_pre_action,
-        [fieldMap[step]]: newStatus,
-        action_log: updatedLog,
-        last_action_by: user.email,
-        last_action_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      const phase1Complete  = isPhase1Complete(newStages);
+      const wasAlreadyLive  = !!record.went_live_at;
+
+      // Audit log entry
+      const logEntry = {
+        step_index:  targetIdx,
+        step:        targetStage.role,
+        action,
+        by:          user.name || user.email,
+        byEmail:     user.email,
+        note:        note || null,
+        is_override: isMasterAdmin && !hasRole,
       };
 
-      // Check if Phase 1 is now complete after this action
-      const simulatedRecord = { ...record, [fieldMap[step]]: newStatus };
-      const phase1Complete = isPhase1Complete(simulatedRecord);
+      const updates = {
+        stages:         newStages,
+        action_log:     appendActionLog(record.action_log, logEntry),
+        last_action_by: user.email,
+        last_action_at: new Date().toISOString(),
+        updated_at:     new Date().toISOString(),
+      };
 
-      if (action === "approve" && phase1Complete) {
-        const nowIso = new Date().toISOString();
-        updates.current_stage = 2;
-        updates.went_live_at = nowIso;
-
-        // Auto go-live
+      // Auto go-live when all blocking stages complete
+      if (action === "approve" && phase1Complete && !wasAlreadyLive) {
+        updates.went_live_at = new Date().toISOString();
         await setEventOrFestLive(record.event_or_fest_id, record.type);
         console.log(`[Approvals] Phase 1 complete – ${record.type} ${record.event_or_fest_id} is now live`);
 
-        // Notify creator
         if (record.submitted_by) {
           await sendApprovalNotification(
             record.submitted_by,
             "Your submission is live!",
-            `Your ${record.type} has been approved and is now publicly visible.`
+            `Your ${record.type} has been fully approved and is now publicly visible.`
           );
         }
       }
@@ -536,11 +606,12 @@ router.patch(
       if (action === "reject" && record.submitted_by) {
         await sendApprovalNotification(
           record.submitted_by,
-          "Approval update",
-          `Your ${record.type} was returned by the ${step.toUpperCase()}${note ? `: ${note}` : "."}`
+          "Approval returned",
+          `Your ${record.type} was returned at the ${targetStage.label} step. Note: ${note || "No note provided."}`
         );
       }
 
+      // Write update via Supabase directly (update helper doesn't support JSONB well)
       const { data: updated, error: updateError } = await supabase
         .from("approvals")
         .update(updates)
@@ -550,9 +621,10 @@ router.patch(
 
       if (updateError) throw updateError;
 
+      console.log(`[Approvals] ${action} on stage ${targetIdx} (${targetStage.role}) of ${record.type} ${record.event_or_fest_id} by ${user.email}`);
       return res.json({ approval: updated });
     } catch (error) {
-      console.error("[Approvals] PATCH action error:", error);
+      console.error("[Approvals] PATCH /approvals/:itemId/action error:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   }

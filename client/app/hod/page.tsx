@@ -6,6 +6,16 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
+interface ApprovalStage {
+  step: number;
+  role: string;
+  label: string;
+  status: string;
+  assignee_user_id: string | null;
+  routing_state: string;
+  blocking: boolean;
+}
+
 interface QueueItem {
   id: string;
   event_or_fest_id: string;
@@ -15,7 +25,7 @@ interface QueueItem {
   organizing_department_snapshot: string | null;
   organizing_school_snapshot: string | null;
   created_at: string;
-  stage1_hod: string;
+  stages: ApprovalStage[];
   _queue_role: string;
 }
 
@@ -72,7 +82,12 @@ export default function HodDashboard() {
           Authorization: `Bearer ${session!.access_token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ step: "hod", action, note: note || null, type: item.type }),
+        body: JSON.stringify({
+          step_index: item.stages?.find((s) => s.role === "hod")?.step ?? 0,
+          action,
+          note: note || null,
+          type: item.type,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

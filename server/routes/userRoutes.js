@@ -590,57 +590,37 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
 
     console.log(`[MasterAdmin] User roles updated: ${email} by ${req.userInfo.email}`);
 
-    // Auto-routing: if HOD was just assigned with a school, bind pending approval requests
+    // Auto-routing: bind pending approval requests to newly-assigned HOD/Dean
+    // Uses the route_approvals_to_user RPC (added in migration 014) which does a
+    // bulk JSONB update in a single Postgres query.
     const schoolForRouting = updates.school || existingUser.school;
+
     if (updates.is_hod === true && schoolForRouting) {
       setImmediate(async () => {
         try {
-          const { data: pendingHod } = await supabase
-            .from("approvals")
-            .select("id")
-            .eq("stage1_hod_routing_state", "waiting_for_assignment")
-            .eq("organizing_school_snapshot", schoolForRouting);
-
-          if (pendingHod && pendingHod.length > 0) {
-            const ids = pendingHod.map((r) => r.id);
-            await supabase
-              .from("approvals")
-              .update({
-                stage1_hod_assignee_user_id: updatedUser.id,
-                stage1_hod_routing_state: "assigned",
-                updated_at: new Date().toISOString(),
-              })
-              .in("id", ids);
-            console.log(`[AutoRoute] Bound ${ids.length} pending HOD approval(s) to ${email} (school: ${schoolForRouting})`);
-          }
+          const { data: count, error } = await supabase.rpc("route_approvals_to_user", {
+            p_user_id: updatedUser.id,
+            p_role:    "hod",
+            p_school:  schoolForRouting,
+          });
+          if (error) throw error;
+          console.log(`[AutoRoute] Bound ${count} pending HOD approval(s) to ${email} (school: ${schoolForRouting})`);
         } catch (err) {
           console.warn("[AutoRoute] HOD auto-routing failed (non-critical):", err?.message);
         }
       });
     }
 
-    // Auto-routing: if Dean was just assigned with a school, bind pending approval requests
     if (updates.is_dean === true && schoolForRouting) {
       setImmediate(async () => {
         try {
-          const { data: pendingDean } = await supabase
-            .from("approvals")
-            .select("id")
-            .eq("stage2_dean_routing_state", "waiting_for_assignment")
-            .eq("organizing_school_snapshot", schoolForRouting);
-
-          if (pendingDean && pendingDean.length > 0) {
-            const ids = pendingDean.map((r) => r.id);
-            await supabase
-              .from("approvals")
-              .update({
-                stage2_dean_assignee_user_id: updatedUser.id,
-                stage2_dean_routing_state: "assigned",
-                updated_at: new Date().toISOString(),
-              })
-              .in("id", ids);
-            console.log(`[AutoRoute] Bound ${ids.length} pending Dean approval(s) to ${email} (school: ${schoolForRouting})`);
-          }
+          const { data: count, error } = await supabase.rpc("route_approvals_to_user", {
+            p_user_id: updatedUser.id,
+            p_role:    "dean",
+            p_school:  schoolForRouting,
+          });
+          if (error) throw error;
+          console.log(`[AutoRoute] Bound ${count} pending Dean approval(s) to ${email} (school: ${schoolForRouting})`);
         } catch (err) {
           console.warn("[AutoRoute] Dean auto-routing failed (non-critical):", err?.message);
         }
