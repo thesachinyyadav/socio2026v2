@@ -529,6 +529,8 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
       is_vendor_manager,
       is_stalls,
       school,
+      dept,
+      campus,
     } = req.body;
 
     // Check if user exists
@@ -577,6 +579,8 @@ router.put("/:email/roles", authenticateUser, getUserInfo(), checkRoleExpiration
     if (typeof is_vendor_manager === 'boolean') updates.is_vendor_manager = is_vendor_manager;
     if (typeof is_stalls === 'boolean') updates.is_stalls = is_stalls;
     if (typeof school === 'string') updates.school = school || null;
+    if (typeof dept   === 'string') updates.dept   = dept   || null;
+    if (typeof campus === 'string') updates.campus = campus || null;
 
     // Update user
     const { data: updatedUser, error: updateError } = await supabase

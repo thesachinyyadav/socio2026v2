@@ -855,13 +855,15 @@ interface WorkflowStage {
   label: string;
   desc: string;
   blocking: boolean;
+  required?: boolean;
+  enabled?: boolean;
 }
 
 const DEFAULT_WORKFLOW_STAGES: WorkflowStage[] = [
-  { role: 'hod',      label: 'HOD',             desc: 'Head of Department',         blocking: true },
-  { role: 'dean',     label: 'Dean',             desc: 'Dean of the School',         blocking: true },
-  { role: 'cfo',      label: 'CFO / Campus Dir', desc: 'Finance & campus oversight', blocking: true },
-  { role: 'accounts', label: 'Accounts Office',  desc: 'Financial clearance',        blocking: true },
+  { role: 'hod',      label: 'HOD',             desc: 'Head of Dept — matched by dept + campus',   blocking: true, required: true,  enabled: true },
+  { role: 'dean',     label: 'Dean',             desc: 'Dean of School — matched by school + campus', blocking: true, required: true,  enabled: true },
+  { role: 'cfo',      label: 'CFO / Campus Dir', desc: 'Finance & campus oversight',                blocking: true, required: false, enabled: true },
+  { role: 'accounts', label: 'Finance Officer',  desc: 'Accounts Office — matched by campus',       blocking: true, required: false, enabled: true },
 ];
 
 interface ApprovalsSetupViewProps {
@@ -1011,15 +1013,39 @@ function ApprovalsSetupView({
                   <p className="text-xs text-gray-400">{s.desc}</p>
                 </div>
 
-                {/* Move to other section */}
-                <button
-                  type="button"
-                  title={section === 'pre' ? 'Move to Post-Live' : 'Move to Pre-Live'}
-                  onClick={() => section === 'pre' ? moveToPostLive(s.role) : moveToPreLive(s.role)}
-                  className="text-xs text-gray-400 hover:text-gray-600 shrink-0 px-1 py-0.5 rounded hover:bg-gray-100 transition-colors"
-                >
-                  {section === 'pre' ? '↓ Post' : '↑ Pre'}
-                </button>
+                {/* Required lock OR optional toggle + move button */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {s.required ? (
+                    <span
+                      title="Mandatory — cannot be disabled"
+                      className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium select-none"
+                    >
+                      Required
+                    </span>
+                  ) : (
+                    <label className="relative inline-flex items-center cursor-pointer" title="Toggle this approval on/off">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={s.enabled !== false}
+                        onChange={() =>
+                          setStages(prev => prev.map(st => st.role === s.role ? { ...st, enabled: !(st.enabled !== false) } : st))
+                        }
+                      />
+                      <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#154CB3]" />
+                    </label>
+                  )}
+                  {!s.required && (
+                    <button
+                      type="button"
+                      title={section === 'pre' ? 'Move to Post-Live' : 'Move to Pre-Live'}
+                      onClick={() => section === 'pre' ? moveToPostLive(s.role) : moveToPreLive(s.role)}
+                      className="text-xs text-gray-400 hover:text-gray-600 shrink-0 px-1 py-0.5 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      {section === 'pre' ? '↓' : '↑'}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })
@@ -1032,7 +1058,7 @@ function ApprovalsSetupView({
     <div className="p-6 sm:p-8 md:p-10">
       <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-1">Approvals Setup</h2>
       <p className="text-sm text-gray-500 mb-6">
-        Drag to reorder stages. Move stages between Pre-Live and Post-Live. Approvers are auto-assigned by school.
+        Drag to reorder stages. HOD and Dean are mandatory. CFO and Finance Officer can be toggled off if not required.
       </p>
 
       {organizingSchool && (
@@ -1069,7 +1095,7 @@ function ApprovalsSetupView({
       </div>
 
       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-6 text-xs text-amber-800">
-        <span className="font-semibold">Tip:</span> Drag the handle (⠿) to reorder within a section. Use ↓ Post / ↑ Pre to move between sections.
+        <span className="font-semibold">Routing:</span> HOD is auto-assigned by dept + campus · Dean by school + campus · CFO & Finance by campus. Use ↓/↑ to move between sections.
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
@@ -1091,7 +1117,7 @@ function ApprovalsSetupView({
         ) : (
           <button
             type="button"
-            onClick={() => onSubmitForApproval(stages)}
+            onClick={() => onSubmitForApproval(stages.filter(s => s.required || s.enabled !== false))}
             disabled={isSubmitting || !festId}
             className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-semibold rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >

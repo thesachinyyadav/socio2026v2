@@ -26,12 +26,47 @@ async function fetchItemMeta(itemId, type) {
   return queryOne("fests", { where: { fest_id: itemId } });
 }
 
+// HOD: matched by dept (if set) + campus; falls back to school + campus
+async function findHodForDeptAndCampus(dept, school, campus) {
+  if (!campus) return null;
+  if (dept) {
+    const rows = await queryAll("users", { where: { is_hod: true, dept, campus }, limit: 1 });
+    if (rows[0]) return rows[0];
+  }
+  if (school) {
+    const rows = await queryAll("users", { where: { is_hod: true, school, campus }, limit: 1 });
+    if (rows[0]) return rows[0];
+  }
+  return null;
+}
+
+// Dean: matched by school + campus
+async function findDeanForSchoolAndCampus(school, campus) {
+  if (!school || !campus) return null;
+  const rows = await queryAll("users", { where: { is_dean: true, school, campus }, limit: 1 });
+  return rows[0] || null;
+}
+
+// CFO: matched by campus only
+async function findCfoForCampus(campus) {
+  if (!campus) return null;
+  const rows = await queryAll("users", { where: { is_cfo: true, campus }, limit: 1 });
+  return rows[0] || null;
+}
+
+// Accounts / Finance Officer: matched by campus only
+async function findAccountsForCampus(campus) {
+  if (!campus) return null;
+  const rows = await queryAll("users", { where: { is_accounts_office: true, campus }, limit: 1 });
+  return rows[0] || null;
+}
+
+// Legacy aliases kept for fallback paths
 async function findHodForSchool(school) {
   if (!school) return null;
   const rows = await queryAll("users", { where: { is_hod: true, school }, limit: 1 });
   return rows[0] || null;
 }
-
 async function findDeanForSchool(school) {
   if (!school) return null;
   const rows = await queryAll("users", { where: { is_dean: true, school }, limit: 1 });
@@ -82,16 +117,37 @@ const ROLE_TO_USER_FLAG = {
   miscellaneous: "is_vendor_manager",
 };
 
-// Build the stages array from workflow_config at submission time
-async function buildStagesFromWorkflowConfig(orgSchool, itemType, parentFestId) {
-  const isUnderFest = itemType === "event" && !!parentFestId;
-  const appliesToKey = isUnderFest
-    ? "under_fest_event"
-    : itemType === "fest"
-    ? "fest"
-    : "standalone_event";
+// Auto-assign a stage based on role + org context (campus-aware)
+async function autoAssignUser(role, orgDept, orgSchool, orgCampus) {
+  if (!orgCampus) return null;
+  switch (role) {
+    case "hod":      return findHodForDeptAndCampus(orgDept, orgSchool, orgCampus);
+    case "dean":     return findDeanForSchoolAndCampus(orgSchool, orgCampus);
+    case "cfo":      return findCfoForCampus(orgCampus);
+    case "accounts": return findAccountsForCampus(orgCampus);
+    default:         return null;
+  }
+}
 
-  // Fetch ordered, enabled steps that apply to this item type
+// Build stage object from a config entry
+function makeStageObject(idx, role, label, isBlocking, isUnderFest, assigneeUser) {
+  const skip = isUnderFest && isBlocking;
+  return {
+    step:             idx,
+    role,
+    label,
+    status:           skip ? "skipped" : "pending",
+    assignee_user_id: skip ? null : (assigneeUser?.id ?? null),
+    routing_state:    skip ? "assigned" : (assigneeUser ? "assigned" : "waiting_for_assignment"),
+    blocking:         isBlocking,
+  };
+}
+
+// Build the stages array from workflow_config at submission time
+async function buildStagesFromWorkflowConfig(orgDept, orgSchool, orgCampus, itemType, parentFestId) {
+  const isUnderFest = itemType === "event" && !!parentFestId;
+  const appliesToKey = isUnderFest ? "under_fest_event" : itemType === "fest" ? "fest" : "standalone_event";
+
   const { data: configs, error } = await supabase
     .from("workflow_config")
     .select("*")
@@ -100,76 +156,43 @@ async function buildStagesFromWorkflowConfig(orgSchool, itemType, parentFestId) 
     .order("order_index", { ascending: true });
 
   if (error || !configs?.length) {
-    // Fallback: default 9-step chain if workflow_config is empty or errors
     console.warn("[Approvals] workflow_config fetch failed, using defaults:", error?.message);
-    return buildDefaultStages(orgSchool, isUnderFest, await findHodForSchool(orgSchool), await findDeanForSchool(orgSchool));
+    const hodUser  = isUnderFest ? null : await autoAssignUser("hod",  orgDept, orgSchool, orgCampus);
+    const deanUser = isUnderFest ? null : await autoAssignUser("dean", orgDept, orgSchool, orgCampus);
+    return buildDefaultStages(orgDept, orgSchool, orgCampus, isUnderFest, hodUser, deanUser);
   }
 
-  const hodUser = isUnderFest ? null : await findHodForSchool(orgSchool);
-  const deanUser = isUnderFest ? null : await findDeanForSchool(orgSchool);
-
-  return configs.map((config, idx) => {
-    const isBlocking = config.is_blocking;
-    const skipThisStage = isUnderFest && isBlocking;
-
-    let assigneeUserId = null;
-    let routingState = "waiting_for_assignment";
-
-    if (!skipThisStage) {
-      if (config.step_key === "hod" && hodUser) {
-        assigneeUserId = hodUser.id;
-        routingState = "assigned";
-      } else if (config.step_key === "dean" && deanUser) {
-        assigneeUserId = deanUser.id;
-        routingState = "assigned";
+  const assigneeCache = {};
+  const results = [];
+  for (const [idx, config] of configs.entries()) {
+    let assigneeUser = null;
+    if (!isUnderFest) {
+      if (!assigneeCache[config.step_key]) {
+        assigneeCache[config.step_key] = await autoAssignUser(config.step_key, orgDept, orgSchool, orgCampus);
       }
+      assigneeUser = assigneeCache[config.step_key];
     }
-
-    return {
-      step:             idx,
-      role:             config.step_key,
-      label:            config.step_label,
-      status:           skipThisStage ? "skipped" : "pending",
-      assignee_user_id: skipThisStage ? null : assigneeUserId,
-      routing_state:    skipThisStage ? "assigned" : routingState,
-      blocking:         isBlocking,
-    };
-  });
+    results.push(makeStageObject(idx, config.step_key, config.step_label, config.is_blocking, isUnderFest, assigneeUser));
+  }
+  return results;
 }
 
 // Hardcoded fallback in case workflow_config table is empty
-function buildDefaultStages(orgSchool, isUnderFest, hodUser, deanUser) {
-  const blocking = [
-    { role: "hod",      label: "HOD",             is_blocking: true },
-    { role: "dean",     label: "Dean",             is_blocking: true },
-    { role: "cfo",      label: "CFO/Campus Dir",   is_blocking: true },
-    { role: "accounts", label: "Accounts Office",  is_blocking: true },
+function buildDefaultStages(orgDept, orgSchool, orgCampus, isUnderFest, hodUser, deanUser) {
+  const all = [
+    { role: "hod",      label: "HOD",             is_blocking: true  },
+    { role: "dean",     label: "Dean",             is_blocking: true  },
+    { role: "cfo",      label: "CFO/Campus Dir",   is_blocking: true  },
+    { role: "accounts", label: "Accounts Office",  is_blocking: true  },
+    { role: "it",       label: "IT Support",       is_blocking: false },
+    { role: "venue",    label: "Venue",            is_blocking: false },
+    { role: "catering", label: "Catering Vendors", is_blocking: false },
+    { role: "stalls",   label: "Stalls/Misc",      is_blocking: false },
   ];
-  const operational = [
-    { role: "it",            label: "IT Support",       is_blocking: false },
-    { role: "venue",         label: "Venue",            is_blocking: false },
-    { role: "catering",      label: "Catering Vendors", is_blocking: false },
-    { role: "stalls",        label: "Stalls/Misc",      is_blocking: false },
-    { role: "miscellaneous", label: "Miscellaneous",    is_blocking: false },
-  ];
-  return [...blocking, ...operational].map((cfg, idx) => {
-    const skipThisStage = isUnderFest && cfg.is_blocking;
-    let assigneeUserId = null;
-    let routingState = "waiting_for_assignment";
-    if (!skipThisStage) {
-      if (cfg.role === "hod" && hodUser)  { assigneeUserId = hodUser.id;  routingState = "assigned"; }
-      if (cfg.role === "dean" && deanUser) { assigneeUserId = deanUser.id; routingState = "assigned"; }
-    }
-    return {
-      step:             idx,
-      role:             cfg.role,
-      label:            cfg.label,
-      status:           skipThisStage ? "skipped" : "pending",
-      assignee_user_id: skipThisStage ? null : assigneeUserId,
-      routing_state:    skipThisStage ? "assigned" : routingState,
-      blocking:         cfg.is_blocking,
-    };
-  });
+  const byRole = { hod: hodUser, dean: deanUser };
+  return all.map((cfg, idx) =>
+    makeStageObject(idx, cfg.role, cfg.label, cfg.is_blocking, isUnderFest, byRole[cfg.role] || null)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -210,36 +233,24 @@ router.post(
         return res.status(403).json({ error: "Only the creator can submit this item for approval" });
       }
 
-      const orgDept    = item.organizing_dept  || null;
-      const orgSchool  = item.organizing_school || null;
-      const parentFestId = item.fest_id         || null;
+      const orgDept    = item.organizing_dept   || null;
+      const orgSchool  = item.organizing_school  || null;
+      const orgCampus  = item.campus_hosted_at   || null;
+      const parentFestId = item.fest_id          || null;
       const isUnderFest  = type === "event" && !!parentFestId;
 
       let stages;
       if (customStages && Array.isArray(customStages) && customStages.length > 0) {
-        // Use organiser-customized stage order
-        const hodUser  = isUnderFest ? null : await findHodForSchool(orgSchool);
-        const deanUser = isUnderFest ? null : await findDeanForSchool(orgSchool);
-        stages = customStages.map((s, idx) => {
-          const skipThisStage = isUnderFest && s.blocking;
-          let assigneeUserId = null;
-          let routingState   = "waiting_for_assignment";
-          if (!skipThisStage) {
-            if (s.role === "hod"  && hodUser)  { assigneeUserId = hodUser.id;  routingState = "assigned"; }
-            if (s.role === "dean" && deanUser)  { assigneeUserId = deanUser.id; routingState = "assigned"; }
+        // Organiser-customized stage order — apply campus-aware auto-assign per role
+        const assigneeCache = {};
+        stages = await Promise.all(customStages.map(async (s, idx) => {
+          if (!assigneeCache[s.role] && !isUnderFest) {
+            assigneeCache[s.role] = await autoAssignUser(s.role, orgDept, orgSchool, orgCampus);
           }
-          return {
-            step:             idx,
-            role:             s.role,
-            label:            s.label,
-            status:           skipThisStage ? "skipped" : "pending",
-            assignee_user_id: skipThisStage ? null : assigneeUserId,
-            routing_state:    skipThisStage ? "assigned" : routingState,
-            blocking:         s.blocking,
-          };
-        });
+          return makeStageObject(idx, s.role, s.label, s.blocking, isUnderFest, assigneeCache[s.role] || null);
+        }));
       } else {
-        stages = await buildStagesFromWorkflowConfig(orgSchool, type, parentFestId);
+        stages = await buildStagesFromWorkflowConfig(orgDept, orgSchool, orgCampus, type, parentFestId);
       }
       const allBlockingSkipped = stages.filter(s => s.blocking).every(s => s.status === "skipped");
 
@@ -251,6 +262,7 @@ router.post(
         parent_fest_id:                 parentFestId,
         organizing_department_snapshot: orgDept,
         organizing_school_snapshot:     orgSchool,
+        organizing_campus_snapshot:     orgCampus,
         submitted_by:                   req.userInfo.email,
         stages,
         went_live_at:    allBlockingSkipped ? nowIso : null,
@@ -354,20 +366,21 @@ router.get(
       const results = [];
 
       if (user.is_hod) {
-        // Records assigned to this HOD
+        // Assigned directly to this HOD
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
           .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", assignee_user_id: String(user.id) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned records in this HOD's school
+        // Unassigned — school + campus must both match
         let unassigned = [];
-        if (user.school) {
+        if (user.school && user.campus) {
           const { data: unassignedRows } = await supabase
             .from("approvals")
             .select("*")
             .eq("organizing_school_snapshot", user.school)
+            .eq("organizing_campus_snapshot", user.campus)
             .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
           unassigned = unassignedRows || [];
@@ -375,43 +388,87 @@ router.get(
 
         const seenIds = new Set();
         for (const r of [...(assigned || []), ...unassigned]) {
-          if (!seenIds.has(r.id)) {
-            seenIds.add(r.id);
-            results.push({ ...r, _queue_role: "hod" });
-          }
+          if (!seenIds.has(r.id)) { seenIds.add(r.id); results.push({ ...r, _queue_role: "hod" }); }
         }
       }
 
       if (user.is_dean) {
-        // Records assigned to this Dean
+        // Assigned directly to this Dean
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
           .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", assignee_user_id: String(user.id) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned records in this Dean's school
+        // Unassigned — school + campus must both match
         let unassigned = [];
-        if (user.school) {
+        if (user.school && user.campus) {
           const { data: unassignedRows } = await supabase
             .from("approvals")
             .select("*")
             .eq("organizing_school_snapshot", user.school)
+            .eq("organizing_campus_snapshot", user.campus)
             .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
           unassigned = unassignedRows || [];
         }
 
-        // Combine and filter: HOD stage must be done before Dean can see items
+        // Sequential: HOD must be done before Dean can act
         const seenIds = new Set();
         for (const r of [...(assigned || []), ...unassigned]) {
           if (seenIds.has(r.id)) continue;
           const hodStage = r.stages?.find(s => s.role === "hod");
           const hodDone = !hodStage || hodStage.status === "approved" || hodStage.status === "skipped";
-          if (hodDone) {
-            seenIds.add(r.id);
-            results.push({ ...r, _queue_role: "dean" });
-          }
+          if (hodDone) { seenIds.add(r.id); results.push({ ...r, _queue_role: "dean" }); }
+        }
+      }
+
+      if (user.is_cfo) {
+        // CFO sees unassigned + assigned by campus
+        const { data: assigned } = await supabase
+          .from("approvals")
+          .select("*")
+          .filter("stages", "cs", JSON.stringify([{ role: "cfo", status: "pending", assignee_user_id: String(user.id) }]))
+          .order("created_at", { ascending: true });
+
+        let unassigned = [];
+        if (user.campus) {
+          const { data: unassignedRows } = await supabase
+            .from("approvals")
+            .select("*")
+            .eq("organizing_campus_snapshot", user.campus)
+            .filter("stages", "cs", JSON.stringify([{ role: "cfo", status: "pending", routing_state: "waiting_for_assignment" }]))
+            .order("created_at", { ascending: true });
+          unassigned = unassignedRows || [];
+        }
+
+        const seenIds = new Set();
+        for (const r of [...(assigned || []), ...unassigned]) {
+          if (!seenIds.has(r.id)) { seenIds.add(r.id); results.push({ ...r, _queue_role: "cfo" }); }
+        }
+      }
+
+      if (user.is_accounts_office) {
+        const { data: assigned } = await supabase
+          .from("approvals")
+          .select("*")
+          .filter("stages", "cs", JSON.stringify([{ role: "accounts", status: "pending", assignee_user_id: String(user.id) }]))
+          .order("created_at", { ascending: true });
+
+        let unassigned = [];
+        if (user.campus) {
+          const { data: unassignedRows } = await supabase
+            .from("approvals")
+            .select("*")
+            .eq("organizing_campus_snapshot", user.campus)
+            .filter("stages", "cs", JSON.stringify([{ role: "accounts", status: "pending", routing_state: "waiting_for_assignment" }]))
+            .order("created_at", { ascending: true });
+          unassigned = unassignedRows || [];
+        }
+
+        const seenIds = new Set();
+        for (const r of [...(assigned || []), ...unassigned]) {
+          if (!seenIds.has(r.id)) { seenIds.add(r.id); results.push({ ...r, _queue_role: "accounts" }); }
         }
       }
 
@@ -566,12 +623,23 @@ router.patch(
         }
       }
 
-      // Authorization: assigned user OR school-matched role user OR masteradmin
+      // Authorization: assigned user OR context-matched role user OR masteradmin
+      // HOD/Dean: school + campus; CFO/Accounts: campus only; others: school
       const requiredFlag  = ROLE_TO_USER_FLAG[targetStage.role];
       const hasRole       = requiredFlag ? !!user[requiredFlag] : false;
       const isAssigned    = targetStage.assignee_user_id && targetStage.assignee_user_id === String(user.id);
-      const schoolMatch   = hasRole && user.school && user.school === record.organizing_school_snapshot;
-      const canAct        = isAssigned || schoolMatch || isMasterAdmin;
+      const campusMatch   = user.campus && user.campus === record.organizing_campus_snapshot;
+      const schoolMatch   = user.school && user.school === record.organizing_school_snapshot;
+      const contextMatch  = hasRole && (() => {
+        switch (targetStage.role) {
+          case "hod":
+          case "dean":     return schoolMatch && campusMatch;
+          case "cfo":
+          case "accounts": return campusMatch;
+          default:         return schoolMatch;
+        }
+      })();
+      const canAct        = isAssigned || contextMatch || isMasterAdmin;
 
       if (!canAct) {
         return res.status(403).json({
@@ -579,8 +647,8 @@ router.patch(
         });
       }
 
-      // Auto-assign if unassigned and this user is acting
-      const preAssign = (!targetStage.assignee_user_id && (isAssigned || schoolMatch))
+      // Auto-assign if unassigned and this user qualifies
+      const preAssign = (!targetStage.assignee_user_id && (isAssigned || contextMatch))
         ? { assignee_user_id: String(user.id), routing_state: "assigned" }
         : {};
 
