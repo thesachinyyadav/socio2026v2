@@ -719,6 +719,24 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   );
 };
 
+export interface WorkflowStage {
+  role: string;
+  label: string;
+  desc: string;
+  blocking: boolean;
+}
+
+export const STANDALONE_EVENT_STAGES: WorkflowStage[] = [
+  { role: 'hod',      label: 'HOD',             desc: 'Head of Department',         blocking: true  },
+  { role: 'dean',     label: 'Dean',             desc: 'Dean of the School',         blocking: true  },
+  { role: 'cfo',      label: 'CFO / Campus Dir', desc: 'Finance & campus oversight', blocking: true  },
+  { role: 'accounts', label: 'Accounts Office',  desc: 'Financial clearance',        blocking: true  },
+  { role: 'it',       label: 'IT Support',       desc: 'Technical setup',            blocking: false },
+  { role: 'venue',    label: 'Venue',            desc: 'Venue arrangements',         blocking: false },
+  { role: 'catering', label: 'Catering',         desc: 'Food & catering vendors',    blocking: false },
+  { role: 'stalls',   label: 'Stalls / Misc',    desc: 'Stall allocations',          blocking: false },
+];
+
 interface EventFormProps {
   onSubmit: SubmitHandler<EventFormData>;
   onSubmitDraft?: SubmitHandler<EventFormData>;
@@ -732,6 +750,7 @@ interface EventFormProps {
   isDraft?: boolean;
   isArchiveUpdating?: boolean;
   onToggleArchive?: () => void;
+  onApprovalConfigChange?: (enabled: boolean, stages: WorkflowStage[]) => void;
 }
 
 const baseButtonClasses =
@@ -994,7 +1013,12 @@ export default function EventForm({
   isDraft,
   isArchiveUpdating,
   onToggleArchive,
+  onApprovalConfigChange,
 }: EventFormProps) {
+  const [approvalEnabled, setApprovalEnabled] = useState(true);
+  const [approvalStages, setApprovalStages] = useState<WorkflowStage[]>(STANDALONE_EVENT_STAGES);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
 
   useEffect(() => {
@@ -1400,6 +1424,14 @@ export default function EventForm({
       lastAutoFilledFestRef.current = selectedFestKey;
     }
   }, [watchedFestEvent, fetchedFests, setValue]);
+
+  const isStandaloneEvent = !watchedFestEvent || String(watchedFestEvent).toLowerCase() === "none";
+
+  useEffect(() => {
+    if (onApprovalConfigChange) {
+      onApprovalConfigChange(approvalEnabled && isStandaloneEvent, approvalStages);
+    }
+  }, [approvalEnabled, approvalStages, isStandaloneEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
@@ -2616,6 +2648,129 @@ export default function EventForm({
                   register={register}
                   errors={errors}
                 />
+
+                {/* Approval Workflow Section — only for standalone events */}
+                {isStandaloneEvent && (
+                  <div className="mt-8 border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Approval Workflow</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {approvalEnabled
+                            ? "This event will be submitted for approval after saving."
+                            : "No approval required — event will publish directly."}
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={approvalEnabled}
+                          onChange={(e) => setApprovalEnabled(e.target.checked)}
+                        />
+                        <div className={toggleTrackClass} />
+                      </label>
+                    </div>
+
+                    {approvalEnabled && (
+                      <div className="p-4 space-y-2">
+                        <p className="text-xs text-gray-500 mb-3">
+                          Drag to reorder. Toggle between Pre-Live (blocking) and Post-Live (operational).
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {(["pre", "post"] as const).map((section) => {
+                            const sectionStages = approvalStages.filter((s) =>
+                              section === "pre" ? s.blocking : !s.blocking
+                            );
+                            return (
+                              <div key={section} className="space-y-1">
+                                <p className={`text-xs font-semibold uppercase tracking-wide px-1 ${
+                                  section === "pre" ? "text-blue-700" : "text-green-700"
+                                }`}>
+                                  {section === "pre" ? "Stage 1 — Pre-Live (Blocks publishing)" : "Stage 2 — Post-Live (Operational)"}
+                                </p>
+                                <div
+                                  className="min-h-[60px] rounded-lg border-2 border-dashed border-gray-200 p-1 space-y-1"
+                                  onDragOver={(e) => { e.preventDefault(); }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (dragIdx === null) return;
+                                    const draggedStage = approvalStages[dragIdx];
+                                    const newStages = approvalStages.filter((_, i) => i !== dragIdx);
+                                    const targetBlocking = section === "pre";
+                                    const targetSectionStages = newStages.filter((s) => s.blocking === targetBlocking);
+                                    const insertAt = newStages.findIndex((s) => s.blocking === targetBlocking && s === targetSectionStages[targetSectionStages.length - 1]);
+                                    const finalInsertAt = insertAt === -1 ? newStages.length : insertAt + 1;
+                                    newStages.splice(finalInsertAt, 0, { ...draggedStage, blocking: targetBlocking });
+                                    setApprovalStages(newStages);
+                                    setDragIdx(null);
+                                    setDragOverIdx(null);
+                                  }}
+                                >
+                                  {sectionStages.length === 0 && (
+                                    <p className="text-xs text-gray-400 text-center py-3">Drop here</p>
+                                  )}
+                                  {sectionStages.map((stage) => {
+                                    const globalIdx = approvalStages.indexOf(stage);
+                                    return (
+                                      <div
+                                        key={stage.role}
+                                        draggable
+                                        onDragStart={() => setDragIdx(globalIdx)}
+                                        onDragOver={(e) => { e.preventDefault(); setDragOverIdx(globalIdx); }}
+                                        onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                                        onDrop={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (dragIdx === null || dragIdx === globalIdx) return;
+                                          const newStages = [...approvalStages];
+                                          const [moved] = newStages.splice(dragIdx, 1);
+                                          newStages.splice(globalIdx, 0, moved);
+                                          setApprovalStages(newStages);
+                                          setDragIdx(null);
+                                          setDragOverIdx(null);
+                                        }}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm cursor-grab select-none transition-all ${
+                                          dragIdx === globalIdx
+                                            ? "opacity-40"
+                                            : dragOverIdx === globalIdx
+                                            ? "border-blue-400 bg-blue-50"
+                                            : section === "pre"
+                                            ? "border-blue-200 bg-blue-50/60 text-blue-800"
+                                            : "border-green-200 bg-green-50/60 text-green-800"
+                                        }`}
+                                      >
+                                        <span className="text-gray-400 text-xs">⠿</span>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium text-xs">{stage.label}</p>
+                                          <p className="text-xs opacity-60 truncate">{stage.desc}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setApprovalStages((prev) =>
+                                              prev.map((s) =>
+                                                s.role === stage.role ? { ...s, blocking: !s.blocking } : s
+                                              )
+                                            );
+                                          }}
+                                          className="text-xs px-1.5 py-0.5 rounded border border-current opacity-60 hover:opacity-100 shrink-0"
+                                          title={section === "pre" ? "Move to Post-Live" : "Move to Pre-Live"}
+                                        >
+                                          {section === "pre" ? "↓ Post" : "↑ Pre"}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-8 sm:mt-10 pt-6 border-t border-gray-200">
                   <button

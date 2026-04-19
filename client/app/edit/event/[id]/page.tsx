@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { dayjs } from "@/lib/dateUtils";
-import EventForm from "@/app/_components/Admin/ManageEvent";
+import EventForm, { WorkflowStage, STANDALONE_EVENT_STAGES } from "@/app/_components/Admin/ManageEvent";
 import {
   EventFormData,
   departments as departmentOptions,
@@ -47,6 +47,7 @@ export default function EditEventPage() {
   const [isArchiveUpdating, setIsArchiveUpdating] = useState(false);
   const [approvalExists, setApprovalExists] = useState<boolean | null>(null);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const approvalConfigRef = { current: { enabled: true, stages: STANDALONE_EVENT_STAGES as WorkflowStage[] } };
 
   useEffect(() => {
     if (authIsLoading) return;
@@ -738,7 +739,11 @@ export default function EditEventPage() {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ itemId: eventIdSlug, type: "event" }),
+        body: JSON.stringify({
+          itemId: eventIdSlug,
+          type: "event",
+          customStages: approvalConfigRef.current.stages,
+        }),
       });
       if (res.status === 409) {
         toast.success("Already submitted for approval.");
@@ -844,6 +849,9 @@ export default function EditEventPage() {
         isDraft={isDraft}
         isArchiveUpdating={isArchiveUpdating}
         onToggleArchive={handleToggleArchive}
+        onApprovalConfigChange={(enabled, stages) => {
+          approvalConfigRef.current = { enabled, stages };
+        }}
       />
       {/* Approval workflow actions */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-12 pb-8">

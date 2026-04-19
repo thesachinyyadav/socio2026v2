@@ -858,14 +858,10 @@ interface WorkflowStage {
 }
 
 const DEFAULT_WORKFLOW_STAGES: WorkflowStage[] = [
-  { role: 'hod',           label: 'HOD',             desc: 'Head of Department',         blocking: true  },
-  { role: 'dean',          label: 'Dean',             desc: 'Dean of the School',         blocking: true  },
-  { role: 'cfo',           label: 'CFO / Campus Dir', desc: 'Finance & campus oversight', blocking: true  },
-  { role: 'accounts',      label: 'Accounts Office',  desc: 'Financial clearance',        blocking: true  },
-  { role: 'it',            label: 'IT Support',       desc: 'Technical setup',             blocking: false },
-  { role: 'venue',         label: 'Venue',            desc: 'Venue arrangements',          blocking: false },
-  { role: 'catering',      label: 'Catering',         desc: 'Food & catering vendors',     blocking: false },
-  { role: 'stalls',        label: 'Stalls / Misc',    desc: 'Stall allocations',           blocking: false },
+  { role: 'hod',      label: 'HOD',             desc: 'Head of Department',         blocking: true },
+  { role: 'dean',     label: 'Dean',             desc: 'Dean of the School',         blocking: true },
+  { role: 'cfo',      label: 'CFO / Campus Dir', desc: 'Finance & campus oversight', blocking: true },
+  { role: 'accounts', label: 'Accounts Office',  desc: 'Financial clearance',        blocking: true },
 ];
 
 interface ApprovalsSetupViewProps {

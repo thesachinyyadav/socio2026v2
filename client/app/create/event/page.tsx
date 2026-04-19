@@ -1,6 +1,6 @@
 "use client";
-import React, { useMemo, useState } from "react";
-import EventForm from "@/app/_components/Admin/ManageEvent";
+import React, { useMemo, useRef, useState } from "react";
+import EventForm, { WorkflowStage, STANDALONE_EVENT_STAGES } from "@/app/_components/Admin/ManageEvent";
 import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
@@ -9,6 +9,10 @@ import { useRouter } from "next/navigation";
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const approvalConfigRef = useRef<{ enabled: boolean; stages: WorkflowStage[] }>({
+    enabled: true,
+    stages: STANDALONE_EVENT_STAGES,
+  });
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
   const MAX_EMAIL_LENGTH = 100;
 
@@ -314,10 +318,28 @@ export default function CreateEventPage() {
       }
 
       const result = await response.json();
+      const createdEventId: string | undefined = result?.event_id;
       console.log(
         `CreateEventPage: Event ${saveAsDraft ? "draft saved" : "created"} successfully via API:`,
         result
       );
+
+      // Submit for approval if enabled and this is a standalone event (no fest_id)
+      const isFestEvent = dataFromHookForm.festEvent && dataFromHookForm.festEvent !== "none";
+      const { enabled: approvalEnabled, stages: approvalStages } = approvalConfigRef.current;
+      if (createdEventId && approvalEnabled && !isFestEvent) {
+        try {
+          await fetch(`${API_URL}/api/approvals`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ itemId: createdEventId, type: "event", customStages: approvalStages }),
+          });
+        } catch {
+          // Non-critical — event is saved, approval can be submitted later
+        }
+        router.push(`/approvals/${createdEventId}?type=event`);
+        return;
+      }
     } catch (error: any) {
       console.error(
         `CreateEventPage: Error during event ${saveAsDraft ? "draft save" : "creation"} fetch/processing:`,
@@ -351,6 +373,9 @@ export default function CreateEventPage() {
       existingImageFileUrl={null}
       existingBannerFileUrl={null}
       existingPdfFileUrl={null}
+      onApprovalConfigChange={(enabled, stages) => {
+        approvalConfigRef.current = { enabled, stages };
+      }}
     />
   );
 }
