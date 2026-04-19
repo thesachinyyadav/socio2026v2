@@ -26,11 +26,11 @@ async function fetchItemMeta(itemId, type) {
   return queryOne("fests", { where: { fest_id: itemId } });
 }
 
-// HOD: matched by dept (if set) + campus; falls back to school + campus
-async function findHodForDeptAndCampus(dept, school, campus) {
+// HOD: matched by department (if set) + campus; falls back to school + campus
+async function findHodForDeptAndCampus(department, school, campus) {
   if (!campus) return null;
-  if (dept) {
-    const rows = await queryAll("users", { where: { is_hod: true, dept, campus }, limit: 1 });
+  if (department) {
+    const rows = await queryAll("users", { where: { is_hod: true, department, campus }, limit: 1 });
     if (rows[0]) return rows[0];
   }
   if (school) {
