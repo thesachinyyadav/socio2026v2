@@ -94,6 +94,46 @@ export async function middleware(req: NextRequest) {
       return redirect("/error");
     }
 
+    if (pathname.startsWith("/edit/clubs/")) {
+      if (Boolean(userData.is_masteradmin)) {
+        return res;
+      }
+
+      const requestedId = decodeURIComponent(pathname.split("/")[3] || "").trim();
+      if (!requestedId) {
+        return redirect("/error");
+      }
+
+      const byId = await supabase
+        .from("clubs")
+        .select("club_editors")
+        .eq("club_id", requestedId)
+        .maybeSingle();
+      const resolvedClub = byId.data
+        ? byId
+        : await supabase
+            .from("clubs")
+            .select("club_editors")
+            .eq("slug", requestedId)
+            .maybeSingle();
+
+      if (resolvedClub.error || !resolvedClub.data) {
+        return redirect("/error");
+      }
+
+      const editors = Array.isArray((resolvedClub.data as any).club_editors)
+        ? ((resolvedClub.data as any).club_editors as unknown[])
+        : [];
+      const isClubEditor = editors.some(
+        (editor) => String(editor || "").trim().toLowerCase() === user.email!.toLowerCase()
+      );
+
+      if (!isClubEditor) {
+        return redirect("/error");
+      }
+      return res;
+    }
+
     const canManage = Boolean(userData?.is_organiser) || Boolean(userData?.is_masteradmin);
     if (isManagementRoute && !canManage) {
       return redirect("/error");

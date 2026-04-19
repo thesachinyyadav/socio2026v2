@@ -28,9 +28,11 @@ import {
   Eye,
   ChevronRight,
   CheckCircle2,
+  Building2,
 } from "lucide-react";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
 import ApprovalsManager from "../_components/Admin/ApprovalsManager";
+import { deleteClub, ClubRecord } from "@/app/actions/clubs";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const ITEMS_PER_PAGE = 20;
@@ -163,7 +165,7 @@ export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "notifications" | "report" | "settings" | "approvals"
+    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "notifications" | "report" | "settings"
   >("dashboard");
   const authToken = session?.access_token || null;
 
@@ -210,6 +212,16 @@ export default function MasterAdminPage() {
   const [festSortKey, setFestSortKey] = useState<"title" | "date" | "registrations" | "dept">("date");
   const [festSortDir, setFestSortDir] = useState<"asc" | "desc">("desc");
 
+  // Club management state
+  const [clubs, setClubs] = useState<ClubRecord[]>([]);
+  const [clubPagination, setClubPagination] = useState<PaginationState>(createDefaultPagination());
+  const [clubSearchQuery, setClubSearchQuery] = useState("");
+  const [showDeleteClubConfirm, setShowDeleteClubConfirm] = useState<string | null>(null);
+  const [clubPage, setClubPage] = useState(1);
+  const [clubSortKey, setClubSortKey] = useState<"name" | "category" | "registrations">("name");
+  const [clubSortDir, setClubSortDir] = useState<"asc" | "desc">("asc");
+  const [clubStatusFilter, setClubStatusFilter] = useState<"all" | "open" | "closed">("all");
+
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -228,6 +240,7 @@ export default function MasterAdminPage() {
   const debouncedUserSearch = useDebounce(userSearchQuery, 300);
   const debouncedEventSearch = useDebounce(eventSearchQuery, 300);
   const debouncedFestSearch = useDebounce(festSearchQuery, 300);
+  const debouncedClubSearch = useDebounce(clubSearchQuery, 300);
 
   useEffect(() => {
     const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
@@ -253,6 +266,8 @@ export default function MasterAdminPage() {
       fetchEvents();
     } else if (activeTab === "fests") {
       fetchFests();
+    } else if (activeTab === "clubs") {
+      fetchClubs();
     } else if (activeTab === "dashboard") {
       fetchDashboardData();
     } else if (activeTab === "notifications") {
@@ -268,6 +283,10 @@ export default function MasterAdminPage() {
   useEffect(() => {
     setUserPage(1);
   }, [debouncedUserSearch, roleFilter, userSortKey, userSortDir]);
+
+  useEffect(() => {
+    setClubPage(1);
+  }, [debouncedClubSearch, clubStatusFilter, clubSortKey, clubSortDir]);
 
   // Event status helper
   const getEventStatus = (event: Event) => {
@@ -331,6 +350,11 @@ export default function MasterAdminPage() {
     if (!isMasterAdmin || !authToken || activeTab !== "fests") return;
     fetchFests();
   }, [activeTab, isMasterAdmin, authToken, festPage, debouncedFestSearch, festSortKey, festSortDir]);
+
+  useEffect(() => {
+    if (!isMasterAdmin || !authToken || activeTab !== "clubs") return;
+    fetchClubs();
+  }, [activeTab, isMasterAdmin, authToken, clubPage, debouncedClubSearch, clubStatusFilter, clubSortKey, clubSortDir]);
 
   const fetchRegistrations = async () => {
     try {
@@ -522,6 +546,87 @@ export default function MasterAdminPage() {
       toast.error("Failed to load fests");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchClubs = async (options?: { unpaged?: boolean }) => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("*")
+        .order("club_name", { ascending: true });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const allOrganizations = (data ?? []) as ClubRecord[];
+      let filtered = allOrganizations;
+
+      if (debouncedClubSearch.trim()) {
+        const query = debouncedClubSearch.toLowerCase();
+        filtered = filtered.filter(
+          (club) =>
+            club.club_name.toLowerCase().includes(query) ||
+            (club.category && club.category.toLowerCase().includes(query))
+        );
+      }
+
+      if (clubStatusFilter !== "all") {
+        const neededRegStatus = clubStatusFilter === "open";
+        filtered = filtered.filter((club) => club.club_registrations === neededRegStatus);
+      }
+
+      filtered.sort((a, b) => {
+        let valA: string | number = a.club_name;
+        let valB: string | number = b.club_name;
+        if (clubSortKey === "category") {
+          valA = a.category || "";
+          valB = b.category || "";
+        } else if (clubSortKey === "registrations") {
+          valA = a.club_registrations ? 1 : 0;
+          valB = b.club_registrations ? 1 : 0;
+        }
+        if (valA < valB) return clubSortDir === "asc" ? -1 : 1;
+        if (valA > valB) return clubSortDir === "asc" ? 1 : -1;
+        return 0;
+      });
+
+      const startIndex = (clubPage - 1) * ITEMS_PER_PAGE;
+      const paginated = options?.unpaged
+        ? filtered
+        : filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+      setClubs(paginated);
+      setClubPagination({
+        page: clubPage,
+        pageSize: ITEMS_PER_PAGE,
+        totalItems: filtered.length,
+        totalPages: Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1,
+        hasNext: startIndex + ITEMS_PER_PAGE < filtered.length,
+        hasPrev: clubPage > 1,
+      });
+    } catch (error: any) {
+      console.error("Error fetching clubs:", error);
+      toast.error(error?.message || "Failed to load clubs");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteClub = async (clubId: string) => {
+    try {
+      const success = await deleteClub(clubId);
+      if (!success) {
+        throw new Error("Failed to delete club");
+      }
+      await fetchClubs();
+      setShowDeleteClubConfirm(null);
+      toast.success("Organization deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting club:", error);
+      toast.error(error.message || "Failed to delete club");
     }
   };
 
@@ -758,7 +863,6 @@ export default function MasterAdminPage() {
     { id: "users" as const, label: "Users", icon: <Users className="w-4 h-4" />, count: users.length },
     { id: "events" as const, label: "Events", icon: <CalendarDays className="w-4 h-4" />, count: events.length },
     { id: "fests" as const, label: "Fests", icon: <Trophy className="w-4 h-4" />, count: fests.length },
-    { id: "approvals" as const, label: "Approvals", icon: <CheckCircle2 className="w-4 h-4" /> },
     { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-4 h-4" /> },
     { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" /> },
   ];
@@ -1460,6 +1564,154 @@ export default function MasterAdminPage() {
           </div>
         )}
 
+        {/* Clubs Management Tab */}
+        {activeTab === "clubs" && (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Clubs</label>
+                  <input
+                    type="text"
+                    placeholder="Search clubs & centres by title or category..."
+                    value={clubSearchQuery}
+                    onChange={(e) => setClubSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
+                  />
+                </div>
+                <div className="w-full md:w-64 flex flex-col justify-end">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={clubStatusFilter}
+                      onChange={(e) => setClubStatusFilter(e.target.value as "all" | "open" | "closed")}
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#154CB3] focus:border-[#154CB3] transition-all"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="open">Registrations OPEN</option>
+                      <option value="closed">Registrations CLOSED</option>
+                    </select>
+                    {clubStatusFilter !== "all" && (
+                      <button
+                        onClick={() => setClubStatusFilter("all")}
+                        className="p-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex-shrink-0"
+                        title="Clear filter"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 text-sm text-gray-500">
+                Showing <strong className="text-gray-700">{clubs.length}</strong> of{" "}
+                <strong className="text-gray-700">{clubPagination.totalItems}</strong> organizations
+              </div>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              {isLoading ? (
+                <div className="p-12 text-center">
+                  <div className="w-12 h-12 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <div className="text-gray-600">Loading clubs...</div>
+                </div>
+              ) : clubs.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="text-xl font-semibold text-gray-700 mb-2">No organizations found</div>
+                  <div className="text-gray-500">Try adjusting your search or filter</div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1080px] table-fixed">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th
+                            onClick={() => toggleSort("name", clubSortKey, clubSortDir, setClubSortKey, setClubSortDir)}
+                            className="w-[30%] px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Club <SortIcon active={clubSortKey === "name"} dir={clubSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("category", clubSortKey, clubSortDir, setClubSortKey, setClubSortDir)}
+                            className="w-[20%] px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Category <SortIcon active={clubSortKey === "category"} dir={clubSortDir} />
+                          </th>
+                          <th
+                            onClick={() => toggleSort("registrations", clubSortKey, clubSortDir, setClubSortKey, setClubSortDir)}
+                            className="w-[20%] px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                          >
+                            Registrations <SortIcon active={clubSortKey === "registrations"} dir={clubSortDir} />
+                          </th>
+                          <th className="w-[30%] px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {clubs.map((club) => (
+                          <tr key={club.club_id} className="hover:bg-gray-50 transition-all duration-200">
+                            <td className="px-6 py-5 align-top">
+                              <div className="font-semibold text-gray-900 leading-6 break-words">{club.club_name}</div>
+                              <div className="text-xs text-gray-500 mt-1 uppercase font-medium">TYPE: {club.type}</div>
+                            </td>
+                            <td className="px-6 py-5 text-sm text-gray-600 font-medium leading-6 align-top break-words">
+                              {club.category || "Uncategorized"}
+                            </td>
+                            <td className="px-6 py-5 align-top">
+                              {club.club_registrations ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold bg-green-100 text-green-800">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-green-600"></span>
+                                  OPEN
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold bg-red-100 text-red-800">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                                  CLOSED
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 text-right align-top">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <a
+                                  href={`/edit/clubs/${club.club_id}`}
+                                  className="px-3.5 py-1.5 bg-[#154CB3] text-white text-xs font-semibold rounded-lg hover:bg-[#0f3f96] hover:-translate-y-0.5 transition-all"
+                                >
+                                  Edit
+                                </a>
+                                <a
+                                  href={`/club/${club.slug || club.club_id}`}
+                                  className="px-3.5 py-1.5 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  onClick={() => setShowDeleteClubConfirm(club.club_id)}
+                                  className="px-3.5 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 hover:-translate-y-0.5 transition-all"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <PaginationControls
+                    currentPage={clubPage}
+                    totalPages={clubPagination.totalPages}
+                    hasNext={clubPagination.hasNext}
+                    hasPrev={clubPagination.hasPrev}
+                    onNext={() => setClubPage((p) => p + 1)}
+                    onPrev={() => setClubPage((p) => p - 1)}
+                    totalItems={clubPagination.totalItems}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Notifications Tab */}
         {activeTab === "notifications" && authToken && (
           <AdminNotifications
@@ -1997,6 +2249,38 @@ export default function MasterAdminPage() {
                   className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete Fest
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDeleteClubConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl transform animate-scale-in">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Confirm Delete</h3>
+                <p className="text-gray-600">
+                  Are you sure you want to delete this organization? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteClubConfirm(null)}
+                  className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteClub(showDeleteClubConfirm)}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Delete Organization
                 </button>
               </div>
             </div>
