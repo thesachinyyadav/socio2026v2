@@ -380,6 +380,7 @@ export default function MasterAdminPage() {
         fetchUsers({ unpaged: true }),
         fetchEvents({ unpaged: true }),
         fetchFests({ unpaged: true }),
+        fetchClubs({ unpaged: true }),
         fetchRegistrations()
       ]);
     } catch (error) {
