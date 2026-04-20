@@ -1112,7 +1112,7 @@ function ApprovalsSetupView({
 
   return (
     <div className="p-6 sm:p-8 md:p-10">
-      <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-1">Approvals Setup</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-1">Approvals</h2>
       <p className="text-sm text-gray-500 mb-6">
         Drag to reorder stages. HOD and Dean are mandatory. CFO and Finance Officer can be toggled off if not required.
       </p>
@@ -1978,18 +1978,6 @@ function CreateFestForm(props?: CreateFestProps) {
           case "department":
             if (!Array.isArray(value) || value.length === 0) {
               errorMsg = "Select at least one department";
-            } else if (formData.organizingSchool) {
-              const allowedDepartmentValues = new Set(
-                getDepartmentOptionsForSchool(formData.organizingSchool).map(
-                  (option) => option.value
-                )
-              );
-              const hasInvalidDepartment = (value as string[]).some(
-                (departmentValue) => !allowedDepartmentValues.has(departmentValue)
-              );
-              if (hasInvalidDepartment) {
-                errorMsg = "Department access must match selected school";
-              }
             }
             break;
           case "category":
@@ -2922,7 +2910,7 @@ function CreateFestForm(props?: CreateFestProps) {
                       : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  Approvals Setup
+                  Approvals
                   {!savedFestId && !finalIsEditMode && (
                     <span className="ml-2 text-xs text-gray-400 font-normal">(save draft first)</span>
                   )}
