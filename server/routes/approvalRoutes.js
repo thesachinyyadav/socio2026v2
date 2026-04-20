@@ -162,9 +162,11 @@ async function buildStagesFromWorkflowConfig(orgDept, orgSchool, orgCampus, item
     return buildDefaultStages(orgDept, orgSchool, orgCampus, isUnderFest, hodUser, deanUser);
   }
 
+  const blockingCount = configs.filter(c => c.is_blocking).length;
   const assigneeCache = {};
   const results = [];
-  for (const [idx, config] of configs.entries()) {
+  let blockingIdx = 0;
+  for (const config of configs) {
     let assigneeUser = null;
     if (!isUnderFest) {
       if (!assigneeCache[config.step_key]) {
@@ -172,7 +174,8 @@ async function buildStagesFromWorkflowConfig(orgDept, orgSchool, orgCampus, item
       }
       assigneeUser = assigneeCache[config.step_key];
     }
-    results.push(makeStageObject(idx, config.step_key, config.step_label, config.is_blocking, isUnderFest, assigneeUser));
+    const step = config.is_blocking ? blockingIdx++ : blockingCount;
+    results.push(makeStageObject(step, config.step_key, config.step_label, config.is_blocking, isUnderFest, assigneeUser));
   }
   return results;
 }
@@ -190,9 +193,12 @@ function buildDefaultStages(orgDept, orgSchool, orgCampus, isUnderFest, hodUser,
     { role: "stalls",   label: "Stalls/Misc",      is_blocking: false },
   ];
   const byRole = { hod: hodUser, dean: deanUser };
-  return all.map((cfg, idx) =>
-    makeStageObject(idx, cfg.role, cfg.label, cfg.is_blocking, isUnderFest, byRole[cfg.role] || null)
-  );
+  const blockingCount = all.filter(c => c.is_blocking).length;
+  let blockingIdx = 0;
+  return all.map((cfg) => {
+    const step = cfg.is_blocking ? blockingIdx++ : blockingCount;
+    return makeStageObject(step, cfg.role, cfg.label, cfg.is_blocking, isUnderFest, byRole[cfg.role] || null);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -686,7 +692,7 @@ router.patch(
         if (!assigneeCache[s.role]) {
           assigneeCache[s.role] = await autoAssignUser(s.role, orgDept, orgSchool, orgCampus);
         }
-        const base = makeStageObject(startIdx + i, s.role, s.label, false, false, assigneeCache[s.role] || null);
+        const base = makeStageObject(startIdx, s.role, s.label, false, false, assigneeCache[s.role] || null);
         return { ...base, request_data: s.request_data || {} };
       }));
 
