@@ -129,6 +129,22 @@ async function autoAssignUser(role, orgDept, orgSchool, orgCampus) {
   }
 }
 
+// Bulk-notify all pending stage 2 (non-blocking) assignees when an item goes live
+async function dispatchOperationalNotifications(stages, itemId, itemTitle) {
+  const pending = stages.filter(s => !s.blocking && s.status === "pending" && s.assignee_user_id);
+  if (!pending.length) return;
+  await Promise.allSettled(pending.map(async (s) => {
+    const assignee = await queryOne("users", { where: { auth_uuid: s.assignee_user_id } });
+    if (assignee?.email) {
+      await sendApprovalNotification(
+        assignee.email,
+        "Operational Approval Needed",
+        `"${itemTitle}" is now live and requires your action: ${s.label}.`
+      );
+    }
+  }));
+}
+
 // Build stage object from a config entry
 function makeStageObject(idx, role, label, isBlocking, isUnderFest, assigneeUser) {
   const skip = isUnderFest && isBlocking;
@@ -281,6 +297,7 @@ router.post(
       // Under-fest events go live immediately (all blocking skipped)
       if (allBlockingSkipped && isUnderFest) {
         await setEventOrFestLive(itemId, type);
+        await dispatchOperationalNotifications(stages, itemId, item.title || item.fest_title || itemId);
       }
 
       // Notify assigned HOD/Dean
@@ -705,6 +722,17 @@ router.patch(
           .eq("id", record.id)
           .select()
           .single();
+
+        // If already live, dispatch immediately to newly attached operational assignees
+        if (record.went_live_at) {
+          const liveItem = await fetchItemMeta(itemId, "event");
+          await dispatchOperationalNotifications(
+            mergedStages,
+            itemId,
+            liveItem?.title || liveItem?.fest_title || itemId
+          );
+        }
+
         return res.json({ approval: updated });
       }
 
@@ -872,6 +900,14 @@ router.patch(
             `Your ${record.type} has been fully approved and is now publicly visible.`
           );
         }
+
+        // Bulk-dispatch to all stage 2 operational assignees
+        const liveItem = await fetchItemMeta(record.event_or_fest_id, record.type);
+        await dispatchOperationalNotifications(
+          newStages,
+          record.event_or_fest_id,
+          liveItem?.title || liveItem?.fest_title || record.event_or_fest_id
+        );
       }
 
       if (action === "reject" && record.submitted_by) {
