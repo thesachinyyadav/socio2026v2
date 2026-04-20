@@ -65,18 +65,73 @@ function isPhase1Complete(stages: ApprovalStage[]): boolean {
 }
 
 const STATUS_COLORS: Record<StepStatus, string> = {
-  pending:  "bg-yellow-100 text-yellow-800 border-yellow-300",
-  approved: "bg-green-100 text-green-800 border-green-300",
-  rejected: "bg-red-100 text-red-800 border-red-300",
-  skipped:  "bg-gray-100 text-gray-500 border-gray-300",
+  pending:  "bg-slate-50 text-slate-700 border-slate-200",
+  approved: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  rejected: "bg-rose-50 text-rose-800 border-rose-200",
+  skipped:  "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-const STATUS_ICONS: Record<StepStatus, string> = {
-  pending:  "⏳",
-  approved: "✅",
-  rejected: "❌",
-  skipped:  "⏭️",
-};
+function StatusIcon({ status, className = "h-4 w-4" }: { status: StepStatus; className?: string }) {
+  const strokeClass =
+    status === "approved"
+      ? "text-emerald-700"
+      : status === "rejected"
+      ? "text-rose-700"
+      : "text-slate-500";
+
+  if (status === "approved") {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${className} ${strokeClass}`}>
+        <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+        <path d="m6.5 10.5 2.2 2.2 4.8-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (status === "rejected") {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${className} ${strokeClass}`}>
+        <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+        <path d="m7 7 6 6m0-6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (status === "skipped") {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${className} ${strokeClass}`}>
+        <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+        <path d="m7.2 8.1 2.2 1.9-2.2 1.9m3.6-3.8 2.2 1.9-2.2 1.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${className} ${strokeClass}`}>
+      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 6v4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="10" cy="13.3" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ArrowLeftIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={className}>
+      <path d="m12.5 4.5-5 5 5 5M7.5 9.5H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function WarningIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={className}>
+      <path d="M10 3.6 17 16H3l7-12.4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10 7.4v4.8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="10" cy="14.8" r=".9" fill="currentColor" />
+    </svg>
+  );
+}
 
 function StepCard({
   label,
@@ -89,7 +144,7 @@ function StepCard({
 }) {
   return (
     <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${STATUS_COLORS[status]}`}>
-      <span className="text-lg">{STATUS_ICONS[status]}</span>
+      <StatusIcon status={status} className="h-5 w-5 shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm">{label}</p>
         {status === "pending" && routingState === "waiting_for_assignment" && (
@@ -178,12 +233,16 @@ export default function ApprovalsPage() {
   const hasRejection      = approval.action_log.some((e) => e.action === "reject");
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <button onClick={() => router.back()} className="text-sm text-blue-600 hover:underline mb-2 inline-block">
-            ← Back
+          <button
+            onClick={() => router.back()}
+            className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+            Back
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Approval Status</h1>
           {item && (
@@ -204,7 +263,7 @@ export default function ApprovalsPage() {
         {/* Stage indicator */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-            phase1Done ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+            phase1Done ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-800"
           }`}>
             {phase1Done ? "Stage 2: Operational" : "Stage 1: Pending Approval"}
           </span>
@@ -217,28 +276,28 @@ export default function ApprovalsPage() {
 
         {/* Rejection alert */}
         {hasRejection && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xl">⛔</span>
-              <p className="text-red-700 font-bold text-sm">Submission Returned</p>
+              <WarningIcon className="h-5 w-5 text-rose-700" />
+              <p className="text-rose-800 font-semibold text-sm">Submission Returned</p>
             </div>
             {approval.action_log.filter((e) => e.action === "reject").map((e, i) => (
               <div key={i} className={`${i > 0 ? "mt-3 pt-3 border-t border-red-200" : ""}`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold bg-red-200 text-red-800 px-2 py-0.5 rounded uppercase">
+                  <span className="text-xs font-semibold bg-rose-100 text-rose-800 px-2 py-0.5 rounded uppercase">
                     {e.step}
                   </span>
-                  <span className="text-xs text-red-500">{e.by} · {formatDate(e.at)}</span>
+                  <span className="text-xs text-rose-700/80">{e.by} · {formatDate(e.at)}</span>
                   {e.is_override && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Override</span>
+                    <span className="text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Override</span>
                   )}
                 </div>
                 {e.note ? (
-                  <p className="text-sm text-red-700 bg-red-100 rounded-lg px-3 py-2 border border-red-200 italic">
+                  <p className="text-sm text-rose-800 bg-white rounded-lg px-3 py-2 border border-rose-200 italic">
                     "{e.note}"
                   </p>
                 ) : (
-                  <p className="text-xs text-red-400 italic">No reason provided.</p>
+                  <p className="text-xs text-rose-700/70 italic">No reason provided.</p>
                 )}
               </div>
             ))}
@@ -271,9 +330,9 @@ export default function ApprovalsPage() {
 
         {/* Budget estimate */}
         {approval.budget_items && approval.budget_items.length > 0 && (
-          <div className="bg-white rounded-xl border border-green-200 p-5">
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              💰 Budget Estimate
+              Budget Estimate
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -319,13 +378,13 @@ export default function ApprovalsPage() {
             <ol className="relative border-l border-gray-200 space-y-4 ml-2">
               {[...approval.action_log].reverse().map((entry, i) => (
                 <li key={i} className="ml-4">
-                  <span className={`absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white ${
-                    entry.action === "approve" ? "bg-green-500" : "bg-red-500"
-                  }`} />
+                  <span className="absolute -left-3 mt-0.5 rounded-full bg-white p-0.5">
+                    <StatusIcon status={entry.action === "approve" ? "approved" : "rejected"} className="h-4 w-4" />
+                  </span>
                   <p className="text-sm font-medium text-gray-900">
                     {entry.step.toUpperCase()} — {entry.action === "approve" ? "Approved" : "Rejected"}
                     {entry.is_override && (
-                      <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Override</span>
+                      <span className="ml-2 text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Override</span>
                     )}
                   </p>
                   <p className="text-xs text-gray-500">{entry.by} · {formatDate(entry.at)}</p>
