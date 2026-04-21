@@ -571,7 +571,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
 
   const quickTimes = ["09:00", "12:00", "15:00", "18:00"];
   const displayValue = field.value
-    ? `${field.value} (${formatHHMMTo12Hour(field.value as string)})`
+    ? formatHHMMTo12Hour(field.value as string)
     : placeholder;
 
   return (
