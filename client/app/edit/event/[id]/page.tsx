@@ -46,6 +46,7 @@ export default function EditEventPage() {
   const [isDraft, setIsDraft] = useState(false);
   const [isArchiveUpdating, setIsArchiveUpdating] = useState(false);
   const [approvalExists, setApprovalExists] = useState<boolean | null>(null);
+  const [approvalPhase1Complete, setApprovalPhase1Complete] = useState(false);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const approvalConfigRef = { current: { enabled: true, stages: STANDALONE_EVENT_STAGES as WorkflowStage[] } };
   const operationalConfigRef = { current: { it: { enabled: false, description: '' }, venue: { enabled: false, venue_name: '', date: '', start_time: '', end_time: '' }, catering: { enabled: false, approximate_count: '', description: '' }, stalls: { enabled: false, total_stalls: '', canopy_count: '', hardboard_count: '', description: '' } } as OperationalConfig };
@@ -724,9 +725,22 @@ export default function EditEventPage() {
       const res = await fetch(`${API_URL}/api/approvals/${eventIdSlug}?type=event`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      setApprovalExists(res.ok);
+      if (!res.ok) {
+        setApprovalExists(false);
+        setApprovalPhase1Complete(false);
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      const stages = Array.isArray(body?.approval?.stages) ? body.approval.stages : [];
+      const blocking = stages.filter((s: any) => s?.blocking);
+      const phase1Complete =
+        blocking.length > 0 &&
+        blocking.every((s: any) => s?.status === "approved" || s?.status === "skipped");
+      setApprovalExists(true);
+      setApprovalPhase1Complete(phase1Complete);
     } catch {
       setApprovalExists(false);
+      setApprovalPhase1Complete(false);
     }
   };
 
@@ -856,6 +870,7 @@ export default function EditEventPage() {
         onOperationalConfigChange={(config) => {
           operationalConfigRef.current = config;
         }}
+        publishBlockedByApproval={!(approvalExists && approvalPhase1Complete)}
       />
       {/* Approval workflow actions */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-12 pb-8">

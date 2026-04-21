@@ -85,6 +85,14 @@ export const parseHHMM = (
   return null;
 };
 
+const formatHHMMTo12Hour = (timeString?: string): string => {
+  const parsed = parseHHMM(timeString || "");
+  if (!parsed) return "";
+  const period = parsed.hours >= 12 ? "PM" : "AM";
+  const hour12 = parsed.hours % 12 === 0 ? 12 : parsed.hours % 12;
+  return `${hour12}:${parsed.minutes.toString().padStart(2, "0")} ${period}`;
+};
+
 interface MultiSelectDropdownProps {
   name: keyof EventFormData;
   control: Control<EventFormData>;
@@ -446,7 +454,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby={`${field.name}-monthyear`}
-            className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-4 w-[20rem] max-w-[calc(100vw-2rem)]"
+            className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-4 w-[min(20rem,calc(100vw-2rem))]"
           >
             <div className="flex items-center justify-between mb-3">
               <button
@@ -527,54 +535,18 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   id,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const parsedInitialTime = parseHHMM(field.value as string);
-  const [selectedHour, setSelectedHour] = useState<number>(
-    parsedInitialTime?.hours ?? 12
-  );
-  const [selectedMinute, setSelectedMinute] = useState<number>(
-    parsedInitialTime?.minutes ?? 0
-  );
+  const [draftTime, setDraftTime] = useState<string>((field.value as string) || "12:00");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const hourListRef = useRef<HTMLDivElement>(null);
-  const minuteListRef = useRef<HTMLDivElement>(null);
+  const nativeTimeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const parsedFieldValue = parseHHMM(field.value as string);
-    if (parsedFieldValue) {
-      setSelectedHour(parsedFieldValue.hours);
-      setSelectedMinute(parsedFieldValue.minutes);
+    if (parseHHMM(field.value as string)) {
+      setDraftTime(field.value as string);
     } else if (!field.value) {
-      setSelectedHour(12);
-      setSelectedMinute(0);
+      setDraftTime("12:00");
     }
   }, [field.value]);
-
-  useEffect(() => {
-    if (isOpen) {
-      const hourEl = hourListRef.current?.querySelector(
-        `[data-hour="${selectedHour}"]`
-      ) as HTMLElement;
-      if (hourEl && hourListRef.current) {
-        hourListRef.current.scrollTop =
-          hourEl.offsetTop -
-          hourListRef.current.offsetTop -
-          hourListRef.current.clientHeight / 2 +
-          hourEl.clientHeight / 2;
-      }
-
-      const minuteEl = minuteListRef.current?.querySelector(
-        `[data-minute="${selectedMinute}"]`
-      ) as HTMLElement;
-      if (minuteEl && minuteListRef.current) {
-        minuteListRef.current.scrollTop =
-          minuteEl.offsetTop -
-          minuteListRef.current.offsetTop -
-          minuteListRef.current.clientHeight / 2 +
-          minuteEl.clientHeight / 2;
-      }
-    }
-  }, [isOpen, selectedHour, selectedMinute]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -592,46 +564,15 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   }, []);
 
   const handleSetTime = () => {
-    field.onChange(formatTimeToHHMM(selectedHour, selectedMinute));
+    if (!parseHHMM(draftTime)) return;
+    field.onChange(draftTime);
     setIsOpen(false);
   };
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = Array.from({ length: 60 / 5 }, (_, i) => i * 5);
-
-  const renderTimeColumn = (
-    items: number[],
-    currentDisplayValue: number,
-    onSelectValue: (value: number) => void,
-    type: "hour" | "minute",
-    listRef: React.RefObject<HTMLDivElement | null>
-  ) => (
-    <div
-      ref={listRef}
-      className="h-48 overflow-y-auto border-r border-gray-200 last:border-r-0 px-1 flex-1 custom-scrollbar"
-      role="listbox"
-      aria-label={`${type} selection`}
-    >
-      {items.map((item) => (
-        <button
-          type="button"
-          key={item}
-          data-hour={type === "hour" ? item : undefined}
-          data-minute={type === "minute" ? item : undefined}
-          onClick={() => onSelectValue(item)}
-          className={`w-full text-center py-1.5 text-sm rounded transition-colors block ${
-            item === currentDisplayValue
-              ? "bg-[#154CB3] text-white font-semibold"
-              : "hover:bg-gray-100 text-gray-700"
-          }`}
-          role="option"
-          aria-selected={item === currentDisplayValue}
-        >
-          {item.toString().padStart(2, "0")}
-        </button>
-      ))}
-    </div>
-  );
+  const quickTimes = ["09:00", "12:00", "15:00", "18:00"];
+  const displayValue = field.value
+    ? `${field.value} (${formatHHMMTo12Hour(field.value as string)})`
+    : placeholder;
 
   return (
     <div className="w-full">
@@ -664,7 +605,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
               field.value ? "text-gray-900" : "text-gray-500"
             }`}
           >
-            {field.value ? field.value : placeholder}
+            {displayValue}
           </span>
           <svg
             className={`h-5 w-5 text-gray-500 transition-colors ${
@@ -686,23 +627,46 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
             id={`${field.name}-time-panel`}
             role="dialog"
             aria-modal="true"
-            className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 w-48"
+            className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-3 w-[min(20rem,calc(100vw-2rem))]"
           >
-            <div className="flex justify-between">
-              {renderTimeColumn(
-                hours,
-                selectedHour,
-                (h) => setSelectedHour(h),
-                "hour",
-                hourListRef
-              )}
-              {renderTimeColumn(
-                minutes,
-                selectedMinute,
-                (m) => setSelectedMinute(m),
-                "minute",
-                minuteListRef
-              )}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {quickTimes.map((time) => (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => setDraftTime(time)}
+                    className={`rounded-md border px-2 py-1.5 text-sm font-medium transition-colors ${
+                      draftTime === time
+                        ? "border-[#154CB3] bg-[#154CB3]/10 text-[#154CB3]"
+                        : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {formatHHMMTo12Hour(time)}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Pick exact time</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={nativeTimeRef}
+                    type="time"
+                    step={300}
+                    value={draftTime}
+                    onChange={(e) => setDraftTime(e.target.value)}
+                    className="h-10 w-full rounded-md border border-gray-300 px-2 text-sm focus:border-[#154CB3] focus:outline-none focus:ring-1 focus:ring-[#154CB3]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => nativeTimeRef.current?.showPicker?.()}
+                    className="h-10 shrink-0 rounded-md border border-gray-200 px-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Clock
+                  </button>
+                </div>
+              </div>
             </div>
             <button
               type="button"
@@ -787,6 +751,7 @@ interface EventFormProps {
   onToggleArchive?: () => void;
   onApprovalConfigChange?: (enabled: boolean, stages: WorkflowStage[], budgetItems: BudgetItem[]) => void;
   onOperationalConfigChange?: (config: OperationalConfig) => void;
+  publishBlockedByApproval?: boolean;
 }
 
 function EventApprovalsOperationalSection({
@@ -1361,6 +1326,7 @@ export default function EventForm({
   onToggleArchive,
   onApprovalConfigChange,
   onOperationalConfigChange,
+  publishBlockedByApproval = false,
 }: EventFormProps) {
   const [activeTab, setActiveTab] = useState<'details' | 'approvals'>('details');
   const [blockingStages, setBlockingStages] = useState<BlockingStageConfig[]>(DEFAULT_BLOCKING_STAGES);
@@ -1808,6 +1774,7 @@ export default function EventForm({
   const [successAction, setSuccessAction] = React.useState<"publish" | "draft">("publish");
   const [wasDraftOnSubmit, setWasDraftOnSubmit] = React.useState(false);
   const [modalVisible, setModalVisible] = React.useState(false);
+  const shouldBlockPublishByApproval = Boolean(isEditMode && isDraft && publishBlockedByApproval);
 
   const processSubmit: SubmitHandler<EventFormData> = async (data) => {
     try {
@@ -2301,7 +2268,7 @@ export default function EventForm({
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Controller
                     name="eventDate"
                     control={control}
@@ -2381,7 +2348,7 @@ export default function EventForm({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Controller
                     name="eventTime"
                     control={control}
@@ -3134,21 +3101,23 @@ export default function EventForm({
                   </button>
                   
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handlePreview}
-                      disabled={
-                        isSubmittingProp ||
-                        rhfIsSubmitting ||
-                        isDeleting ||
-                        isOpeningPreview
-                      }
-                      className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isOpeningPreview ? "Opening preview..." : "Preview"}
-                    </button>
+                    {!shouldBlockPublishByApproval && (
+                      <button
+                        type="button"
+                        onClick={handlePreview}
+                        disabled={
+                          isSubmittingProp ||
+                          rhfIsSubmitting ||
+                          isDeleting ||
+                          isOpeningPreview
+                        }
+                        className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isOpeningPreview ? "Opening preview..." : "Preview"}
+                      </button>
+                    )}
 
-                    {onSubmitDraft && (
+                    {onSubmitDraft && !shouldBlockPublishByApproval && (
                       <button
                         type="button"
                         onClick={handleSubmit(processDraftSubmit, handleInvalidSubmit)}
@@ -3166,7 +3135,7 @@ export default function EventForm({
                       </button>
                     )}
 
-                    {isEditMode && (
+                    {isEditMode && !shouldBlockPublishByApproval && (
                       <div className="relative" ref={actionsDropdownRef}>
                         <button
                           type="button"
@@ -3237,28 +3206,38 @@ export default function EventForm({
                     )}
                   </div>
                   
-                  <button
-                    type="submit"
-                    disabled={
-                      isSubmittingProp ||
-                      rhfIsSubmitting ||
-                      isDeleting ||
-                      isOpeningPreview
-                    }
-                    className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {isSubmittingProp || rhfIsSubmitting
-                      ? isEditMode
+                  {shouldBlockPublishByApproval ? (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('approvals')}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors"
+                    >
+                      Go to Approvals Tab
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={
+                        isSubmittingProp ||
+                        rhfIsSubmitting ||
+                        isDeleting ||
+                        isOpeningPreview
+                      }
+                      className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {isSubmittingProp || rhfIsSubmitting
+                        ? isEditMode
+                          ? isDraft
+                            ? "Publishing..."
+                            : "Updating..."
+                          : "Publishing..."
+                        : isEditMode
                         ? isDraft
-                          ? "Publishing..."
-                          : "Updating..."
-                        : "Publishing..."
-                      : isEditMode
-                      ? isDraft
-                        ? "Publish Event"
-                        : "Update Event"
-                      : "Publish Event"}
-                  </button>
+                          ? "Publish Event"
+                          : "Update Event"
+                        : "Publish Event"}
+                    </button>
+                  )}
                 </div>
               </form>
             </div>

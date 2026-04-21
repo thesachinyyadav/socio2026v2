@@ -1380,6 +1380,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const [activeView, setActiveView] = useState<'details' | 'approvals'>('details');
   const [savedFestId, setSavedFestId] = useState<string | null>(null);
   const [approvalExists, setApprovalExists] = useState<boolean | null>(null);
+  const [approvalPhase1Complete, setApprovalPhase1Complete] = useState(false);
   const [existingBudgetItems, setExistingBudgetItems] = useState<BudgetItem[]>([]);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
 
@@ -1548,15 +1549,27 @@ function CreateFestForm(props?: CreateFestProps) {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then(async (r) => {
-        setApprovalExists(r.ok);
-        if (r.ok) {
-          const data = await r.json().catch(() => ({}));
-          if (Array.isArray(data?.approval?.budget_items)) {
-            setExistingBudgetItems(data.approval.budget_items);
-          }
+        if (!r.ok) {
+          setApprovalExists(false);
+          setApprovalPhase1Complete(false);
+          return;
+        }
+        setApprovalExists(true);
+        const data = await r.json().catch(() => ({}));
+        const stages = Array.isArray(data?.approval?.stages) ? data.approval.stages : [];
+        const blocking = stages.filter((s: any) => s?.blocking);
+        const phase1Complete =
+          blocking.length > 0 &&
+          blocking.every((s: any) => s?.status === "approved" || s?.status === "skipped");
+        setApprovalPhase1Complete(phase1Complete);
+        if (Array.isArray(data?.approval?.budget_items)) {
+          setExistingBudgetItems(data.approval.budget_items);
         }
       })
-      .catch(() => setApprovalExists(false));
+      .catch(() => {
+        setApprovalExists(false);
+        setApprovalPhase1Complete(false);
+      });
   }, [finalIsEditMode, festIdFromPath, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -3947,27 +3960,31 @@ function CreateFestForm(props?: CreateFestProps) {
                   </Link>
                   
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleSaveDraft}
-                      disabled={isSubmitting || isNavigating || isOpeningPreview}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isSubmitting && submitIntent === "draft"
-                        ? "Saving Draft..."
-                        : "Save as Draft"}
-                    </button>
+                    {!(finalIsEditMode && isDraftFest && !(approvalExists && approvalPhase1Complete)) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleSaveDraft}
+                          disabled={isSubmitting || isNavigating || isOpeningPreview}
+                          className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isSubmitting && submitIntent === "draft"
+                            ? "Saving Draft..."
+                            : "Save as Draft"}
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={handlePreview}
-                      disabled={isSubmitting || isNavigating || isOpeningPreview}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isOpeningPreview ? "Opening preview..." : "Preview"}
-                    </button>
-                    
-                    {finalIsEditMode && (
+                        <button
+                          type="button"
+                          onClick={handlePreview}
+                          disabled={isSubmitting || isNavigating || isOpeningPreview}
+                          className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isOpeningPreview ? "Opening preview..." : "Preview"}
+                        </button>
+                      </>
+                    )}
+
+                    {finalIsEditMode && !(finalIsEditMode && isDraftFest && !(approvalExists && approvalPhase1Complete)) && (
                       <div className="relative" ref={actionsDropdownRef}>
                         <button
                           type="button"
@@ -4002,7 +4019,15 @@ function CreateFestForm(props?: CreateFestProps) {
                     )}
                   </div>
                   
-                  {finalIsEditMode ? (
+                  {finalIsEditMode && isDraftFest && !(approvalExists && approvalPhase1Complete) ? (
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('approvals')}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors"
+                    >
+                      Go to Approvals Tab
+                    </button>
+                  ) : finalIsEditMode ? (
                     <button
                       type="submit"
                       disabled={isSubmitting || isNavigating || isOpeningPreview}
