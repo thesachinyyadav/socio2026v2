@@ -1808,14 +1808,6 @@ export default function EventForm({
     }
   };
 
-  const handleDraftSaveClick = async () => {
-    if (!onSubmitDraft) return;
-    if (isSubmittingProp || rhfIsSubmitting || isDeleting || isOpeningPreview) return;
-
-    const currentValues = getValues();
-    await processDraftSubmit(currentValues);
-  };
-
   const handlePreview = async () => {
     if (isSubmittingProp || rhfIsSubmitting || isDeleting || isOpeningPreview) {
       return;
@@ -3128,7 +3120,7 @@ export default function EventForm({
                     {onSubmitDraft && !shouldBlockPublishByApproval && (
                       <button
                         type="button"
-                        onClick={handleDraftSaveClick}
+                        onClick={handleSubmit(processDraftSubmit, handleInvalidSubmit)}
                         disabled={
                           isSubmittingProp ||
                           rhfIsSubmitting ||

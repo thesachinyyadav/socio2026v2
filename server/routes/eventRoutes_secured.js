@@ -562,48 +562,38 @@ router.post(
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
       const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
       const fallbackOrganizerEmail = normalizeEmailAddress(req.userInfo?.email || "");
-      let organizerEmail = normalizeEmailAddress(
+      const organizerEmail = normalizeEmailAddress(
         organizerEmailInput || fallbackOrganizerEmail
       );
 
-      if (shouldSaveAsDraft && !organizerEmail) {
-        organizerEmail = fallbackOrganizerEmail || "draft@socio.local";
-      }
-
-      if (!organizerEmail && !shouldSaveAsDraft) {
+      if (!organizerEmail) {
         return res.status(400).json({
           error: "Organizer contact email is required.",
         });
       }
 
-      if (!shouldSaveAsDraft && organizerEmail.length > ORGANIZER_EMAIL_MAX_LENGTH) {
+      if (organizerEmail.length > ORGANIZER_EMAIL_MAX_LENGTH) {
         return res.status(400).json({
           error: "Organizer contact email must be 100 characters or fewer.",
         });
       }
 
-      if (!shouldSaveAsDraft && !isValidEmailAddress(organizerEmail)) {
+      if (!isValidEmailAddress(organizerEmail)) {
         return res.status(400).json({
           error: "Please provide a valid organizer contact email.",
         });
       }
 
       // Validation
-      const resolvedTitle =
-        title && typeof title === "string" && title.trim() !== ""
-          ? title.trim()
-          : shouldSaveAsDraft
-            ? `Draft Event ${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}`
-            : "";
-      if (!resolvedTitle) {
+      if (!title || typeof title !== "string" || title.trim() === "") {
         return res.status(400).json({ error: "Title is required and must be a non-empty string." });
       }
 
-      console.log("✅ Title validation passed:", resolvedTitle);
+      console.log("✅ Title validation passed:", title);
 
       // Generate slug-based ID from title
-      let event_id = resolvedTitle
-        ? resolvedTitle
+      let event_id = title
+        ? title
             .toLowerCase()
             .trim()
             .replace(/[^\w\s-]/g, "")
@@ -680,27 +670,20 @@ router.post(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
-      let campusHostedAt = normalizeSingleStringField(
+      const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
       );
-      let parsedAllowedCampuses = normalizeStringListField(
+      const parsedAllowedCampuses = normalizeStringListField(
         req.body.allowed_campuses
       );
 
-      if (shouldSaveAsDraft && !campusHostedAt) {
-        campusHostedAt = normalizeSingleStringField(req.userInfo?.campus || "");
-      }
-      if (shouldSaveAsDraft && (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) && campusHostedAt) {
-        parsedAllowedCampuses = [campusHostedAt];
-      }
-
-      if (!campusHostedAt && !shouldSaveAsDraft) {
+      if (!campusHostedAt) {
         return res.status(400).json({
           error: "Campus hosted at is required.",
         });
       }
 
-      if ((!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) && !shouldSaveAsDraft) {
+      if (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) {
         return res.status(400).json({
           error: "At least one allowed campus is required.",
         });
@@ -718,7 +701,7 @@ router.post(
       // Insert event with creator's auth_uuid
       const created = await insert("events", [{
         event_id,
-        title: resolvedTitle,
+        title: title.trim(),
         description: description || null,
         event_date: event_date || null,
         event_time: event_time || null,
@@ -773,13 +756,13 @@ router.post(
       if (shouldSendNotifications) {
         sendBroadcastNotification({
           title: 'New Event Published',
-          message: `${resolvedTitle} — Check out this new event!`,
+          message: `${title} — Check out this new event!`,
           type: 'info',
           event_id: event_id,
-          event_title: resolvedTitle,
+          event_title: title,
           action_url: `/event/${event_id}`
         }).then(() => {
-          console.log(`✅ Sent notifications for new event: ${resolvedTitle}`);
+          console.log(`✅ Sent notifications for new event: ${title}`);
         }).catch((notifError) => {
           console.error('❌ Failed to send event notifications:', notifError);
         });
@@ -1077,9 +1060,6 @@ router.put(
         rawDraftPreference !== null &&
         String(rawDraftPreference).trim() !== "";
       const shouldDraftFromRequest = asBoolean(rawDraftPreference);
-      const shouldSaveAsDraft = hasDraftPreference
-        ? shouldDraftFromRequest
-        : asBoolean(event?.is_draft);
       const hasExplicitNotificationPreference =
         send_notifications !== undefined &&
         send_notifications !== null &&
@@ -1091,27 +1071,23 @@ router.put(
         isPublishTransition &&
         (hasExplicitNotificationPreference ? asBoolean(send_notifications) : true);
       const organizerEmailInput = normalizeSingleStringField(req.body.organizer_email || "");
-      let resolvedOrganizerEmail = normalizeEmailAddress(
+      const resolvedOrganizerEmail = normalizeEmailAddress(
         organizerEmailInput || event?.organizer_email || req.userInfo?.email || ""
       );
 
-      if (shouldSaveAsDraft && !resolvedOrganizerEmail) {
-        resolvedOrganizerEmail = normalizeEmailAddress(req.userInfo?.email || "") || "draft@socio.local";
-      }
-
-      if (!resolvedOrganizerEmail && !shouldSaveAsDraft) {
+      if (!resolvedOrganizerEmail) {
         return res.status(400).json({
           error: "Organizer contact email is required.",
         });
       }
 
-      if (!shouldSaveAsDraft && resolvedOrganizerEmail.length > ORGANIZER_EMAIL_MAX_LENGTH) {
+      if (resolvedOrganizerEmail.length > ORGANIZER_EMAIL_MAX_LENGTH) {
         return res.status(400).json({
           error: "Organizer contact email must be 100 characters or fewer.",
         });
       }
 
-      if (!shouldSaveAsDraft && !isValidEmailAddress(resolvedOrganizerEmail)) {
+      if (!isValidEmailAddress(resolvedOrganizerEmail)) {
         return res.status(400).json({
           error: "Please provide a valid organizer contact email.",
         });
@@ -1130,23 +1106,17 @@ router.put(
         console.log(`[AutoUnarchive] Event ${eventId} date changed to future (${event_date}). Auto-unarchiving.`);
       }
 
-      const resolvedTitle =
-        title && typeof title === "string" && title.trim() !== ""
-          ? title.trim()
-          : shouldSaveAsDraft
-            ? (event?.title || `Draft Event ${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}`)
-            : "";
-      if (!resolvedTitle) {
+      if (!title || typeof title !== "string" || title.trim() === "") {
         return res.status(400).json({ error: "Title is required and must be a non-empty string." });
       }
 
       // Check if title changed and generate new event_id
       let newEventId = eventId; // Default to current ID
-      const titleChanged = resolvedTitle !== event.title;
+      const titleChanged = title.trim() !== event.title;
       
       if (titleChanged) {
         // Generate new slug-based ID from new title
-        newEventId = resolvedTitle
+        newEventId = title
           .toLowerCase()
           .trim()
           .replace(/[^\w\s-]/g, "")
@@ -1176,30 +1146,20 @@ router.put(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
-      let campusHostedAt = normalizeSingleStringField(
+      const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
       );
       const parsedAllowedCampuses = normalizeStringListField(
         req.body.allowed_campuses
       );
 
-      if (shouldSaveAsDraft && !campusHostedAt) {
-        campusHostedAt = normalizeSingleStringField(event?.campus_hosted_at || req.userInfo?.campus || "");
-      }
-      const normalizedAllowedCampusesForUpdate =
-        Array.isArray(parsedAllowedCampuses) && parsedAllowedCampuses.length > 0
-          ? parsedAllowedCampuses
-          : shouldSaveAsDraft && campusHostedAt
-            ? [campusHostedAt]
-            : parsedAllowedCampuses;
-
-      if (!campusHostedAt && !shouldSaveAsDraft) {
+      if (!campusHostedAt) {
         return res.status(400).json({
           error: "Campus hosted at is required.",
         });
       }
 
-      if ((!Array.isArray(normalizedAllowedCampusesForUpdate) || normalizedAllowedCampusesForUpdate.length === 0) && !shouldSaveAsDraft) {
+      if (!Array.isArray(parsedAllowedCampuses) || parsedAllowedCampuses.length === 0) {
         return res.status(400).json({
           error: "At least one allowed campus is required.",
         });
@@ -1231,7 +1191,7 @@ router.put(
         : {};
 
       const updateData = {
-        title: resolvedTitle,
+        title: title.trim(),
         description: description || null,
         event_date: event_date || null,
         event_time: event_time || null,
@@ -1264,7 +1224,7 @@ router.put(
         outsider_registration_fee: parseOptionalFloat(req.body.outsider_registration_fee || req.body.outsiderRegistrationFee, null),
         outsider_max_participants: parseOptionalInt(req.body.outsider_max_participants || req.body.outsiderMaxParticipants, null),
         campus_hosted_at: campusHostedAt,
-        allowed_campuses: normalizedAllowedCampusesForUpdate,
+        allowed_campuses: parsedAllowedCampuses,
         min_participants: parseOptionalInt(req.body.min_participants || req.body.minParticipants, 1),
         updated_at: new Date().toISOString(),
         ...archiveOverridePayload,

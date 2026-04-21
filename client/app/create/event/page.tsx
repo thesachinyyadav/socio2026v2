@@ -80,33 +80,31 @@ export default function CreateEventPage() {
     }
 
     const normalizedContactEmail = normalizeEmail(dataFromHookForm.contactEmail);
-    if (!saveAsDraft) {
-      if (!normalizedContactEmail) {
-        alert("Contact email is required.");
-        setIsSubmitting(false);
-        return;
-      }
-      if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
-        alert("Contact email must be 100 characters or fewer.");
-        setIsSubmitting(false);
-        return;
-      }
-      if (!validateEmail(normalizedContactEmail)) {
-        alert("Please enter a valid contact email, like name@gmail.com.");
-        setIsSubmitting(false);
-        return;
-      }
+    if (!normalizedContactEmail) {
+      alert("Contact email is required.");
+      setIsSubmitting(false);
+      return;
+    }
+    if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
+      alert("Contact email must be 100 characters or fewer.");
+      setIsSubmitting(false);
+      return;
+    }
+    if (!validateEmail(normalizedContactEmail)) {
+      alert("Please enter a valid contact email, like name@gmail.com.");
+      setIsSubmitting(false);
+      return;
+    }
 
-      const hasInvalidEventHeadEmail = Array.isArray(dataFromHookForm.eventHeads)
-        ? dataFromHookForm.eventHeads.some(
-            (head) => normalizeEmail(head).length > 0 && !validateEmail(head)
-          )
-        : false;
-      if (hasInvalidEventHeadEmail) {
-        alert("Each event head email must be valid.");
-        setIsSubmitting(false);
-        return;
-      }
+    const hasInvalidEventHeadEmail = Array.isArray(dataFromHookForm.eventHeads)
+      ? dataFromHookForm.eventHeads.some(
+          (head) => normalizeEmail(head).length > 0 && !validateEmail(head)
+        )
+      : false;
+    if (hasInvalidEventHeadEmail) {
+      alert("Each event head email must be valid.");
+      setIsSubmitting(false);
+      return;
     }
 
     const formData = new FormData();
