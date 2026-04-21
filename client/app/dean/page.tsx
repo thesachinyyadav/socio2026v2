@@ -29,12 +29,16 @@ interface QueueItem {
   _queue_role: string;
 }
 
-function pendingDuration(createdAt: string) {
-  const ms = Date.now() - new Date(createdAt).getTime();
+function timeAgo(dateStr: string) {
+  const ms = Date.now() - new Date(dateStr).getTime();
   const days = Math.floor(ms / 86400000);
   if (days === 0) return "Today";
   if (days === 1) return "1 day ago";
   return `${days} days ago`;
+}
+
+function deanStatus(item: QueueItem) {
+  return item.stages?.find((s) => s.role === "dean")?.status ?? "pending";
 }
 
 export default function DeanDashboard() {
@@ -76,6 +80,7 @@ export default function DeanDashboard() {
   async function handleAction(item: QueueItem, action: "approve" | "reject", note?: string) {
     setActionItemId(item.event_or_fest_id);
     try {
+      const deanStage = item.stages?.find((s) => s.role === "dean");
       const res = await fetch(`${API_URL}/api/approvals/${item.event_or_fest_id}/action`, {
         method: "PATCH",
         headers: {
@@ -83,7 +88,7 @@ export default function DeanDashboard() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          step_index: item.stages?.find((s) => s.role === "dean")?.step ?? 1,
+          step_index: deanStage?.step ?? 1,
           action,
           note: note || null,
           type: item.type,
@@ -116,6 +121,72 @@ export default function DeanDashboard() {
     setRejectModal(null);
   }
 
+  const pendingItems = queue.filter((q) => deanStatus(q) === "pending");
+  const reviewedItems = queue.filter((q) => deanStatus(q) !== "pending");
+
+  function StatusBadge({ status }: { status: string }) {
+    if (status === "approved")
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Approved</span>;
+    if (status === "rejected")
+      return <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Returned</span>;
+    return <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Pending</span>;
+  }
+
+  function QueueCard({ item, showActions }: { item: QueueItem; showActions: boolean }) {
+    const status = deanStatus(item);
+    const hodStage = item.stages?.find((s) => s.role === "hod");
+    const hodDone = !hodStage || hodStage.status === "approved" || hodStage.status === "skipped";
+
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-gray-900 truncate">{item.item_title}</p>
+            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">{item.type}</span>
+            <StatusBadge status={status} />
+            {hodDone && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                HOD {hodStage?.status ?? "cleared"}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {item.organizing_school_snapshot || "—"}
+            {item.organizing_department_snapshot ? ` · ${item.organizing_department_snapshot}` : ""}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">Submitted {timeAgo(item.created_at)}</p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href={`/approvals/${item.event_or_fest_id}?type=${item.type}`}
+            className="text-sm text-blue-600 hover:underline px-2 py-1"
+          >
+            View
+          </Link>
+          {showActions && (
+            <>
+              <button
+                disabled={actionItemId === item.event_or_fest_id}
+                onClick={() => openRejectModal(item)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                Return
+              </button>
+              <button
+                disabled={actionItemId === item.event_or_fest_id}
+                onClick={() => handleAction(item, "approve")}
+                className="px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {actionItemId === item.event_or_fest_id ? "…" : "Approve"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -128,69 +199,41 @@ export default function DeanDashboard() {
 
         {loading ? (
           <p className="text-gray-500 text-sm">Loading queue…</p>
-        ) : queue.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <p className="text-gray-500">No pending approvals in your queue.</p>
-          </div>
         ) : (
-          <div className="space-y-3">
-            {queue.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 truncate">{item.item_title}</p>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">
-                      {item.type}
-                    </span>
-                    {(() => {
-                      const hodStage = item.stages?.find((s) => s.role === "hod");
-                      const hodDone = !hodStage || hodStage.status === "approved" || hodStage.status === "skipped";
-                      return hodDone ? (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                          HOD {hodStage?.status ?? "cleared"}
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {item.organizing_school_snapshot || "—"}
-                    {item.organizing_department_snapshot ? ` · ${item.organizing_department_snapshot}` : ""}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">Submitted {pendingDuration(item.created_at)}</p>
+          <>
+            <section>
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">
+                Pending <span className="text-gray-400 font-normal">({pendingItems.length})</span>
+              </h2>
+              {pendingItems.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+                  <p className="text-gray-400 text-sm">No pending approvals.</p>
                 </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingItems.map((item) => (
+                    <QueueCard key={item.id} item={item} showActions />
+                  ))}
+                </div>
+              )}
+            </section>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <Link
-                    href={`/approvals/${item.event_or_fest_id}?type=${item.type}`}
-                    className="text-sm text-blue-600 hover:underline px-2 py-1"
-                  >
-                    View
-                  </Link>
-                  <button
-                    disabled={actionItemId === item.event_or_fest_id}
-                    onClick={() => openRejectModal(item)}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Return
-                  </button>
-                  <button
-                    disabled={actionItemId === item.event_or_fest_id}
-                    onClick={() => handleAction(item, "approve")}
-                    className="px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {actionItemId === item.event_or_fest_id ? "…" : "Approve"}
-                  </button>
+            {reviewedItems.length > 0 && (
+              <section>
+                <h2 className="text-sm font-semibold text-gray-700 mb-2">
+                  Reviewed <span className="text-gray-400 font-normal">({reviewedItems.length})</span>
+                </h2>
+                <div className="space-y-3">
+                  {reviewedItems.map((item) => (
+                    <QueueCard key={item.id} item={item} showActions={false} />
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
+              </section>
+            )}
+          </>
         )}
       </div>
 
-      {/* Reject modal */}
       {rejectModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">

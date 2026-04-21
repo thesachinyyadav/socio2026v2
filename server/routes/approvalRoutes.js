@@ -397,20 +397,20 @@ router.get(
       const results = [];
 
       if (user.is_hod) {
-        // Assigned directly to this HOD
+        // All items directly assigned to this HOD (any status — so approved items stay visible)
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
-          .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", assignee_user_id: String(user.auth_uuid) }]))
+          .filter("stages", "cs", JSON.stringify([{ role: "hod", assignee_user_id: String(user.auth_uuid) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned — school must match; only filter campus when user has one set
+        // Unassigned pending — match by department + campus
         let unassigned = [];
-        if (user.school) {
+        if (user.department) {
           let q = supabase
             .from("approvals")
             .select("*")
-            .eq("organizing_school_snapshot", user.school)
+            .eq("organizing_department_snapshot", user.department)
             .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
           if (user.campus) {
@@ -433,10 +433,11 @@ router.get(
       }
 
       if (user.is_dean) {
+        // All items assigned to this Dean (any status)
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
-          .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", assignee_user_id: String(user.auth_uuid) }]))
+          .filter("stages", "cs", JSON.stringify([{ role: "dean", assignee_user_id: String(user.auth_uuid) }]))
           .order("created_at", { ascending: true });
 
         let unassigned = [];
@@ -470,7 +471,7 @@ router.get(
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
-          .filter("stages", "cs", JSON.stringify([{ role: "cfo", status: "pending", assignee_user_id: String(user.auth_uuid) }]))
+          .filter("stages", "cs", JSON.stringify([{ role: "cfo", assignee_user_id: String(user.auth_uuid) }]))
           .order("created_at", { ascending: true });
 
         let unassigned = [];
@@ -499,7 +500,7 @@ router.get(
         const { data: assigned } = await supabase
           .from("approvals")
           .select("*")
-          .filter("stages", "cs", JSON.stringify([{ role: "accounts", status: "pending", assignee_user_id: String(user.auth_uuid) }]))
+          .filter("stages", "cs", JSON.stringify([{ role: "accounts", assignee_user_id: String(user.auth_uuid) }]))
           .order("created_at", { ascending: true });
 
         let unassigned = [];
