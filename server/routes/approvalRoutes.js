@@ -404,16 +404,19 @@ router.get(
           .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", assignee_user_id: String(user.auth_uuid) }]))
           .order("created_at", { ascending: true });
 
-        // Unassigned — school must match; campus must match OR be null (no campus set on the fest)
+        // Unassigned — school must match; only filter campus when user has one set
         let unassigned = [];
         if (user.school) {
-          const { data: unassignedRows } = await supabase
+          let q = supabase
             .from("approvals")
             .select("*")
             .eq("organizing_school_snapshot", user.school)
-            .or(`organizing_campus_snapshot.eq.${user.campus || ""},organizing_campus_snapshot.is.null`)
             .filter("stages", "cs", JSON.stringify([{ role: "hod", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
+          if (user.campus) {
+            q = q.or(`organizing_campus_snapshot.eq.${user.campus},organizing_campus_snapshot.is.null`);
+          }
+          const { data: unassignedRows } = await q;
           unassigned = (unassignedRows || []).filter(r =>
             !user.campus || !r.organizing_campus_snapshot || r.organizing_campus_snapshot === user.campus
           );
@@ -438,13 +441,16 @@ router.get(
 
         let unassigned = [];
         if (user.school) {
-          const { data: unassignedRows } = await supabase
+          let q = supabase
             .from("approvals")
             .select("*")
             .eq("organizing_school_snapshot", user.school)
-            .or(`organizing_campus_snapshot.eq.${user.campus || ""},organizing_campus_snapshot.is.null`)
             .filter("stages", "cs", JSON.stringify([{ role: "dean", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
+          if (user.campus) {
+            q = q.or(`organizing_campus_snapshot.eq.${user.campus},organizing_campus_snapshot.is.null`);
+          }
+          const { data: unassignedRows } = await q;
           unassigned = (unassignedRows || []).filter(r =>
             !user.campus || !r.organizing_campus_snapshot || r.organizing_campus_snapshot === user.campus
           );
@@ -468,13 +474,14 @@ router.get(
           .order("created_at", { ascending: true });
 
         let unassigned = [];
-        if (user.campus) {
-          const { data: unassignedRows } = await supabase
+        {
+          let q = supabase
             .from("approvals")
             .select("*")
-            .eq("organizing_campus_snapshot", user.campus)
             .filter("stages", "cs", JSON.stringify([{ role: "cfo", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
+          if (user.campus) q = q.eq("organizing_campus_snapshot", user.campus);
+          const { data: unassignedRows } = await q;
           unassigned = unassignedRows || [];
         }
 
@@ -496,13 +503,14 @@ router.get(
           .order("created_at", { ascending: true });
 
         let unassigned = [];
-        if (user.campus) {
-          const { data: unassignedRows } = await supabase
+        {
+          let q = supabase
             .from("approvals")
             .select("*")
-            .eq("organizing_campus_snapshot", user.campus)
             .filter("stages", "cs", JSON.stringify([{ role: "accounts", status: "pending", routing_state: "waiting_for_assignment" }]))
             .order("created_at", { ascending: true });
+          if (user.campus) q = q.eq("organizing_campus_snapshot", user.campus);
+          const { data: unassignedRows } = await q;
           unassigned = unassignedRows || [];
         }
 
