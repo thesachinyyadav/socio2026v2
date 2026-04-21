@@ -80,15 +80,16 @@ export async function middleware(req: NextRequest) {
   const isDeanRoute = pathname.startsWith("/dean");
   const isCfoRoute     = pathname.startsWith("/cfo");
   const isAccountsRoute = pathname.startsWith("/accounts");
+  const isVenueRoute    = pathname.startsWith("/venue");
 
-  if (user && (isManagementRoute || isHodRoute || isDeanRoute || isCfoRoute || isAccountsRoute)) {
+  if (user && (isManagementRoute || isHodRoute || isDeanRoute || isCfoRoute || isAccountsRoute || isVenueRoute)) {
     if (!user.email) {
       return redirect("/error");
     }
 
     const { data: userData, error } = await supabase
       .from("users")
-      .select("is_organiser, is_masteradmin, is_hod, is_dean, is_cfo, is_accounts_office")
+      .select("is_organiser, is_masteradmin, is_hod, is_dean, is_cfo, is_accounts_office, is_vendor_manager")
       .eq("email", user.email)
       .single();
 
@@ -154,6 +155,10 @@ export async function middleware(req: NextRequest) {
     }
 
     if (isAccountsRoute && !userData?.is_accounts_office && !userData?.is_masteradmin) {
+      return redirect("/error");
+    }
+
+    if (isVenueRoute && !userData?.is_vendor_manager && !userData?.is_masteradmin) {
       return redirect("/error");
     }
   }

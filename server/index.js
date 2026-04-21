@@ -17,6 +17,8 @@ import chatRoutes from "./routes/chatRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import statuscheckRoutes from "./routes/statuscheckRoutes.js";
 import approvalRoutes from "./routes/approvalRoutes.js";
+import serviceRequestRoutes from "./routes/serviceRequestRoutes.js";
+import venueRoutes from "./routes/venueRoutes.js";
 
 dotenv.config();
 
@@ -158,6 +160,8 @@ app.use("/api", contactRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api", reportRoutes);
 app.use("/api", approvalRoutes);
+app.use("/api", serviceRequestRoutes);
+app.use("/api", venueRoutes);
 app.use("/api/statuscheck", statuscheckRoutes);
 
 // Global error handler - ensures CORS headers are always sent

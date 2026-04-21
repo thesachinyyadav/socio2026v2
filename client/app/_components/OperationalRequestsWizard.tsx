@@ -1,25 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface OperationalRequests {
   it:       { enabled: boolean; description: string };
-  venue:    { enabled: boolean; venue_name: string; date: string; start_time: string; end_time: string };
+  venue:    { enabled: boolean; venue_id: string; venue_name: string; date: string; start_time: string; end_time: string; setup_notes: string };
   catering: { enabled: boolean; approximate_count: string; description: string };
   stalls:   { enabled: boolean; canopy: boolean; hardboard: boolean };
 }
 
 const DEFAULT_REQUESTS: OperationalRequests = {
   it:       { enabled: false, description: "" },
-  venue:    { enabled: false, venue_name: "", date: "", start_time: "", end_time: "" },
+  venue:    { enabled: false, venue_id: "", venue_name: "", date: "", start_time: "", end_time: "", setup_notes: "" },
   catering: { enabled: false, approximate_count: "", description: "" },
   stalls:   { enabled: false, canopy: false, hardboard: false },
 };
 
 interface Props {
   eventTitle: string;
+  campus?: string;
   onSubmit: (requests: OperationalRequests) => Promise<void>;
   onSkip?: () => void;
   isSubmitting?: boolean;
@@ -71,7 +73,36 @@ const STEP_META: Record<Step, { label: string; icon: React.ReactNode; subtitle: 
 
 // ─── Mini calendar ─────────────────────────────────────────────────────────────
 
-function MiniCalendar({ value, onChange }: { value: string; onChange: (d: string) => void }) {
+export interface VenueBooking {
+  date: string;
+  start_time: string;
+  end_time: string;
+  requested_by?: string;
+  full_name?: string | null;
+  booking_title?: string | null;
+  entity_type?: string;
+}
+
+function minutes(t: string) {
+  if (!t || !/^\d{2}:\d{2}/.test(t)) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// A date is "full" when its approved windows cumulatively cover >= 12 hours.
+const FULL_DAY_MINUTES = 12 * 60;
+
+export function MiniCalendar({
+  value,
+  onChange,
+  bookings = [],
+  onMonthChange,
+}: {
+  value: string;
+  onChange: (d: string) => void;
+  bookings?: VenueBooking[];
+  onMonthChange?: (year: number, month: number) => void;
+}) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -82,13 +113,24 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (d: string
 
   const monthLabel = new Date(viewYear, viewMonth).toLocaleString("en-IN", { month: "long", year: "numeric" });
 
+  // date → total booked minutes
+  const bookedMinutesByDate = new Map<string, number>();
+  bookings.forEach((b) => {
+    const mins = Math.max(0, minutes(b.end_time) - minutes(b.start_time));
+    bookedMinutesByDate.set(b.date, (bookedMinutesByDate.get(b.date) || 0) + mins);
+  });
+
   function prevMonth() {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
-    else setViewMonth(m => m - 1);
+    const newMonth = viewMonth === 0 ? 11 : viewMonth - 1;
+    const newYear  = viewMonth === 0 ? viewYear - 1 : viewYear;
+    setViewMonth(newMonth); setViewYear(newYear);
+    onMonthChange?.(newYear, newMonth);
   }
   function nextMonth() {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
-    else setViewMonth(m => m + 1);
+    const newMonth = viewMonth === 11 ? 0 : viewMonth + 1;
+    const newYear  = viewMonth === 11 ? viewYear + 1 : viewYear;
+    setViewMonth(newMonth); setViewYear(newYear);
+    onMonthChange?.(newYear, newMonth);
   }
 
   function pad2(n: number) { return String(n).padStart(2, "0"); }
@@ -116,37 +158,121 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (d: string
         {cells.map((day, i) => {
           if (!day) return <span key={i} />;
           const dateStr = `${viewYear}-${pad2(viewMonth + 1)}-${pad2(day)}`;
-          const isPast = new Date(dateStr) < new Date(today.toDateString());
+          const isPast   = new Date(dateStr) < new Date(today.toDateString());
+          const bookedMins = bookedMinutesByDate.get(dateStr) || 0;
+          const isFull   = bookedMins >= FULL_DAY_MINUTES;
+          const isPartial = bookedMins > 0 && !isFull;
           const isSelected = selected && dateStr === value;
+          const title = isFull
+            ? "Fully booked"
+            : isPartial
+            ? `${Math.round(bookedMins / 60 * 10) / 10} hour(s) already booked — pick an open window`
+            : undefined;
           return (
             <button
               key={i}
               type="button"
-              disabled={isPast}
+              disabled={isPast || isFull}
               onClick={() => onChange(dateStr)}
-              className={`text-xs rounded py-1.5 transition-colors font-medium ${
+              title={title}
+              className={`relative text-xs rounded py-1.5 transition-colors font-medium ${
                 isSelected
                   ? "bg-[#154CB3] text-white"
+                  : isFull
+                  ? "bg-red-50 text-red-400 cursor-not-allowed line-through"
+                  : isPartial
+                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
                   : isPast
                   ? "text-gray-300 cursor-not-allowed"
                   : "text-gray-700 hover:bg-gray-100"
               }`}
             >
               {day}
+              {isPartial && !isSelected && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-500" />
+              )}
             </button>
           );
         })}
+      </div>
+      <div className="flex gap-3 mt-2 text-[10px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Partly booked</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-300" /> Full</span>
       </div>
     </div>
   );
 }
 
+// Helper exported for callers (wizard, modal, approval page) to validate a
+// candidate time window against a list of approved bookings for the same date.
+export function findConflict(
+  bookings: VenueBooking[],
+  date: string,
+  start_time: string,
+  end_time: string,
+): VenueBooking | null {
+  if (!date || !start_time || !end_time || start_time >= end_time) return null;
+  const s = minutes(start_time);
+  const e = minutes(end_time);
+  return (
+    bookings.find(
+      (b) => b.date === date && minutes(b.start_time) < e && minutes(b.end_time) > s,
+    ) || null
+  );
+}
+
 // ─── Main wizard ──────────────────────────────────────────────────────────────
 
-export default function OperationalRequestsWizard({ eventTitle, onSubmit, onSkip, isSubmitting }: Props) {
+interface VenueOption { id: string; name: string; capacity: number | null; location: string | null }
+
+export default function OperationalRequestsWizard({ eventTitle, campus, onSubmit, onSkip, isSubmitting }: Props) {
+  const { userData, session } = useAuth() as any;
   const [requests, setRequests] = useState<OperationalRequests>(DEFAULT_REQUESTS);
   const [stepIdx, setStepIdx] = useState(0);
   const [unlocked, setUnlocked] = useState(false);
+
+  // Venue availability state
+  const [venueList, setVenueList] = useState<VenueOption[]>([]);
+  const [bookings, setBookings] = useState<VenueBooking[]>([]);
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+  const effectiveCampus = campus || userData?.campus || "";
+
+  // Load venues when venue step is active and enabled
+  useEffect(() => {
+    if (stepIdx !== STEPS.indexOf("venue") || !requests.venue.enabled || !effectiveCampus || !session?.access_token) return;
+    fetch(`${API_URL}/api/venues?campus=${encodeURIComponent(effectiveCampus)}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(setVenueList)
+      .catch(() => {});
+  }, [stepIdx, requests.venue.enabled, effectiveCampus, session?.access_token]);
+
+  // Load time-windowed bookings when a venue is selected or month changes
+  async function loadBookings(venueId: string, year: number, month: number) {
+    if (!venueId || !session?.access_token) return;
+    const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+    try {
+      const r = await fetch(`${API_URL}/api/venues/${venueId}/availability?month=${monthStr}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!r.ok) return;
+      const data = await r.json();
+      setBookings(data.bookings || []);
+    } catch { /* non-critical */ }
+  }
+
+  useEffect(() => {
+    const today = new Date();
+    if (requests.venue.venue_id) {
+      loadBookings(requests.venue.venue_id, today.getFullYear(), today.getMonth());
+    } else {
+      setBookings([]);
+    }
+  }, [requests.venue.venue_id]);
+
+  const conflict = findConflict(bookings, requests.venue.date, requests.venue.start_time, requests.venue.end_time);
+  const dayBookings = bookings.filter(b => b.date === requests.venue.date);
 
   const currentStep = STEPS[stepIdx];
   const isLast = stepIdx === STEPS.length - 1;
@@ -299,44 +425,108 @@ export default function OperationalRequestsWizard({ eventTitle, onSubmit, onSkip
 
             {currentStep === "venue" && requests.venue.enabled && (
               <div className="space-y-4">
+                {/* Venue dropdown */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Venue / Location <span className="text-red-500">*</span>
+                    Venue <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={requests.venue.venue_name}
-                    onChange={e => setVenue({ venue_name: e.target.value })}
-                    placeholder="e.g. Main Auditorium, Room 201, Ground Floor Lobby"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">
-                    Date <span className="text-red-500">*</span>
-                  </label>
-                  <MiniCalendar value={requests.venue.date} onChange={d => setVenue({ date: d })} />
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Start time</label>
-                    <input
-                      type="time"
-                      value={requests.venue.start_time}
-                      onChange={e => setVenue({ start_time: e.target.value })}
+                  {venueList.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">
+                      {effectiveCampus ? "Loading venues…" : "Campus not detected — venues unavailable."}
+                    </p>
+                  ) : (
+                    <select
+                      value={requests.venue.venue_id}
+                      onChange={e => {
+                        const selected = venueList.find(v => v.id === e.target.value);
+                        setVenue({ venue_id: e.target.value, venue_name: selected?.name || "", date: "" });
+                      }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">End time</label>
-                    <input
-                      type="time"
-                      value={requests.venue.end_time}
-                      onChange={e => setVenue({ end_time: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                    />
-                  </div>
+                    >
+                      <option value="">Select a venue</option>
+                      {venueList.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}{v.capacity ? ` (cap. ${v.capacity})` : ""}
+                          {v.location ? ` — ${v.location}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
+                {/* Availability calendar — shown once venue is picked */}
+                {requests.venue.venue_id && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Date <span className="text-red-500">*</span>
+                      </label>
+                      <MiniCalendar
+                        value={requests.venue.date}
+                        onChange={d => setVenue({ date: d })}
+                        bookings={bookings}
+                        onMonthChange={(y, m) => loadBookings(requests.venue.venue_id, y, m)}
+                      />
+                    </div>
+                    {/* Existing bookings for the picked date */}
+                    {requests.venue.date && dayBookings.length > 0 && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-xs font-semibold text-amber-800 mb-1">
+                          Already booked on {requests.venue.date}:
+                        </p>
+                        <ul className="space-y-0.5">
+                          {dayBookings.map((b, idx) => (
+                            <li key={idx} className="text-xs text-amber-900">
+                              <span className="font-mono">{b.start_time}–{b.end_time}</span>
+                              {b.booking_title && <> · {b.booking_title}</>}
+                              {b.full_name && <> · {b.full_name}</>}
+                              {b.requested_by && <> ({b.requested_by})</>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {/* Time fields — shown once date is picked */}
+                    {requests.venue.date && (
+                      <>
+                        <div className="flex gap-3">
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Start time</label>
+                            <input
+                              type="time"
+                              value={requests.venue.start_time}
+                              onChange={e => setVenue({ start_time: e.target.value })}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">End time</label>
+                            <input
+                              type="time"
+                              value={requests.venue.end_time}
+                              onChange={e => setVenue({ end_time: e.target.value })}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                            />
+                          </div>
+                        </div>
+                        {conflict && (
+                          <p className="text-xs text-red-600">
+                            Conflicts with an existing booking ({conflict.start_time}–{conflict.end_time}). Pick a non-overlapping window.
+                          </p>
+                        )}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Setup notes</label>
+                          <textarea
+                            rows={2}
+                            value={requests.venue.setup_notes}
+                            onChange={e => setVenue({ setup_notes: e.target.value })}
+                            placeholder="Any special setup requirements (optional)"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-gray-400"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             )}
 

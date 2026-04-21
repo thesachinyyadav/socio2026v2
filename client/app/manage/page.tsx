@@ -19,6 +19,7 @@ import {
 } from "@/lib/xlsxTheme";
 import AnimatedListDropdown from "@/app/_components/UI/AnimatedListDropdown";
 import EventReminderButton from "@/app/_components/EventReminderButton";
+import BookVenueModal from "@/app/_components/BookVenueModal";
 import {
   Search,
   SlidersHorizontal,
@@ -31,6 +32,7 @@ import {
   History,
   Pencil,
   CheckCircle2,
+  MapPin,
 } from "lucide-react";
 
 // ─── TYPES & CONSTANTS ──────────────────────────────────────────────────────
@@ -425,6 +427,7 @@ export default function ManageDashboard() {
   const [archiveOverrides, setArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null; archived_by?: string | null }>>({});
   const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
   const [localArchivedIds, setLocalArchivedIds] = useState<Set<string>>(new Set());
+  const [bookVenueOpen, setBookVenueOpen] = useState(false);
   const [festArchiveOverrides, setFestArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null }>>({});
   const [festArchiveUpdatingIds, setFestArchiveUpdatingIds] = useState<Set<string>>(new Set());
   const [localFestArchivedIds, setLocalFestArchivedIds] = useState<Set<string>>(new Set());
@@ -1251,6 +1254,12 @@ export default function ManageDashboard() {
           </h1>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setBookVenueOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm"
+            >
+              <MapPin className="w-4 h-4" /> Book Venue
+            </button>
             <Link href="/create/fest">
                 <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
                 <Plus className="w-4 h-4" /> Create Fest
@@ -1263,6 +1272,8 @@ export default function ManageDashboard() {
             </Link>
           </div>
         </div>
+
+        <BookVenueModal open={bookVenueOpen} onClose={() => setBookVenueOpen(false)} />
 
         {/* 2. The Control Bar (Tabs & Search) */}
         <div className="flex flex-col md:flex-row justify-between md:items-center border-b border-slate-200 gap-4 mb-6">

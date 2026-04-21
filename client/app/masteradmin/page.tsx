@@ -29,10 +29,14 @@ import {
   ChevronRight,
   CheckCircle2,
   Building2,
+  MapPin,
+  Trash2,
+  PlusCircle,
 } from "lucide-react";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
 import ApprovalsManager from "../_components/Admin/ApprovalsManager";
 import { deleteClub, ClubRecord } from "@/app/actions/clubs";
+import { christCampuses } from "@/app/lib/eventFormSchema";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const ITEMS_PER_PAGE = 20;
@@ -165,7 +169,7 @@ export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings"
+    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "venues"
   >("dashboard");
   const authToken = session?.access_token || null;
 
@@ -224,7 +228,76 @@ export default function MasterAdminPage() {
   const [clubStatusUpdatingId, setClubStatusUpdatingId] = useState<string | null>(null);
 
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  
+
+  // Venue management state
+  type VenueRow = { id: string; campus: string; name: string; capacity: number | null; location: string | null; is_active: boolean };
+  const [venues,           setVenues]           = useState<VenueRow[]>([]);
+  const [venuesLoading,    setVenuesLoading]    = useState(false);
+  const [venueForm,        setVenueForm]        = useState({ campus: "", name: "", capacity: "", location: "" });
+  const [venueFormError,   setVenueFormError]   = useState<string | null>(null);
+  const [venueSubmitting,  setVenueSubmitting]  = useState(false);
+  const [deleteVenueId,    setDeleteVenueId]    = useState<string | null>(null);
+  const [editingVenue,     setEditingVenue]     = useState<VenueRow | null>(null);
+
+  async function fetchAllVenues() {
+    setVenuesLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/venues/all`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) setVenues(await res.json());
+    } catch { /* non-critical */ } finally {
+      setVenuesLoading(false);
+    }
+  }
+
+  async function handleCreateVenue() {
+    if (!venueForm.campus || !venueForm.name) { setVenueFormError("Campus and name are required."); return; }
+    setVenueSubmitting(true); setVenueFormError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/venues`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campus: venueForm.campus,
+          name: venueForm.name,
+          capacity: venueForm.capacity ? Number(venueForm.capacity) : null,
+          location: venueForm.location || null,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setVenueFormError(body.error || "Failed to create venue"); return; }
+      toast.success("Venue created");
+      setVenueForm({ campus: "", name: "", capacity: "", location: "" });
+      fetchAllVenues();
+    } catch { setVenueFormError("Network error"); } finally { setVenueSubmitting(false); }
+  }
+
+  async function handleDeleteVenue(id: string) {
+    try {
+      const res = await fetch(`${API_URL}/api/venues/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) { toast.error("Failed to delete venue"); return; }
+      toast.success("Venue deleted");
+      setDeleteVenueId(null);
+      fetchAllVenues();
+    } catch { toast.error("Network error"); }
+  }
+
+  async function handleToggleVenueActive(v: VenueRow) {
+    try {
+      const res = await fetch(`${API_URL}/api/venues/${v.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !v.is_active }),
+      });
+      if (!res.ok) { toast.error("Failed to update venue"); return; }
+      fetchAllVenues();
+    } catch { toast.error("Network error"); }
+  }
+
   const [isLoading, setIsLoading] = useState(true);
 
   // Report state
@@ -278,6 +351,8 @@ export default function MasterAdminPage() {
     } else if (activeTab === "report") {
       // Fetch events and fests for report tab
       fetchReportData();
+    } else if (activeTab === "venues") {
+      fetchAllVenues();
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -955,7 +1030,7 @@ export default function MasterAdminPage() {
         </nav>
 
         {/* Management section */}
-        <div className="mt-1 px-3 pb-4">
+        <div className="mt-1 px-3 pb-4 space-y-0.5">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1.5">Management</p>
           <Link href="/manage">
             <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
@@ -965,6 +1040,27 @@ export default function MasterAdminPage() {
               Organiser View
             </span>
           </Link>
+          <button
+            onClick={() => setActiveTab("venues")}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
+              activeTab === "venues"
+                ? "bg-blue-50 text-[#154cb3] font-semibold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            {activeTab === "venues" && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#154cb3] rounded-r-full" />
+            )}
+            <span className={activeTab === "venues" ? "text-[#154cb3]" : "text-slate-400 group-hover:text-slate-600"}>
+              <MapPin className="w-4 h-4" />
+            </span>
+            <span className="flex-1 text-left">Venues</span>
+            {venues.length > 0 && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                activeTab === "venues" ? "bg-[#154cb3]/10 text-[#154cb3]" : "bg-slate-100 text-slate-500"
+              }`}>{venues.length}</span>
+            )}
+          </button>
         </div>
       </aside>
 
@@ -1041,6 +1137,130 @@ export default function MasterAdminPage() {
 
         {/* Approvals Tab */}
         {activeTab === "approvals" && <ApprovalsManager />}
+
+        {/* ── Venues Tab ─────────────────────────────────────────────────── */}
+        {activeTab === "venues" && (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Venue Management</h2>
+              <p className="text-sm text-gray-500">Add, edit, or remove campus venues. Organisers see these when booking after approval.</p>
+            </div>
+
+            {/* Add venue form */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <PlusCircle className="w-4 h-4 text-[#154CB3]" /> Add New Venue
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Campus <span className="text-red-500">*</span></label>
+                  <select
+                    value={venueForm.campus}
+                    onChange={e => setVenueForm(f => ({ ...f, campus: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-0 focus:border-transparent bg-white transition-all border-gray-300"
+                  >
+                    <option value="">Select campus…</option>
+                    {christCampuses.map((campus) => (
+                      <option key={campus} value={campus}>{campus}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Venue Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={venueForm.name}
+                    onChange={e => setVenueForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Main Auditorium"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Capacity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={venueForm.capacity}
+                    onChange={e => setVenueForm(f => ({ ...f, capacity: e.target.value }))}
+                    placeholder="Max occupancy"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Location / Block</label>
+                  <input
+                    type="text"
+                    value={venueForm.location}
+                    onChange={e => setVenueForm(f => ({ ...f, location: e.target.value }))}
+                    placeholder="e.g. Block A, Ground Floor"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+              {venueFormError && <p className="text-sm text-red-600">{venueFormError}</p>}
+              <button
+                onClick={handleCreateVenue}
+                disabled={venueSubmitting}
+                className="px-5 py-2 text-sm font-semibold bg-[#154CB3] text-white rounded-lg hover:bg-[#0f3a7a] disabled:opacity-50"
+              >
+                {venueSubmitting ? "Creating…" : "Create Venue"}
+              </button>
+            </div>
+
+            {/* Venues list */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+              {venuesLoading ? (
+                <div className="p-8 text-center text-sm text-gray-400">Loading venues…</div>
+              ) : venues.length === 0 ? (
+                <div className="p-8 text-center text-sm text-gray-400">No venues yet. Add one above.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Campus</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
+                      <th className="text-center px-4 py-3 font-semibold text-gray-600">Cap.</th>
+                      <th className="text-center px-4 py-3 font-semibold text-gray-600">Active</th>
+                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {venues.map(v => (
+                      <tr key={v.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{v.name}</td>
+                        <td className="px-4 py-3 text-gray-600">{v.campus}</td>
+                        <td className="px-4 py-3 text-gray-500">{v.location || "—"}</td>
+                        <td className="px-4 py-3 text-center text-gray-600">{v.capacity ?? "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleToggleVenueActive(v)}
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                              v.is_active
+                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                          >
+                            {v.is_active ? "Active" : "Inactive"}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => setDeleteVenueId(v.id)}
+                            className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors"
+                            title="Delete venue"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
 
 
 
@@ -2343,6 +2563,33 @@ export default function MasterAdminPage() {
                   className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete Organization
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Venue delete confirmation modal */}
+        {deleteVenueId && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
+              <h2 className="text-lg font-semibold text-gray-900">Delete Venue</h2>
+              <p className="text-sm text-gray-600">
+                This will permanently delete the venue and cannot be undone.
+                Existing approved service requests referencing this venue are not affected.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setDeleteVenueId(null)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteVenue(deleteVenueId)}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Delete
                 </button>
               </div>
             </div>
