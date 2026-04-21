@@ -278,19 +278,20 @@ router.get(
       const user = req.userInfo;
       const results = [];
 
-      // HOD: all approvals for this department (+campus when set)
+      // Campus match helper — never use .or() with interpolated campus values (breaks on spaces/parens)
+      const campusOkJS = (r) =>
+        !user.campus || !r.organizing_campus_snapshot || r.organizing_campus_snapshot === user.campus;
+
+      // HOD: all approvals for this department, campus-filtered in JS
       if (user.is_hod && user.department) {
-        let q = supabase
+        const { data: rows } = await supabase
           .from("approvals")
           .select("*")
           .eq("organizing_department_snapshot", user.department)
           .filter("stages", "cs", JSON.stringify([{ role: "hod" }]))
           .order("created_at", { ascending: true });
-        if (user.campus) {
-          q = q.or(`organizing_campus_snapshot.eq.${user.campus},organizing_campus_snapshot.is.null`);
-        }
-        const { data: rows } = await q;
         for (const r of (rows || [])) {
+          if (!campusOkJS(r)) continue;
           const hodStage = r.stages?.find(s => s.role === "hod");
           if (hodStage && isPriorBlockingDone(r.stages, hodStage.step)) {
             results.push({ ...r, _queue_role: "hod" });
@@ -298,19 +299,16 @@ router.get(
         }
       }
 
-      // Dean: all approvals for this school (+campus when set)
+      // Dean: all approvals for this school, campus-filtered in JS
       if (user.is_dean && user.school) {
-        let q = supabase
+        const { data: rows } = await supabase
           .from("approvals")
           .select("*")
           .eq("organizing_school_snapshot", user.school)
           .filter("stages", "cs", JSON.stringify([{ role: "dean" }]))
           .order("created_at", { ascending: true });
-        if (user.campus) {
-          q = q.or(`organizing_campus_snapshot.eq.${user.campus},organizing_campus_snapshot.is.null`);
-        }
-        const { data: rows } = await q;
         for (const r of (rows || [])) {
+          if (!campusOkJS(r)) continue;
           const deanStage = r.stages?.find(s => s.role === "dean");
           if (deanStage && isPriorBlockingDone(r.stages, deanStage.step)) {
             results.push({ ...r, _queue_role: "dean" });
@@ -318,7 +316,7 @@ router.get(
         }
       }
 
-      // CFO: all approvals for this campus
+      // CFO: all approvals for this campus (safe .eq() — no string interpolation into filter syntax)
       if (user.is_cfo) {
         let q = supabase
           .from("approvals")
