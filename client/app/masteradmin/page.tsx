@@ -29,7 +29,13 @@ import {
   ChevronRight,
   CheckCircle2,
   Building2,
+  ShieldCheck,
 } from "lucide-react";
+import {
+  organizingSchools,
+  getDepartmentOptionsForSchool,
+  christCampuses,
+} from "@/app/lib/eventFormSchema";
 import AdminDashboardView from "../_components/Admin/AdminDashboardView";
 import ApprovalsManager from "../_components/Admin/ApprovalsManager";
 import { deleteClub, ClubRecord } from "@/app/actions/clubs";
@@ -165,7 +171,7 @@ export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings"
+    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles"
   >("dashboard");
   const authToken = session?.access_token || null;
 
@@ -186,6 +192,16 @@ export default function MasterAdminPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editingUserRoles, setEditingUserRoles] = useState<Partial<User>>({});
+
+  // Roles tab state
+  const [roleEmailInput, setRoleEmailInput] = useState("");
+  const [roleEmailSuggestions, setRoleEmailSuggestions] = useState<{ email: string; name: string }[]>([]);
+  const [roleSelectedEmail, setRoleSelectedEmail] = useState("");
+  const [roleSelectedRole, setRoleSelectedRole] = useState<"hod" | "dean" | "cfo" | "director" | "accounts" | "">("");
+  const [roleSchool, setRoleSchool] = useState("");
+  const [roleDept, setRoleDept] = useState("");
+  const [roleCampus, setRoleCampus] = useState("");
+  const [roleSaving, setRoleSaving] = useState(false);
   const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<string | null>(null);
   const [userPage, setUserPage] = useState(1);
   
@@ -749,6 +765,53 @@ export default function MasterAdminPage() {
     }
   };
 
+  // Roles tab: search users by email prefix
+  const searchRoleEmails = async (query: string) => {
+    if (!query || query.length < 2) { setRoleEmailSuggestions([]); return; }
+    const matches = users.filter(u =>
+      u.email?.toLowerCase().includes(query.toLowerCase()) ||
+      (u.name as string | undefined)?.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 8).map(u => ({ email: u.email, name: (u.name as string | undefined) || u.email }));
+    setRoleEmailSuggestions(matches);
+  };
+
+  const saveApprovalRole = async () => {
+    if (!roleSelectedEmail || !roleSelectedRole) return;
+    setRoleSaving(true);
+    try {
+      const token = await getFreshToken();
+      const body: Record<string, unknown> = {
+        is_hod:           roleSelectedRole === "hod",
+        is_dean:          roleSelectedRole === "dean",
+        is_cfo:           roleSelectedRole === "cfo",
+        is_campus_director: roleSelectedRole === "director",
+        is_accounts_office: roleSelectedRole === "accounts",
+      };
+      if (roleCampus) body.campus = roleCampus;
+      if (roleSchool) body.school = roleSchool;
+      if (roleDept) body.dept = roleDept;
+
+      const res = await fetch(`${API_URL}/api/users/${encodeURIComponent(roleSelectedEmail)}/roles`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to assign role");
+      }
+      toast.success(`${roleSelectedRole.toUpperCase()} role assigned to ${roleSelectedEmail}`);
+      // reset
+      setRoleEmailInput(""); setRoleSelectedEmail(""); setRoleSelectedRole("");
+      setRoleSchool(""); setRoleDept(""); setRoleCampus("");
+      setRoleEmailSuggestions([]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to assign role");
+    } finally {
+      setRoleSaving(false);
+    }
+  };
+
   const deleteUser = async (email: string) => {
     try {
       const token = await getFreshToken();
@@ -957,6 +1020,22 @@ export default function MasterAdminPage() {
         {/* Management section */}
         <div className="mt-1 px-3 pb-4">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1.5">Management</p>
+          <button
+            onClick={() => setActiveTab("roles")}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
+              activeTab === "roles"
+                ? "bg-blue-50 text-[#154cb3] font-semibold"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            {activeTab === "roles" && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#154cb3] rounded-r-full" />
+            )}
+            <span className={activeTab === "roles" ? "text-[#154cb3]" : "text-slate-400 group-hover:text-slate-600"}>
+              <ShieldCheck className="w-4 h-4" />
+            </span>
+            Roles
+          </button>
           <Link href="/manage">
             <span className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all font-medium">
               <span className="text-slate-400">
@@ -2350,6 +2429,166 @@ export default function MasterAdminPage() {
         )}
           </div>
         )}
+
+        {/* Roles Tab */}
+        {activeTab === "roles" && (
+          <div className="p-6 max-w-xl mx-auto space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Assign Approval Roles</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Assign HOD, Dean, CFO, Campus Director, or Finance Officer roles to users. All fields are overridden on save.
+              </p>
+            </div>
+
+            {/* Email search */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">User Email</label>
+              <input
+                type="text"
+                value={roleEmailInput}
+                onChange={(e) => {
+                  setRoleEmailInput(e.target.value);
+                  setRoleSelectedEmail("");
+                  searchRoleEmails(e.target.value);
+                }}
+                placeholder="Type email or name to search..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              {roleEmailSuggestions.length > 0 && !roleSelectedEmail && (
+                <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  {roleEmailSuggestions.map((s) => (
+                    <li key={s.email}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRoleSelectedEmail(s.email);
+                          setRoleEmailInput(s.email);
+                          setRoleEmailSuggestions([]);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors"
+                      >
+                        <span className="font-medium text-gray-900">{s.name}</span>
+                        {s.name !== s.email && (
+                          <span className="text-gray-500 ml-2 text-xs">{s.email}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {roleSelectedEmail && (
+                <p className="mt-1 text-xs text-green-600 font-medium">✓ {roleSelectedEmail}</p>
+              )}
+            </div>
+
+            {/* Role selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {([
+                  { key: "hod",      label: "HOD",              desc: "Head of Department" },
+                  { key: "dean",     label: "Dean",             desc: "Dean of School" },
+                  { key: "cfo",      label: "CFO",              desc: "Campus Finance Officer" },
+                  { key: "director", label: "Campus Director",  desc: "Campus Director" },
+                  { key: "accounts", label: "Finance Officer",  desc: "Accounts Office" },
+                ] as const).map((r) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => {
+                      setRoleSelectedRole(r.key);
+                      setRoleSchool(""); setRoleDept(""); setRoleCampus("");
+                    }}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      roleSelectedRole === r.key
+                        ? "border-blue-500 bg-blue-50 text-blue-800"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{r.label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{r.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Conditional fields */}
+            {roleSelectedRole && (
+              <div className="space-y-4 bg-gray-50 rounded-xl border border-gray-200 p-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Required context for {roleSelectedRole === "hod" ? "HOD" : roleSelectedRole === "dean" ? "Dean" : roleSelectedRole === "cfo" ? "CFO" : roleSelectedRole === "director" ? "Campus Director" : "Finance Officer"}
+                </p>
+
+                {/* Campus — needed by all roles */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Campus</label>
+                  <select
+                    value={roleCampus}
+                    onChange={(e) => setRoleCampus(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                  >
+                    <option value="">Select campus…</option>
+                    {christCampuses.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* School — HOD and Dean */}
+                {(roleSelectedRole === "hod" || roleSelectedRole === "dean") && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
+                    <select
+                      value={roleSchool}
+                      onChange={(e) => { setRoleSchool(e.target.value); setRoleDept(""); }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    >
+                      <option value="">Select school…</option>
+                      {organizingSchools.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Department — HOD only */}
+                {roleSelectedRole === "hod" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <select
+                      value={roleDept}
+                      onChange={(e) => setRoleDept(e.target.value)}
+                      disabled={!roleSchool}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white disabled:opacity-50"
+                    >
+                      <option value="">{roleSchool ? "Select department…" : "Select school first…"}</option>
+                      {getDepartmentOptionsForSchool(roleSchool).map((d) => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Save button */}
+            <button
+              onClick={saveApprovalRole}
+              disabled={
+                !roleSelectedEmail ||
+                !roleSelectedRole ||
+                !roleCampus ||
+                (roleSelectedRole === "hod" && (!roleSchool || !roleDept)) ||
+                (roleSelectedRole === "dean" && !roleSchool) ||
+                roleSaving
+              }
+              className="w-full py-2.5 px-4 bg-[#154cb3] text-white rounded-lg text-sm font-semibold hover:bg-[#1240a0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {roleSaving ? "Saving…" : "Assign Role"}
+            </button>
+          </div>
+        )}
+
       </main>
     </div>
   );
