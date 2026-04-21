@@ -627,7 +627,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
             id={`${field.name}-time-panel`}
             role="dialog"
             aria-modal="true"
-            className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-3 w-[min(22rem,calc(100vw-3rem))]"
+            className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-3 w-[min(20rem,calc(100vw-3rem))]"
           >
             <div className="space-y-3">
               {/* Quick presets */}
@@ -652,161 +652,123 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
                 ))}
               </div>
 
-              {/* Time picker with Hour | Minute | AM/PM */}
-              <div className="flex items-center justify-center gap-2 py-2">
-                {/* Hour Selector */}
-                <div className="flex flex-col items-center gap-1">
-                  <label className="text-xs font-medium text-gray-600">Hour</label>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
+              {/* Clean time picker */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs font-semibold text-gray-600 mb-3 uppercase tracking-wide">Enter time</p>
+                
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  {/* Hour input */}
+                  <div className="flex flex-col items-center">
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={
+                        (() => {
+                          const parsed = parseHHMM(draftTime);
+                          if (!parsed) return 12;
+                          const h = parsed.hours % 12;
+                          return h === 0 ? 12 : h;
+                        })()
+                      }
+                      onChange={(e) => {
                         const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                        let hour = parsed.hours % 12;
-                        if (hour === 0) hour = 12;
-                        hour = hour === 12 ? 1 : hour + 1;
+                        let hour = parseInt(e.target.value) || 1;
+                        if (hour > 12) hour = 12;
+                        if (hour < 1) hour = 1;
                         setDraftTime(formatTimeToHHMM(hour === 12 ? 0 : hour, parsed.minutes));
                       }}
-                      className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded"
-                    >
-                      ▲
-                    </button>
+                      className="w-16 h-16 text-center text-xl font-bold border-2 border-[#154CB3] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#154CB3]/20"
+                    />
+                    <span className="text-xs text-gray-500 mt-1">Hour</span>
                   </div>
-                  <input
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={
-                      (() => {
-                        const parsed = parseHHMM(draftTime);
-                        if (!parsed) return 12;
-                        const h = parsed.hours % 12;
-                        return h === 0 ? 12 : h;
-                      })()
-                    }
-                    onChange={(e) => {
-                      const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                      let hour = parseInt(e.target.value) || 1;
-                      if (hour > 12) hour = 12;
-                      if (hour < 1) hour = 1;
-                      setDraftTime(formatTimeToHHMM(hour === 12 ? 0 : hour, parsed.minutes));
-                    }}
-                    className="w-12 text-center text-sm border border-gray-300 rounded focus:border-[#154CB3] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                      let hour = parsed.hours % 12;
-                      if (hour === 0) hour = 12;
-                      hour = hour === 1 ? 12 : hour - 1;
-                      setDraftTime(formatTimeToHHMM(hour === 12 ? 0 : hour, parsed.minutes));
-                    }}
-                    className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded"
-                  >
-                    ▼
-                  </button>
-                </div>
 
-                <span className="text-lg font-bold text-gray-700">:</span>
+                  {/* Colon */}
+                  <span className="text-2xl font-bold text-gray-400 mb-4">:</span>
 
-                {/* Minute Selector */}
-                <div className="flex flex-col items-center gap-1">
-                  <label className="text-xs font-medium text-gray-600">Minute</label>
-                  <div className="flex gap-1">
+                  {/* Minute display */}
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-xl font-bold text-gray-700">
+                      {(parseHHMM(draftTime)?.minutes || 0).toString().padStart(2, "0")}
+                    </div>
+                    <span className="text-xs text-gray-500 mt-1">Minute</span>
+                  </div>
+
+                  {/* AM/PM buttons */}
+                  <div className="flex flex-col gap-1">
                     <button
                       type="button"
                       onClick={() => {
                         const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                        const minute = (parsed.minutes + 5) % 60;
-                        setDraftTime(formatTimeToHHMM(parsed.hours, minute));
+                        if (parsed.hours >= 12) {
+                          const newHour = parsed.hours - 12;
+                          setDraftTime(formatTimeToHHMM(newHour === 0 ? 0 : newHour, parsed.minutes));
+                        }
                       }}
-                      className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+                      className={`px-2.5 py-1.5 text-xs font-semibold rounded transition-colors ${
+                        (parseHHMM(draftTime)?.hours || 0) < 12
+                          ? "bg-[#154CB3] text-white border-2 border-[#154CB3]"
+                          : "bg-white text-gray-700 border-2 border-gray-200 hover:border-gray-300"
+                      }`}
                     >
-                      ▲
+                      AM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
+                        if (parsed.hours < 12) {
+                          const newHour = parsed.hours + 12;
+                          setDraftTime(formatTimeToHHMM(newHour === 12 ? 12 : newHour, parsed.minutes));
+                        }
+                      }}
+                      className={`px-2.5 py-1.5 text-xs font-semibold rounded transition-colors ${
+                        (parseHHMM(draftTime)?.hours || 0) >= 12
+                          ? "bg-[#154CB3] text-white border-2 border-[#154CB3]"
+                          : "bg-white text-gray-700 border-2 border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      PM
                     </button>
                   </div>
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    value={
-                      (() => {
-                        const parsed = parseHHMM(draftTime);
-                        return (parsed?.minutes || 0).toString().padStart(2, "0");
-                      })()
-                    }
-                    onChange={(e) => {
-                      const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                      let minute = parseInt(e.target.value) || 0;
-                      if (minute > 59) minute = 59;
-                      if (minute < 0) minute = 0;
-                      setDraftTime(formatTimeToHHMM(parsed.hours, minute));
-                    }}
-                    className="w-12 text-center text-sm border border-gray-300 rounded focus:border-[#154CB3] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                      const minute = (parsed.minutes - 5 + 60) % 60;
-                      setDraftTime(formatTimeToHHMM(parsed.hours, minute));
-                    }}
-                    className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded"
-                  >
-                    ▼
-                  </button>
                 </div>
 
-                {/* AM/PM Selector */}
-                <div className="flex flex-col items-center gap-1">
-                  <label className="text-xs font-medium text-gray-600">Period</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                      const newHour = parsed.hours < 12 ? parsed.hours + 12 : parsed.hours - 12;
-                      setDraftTime(formatTimeToHHMM(newHour, parsed.minutes));
-                    }}
-                    className={`px-2.5 py-1 text-xs font-medium border rounded transition-colors ${
-                      (parseHHMM(draftTime)?.hours || 0) < 12
-                        ? "border-[#154CB3] bg-[#154CB3]/10 text-[#154CB3]"
-                        : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                    }`}
+                {/* Clock icon and time display */}
+                <div className="flex items-center justify-between">
+                  <svg
+                    className="w-5 h-5 text-gray-400"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
                   >
-                    AM
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const parsed = parseHHMM(draftTime) || { hours: 12, minutes: 0 };
-                      const newHour = parsed.hours < 12 ? parsed.hours + 12 : parsed.hours - 12;
-                      setDraftTime(formatTimeToHHMM(newHour, parsed.minutes));
-                    }}
-                    className={`px-2.5 py-1 text-xs font-medium border rounded transition-colors ${
-                      (parseHHMM(draftTime)?.hours || 0) >= 12
-                        ? "border-[#154CB3] bg-[#154CB3]/10 text-[#154CB3]"
-                        : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    PM
-                  </button>
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span className="text-sm font-semibold text-[#154CB3]">
+                    {formatHHMMTo12Hour(draftTime)}
+                  </span>
                 </div>
-              </div>
-
-              {/* Display */}
-              <div className="text-center py-1">
-                <div className="text-lg font-bold text-[#154CB3]">{draftTime}</div>
-                <div className="text-xs text-gray-500">{formatHHMMTo12Hour(draftTime)}</div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleSetTime}
-              className="mt-3 w-full bg-[#154CB3] text-white text-sm py-2 rounded hover:bg-[#154cb3eb] transition-colors"
-            >
-              Set Time
-            </button>
+
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSetTime}
+                className="flex-1 px-4 py-2 text-sm font-medium bg-[#154CB3] text-white rounded hover:bg-[#154cb3eb] transition-colors"
+              >
+                OK
+              </button>
+            </div>
           </div>
         )}
       </div>
