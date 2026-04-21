@@ -2563,7 +2563,7 @@ export default function MasterAdminPage() {
                     >
                       <option value="">{roleSchool ? "Select department…" : "Select school first…"}</option>
                       {getDepartmentOptionsForSchool(roleSchool).map((d) => (
-                        <option key={d.value} value={d.value}>{d.label}</option>
+                        <option key={d.value} value={d.label}>{d.label}</option>
                       ))}
                     </select>
                   </div>
