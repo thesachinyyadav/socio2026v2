@@ -518,230 +518,6 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   );
 };
 
-interface CircularClockPickerProps {
-  value: string;
-  onChange: (time: string) => void;
-}
-
-const CircularClockPicker: React.FC<CircularClockPickerProps> = ({
-  value,
-  onChange,
-}) => {
-  const [mode, setMode] = useState<"hour" | "minute">("hour");
-  const parsed = parseHHMM(value) || { hours: 12, minutes: 0 };
-  const radius = 60;
-  const centerX = 90;
-  const centerY = 90;
-
-  const handleClockClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left - centerX;
-    const y = e.clientY - rect.top - centerY;
-    const angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
-    const normalizedAngle = (angle + 360) % 360;
-
-    if (mode === "hour") {
-      let hour = Math.round(normalizedAngle / 30) % 12;
-      if (hour === 0) hour = 12;
-      onChange(
-        formatTimeToHHMM(hour === 12 ? 0 : hour, parsed.minutes)
-      );
-      setMode("minute");
-    } else {
-      const minute = Math.round(normalizedAngle / 6) % 60;
-      onChange(formatTimeToHHMM(parsed.hours, minute));
-      setMode("hour");
-    }
-  };
-
-  const displayHour = parsed.hours === 0 ? 12 : parsed.hours > 12 ? parsed.hours - 12 : parsed.hours;
-  const hourNumbers = Array.from({ length: 12 }, (_, i) => i + 1);
-  const minuteMarks = Array.from({ length: 60 }, (_, i) => i);
-
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex gap-1">
-        <button
-          type="button"
-          onClick={() => setMode("hour")}
-          className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
-            mode === "hour"
-              ? "bg-[#154CB3] text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Hour
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("minute")}
-          className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
-            mode === "minute"
-              ? "bg-[#154CB3] text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Min
-        </button>
-      </div>
-
-      <svg
-        width="180"
-        height="180"
-        viewBox="0 0 180 180"
-        onClick={handleClockClick}
-        className="cursor-pointer rounded-full border border-gray-300 bg-white flex-shrink-0"
-      >
-        {/* Center circle */}
-        <circle cx={centerX} cy={centerY} r="3" fill="#154CB3" />
-
-        {/* Hour markers or minute marks */}
-        {mode === "hour" ? (
-          <>
-            {/* Hour numbers */}
-            {hourNumbers.map((hour) => {
-              const angle = (hour * 30 - 90) * (Math.PI / 180);
-              const x = centerX + radius * Math.cos(angle);
-              const y = centerY + radius * Math.sin(angle);
-              return (
-                <circle
-                  key={`hour-${hour}`}
-                  cx={x}
-                  cy={y}
-                  r={hour === displayHour ? "5" : "3"}
-                  fill={hour === displayHour ? "#154CB3" : "#E5E7EB"}
-                />
-              );
-            })}
-
-            {/* Hour hand */}
-            {(() => {
-              const angle = (displayHour * 30 - 90) * (Math.PI / 180);
-              const x = centerX + (radius - 8) * Math.cos(angle);
-              const y = centerY + (radius - 8) * Math.sin(angle);
-              return (
-                <line
-                  x1={centerX}
-                  y1={centerY}
-                  x2={x}
-                  y2={y}
-                  stroke="#154CB3"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              );
-            })()}
-
-            {/* Hour labels */}
-            {hourNumbers.map((hour) => {
-              const angle = (hour * 30 - 90) * (Math.PI / 180);
-              const x = centerX + (radius - 18) * Math.cos(angle);
-              const y = centerY + (radius - 18) * Math.sin(angle);
-              return (
-                <text
-                  key={`label-${hour}`}
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dy="0.25em"
-                  className="text-xs font-bold"
-                  fill={hour === displayHour ? "#154CB3" : "#6B7280"}
-                  pointerEvents="none"
-                >
-                  {hour}
-                </text>
-              );
-            })}
-          </>
-        ) : (
-          <>
-            {/* Minute marks */}
-            {minuteMarks.map((minute) => {
-              if (minute % 5 !== 0) return null;
-              const angle = (minute * 6 - 90) * (Math.PI / 180);
-              const x1 = centerX + radius * Math.cos(angle);
-              const y1 = centerY + radius * Math.sin(angle);
-              const x2 = centerX + (radius - 6) * Math.cos(angle);
-              const y2 = centerY + (radius - 6) * Math.sin(angle);
-              return (
-                <line
-                  key={`tick-${minute}`}
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  stroke={minute === parsed.minutes ? "#154CB3" : "#D1D5DB"}
-                  strokeWidth={minute === parsed.minutes ? "2" : "1"}
-                />
-              );
-            })}
-
-            {/* Minute hand */}
-            {(() => {
-              const angle = (parsed.minutes * 6 - 90) * (Math.PI / 180);
-              const x = centerX + (radius - 8) * Math.cos(angle);
-              const y = centerY + (radius - 8) * Math.sin(angle);
-              return (
-                <line
-                  x1={centerX}
-                  y1={centerY}
-                  x2={x}
-                  y2={y}
-                  stroke="#154CB3"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              );
-            })()}
-
-            {/* Minute labels */}
-            {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => {
-              const angle = (minute * 6 - 90) * (Math.PI / 180);
-              const x = centerX + (radius - 18) * Math.cos(angle);
-              const y = centerY + (radius - 18) * Math.sin(angle);
-              return (
-                <text
-                  key={`min-label-${minute}`}
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dy="0.25em"
-                  className="text-xs font-semibold"
-                  fill={minute === parsed.minutes ? "#154CB3" : "#9CA3AF"}
-                  pointerEvents="none"
-                >
-                  {minute}
-                </text>
-              );
-            })}
-          </>
-        )}
-
-        {/* Outer circle */}
-        <circle
-          cx={centerX}
-          cy={centerY}
-          r={radius}
-          fill="none"
-          stroke="#E5E7EB"
-          strokeWidth="1"
-        />
-      </svg>
-
-      <div className="text-center">
-        <div className="text-lg font-bold text-[#154CB3]">
-          {displayHour.toString().padStart(2, "0")}:
-          {parsed.minutes.toString().padStart(2, "0")}
-        </div>
-        <div className="text-xs text-gray-500">
-          {formatHHMMTo12Hour(value)}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 interface CustomTimePickerProps {
   field: ControllerRenderProps<EventFormData, any>;
   label: string;
@@ -851,45 +627,34 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
             id={`${field.name}-time-panel`}
             role="dialog"
             aria-modal="true"
-            className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-3 w-[min(20rem,calc(100vw-3rem))]"
+            className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-[120] p-3 w-[min(18rem,calc(100vw-3rem))]"
           >
             <div className="space-y-3">
               {/* Quick presets */}
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-600">Quick presets</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {quickTimes.map((time) => (
-                    <button
-                      key={time}
-                      type="button"
-                      onClick={() => {
-                        setDraftTime(time);
-                        field.onChange(time);
-                        setIsOpen(false);
-                      }}
-                      className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                        draftTime === time
-                          ? "border border-[#154CB3] bg-[#154CB3]/10 text-[#154CB3]"
-                          : "border border-gray-200 text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {formatHHMMTo12Hour(time)}
-                    </button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {quickTimes.map((time) => (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => {
+                      setDraftTime(time);
+                      field.onChange(time);
+                      setIsOpen(false);
+                    }}
+                    className={`rounded px-2 py-1.5 text-xs font-medium transition-colors ${
+                      draftTime === time
+                        ? "border border-[#154CB3] bg-[#154CB3]/10 text-[#154CB3]"
+                        : "border border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {formatHHMMTo12Hour(time)}
+                  </button>
+                ))}
               </div>
 
-              {/* Circular clock picker */}
-              <div className="flex justify-center py-1">
-                <CircularClockPicker
-                  value={draftTime}
-                  onChange={setDraftTime}
-                />
-              </div>
-
-              {/* Native input fallback */}
+              {/* Time input */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Or type exact time</label>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">Enter time</label>
                 <input
                   ref={nativeTimeRef}
                   type="time"
