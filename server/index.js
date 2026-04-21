@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
+import { setDefaultResultOrder } from 'node:dns';
 import { fileURLToPath } from 'url';
 import { initializeDatabase } from "./config/database.js";
 
@@ -19,6 +20,11 @@ import statuscheckRoutes from "./routes/statuscheckRoutes.js";
 import approvalRoutes from "./routes/approvalRoutes.js";
 
 dotenv.config();
+
+if ((process.env.NODE_ENV !== 'production') && process.env.SUPABASE_FORCE_IPV4 !== 'false') {
+  // On some Windows/ISP networks, IPv6 DNS resolution causes intermittent fetch failures.
+  setDefaultResultOrder('ipv4first');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

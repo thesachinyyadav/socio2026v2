@@ -443,22 +443,24 @@ export default function EditEventPage() {
       publishFromDraft && formData.sendNotifications !== false;
     const normalizedContactEmail = normalizeEmail(formData.contactEmail);
 
-    if (!normalizedContactEmail) {
-      setErrorMessage("Contact email is required.");
-      setIsSubmitting(false);
-      throw new Error("Contact email is required.");
-    }
+    if (!archiveAsDraft) {
+      if (!normalizedContactEmail) {
+        setErrorMessage("Contact email is required.");
+        setIsSubmitting(false);
+        throw new Error("Contact email is required.");
+      }
 
-    if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
-      setErrorMessage("Contact email must be 100 characters or fewer.");
-      setIsSubmitting(false);
-      throw new Error("Contact email must be 100 characters or fewer.");
-    }
+      if (normalizedContactEmail.length > MAX_EMAIL_LENGTH) {
+        setErrorMessage("Contact email must be 100 characters or fewer.");
+        setIsSubmitting(false);
+        throw new Error("Contact email must be 100 characters or fewer.");
+      }
 
-    if (!validateEmail(normalizedContactEmail)) {
-      setErrorMessage("Please enter a valid contact email, like name@gmail.com.");
-      setIsSubmitting(false);
-      throw new Error("Please enter a valid contact email.");
+      if (!validateEmail(normalizedContactEmail)) {
+        setErrorMessage("Please enter a valid contact email, like name@gmail.com.");
+        setIsSubmitting(false);
+        throw new Error("Please enter a valid contact email.");
+      }
     }
 
     if (!session) {

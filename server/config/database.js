@@ -3,6 +3,12 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const shouldSkipInitCheck = process.env.SUPABASE_SKIP_INIT_CHECK === 'true';
+const allowOfflineOnInit =
+  process.env.SUPABASE_ALLOW_OFFLINE_INIT === 'true' ||
+  (process.env.SUPABASE_ALLOW_OFFLINE_INIT !== 'false' && isDevelopment);
+
 // Supabase configuration
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,8 +20,18 @@ if (!supabaseUrl || !supabaseServiceKey) {
 // Create Supabase client with service role key for full access
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+const isNetworkFetchFailure = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('fetch failed') || message.includes('network') || message.includes('timeout');
+};
+
 // Initialize database - just verify connection for Supabase
 export async function initializeDatabase() {
+  if (shouldSkipInitCheck) {
+    console.log('⏭️  Skipping Supabase init check (SUPABASE_SKIP_INIT_CHECK=true)');
+    return false;
+  }
+
   try {
     console.log('🔍 Connecting to Supabase...');
     
@@ -31,6 +47,13 @@ export async function initializeDatabase() {
     
     return true;
   } catch (error) {
+    if (allowOfflineOnInit && isNetworkFetchFailure(error)) {
+      console.warn('⚠️  Supabase is unreachable right now; continuing in local offline startup mode.');
+      console.warn('   Set SUPABASE_ALLOW_OFFLINE_INIT=false to fail fast on startup.');
+      console.warn('   Tip: on Windows networks, NODE_OPTIONS=--dns-result-order=ipv4first can resolve fetch issues.');
+      return false;
+    }
+
     console.error('❌ Supabase connection error:', error.message);
     throw error;
   }
