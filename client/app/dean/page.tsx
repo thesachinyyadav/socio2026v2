@@ -11,9 +11,8 @@ interface ApprovalStage {
   role: string;
   label: string;
   status: string;
-  assignee_user_id: string | null;
-  routing_state: string;
   blocking: boolean;
+  approved_by: string | null;
 }
 
 interface QueueItem {
@@ -136,6 +135,7 @@ export default function DeanDashboard() {
     const status = deanStatus(item);
     const hodStage = item.stages?.find((s) => s.role === "hod");
     const hodDone = !hodStage || hodStage.status === "approved" || hodStage.status === "skipped";
+    const hodActedBy = hodStage?.approved_by ?? null;
 
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -146,7 +146,7 @@ export default function DeanDashboard() {
             <StatusBadge status={status} />
             {hodDone && (
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                HOD {hodStage?.status ?? "cleared"}
+                HOD {hodStage?.status ?? "cleared"}{hodActedBy ? ` by ${hodActedBy}` : ""}
               </span>
             )}
           </div>

@@ -46,8 +46,9 @@ export default function EditEventPage() {
   const [isDraft, setIsDraft] = useState(false);
   const [isArchiveUpdating, setIsArchiveUpdating] = useState(false);
   const [approvalExists, setApprovalExists] = useState<boolean | null>(null);
+  const [approvalPhase1Complete, setApprovalPhase1Complete] = useState(false);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
-  const approvalConfigRef = { current: { enabled: true, stages: STANDALONE_EVENT_STAGES as WorkflowStage[] } };
+  const approvalConfigRef = { current: { enabled: true, stages: STANDALONE_EVENT_STAGES as WorkflowStage[], budgetItems: [] as BudgetItem[] } };
   const operationalConfigRef = { current: { it: { enabled: false, description: '' }, venue: { enabled: false, venue_name: '', date: '', start_time: '', end_time: '' }, catering: { enabled: false, approximate_count: '', description: '' }, stalls: { enabled: false, total_stalls: '', canopy_count: '', hardboard_count: '', description: '' } } as OperationalConfig };
 
   useEffect(() => {
@@ -724,14 +725,35 @@ export default function EditEventPage() {
       const res = await fetch(`${API_URL}/api/approvals/${eventIdSlug}?type=event`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      setApprovalExists(res.ok);
+      if (!res.ok) {
+        setApprovalExists(false);
+        setApprovalPhase1Complete(false);
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      const stages = Array.isArray(body?.approval?.stages) ? body.approval.stages : [];
+      const blocking = stages.filter((s: any) => s?.blocking);
+      const phase1Complete =
+        blocking.length > 0 &&
+        blocking.every((s: any) => s?.status === "approved" || s?.status === "skipped");
+      setApprovalExists(true);
+      setApprovalPhase1Complete(phase1Complete);
     } catch {
       setApprovalExists(false);
+      setApprovalPhase1Complete(false);
     }
   };
 
   const submitForApproval = async () => {
     if (!session || !eventIdSlug) return;
+
+    const blockingStages = approvalConfigRef.current.stages.filter(s => s.blocking);
+    const hasCfoOrAccounts = blockingStages.some(s => s.role === 'cfo' || s.role === 'accounts');
+    if (hasCfoOrAccounts && (!approvalConfigRef.current.budgetItems || approvalConfigRef.current.budgetItems.length === 0)) {
+      toast.error("Budget Estimate is required when CFO or Finance Officer is included in the approval workflow.");
+      return;
+    }
+
     setIsSubmittingApproval(true);
     try {
       const res = await fetch(`${API_URL}/api/approvals`, {
@@ -743,7 +765,8 @@ export default function EditEventPage() {
         body: JSON.stringify({
           itemId: eventIdSlug,
           type: "event",
-          customStages: approvalConfigRef.current.stages,
+          customStages: blockingStages,
+          budgetItems: approvalConfigRef.current.budgetItems,
         }),
       });
       if (res.status === 409) {
@@ -757,6 +780,22 @@ export default function EditEventPage() {
         toast.error(body.error || "Failed to submit for approval.");
         return;
       }
+
+      // Attach operational stages if any are enabled
+      const opConfig = operationalConfigRef.current;
+      const operationalStages = buildOperationalStages(opConfig);
+      if (operationalStages.length > 0) {
+        try {
+          await fetch(`${API_URL}/api/approvals/${eventIdSlug}/operational`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ operationalStages }),
+          });
+        } catch {
+          // Non-critical
+        }
+      }
+
       toast.success("Submitted for approval successfully!");
       setApprovalExists(true);
       router.push(`/approvals/${eventIdSlug}?type=event`);
@@ -850,12 +889,13 @@ export default function EditEventPage() {
         isDraft={isDraft}
         isArchiveUpdating={isArchiveUpdating}
         onToggleArchive={handleToggleArchive}
-        onApprovalConfigChange={(enabled, stages, _budgetItems) => {
-          approvalConfigRef.current = { enabled, stages };
+        onApprovalConfigChange={(enabled, stages, budgetItems) => {
+          approvalConfigRef.current = { enabled, stages, budgetItems };
         }}
         onOperationalConfigChange={(config) => {
           operationalConfigRef.current = config;
         }}
+        publishBlockedByApproval={!(approvalExists && approvalPhase1Complete)}
       />
       {/* Approval workflow actions */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-12 pb-8">
@@ -911,5 +951,15 @@ export default function EditEventPage() {
       </button>
     </div>
   );
+}
+
+function buildOperationalStages(config: OperationalConfig) {
+  const map: { role: string; label: string; request_data: Record<string, unknown> }[] = [
+    { role: "it",       label: "IT Support",  request_data: config.it as unknown as Record<string, unknown> },
+    { role: "venue",    label: "Venue",        request_data: config.venue as unknown as Record<string, unknown> },
+    { role: "catering", label: "Catering",     request_data: config.catering as unknown as Record<string, unknown> },
+    { role: "stalls",   label: "Stalls",       request_data: config.stalls as unknown as Record<string, unknown> },
+  ];
+  return map.filter(s => (s.request_data as any).enabled);
 }
 

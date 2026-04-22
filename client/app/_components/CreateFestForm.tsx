@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
 import {
   christCampuses,
@@ -1270,7 +1270,7 @@ function ApprovalsSetupView({
               {isSubmitting ? 'Saving...' : 'Update Workflow'}
             </button>
             <a
-              href={`/approvals/${festId}`}
+              href={`/approvals/${festId}?type=fest`}
               className="w-full sm:w-auto px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors text-center"
             >
               View Approval Status
@@ -1365,23 +1365,29 @@ function CreateFestForm(props?: CreateFestProps) {
     allowOutsiders: false,
     customFields,
   });
+  const [activeView, setActiveView] = useState<"details" | "approvals">("details");
+  const [savedFestId, setSavedFestId] = useState<string | null>(null);
+  const [approvalExists, setApprovalExists] = useState(false);
+  const [approvalPhase1Complete, setApprovalPhase1Complete] = useState(false);
+  const [existingBudgetItems, setExistingBudgetItems] = useState<BudgetItem[]>([]);
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const [isOpeningPreview, setIsOpeningPreview] = useState(false);
+  const [isLoadingFestData, setIsLoadingFestData] = useState(false);
+  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
+  const actionsDropdownRef = useRef<HTMLDivElement>(null);
+  const [submitIntent, setSubmitIntent] = useState<"publish" | "draft">("publish");
+  const [successAction, setSuccessAction] = useState<"publish" | "draft">("publish");
+  const [wasDraftOnSubmit, setWasDraftOnSubmit] = useState(false);
+  const [pendingFestSuccess, setPendingFestSuccess] = useState(false);
+  const [festModalVisible, setFestModalVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false); // Used for delete operation
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitIntent, setSubmitIntent] = useState<"publish" | "draft">("publish");
-  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
-  const actionsDropdownRef = useRef<HTMLDivElement>(null);
-  const [isLoadingFestData, setIsLoadingFestData] = useState(false);
-  const [pendingFestSuccess, setPendingFestSuccess] = useState(false);
-  const [wasDraftOnSubmit, setWasDraftOnSubmit] = useState(false);
-  const [successAction, setSuccessAction] = useState<"publish" | "draft">("publish");
-  const [festModalVisible, setFestModalVisible] = useState(false);
-  const [isOpeningPreview, setIsOpeningPreview] = useState(false);
-  const [activeView, setActiveView] = useState<'details' | 'approvals'>('details');
-  const [savedFestId, setSavedFestId] = useState<string | null>(null);
-  const [approvalExists, setApprovalExists] = useState<boolean | null>(null);
-  const [existingBudgetItems, setExistingBudgetItems] = useState<BudgetItem[]>([]);
-  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const [submissionMode, setSubmissionMode] = useState<"publish" | "draft">(
+    "publish"
+  );
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [pendingSuccess, setPendingSuccess] = useState<"publish" | "draft" | null>(null);
 
   const { session } = useAuth();
   const currentDateRef = useRef(new Date());
@@ -1393,9 +1399,16 @@ function CreateFestForm(props?: CreateFestProps) {
 
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isEditModeFromPath = pathname.startsWith("/edit/fest");
   const festIdFromPath = isEditModeFromPath ? pathname.split("/").pop() : null;
   const finalIsEditMode = isEditMode || isEditModeFromPath;
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "approvals") {
+      setActiveView("approvals");
+    }
+  }, [searchParams]);
 
   const departmentOptionsForSelectedSchool = useMemo(() => {
     const selectedSchool = String(formData.organizingSchool || "").trim();
@@ -1544,19 +1557,31 @@ function CreateFestForm(props?: CreateFestProps) {
   useEffect(() => {
     if (!finalIsEditMode || !festIdFromPath || !session?.access_token) return;
     setSavedFestId(festIdFromPath);
-    fetch(`${API_URL}/api/approvals/${festIdFromPath}`, {
+    fetch(`${API_URL}/api/approvals/${festIdFromPath}?type=fest`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then(async (r) => {
-        setApprovalExists(r.ok);
-        if (r.ok) {
-          const data = await r.json().catch(() => ({}));
-          if (Array.isArray(data?.approval?.budget_items)) {
-            setExistingBudgetItems(data.approval.budget_items);
-          }
+        if (!r.ok) {
+          setApprovalExists(false);
+          setApprovalPhase1Complete(false);
+          return;
+        }
+        setApprovalExists(true);
+        const data = await r.json().catch(() => ({}));
+        const stages = Array.isArray(data?.approval?.stages) ? data.approval.stages : [];
+        const blocking = stages.filter((s: any) => s?.blocking);
+        const phase1Complete =
+          blocking.length > 0 &&
+          blocking.every((s: any) => s?.status === "approved" || s?.status === "skipped");
+        setApprovalPhase1Complete(phase1Complete);
+        if (Array.isArray(data?.approval?.budget_items)) {
+          setExistingBudgetItems(data.approval.budget_items);
         }
       })
-      .catch(() => setApprovalExists(false));
+      .catch(() => {
+        setApprovalExists(false);
+        setApprovalPhase1Complete(false);
+      });
   }, [finalIsEditMode, festIdFromPath, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1679,27 +1704,27 @@ function CreateFestForm(props?: CreateFestProps) {
                 formData.openingDate &&
                 parseYYYYMMDD(formData.openingDate)
               ) {
-                if (inputDate < parseYYYYMMDD(formData.openingDate)!)
+                if (inputDate < parseYYYYMMDD(formData.openingDate)!) {
                   newErrors[name] = "Must be on/after opening date";
-                else delete newErrors[name];
-              } else delete newErrors[name];
+                }
+              }
             }
+
             if (
               name === "openingDate" &&
               formData.closingDate &&
-              parseYYYYMMDD(value as string) &&
+              parseYYYYMMDD(String(value)) &&
               parseYYYYMMDD(formData.closingDate) &&
-              parseYYYYMMDD(value as string)! >
-                parseYYYYMMDD(formData.closingDate)!
+              parseYYYYMMDD(String(value))! > parseYYYYMMDD(formData.closingDate)!
             ) {
               newErrors.closingDate =
                 "Closing date must be on/after opening date";
             } else if (
               name === "closingDate" &&
               formData.openingDate &&
-              parseYYYYMMDD(value as string) &&
+              parseYYYYMMDD(String(value)) &&
               parseYYYYMMDD(formData.openingDate) &&
-              parseYYYYMMDD(value as string)! <
+              parseYYYYMMDD(String(value))! <
                 parseYYYYMMDD(formData.openingDate)!
             ) {
               newErrors.closingDate =
@@ -1708,9 +1733,9 @@ function CreateFestForm(props?: CreateFestProps) {
               name === "openingDate" &&
               newErrors.closingDate ===
                 "Closing date must be on/after opening date" &&
-              parseYYYYMMDD(value as string) &&
+              parseYYYYMMDD(String(value)) &&
               parseYYYYMMDD(formData.closingDate) &&
-              parseYYYYMMDD(value as string)! <=
+              parseYYYYMMDD(String(value))! <=
                 parseYYYYMMDD(formData.closingDate)!
             ) {
               delete newErrors.closingDate;
@@ -2430,7 +2455,7 @@ function CreateFestForm(props?: CreateFestProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to submit for approval');
       toast.success('Submitted for approval.', { duration: 3000 });
-      router.push(`/approvals/${festId}`);
+      router.push(`/approvals/${festId}?type=fest`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit for approval');
     } finally {
@@ -2443,7 +2468,7 @@ function CreateFestForm(props?: CreateFestProps) {
     if (!festId || !session?.access_token) return;
     setIsSubmittingApproval(true);
     try {
-      const res = await fetch(`${API_URL}/api/approvals/${festId}/workflow`, {
+      const res = await fetch(`${API_URL}/api/approvals/${festId}/workflow?type=fest`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -3559,7 +3584,7 @@ function CreateFestForm(props?: CreateFestProps) {
                                 }}
                                 onBlur={() => handleEventHeadBlur(index)}
                                 aria-label={`Event head ${index + 1} expiration date and time`}
-                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent bg-white"
+                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                               />
                               {errors[`eventHeadExpiry_${index}`] && (
                                 <p className="text-red-500 text-xs mt-1">
@@ -3947,27 +3972,22 @@ function CreateFestForm(props?: CreateFestProps) {
                   </Link>
                   
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleSaveDraft}
-                      disabled={isSubmitting || isNavigating || isOpeningPreview}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isSubmitting && submitIntent === "draft"
-                        ? "Saving Draft..."
-                        : "Save as Draft"}
-                    </button>
+                    {!(finalIsEditMode && isDraftFest && !(approvalExists && approvalPhase1Complete)) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleSaveDraft}
+                          disabled={isSubmitting || isNavigating || isOpeningPreview}
+                          className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isSubmitting && submissionMode === "draft"
+                            ? "Saving Draft..."
+                            : "Save as Draft"}
+                        </button>
+                      </>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={handlePreview}
-                      disabled={isSubmitting || isNavigating || isOpeningPreview}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {isOpeningPreview ? "Opening preview..." : "Preview"}
-                    </button>
-                    
-                    {finalIsEditMode && (
+                    {finalIsEditMode && !(finalIsEditMode && isDraftFest && !(approvalExists && approvalPhase1Complete)) && (
                       <div className="relative" ref={actionsDropdownRef}>
                         <button
                           type="button"
@@ -4002,7 +4022,15 @@ function CreateFestForm(props?: CreateFestProps) {
                     )}
                   </div>
                   
-                  {finalIsEditMode ? (
+                  {finalIsEditMode && isDraftFest && !(approvalExists && approvalPhase1Complete) ? (
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('approvals')}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors"
+                    >
+                      Go to Approvals Tab
+                    </button>
+                  ) : finalIsEditMode ? (
                     <button
                       type="submit"
                       disabled={isSubmitting || isNavigating || isOpeningPreview}
@@ -4015,7 +4043,7 @@ function CreateFestForm(props?: CreateFestProps) {
                         </svg>
                       )}
                       <span>
-                        {isUploadingImage ? "Uploading image..." : isSubmitting ? (submitIntent === "draft" ? "Saving Draft..." : isDraftFest ? "Publishing..." : "Updating...") : isDraftFest ? "Publish Fest" : "Update Fest"}
+                        {isUploadingImage ? "Uploading image..." : isSubmitting ? (submissionMode === "draft" ? "Saving Draft..." : isDraftFest ? "Publishing..." : "Updating...") : isDraftFest ? "Publish Fest" : "Update Fest"}
                       </span>
                     </button>
                   ) : (

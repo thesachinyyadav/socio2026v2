@@ -11,9 +11,8 @@ interface ApprovalStage {
   role: string;
   label: string;
   status: string;
-  assignee_user_id: string | null;
-  routing_state: string;
   blocking: boolean;
+  approved_by: string | null;
 }
 
 interface QueueItem {
@@ -42,9 +41,7 @@ function hodStatus(item: QueueItem) {
 }
 
 function hodActedBy(item: QueueItem): string | null {
-  const log = (item as any).action_log as { step: string; action: string; by: string; byEmail: string }[] | null;
-  const entry = log?.find((e) => e.step === "hod" && (e.action === "approve" || e.action === "reject"));
-  return entry?.by || entry?.byEmail || null;
+  return item.stages?.find((s) => s.role === "hod")?.approved_by ?? null;
 }
 
 export default function HodDashboard() {

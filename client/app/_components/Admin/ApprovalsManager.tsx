@@ -10,9 +10,8 @@ interface ApprovalStage {
   role: string;
   label: string;
   status: string;
-  assignee_user_id: string | null;
-  routing_state: string;
   blocking: boolean;
+  approved_by: string | null;
 }
 
 interface ApprovalRow {
@@ -169,9 +168,7 @@ export default function ApprovalsManager() {
         <div className="space-y-2">
           {approvals.map((row) => {
             const stages = row.stages || [];
-            const hasUnassigned = stages.some(
-              (s) => s.routing_state === "waiting_for_assignment" && s.status === "pending"
-            );
+            const hasUnassigned = false; // routing_state removed — access is by role+dept/school/campus
             const nextPendingStage = stages.find((s) => s.status === "pending");
             const firstPendingBlocking = stages.find((s) => s.blocking && s.status === "pending");
             const isLive = !!row.went_live_at;

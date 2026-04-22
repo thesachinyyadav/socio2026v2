@@ -11,9 +11,8 @@ interface ApprovalStage {
   role: string;
   label: string;
   status: string;
-  assignee_user_id: string | null;
-  routing_state: string;
   blocking: boolean;
+  approved_by: string | null;
 }
 
 interface BudgetItem {

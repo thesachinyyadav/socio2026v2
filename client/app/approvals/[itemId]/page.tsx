@@ -12,9 +12,8 @@ interface ApprovalStage {
   role: string;
   label: string;
   status: StepStatus;
-  assignee_user_id: string | null;
-  routing_state: "assigned" | "waiting_for_assignment";
   blocking: boolean;
+  approved_by: string | null;
 }
 
 interface ActionLogEntry {
@@ -137,19 +136,19 @@ function WarningIcon({ className = "h-5 w-5" }: { className?: string }) {
 function StepCard({
   label,
   status,
-  routingState,
+  approvedBy,
 }: {
   label: string;
   status: StepStatus;
-  routingState?: "assigned" | "waiting_for_assignment";
+  approvedBy?: string | null;
 }) {
   return (
     <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${STATUS_COLORS[status]}`}>
       <StatusIcon status={status} className="h-5 w-5 shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm">{label}</p>
-        {status === "pending" && routingState === "waiting_for_assignment" && (
-          <p className="text-xs opacity-70 mt-0.5">Awaiting assignment</p>
+        {approvedBy && (
+          <p className="text-xs opacity-70 mt-0.5">by {approvedBy}</p>
         )}
       </div>
       <span className="text-xs font-semibold uppercase tracking-wide">{status}</span>
@@ -178,6 +177,8 @@ export default function ApprovalsPage() {
   const [item, setItem] = useState<ItemMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMissingApprovalRecord, setIsMissingApprovalRecord] = useState(false);
+  const itemType = typeParam === "fest" ? "fest" : "event";
 
   // Venue booking state
   const [venueList,        setVenueList]        = useState<{ id: string; name: string; capacity: number | null; location: string | null }[]>([]);
@@ -215,6 +216,7 @@ export default function ApprovalsPage() {
   async function fetchApproval() {
     setLoading(true);
     setError(null);
+    setIsMissingApprovalRecord(false);
     try {
       const url = `${API_URL}/api/approvals/${itemId}${typeParam ? `?type=${typeParam}` : ""}`;
       const res = await fetch(url, {
@@ -223,6 +225,11 @@ export default function ApprovalsPage() {
       if (res.status === 403) { setError("You do not have access to this approval record."); return; }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (res.status === 404 && body.error === "Approval record not found") {
+          setIsMissingApprovalRecord(true);
+          setError(`This ${itemType} has not been sent for approvals yet.`);
+          return;
+        }
         setError(body.error || "Failed to load approval record.");
         return;
       }
@@ -298,6 +305,14 @@ export default function ApprovalsPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <p className="text-red-600 font-medium">{error}</p>
+        {isMissingApprovalRecord && (
+          <button
+            onClick={() => router.push(`/edit/${itemType}/${itemId}?tab=approvals`)}
+            className="px-4 py-2 rounded-md bg-[#154CB3] text-white text-sm font-medium hover:bg-[#0f3a7a]"
+          >
+            Send for Approvals
+          </button>
+        )}
         <button onClick={() => router.back()} className="text-sm text-blue-600 underline">Go back</button>
       </div>
     );
@@ -404,7 +419,7 @@ export default function ApprovalsPage() {
                   Stage 1 — Blocking Approvals
                 </h2>
                 {blockingStages.map((s) => (
-                  <StepCard key={s.step} label={s.label} status={s.status} routingState={s.routing_state} />
+                  <StepCard key={s.step} label={s.label} status={s.status} approvedBy={s.approved_by} />
                 ))}
               </div>
             )}

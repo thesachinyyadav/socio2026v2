@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useRef, useState } from "react";
+import React, { Suspense, useMemo, useRef, useState } from "react";
 import EventForm, { WorkflowStage, STANDALONE_EVENT_STAGES, OperationalConfig, BudgetItem } from "@/app/_components/Admin/ManageEvent";
 import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
@@ -105,6 +105,17 @@ export default function CreateEventPage() {
       alert("Each event head email must be valid.");
       setIsSubmitting(false);
       return;
+    }
+
+    const isFestEventEarly = dataFromHookForm.festEvent && dataFromHookForm.festEvent !== "none";
+    if (!isFestEventEarly && !saveAsDraft) {
+      const { stages: approvalStagesEarly, budgetItems: budgetItemsEarly } = approvalConfigRef.current;
+      const hasCfoOrAccounts = approvalStagesEarly.filter(s => s.blocking).some(s => s.role === 'cfo' || s.role === 'accounts');
+      if (hasCfoOrAccounts && (!budgetItemsEarly || budgetItemsEarly.length === 0)) {
+        alert("Budget Estimate is required when CFO or Finance Officer is included in the approval workflow.");
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     const formData = new FormData();
@@ -251,21 +262,23 @@ export default function CreateEventPage() {
   const handleSaveDraft: SubmitHandler<EventFormData> = async (data) => submitEvent(data, true);
 
   return (
-    <EventForm
-      onSubmit={handleCreateEvent}
-      onSubmitDraft={handleSaveDraft}
-      isSubmittingProp={isSubmitting}
-      isEditMode={false}
-      existingImageFileUrl={null}
-      existingBannerFileUrl={null}
-      existingPdfFileUrl={null}
-      onApprovalConfigChange={(enabled, stages, budgetItems) => {
-        approvalConfigRef.current = { enabled, stages, budgetItems };
-      }}
-      onOperationalConfigChange={(config) => {
-        operationalConfigRef.current = config;
-      }}
-    />
+    <Suspense fallback={<div className="p-6 text-sm text-gray-600">Loading event form...</div>}>
+      <EventForm
+        onSubmit={handleCreateEvent}
+        onSubmitDraft={handleSaveDraft}
+        isSubmittingProp={isSubmitting}
+        isEditMode={false}
+        existingImageFileUrl={null}
+        existingBannerFileUrl={null}
+        existingPdfFileUrl={null}
+        onApprovalConfigChange={(enabled, stages, budgetItems) => {
+          approvalConfigRef.current = { enabled, stages, budgetItems };
+        }}
+        onOperationalConfigChange={(config) => {
+          operationalConfigRef.current = config;
+        }}
+      />
+    </Suspense>
   );
 }
 
