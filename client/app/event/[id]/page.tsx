@@ -890,7 +890,7 @@ export default function Page() {
                   : "border-red-400 text-red-500 bg-white hover:bg-red-50 cursor-pointer"
               } disabled:opacity-60`}
             >
-              {isCancelling ? "Cancelling…" : "Cancel registration"}
+              {isCancelling ? "Cancelling…" : "Cancel Registration"}
             </button>
           ) : (
             <button
@@ -1212,7 +1212,7 @@ export default function Page() {
                     : "border-red-400 text-red-500 bg-white hover:bg-red-50 cursor-pointer"
                 } disabled:opacity-60`}
               >
-                {isCancelling ? "Cancelling…" : "Cancel registration"}
+                {isCancelling ? "Cancelling…" : "Cancel Registration"}
               </button>
             ) : (
               <button

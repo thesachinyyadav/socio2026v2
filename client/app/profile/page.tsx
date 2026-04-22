@@ -685,10 +685,10 @@ const StudentProfile = () => {
                                 title={isEventSoon(event.rawDate) ? "Cannot cancel — event starts in less than 24 hours" : "Cancel registration"}
                                 disabled={isEventSoon(event.rawDate) || cancellingId === event.registration_id}
                                 onClick={() => !isEventSoon(event.rawDate) && setCancelConfirmId(event.registration_id)}
-                                className={`w-6 h-6 rounded-full flex items-center justify-center text-sm transition-colors ${
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-sm transition-colors text-red-400 ${
                                   isEventSoon(event.rawDate)
-                                    ? "text-gray-300 cursor-not-allowed"
-                                    : "text-gray-400 hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                                    ? "opacity-40 cursor-not-allowed"
+                                    : "hover:bg-red-50 hover:text-red-600 cursor-pointer"
                                 }`}
                               >
                                 ✕
