@@ -264,6 +264,17 @@ export default function MasterAdminPage() {
 
   // Venue management state
   type VenueRow = { id: string; campus: string; name: string; capacity: number | null; location: string | null; is_active: boolean; is_approval_needed: boolean };
+  type VenueBookingRow = {
+    id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    requested_by_name: string | null;
+    requested_by: string | null;
+    booking_title: string | null;
+    entity_type: string;
+    status: string;
+  };
   const [venues,           setVenues]           = useState<VenueRow[]>([]);
   const [venuesLoading,    setVenuesLoading]    = useState(false);
   const [venueForm,        setVenueForm]        = useState({ campus: "", name: "", capacity: "", location: "", is_approval_needed: false });
@@ -271,6 +282,9 @@ export default function MasterAdminPage() {
   const [venueSubmitting,  setVenueSubmitting]  = useState(false);
   const [deleteVenueId,    setDeleteVenueId]    = useState<string | null>(null);
   const [editingVenue,     setEditingVenue]     = useState<VenueRow | null>(null);
+  const [selectedVenueForBookings, setSelectedVenueForBookings] = useState<VenueRow | null>(null);
+  const [venueBookings, setVenueBookings] = useState<VenueBookingRow[]>([]);
+  const [venueBookingsLoading, setVenueBookingsLoading] = useState(false);
 
   async function fetchAllVenues() {
     setVenuesLoading(true);
@@ -351,6 +365,58 @@ export default function MasterAdminPage() {
     } catch { toast.error("Network error"); }
   }
 
+  async function handleViewVenueBookings(v: VenueRow) {
+    if (selectedVenueForBookings?.id === v.id) {
+      setSelectedVenueForBookings(null);
+      setVenueBookings([]);
+      return;
+    }
+
+    setSelectedVenueForBookings(v);
+    setVenueBookingsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/service-requests/my-queue`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) {
+        toast.error("Failed to load venue bookings");
+        setVenueBookings([]);
+        return;
+      }
+
+      const payload = await res.json();
+      const pending = Array.isArray(payload?.pending) ? payload.pending : [];
+      const reviewed = Array.isArray(payload?.reviewed) ? payload.reviewed : [];
+
+      const rows: VenueBookingRow[] = [...pending, ...reviewed]
+        .filter((row: any) => row?.details?.venue_id === v.id)
+        .map((row: any) => ({
+          id: String(row.id),
+          date: String(row.details?.date || ""),
+          start_time: String(row.details?.start_time || ""),
+          end_time: String(row.details?.end_time || ""),
+          requested_by_name: row.requested_by_name || null,
+          requested_by: row.requested_by || null,
+          booking_title: row.details?.booking_title || row.entity_title || null,
+          entity_type: row.entity_type || "standalone",
+          status: row.status || "pending",
+        }))
+        .filter((row) => row.date && row.start_time && row.end_time)
+        .sort((a, b) => {
+          const aTime = new Date(`${a.date}T${a.start_time}`).getTime();
+          const bTime = new Date(`${b.date}T${b.start_time}`).getTime();
+          return bTime - aTime;
+        });
+
+      setVenueBookings(rows);
+    } catch {
+      toast.error("Network error");
+      setVenueBookings([]);
+    } finally {
+      setVenueBookingsLoading(false);
+    }
+  }
+
   const [isLoading, setIsLoading] = useState(true);
 
   // Report state
@@ -408,6 +474,14 @@ export default function MasterAdminPage() {
       fetchAllVenues();
     }
   }, [activeTab, isMasterAdmin, authToken]);
+
+  useEffect(() => {
+    if (activeTab !== "venues") {
+      setSelectedVenueForBookings(null);
+      setVenueBookings([]);
+      setVenueBookingsLoading(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     setUserPage(1);
@@ -1423,13 +1497,22 @@ export default function MasterAdminPage() {
                           </button>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => setDeleteVenueId(v.id)}
-                            className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors"
-                            title="Delete venue"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleViewVenueBookings(v)}
+                              className="text-slate-500 hover:text-slate-700 p-1.5 rounded hover:bg-slate-100 transition-colors"
+                              title="View venue bookings"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteVenueId(v.id)}
+                              className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors"
+                              title="Delete venue"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1437,6 +1520,71 @@ export default function MasterAdminPage() {
                 </table>
               )}
             </div>
+
+            {selectedVenueForBookings && (
+              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">Bookings for {selectedVenueForBookings.name}</h3>
+                    <p className="text-xs text-gray-500">{selectedVenueForBookings.campus} · {selectedVenueForBookings.location || "No location"}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedVenueForBookings(null);
+                      setVenueBookings([]);
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {venueBookingsLoading ? (
+                  <div className="p-6 text-sm text-gray-400">Loading bookings…</div>
+                ) : venueBookings.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-500">No booking records found for this venue.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Time</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Title</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Requested By</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Type</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {venueBookings.map((row) => (
+                          <tr key={row.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-700">{row.date}</td>
+                            <td className="px-4 py-3 text-gray-700">{row.start_time} - {row.end_time}</td>
+                            <td className="px-4 py-3 text-gray-800">{row.booking_title || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.requested_by_name || row.requested_by || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600 capitalize">{row.entity_type}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                row.status === "approved"
+                                  ? "bg-green-100 text-green-700"
+                                  : row.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : row.status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}>
+                                {row.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
