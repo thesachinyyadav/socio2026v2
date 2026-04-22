@@ -1,9 +1,5 @@
-import path from "path";
-import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const fallbackAppUrl = "https://sociodev.vercel.app";
 const fallbackApiUrl = "https://sociodevserver.vercel.app/api";
 
@@ -34,7 +30,6 @@ const remotePatterns = remoteImageHosts.map((hostname) => ({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  outputFileTracingRoot: path.join(__dirname, ".."),
   env: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || fallbackAppUrl,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || fallbackApiUrl,

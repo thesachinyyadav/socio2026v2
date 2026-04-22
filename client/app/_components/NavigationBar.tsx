@@ -72,6 +72,8 @@ function NavigationBar() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showDashboardsDropdown, setShowDashboardsDropdown] = useState(false);
+  const dashboardsDropdownRef = useRef<HTMLDivElement | null>(null);
   const [isDesktopCompact, setIsDesktopCompact] = useState(false);
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [expandedDesktopSection, setExpandedDesktopSection] = useState<string | null>(null);
@@ -89,7 +91,29 @@ function NavigationBar() {
   const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
   const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
+  const isAccountsOffice = Boolean((userData as any)?.is_accounts_office);
+  const isCfo = Boolean((userData as any)?.is_cfo);
+  const isDean = Boolean((userData as any)?.is_dean);
+  const isHod = Boolean((userData as any)?.is_hod);
   const isOrganiser = Boolean(userData?.is_organiser);
+  const isSupport = Boolean(userData?.is_support);
+  const isVenueManager = Boolean((userData as any)?.is_vendor_manager);
+
+  const roleActions = !userData
+    ? []
+    : [
+        isMasterAdmin ? { label: "Admin", href: "/masteradmin", variant: "admin" as const } : null,
+        isAccountsOffice ? { label: "Accounts", href: "/accounts", variant: "default" as const } : null,
+        isCfo ? { label: "CFO", href: "/cfo", variant: "default" as const } : null,
+        isDean ? { label: "Dean", href: "/dean", variant: "default" as const } : null,
+        isHod ? { label: "HOD", href: "/hod", variant: "default" as const } : null,
+        isOrganiser ? { label: "Organiser", href: "/manage", variant: "default" as const } : null,
+        isSupport ? { label: "Support", href: "/support", variant: "default" as const } : null,
+        isVenueManager ? { label: "Venue Dashboard", href: "/venue", variant: "default" as const } : null,
+      ].filter((action): action is { label: string; href: string; variant: "admin" | "default" } => Boolean(action));
+  const hasRoleActions = roleActions.length > 0;
+  const shouldCollapseRoleActions = roleActions.length > 3;
+  const visibleRoleActions = shouldCollapseRoleActions ? roleActions.slice(0, 1) : roleActions;
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -166,6 +190,16 @@ function NavigationBar() {
   useEffect(() => {
     closeDesktopMenu();
   }, [pathname, closeDesktopMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dashboardsDropdownRef.current && !dashboardsDropdownRef.current.contains(event.target as Node)) {
+        setShowDashboardsDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -345,22 +379,61 @@ function NavigationBar() {
                 <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
               </div>
             ) : session ? (
-              userData && (isOrganiser || isMasterAdmin) ? (
+              userData && hasRoleActions ? (
                 <div className="flex gap-2 sm:gap-4 items-center md:flex-nowrap justify-end">
                   <NotificationSystem />
-                  {!isDesktopCompact && isMasterAdmin && (
-                    <Link href="/masteradmin">
-                      <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-red-50 border-red-600 text-red-600 transition-all duration-200 ease-in-out">
-                        Admin
-                      </button>
-                    </Link>
-                  )}
-                  {!isDesktopCompact && isOrganiser && (
-                    <Link href="/manage">
-                      <button className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm hover:bg-[#f3f3f3] transition-all duration-200 ease-in-out">
-                        Organiser
-                      </button>
-                    </Link>
+                  {!isDesktopCompact && (
+                    <>
+                      {visibleRoleActions.map((roleAction) => (
+                        <Link key={`${roleAction.label}:${roleAction.href}`} href={roleAction.href}>
+                          <button
+                            className={`cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm transition-all duration-200 ease-in-out ${
+                              roleAction.variant === "admin"
+                                ? "hover:bg-red-50 border-red-600 text-red-600"
+                                : "hover:bg-[#f3f3f3]"
+                            }`}
+                          >
+                            {roleAction.label}
+                          </button>
+                        </Link>
+                      ))}
+                      {shouldCollapseRoleActions && (
+                        <div className="relative" ref={dashboardsDropdownRef}>
+                          <button
+                            type="button"
+                            onClick={() => setShowDashboardsDropdown((prev) => !prev)}
+                            className="cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm transition-all duration-200 ease-in-out hover:bg-[#f3f3f3] flex items-center gap-1.5"
+                            aria-haspopup="true"
+                            aria-expanded={showDashboardsDropdown}
+                          >
+                            Dashboards
+                            <svg
+                              className={`w-3 h-3 transition-transform duration-200 ${showDashboardsDropdown ? "rotate-180" : ""}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {showDashboardsDropdown && (
+                            <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1">
+                              {roleActions.map((roleAction) => (
+                                <Link
+                                  key={`dashboard-dropdown-${roleAction.href}`}
+                                  href={roleAction.href}
+                                  onClick={() => setShowDashboardsDropdown(false)}
+                                  className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-[#154CB3] transition-colors duration-200"
+                                >
+                                  {roleAction.label}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                   {/* CHANGED ORGANISED AND ADMIN BUTTON */}
                   <div className="relative">
@@ -593,31 +666,62 @@ function NavigationBar() {
               })}
             </div>
 
-            {session && userData && (isMasterAdmin || isOrganiser) && (
+            {session && userData && hasRoleActions && (
               <div className="px-4 pb-4 border-t border-gray-200">
                 <p className="pt-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Quick actions
                 </p>
 
                 <div className="mt-2 space-y-2">
-                  {isMasterAdmin && (
+                  {visibleRoleActions.map((roleAction) => (
                     <Link
-                      href="/masteradmin"
+                      key={`compact-role-${roleAction.href}`}
+                      href={roleAction.href}
                       onClick={closeDesktopMenu}
-                      className="block rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors duration-200"
+                      className={`block rounded-lg border px-3 py-2 text-sm font-semibold transition-colors duration-200 ${
+                        roleAction.variant === "admin"
+                          ? "border-red-200 text-red-600 hover:bg-red-50"
+                          : "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10"
+                      }`}
                     >
-                      Admin
+                      {roleAction.label}
                     </Link>
-                  )}
-
-                  {isOrganiser && (
-                    <Link
-                      href="/manage"
-                      onClick={closeDesktopMenu}
-                      className="block rounded-lg border border-[#154CB3]/30 px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
-                    >
-                      Organiser
-                    </Link>
+                  ))}
+                  {shouldCollapseRoleActions && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setShowDashboardsDropdown((prev) => !prev)}
+                        className="w-full flex items-center justify-between rounded-lg border border-[#154CB3]/30 px-3 py-2 text-sm font-semibold text-[#154CB3] bg-white"
+                        aria-haspopup="true"
+                        aria-expanded={showDashboardsDropdown}
+                      >
+                        Dashboards
+                        <svg
+                          className={`w-3.5 h-3.5 transition-transform duration-200 ${showDashboardsDropdown ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {showDashboardsDropdown && (
+                        <div className="mt-1 w-full bg-white border border-gray-200 rounded-lg shadow py-1">
+                          {roleActions.map((roleAction) => (
+                            <Link
+                              key={`compact-dashboard-dropdown-${roleAction.href}`}
+                              href={roleAction.href}
+                              onClick={() => { setShowDashboardsDropdown(false); closeDesktopMenu(); }}
+                              className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-[#154CB3] transition-colors duration-200"
+                            >
+                              {roleAction.label}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -653,22 +757,55 @@ function NavigationBar() {
               Fests
             </Link>
 
-            {isMasterAdmin && (
+            {visibleRoleActions.map((roleAction) => (
               <Link
-                href="/masteradmin"
-                className="inline-flex items-center justify-center rounded-full border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors duration-200"
+                key={`mobile-role-${roleAction.href}`}
+                href={roleAction.href}
+                className={`inline-flex items-center justify-center rounded-full border bg-white px-3 py-2 text-sm font-semibold transition-colors duration-200 ${
+                  roleAction.variant === "admin"
+                    ? "border-red-200 text-red-600 hover:bg-red-50"
+                    : "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10"
+                }`}
               >
-                Admin
+                {roleAction.label}
               </Link>
-            )}
+            ))}
 
-            {isOrganiser && (
-              <Link
-                href="/manage"
-                className="inline-flex items-center justify-center rounded-full border border-[#154CB3]/30 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3] hover:bg-[#154CB3]/10 transition-colors duration-200"
-              >
-                Organiser
-              </Link>
+            {shouldCollapseRoleActions && (
+              <div className="col-span-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDashboardsDropdown((prev) => !prev)}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-full border border-[#154CB3]/30 bg-white px-3 py-2 text-sm font-semibold text-[#154CB3]"
+                  aria-haspopup="true"
+                  aria-expanded={showDashboardsDropdown}
+                >
+                  Dashboards
+                  <svg
+                    className={`w-3 h-3 transition-transform duration-200 ${showDashboardsDropdown ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showDashboardsDropdown && (
+                  <div className="mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+                    {roleActions.map((roleAction) => (
+                      <Link
+                        key={`mobile-dashboard-dropdown-${roleAction.href}`}
+                        href={roleAction.href}
+                        onClick={() => setShowDashboardsDropdown(false)}
+                        className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-[#154CB3] transition-colors duration-200"
+                      >
+                        {roleAction.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -74,7 +74,8 @@ export async function middleware(req: NextRequest) {
   const isManagementRoute =
     pathname.startsWith("/manage") ||
     pathname.startsWith("/create") ||
-    pathname.startsWith("/edit");
+    pathname.startsWith("/edit") ||
+    pathname.startsWith("/book-venue");
 
   const isHodRoute = pathname.startsWith("/hod");
   const isDeanRoute = pathname.startsWith("/dean");

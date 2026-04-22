@@ -10,7 +10,7 @@ import FunkyButton from "./FunkyButton";
 
 const Hero = () => {
   const heroRef = useRef<HTMLDivElement>(null);
-  const { session, isLoading } = useAuth();
+  const { session, isLoading, userData } = useAuth();
   const router = useRouter();
   const [startTyping, setStartTyping] = useState(false);
 
@@ -82,6 +82,10 @@ const Hero = () => {
 
   const buttonsDisabled = isLoading;
 
+  const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
+  const isOrganiser = Boolean(userData?.is_organiser);
+  const isVenueManager = Boolean((userData as any)?.is_vendor_manager);
+
   return (
     <div
       ref={heroRef}
@@ -132,7 +136,7 @@ const Hero = () => {
             Your one-stop platform for Discovering, registering, and managing all Christ University events, festivals, and activities across all campuses.
           </p>
         </div>
-        <div className="flex mt-6 sm:mt-8 gap-4 sm:gap-5 items-center select-none flex-row">
+        <div className="flex mt-6 sm:mt-8 gap-4 sm:gap-5 items-center select-none flex-wrap">
           {!session && !isLoading && (
             <FunkyButton
               text="Get Started"
@@ -141,13 +145,48 @@ const Hero = () => {
               }}
             />
           )}
-          <button
-            onClick={handleExploreClick}
-            disabled={buttonsDisabled}
-            className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
-          >
-            Explore
-          </button>
+          {session && isMasterAdmin ? (
+            <button
+              onClick={() => router.push("/masteradmin")}
+              disabled={buttonsDisabled}
+              className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+            >
+              Admin Dashboard
+            </button>
+          ) : session && isOrganiser ? (
+            <>
+              <button
+                onClick={() => router.push("/book-venue")}
+                disabled={buttonsDisabled}
+                className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#154CB3] text-sm sm:text-base rounded-full text-[#154CB3] bg-white hover:bg-[#154CB3]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+              >
+                Book Venue
+              </button>
+              <button
+                onClick={() => router.push("/manage")}
+                disabled={buttonsDisabled}
+                className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#154CB3] text-sm sm:text-base rounded-full text-white bg-[#154CB3] hover:bg-[#0d3a8a] hover:border-[#0d3a8a] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+              >
+                Create Event &amp; Fest
+              </button>
+            </>
+          ) : session && isVenueManager ? (
+            <button
+              onClick={() => router.push("/venue")}
+              disabled={buttonsDisabled}
+              className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+            >
+              Venue Dashboard
+            </button>
+          ) : (
+            <button
+              onClick={handleExploreClick}
+              disabled={buttonsDisabled}
+              className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+            >
+              Explore
+            </button>
+          )}
         </div>
       </div>
       <div className="w-full sm:w-1/2 flex justify-center sm:justify-end relative">

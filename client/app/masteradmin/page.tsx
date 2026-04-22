@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -33,6 +33,7 @@ import {
   MapPin,
   Trash2,
   PlusCircle,
+  Pencil,
 } from "lucide-react";
 import {
   organizingSchools,
@@ -147,6 +148,12 @@ type Registration = {
   user_email?: string;
   registration_type: string;
   created_at: string;
+  individual_name?: string;
+  team_leader_name?: string;
+  individual_email?: string;
+  team_leader_email?: string;
+  individual_register_number?: string | number;
+  team_leader_register_number?: string | number;
   participant_organization?: string;
   teammates?: any[];
 };
@@ -231,6 +238,9 @@ export default function MasterAdminPage() {
   const [eventPagination, setEventPagination] = useState<PaginationState>(createDefaultPagination());
   const [eventSearchQuery, setEventSearchQuery] = useState("");
   const [showDeleteEventConfirm, setShowDeleteEventConfirm] = useState<string | null>(null);
+  const [selectedEventForBookings, setSelectedEventForBookings] = useState<Event | null>(null);
+  const [eventBookings, setEventBookings] = useState<Registration[]>([]);
+  const [eventBookingsLoading, setEventBookingsLoading] = useState(false);
   const [eventPage, setEventPage] = useState(1);
   const [eventStatusFilter, setEventStatusFilter] = useState<"all" | "live" | "upcoming" | "thisweek" | "past">("all");
   const [eventSortKey, setEventSortKey] = useState<"title" | "date" | "registrations" | "dept">("date");
@@ -263,14 +273,39 @@ export default function MasterAdminPage() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
 
   // Venue management state
-  type VenueRow = { id: string; campus: string; name: string; capacity: number | null; location: string | null; is_active: boolean };
+  type VenueRow = { id: string; campus: string; name: string; capacity: number | null; location: string | null; is_active: boolean; is_approval_needed: boolean };
+  type VenueBookingRow = {
+    id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    requested_by_name: string | null;
+    requested_by: string | null;
+    booking_title: string | null;
+    entity_type: string;
+    status: string;
+  };
   const [venues,           setVenues]           = useState<VenueRow[]>([]);
   const [venuesLoading,    setVenuesLoading]    = useState(false);
-  const [venueForm,        setVenueForm]        = useState({ campus: "", name: "", capacity: "", location: "" });
+  const [venueForm,        setVenueForm]        = useState({ campus: "", name: "", capacity: "", location: "", is_approval_needed: false });
   const [venueFormError,   setVenueFormError]   = useState<string | null>(null);
   const [venueSubmitting,  setVenueSubmitting]  = useState(false);
   const [deleteVenueId,    setDeleteVenueId]    = useState<string | null>(null);
   const [editingVenue,     setEditingVenue]     = useState<VenueRow | null>(null);
+  const [editVenueForm,    setEditVenueForm]    = useState({ name: "", capacity: "", location: "", is_approval_needed: false, is_active: true });
+  const [editVenueSaving,  setEditVenueSaving]  = useState(false);
+  // Venue list pagination
+  const [venuePage,        setVenuePage]        = useState(1);
+  const VENUE_PAGE_SIZE = 15;
+  const [selectedVenueForBookings, setSelectedVenueForBookings] = useState<VenueRow | null>(null);
+  const [venueBookings, setVenueBookings] = useState<VenueBookingRow[]>([]);
+  const [venueBookingsLoading, setVenueBookingsLoading] = useState(false);
+  const [venueBookingsPage, setVenueBookingsPage] = useState(1);
+  const [venueBookingsTotal, setVenueBookingsTotal] = useState(0);
+  const [venueBookingsTotalPages, setVenueBookingsTotalPages] = useState(1);
+  const VENUE_BOOKINGS_PAGE_SIZE = 10;
+  const venueBookingsPanelRef = useRef<HTMLDivElement>(null);
+  const [venueBookingsHighlight, setVenueBookingsHighlight] = useState(false);
 
   async function fetchAllVenues() {
     setVenuesLoading(true);
@@ -296,6 +331,7 @@ export default function MasterAdminPage() {
           name: venueForm.name,
           capacity: venueForm.capacity ? Number(venueForm.capacity) : null,
           location: venueForm.location || null,
+          is_approval_needed: venueForm.is_approval_needed,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -308,7 +344,7 @@ export default function MasterAdminPage() {
         return;
       }
       toast.success("Venue created");
-      setVenueForm({ campus: "", name: "", capacity: "", location: "" });
+      setVenueForm({ campus: "", name: "", capacity: "", location: "", is_approval_needed: false });
       fetchAllVenues();
     } catch { setVenueFormError("Network error"); } finally { setVenueSubmitting(false); }
   }
@@ -336,6 +372,84 @@ export default function MasterAdminPage() {
       if (!res.ok) { toast.error("Failed to update venue"); return; }
       fetchAllVenues();
     } catch { toast.error("Network error"); }
+  }
+
+  async function handleToggleVenueApproval(v: VenueRow) {
+    try {
+      const res = await fetch(`${API_URL}/api/venues/${v.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ is_approval_needed: !v.is_approval_needed }),
+      });
+      if (!res.ok) { toast.error("Failed to update venue"); return; }
+      fetchAllVenues();
+    } catch { toast.error("Network error"); }
+  }
+
+  async function handleViewVenueBookings(v: VenueRow, page = 1) {
+    if (selectedVenueForBookings?.id === v.id && page === venueBookingsPage) {
+      setSelectedVenueForBookings(null);
+      setVenueBookings([]);
+      return;
+    }
+    setSelectedVenueForBookings(v);
+    setVenueBookingsPage(page);
+    setVenueBookingsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/venue-bookings?venue_id=${encodeURIComponent(v.id)}&page=${page}&limit=${VENUE_BOOKINGS_PAGE_SIZE}`,
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      if (!res.ok) { toast.error("Failed to load venue bookings"); setVenueBookings([]); return; }
+      const payload = await res.json();
+      const rows: VenueBookingRow[] = (payload.bookings || []).map((row: any) => ({
+        id:                String(row.id),
+        date:              String(row.date || ""),
+        start_time:        String(row.start_time || ""),
+        end_time:          String(row.end_time || ""),
+        requested_by_name: row.requested_by_name || null,
+        requested_by:      row.requested_by || null,
+        booking_title:     row.title || null,
+        entity_type:       row.entity_type || "standalone",
+        status:            row.status || "pending",
+      }));
+      setVenueBookings(rows);
+      setVenueBookingsTotal(payload.total ?? 0);
+      setVenueBookingsTotalPages(payload.totalPages ?? 1);
+      // Scroll + highlight the panel
+      setTimeout(() => {
+        venueBookingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setVenueBookingsHighlight(true);
+        setTimeout(() => setVenueBookingsHighlight(false), 1400);
+      }, 80);
+    } catch {
+      toast.error("Network error");
+      setVenueBookings([]);
+    } finally {
+      setVenueBookingsLoading(false);
+    }
+  }
+
+  async function handleSaveVenueEdit() {
+    if (!editingVenue) return;
+    setEditVenueSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/venues/${editingVenue.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name:               editVenueForm.name.trim() || undefined,
+          capacity:           editVenueForm.capacity ? Number(editVenueForm.capacity) : null,
+          location:           editVenueForm.location.trim() || null,
+          is_approval_needed: editVenueForm.is_approval_needed,
+          is_active:          editVenueForm.is_active,
+        }),
+      });
+      if (!res.ok) { toast.error("Failed to save changes"); return; }
+      toast.success("Venue updated");
+      setEditingVenue(null);
+      fetchAllVenues();
+    } catch { toast.error("Network error"); } finally { setEditVenueSaving(false); }
   }
 
   const [isLoading, setIsLoading] = useState(true);
@@ -395,6 +509,19 @@ export default function MasterAdminPage() {
       fetchAllVenues();
     }
   }, [activeTab, isMasterAdmin, authToken]);
+
+  useEffect(() => {
+    if (activeTab !== "venues") {
+      setSelectedVenueForBookings(null);
+      setVenueBookings([]);
+      setVenueBookingsLoading(false);
+    }
+    if (activeTab !== "events") {
+      setSelectedEventForBookings(null);
+      setEventBookings([]);
+      setEventBookingsLoading(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     setUserPage(1);
@@ -490,6 +617,35 @@ export default function MasterAdminPage() {
       setRegistrations(data.registrations || []);
     } catch (error) {
       console.error("Error fetching registrations:", error);
+    }
+  };
+
+  const handleViewEventBookings = async (event: Event) => {
+    if (selectedEventForBookings?.event_id === event.event_id) {
+      setSelectedEventForBookings(null);
+      setEventBookings([]);
+      return;
+    }
+
+    setSelectedEventForBookings(event);
+    setEventBookingsLoading(true);
+    try {
+      const token = await getFreshToken();
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+      const response = await fetch(
+        `${API_URL}/api/registrations?event_id=${encodeURIComponent(event.event_id)}`,
+        { headers }
+      );
+      if (!response.ok) throw new Error("Failed to load event bookings");
+      const data = await response.json();
+      setEventBookings(data.registrations || []);
+    } catch {
+      toast.error("Failed to load event bookings");
+      setEventBookings([]);
+    } finally {
+      setEventBookingsLoading(false);
     }
   };
 
@@ -880,7 +1036,7 @@ export default function MasterAdminPage() {
       if (!res.ok) return;
       const data = await res.json();
       const all: User[] = data.users || data || [];
-      setRoleHolders(all.filter(u => u.is_hod || u.is_dean || u.is_cfo || u.is_campus_director || u.is_accounts_office));
+      setRoleHolders(all.filter(u => u.is_organiser || u.is_support || u.is_masteradmin || u.is_hod || u.is_dean || u.is_cfo || u.is_campus_director || u.is_accounts_office));
     } catch { /* non-critical */ }
     finally { setRoleHoldersLoading(false); }
   };
@@ -890,6 +1046,7 @@ export default function MasterAdminPage() {
     try {
       const token = await getFreshToken();
       const fieldMap: Record<string, string> = {
+        organiser: "is_organiser", support: "is_support", masteradmin: "is_masteradmin",
         hod: "is_hod", dean: "is_dean", cfo: "is_cfo",
         director: "is_campus_director", accounts: "is_accounts_office",
       };
@@ -904,7 +1061,7 @@ export default function MasterAdminPage() {
         if (u.email !== user.email) return u;
         const updated = { ...u, [fieldMap[roleKey]]: false };
         return updated;
-      }).filter(u => u.is_hod || u.is_dean || u.is_cfo || u.is_campus_director || u.is_accounts_office));
+      }).filter(u => u.is_organiser || u.is_support || u.is_masteradmin || u.is_hod || u.is_dean || u.is_cfo || u.is_campus_director || u.is_accounts_office));
       toast.success("Role removed");
     } catch { toast.error("Failed to remove role"); }
     finally { setRoleRemoving(null); }
@@ -941,12 +1098,12 @@ export default function MasterAdminPage() {
     setRoleSaving(true);
     try {
       const token = await getFreshToken();
+      const fieldMap: Record<string, string> = {
+        hod: "is_hod", dean: "is_dean", cfo: "is_cfo",
+        director: "is_campus_director", accounts: "is_accounts_office",
+      };
       const body: Record<string, unknown> = {
-        is_hod:           roleSelectedRole === "hod",
-        is_dean:          roleSelectedRole === "dean",
-        is_cfo:           roleSelectedRole === "cfo",
-        is_campus_director: roleSelectedRole === "director",
-        is_accounts_office: roleSelectedRole === "accounts",
+        [fieldMap[roleSelectedRole]]: true,
       };
       if (roleCampus) body.campus = roleCampus;
       if (roleSchool) body.school = roleSchool;
@@ -962,6 +1119,7 @@ export default function MasterAdminPage() {
         throw new Error(err.error || "Failed to assign role");
       }
       toast.success(`${roleSelectedRole.toUpperCase()} role assigned to ${roleSelectedEmail}`);
+      fetchRoleHolders();
       // reset
       setRoleEmailInput(""); setRoleSelectedEmail(""); setRoleSelectedRole("");
       setRoleSchool(""); setRoleDept(""); setRoleCampus("");
@@ -1362,6 +1520,26 @@ export default function MasterAdminPage() {
                   />
                 </div>
               </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-medium text-gray-700">
+                    Is approval needed for bookings at this venue?
+                  </label>
+                  <div className="inline-flex rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setVenueForm(f => ({ ...f, is_approval_needed: true }))}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${venueForm.is_approval_needed ? "bg-[#154CB3] text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                    >Yes</button>
+                    <button
+                      type="button"
+                      onClick={() => setVenueForm(f => ({ ...f, is_approval_needed: false }))}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${!venueForm.is_approval_needed ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                    >No</button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">When YES, any booking request for this venue is routed to the venue dashboard for approval.</p>
+              </div>
               {venueFormError && <p className="text-sm text-red-600">{venueFormError}</p>}
               <button
                 onClick={handleCreateVenue}
@@ -1379,51 +1557,217 @@ export default function MasterAdminPage() {
               ) : venues.length === 0 ? (
                 <div className="p-8 text-center text-sm text-gray-400">No venues yet. Add one above.</div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Campus</th>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
-                      <th className="text-center px-4 py-3 font-semibold text-gray-600">Cap.</th>
-                      <th className="text-center px-4 py-3 font-semibold text-gray-600">Active</th>
-                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {venues.map(v => (
-                      <tr key={v.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{v.name}</td>
-                        <td className="px-4 py-3 text-gray-600">{v.campus}</td>
-                        <td className="px-4 py-3 text-gray-500">{v.location || "—"}</td>
-                        <td className="px-4 py-3 text-center text-gray-600">{v.capacity ?? "—"}</td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => handleToggleVenueActive(v)}
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
-                              v.is_active
-                                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            }`}
-                          >
-                            {v.is_active ? "Active" : "Inactive"}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => setDeleteVenueId(v.id)}
-                            className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors"
-                            title="Delete venue"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+                <>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Campus</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
+                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Cap.</th>
+                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Active</th>
+                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Needs Approval</th>
+                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {venues.slice((venuePage - 1) * VENUE_PAGE_SIZE, venuePage * VENUE_PAGE_SIZE).map(v => (
+                        <tr key={v.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{v.name}</td>
+                          <td className="px-4 py-3 text-gray-600">{v.campus}</td>
+                          <td className="px-4 py-3 text-gray-500">{v.location || "—"}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{v.capacity ?? "—"}</td>
+
+                          {/* Active toggle — pill style */}
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center">
+                              <div className="inline-flex rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => !v.is_active && handleToggleVenueActive(v)}
+                                  className={`px-3 py-1 text-xs font-semibold transition-colors ${v.is_active ? "bg-[#154CB3] text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                                >Yes</button>
+                                <button
+                                  type="button"
+                                  onClick={() => v.is_active && handleToggleVenueActive(v)}
+                                  className={`px-3 py-1 text-xs font-semibold transition-colors ${!v.is_active ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                                >No</button>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Needs Approval toggle — pill style */}
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center">
+                              <div className="inline-flex rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => !v.is_approval_needed && handleToggleVenueApproval(v)}
+                                  className={`px-3 py-1 text-xs font-semibold transition-colors ${v.is_approval_needed ? "bg-[#154CB3] text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                                >Yes</button>
+                                <button
+                                  type="button"
+                                  onClick={() => v.is_approval_needed && handleToggleVenueApproval(v)}
+                                  className={`px-3 py-1 text-xs font-semibold transition-colors ${!v.is_approval_needed ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                                >No</button>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                onClick={() => handleViewVenueBookings(v)}
+                                className={`p-1.5 rounded transition-colors ${selectedVenueForBookings?.id === v.id ? "bg-[#154CB3] text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`}
+                                title="View bookings"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingVenue(v);
+                                  setEditVenueForm({
+                                    name:               v.name,
+                                    capacity:           v.capacity != null ? String(v.capacity) : "",
+                                    location:           v.location || "",
+                                    is_approval_needed: v.is_approval_needed,
+                                    is_active:          v.is_active,
+                                  });
+                                }}
+                                className="text-slate-500 hover:text-[#154CB3] p-1.5 rounded hover:bg-blue-50 transition-colors"
+                                title="Edit venue"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteVenueId(v.id)}
+                                className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors"
+                                title="Delete venue"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Venue table pagination */}
+                  {venues.length > VENUE_PAGE_SIZE && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                      <p className="text-xs text-gray-500">
+                        {(venuePage - 1) * VENUE_PAGE_SIZE + 1}–{Math.min(venuePage * VENUE_PAGE_SIZE, venues.length)} of {venues.length} venues
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          disabled={venuePage === 1}
+                          onClick={() => setVenuePage(p => Math.max(1, p - 1))}
+                          className="px-3 py-1.5 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >← Prev</button>
+                        <span className="px-3 text-xs text-gray-600">Page {venuePage} / {Math.ceil(venues.length / VENUE_PAGE_SIZE)}</span>
+                        <button
+                          disabled={venuePage >= Math.ceil(venues.length / VENUE_PAGE_SIZE)}
+                          onClick={() => setVenuePage(p => p + 1)}
+                          className="px-3 py-1.5 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >Next →</button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
+
+            {selectedVenueForBookings && (
+              <div
+                ref={venueBookingsPanelRef}
+                className={`rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ${
+                  venueBookingsHighlight
+                    ? "border-2 border-[#154CB3] bg-blue-50 ring-4 ring-blue-100"
+                    : "border border-gray-200 bg-white"
+                }`}
+              >
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">Bookings for {selectedVenueForBookings.name}</h3>
+                    <p className="text-xs text-gray-500">{selectedVenueForBookings.campus} · {selectedVenueForBookings.location || "No location"}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedVenueForBookings(null);
+                      setVenueBookings([]);
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {venueBookingsLoading ? (
+                  <div className="p-6 text-sm text-gray-400">Loading bookings…</div>
+                ) : venueBookings.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-500">No booking records found for this venue.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Time</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Title</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Requested By</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Type</th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {venueBookings.map((row) => (
+                          <tr key={row.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-700">{row.date}</td>
+                            <td className="px-4 py-3 text-gray-700">{row.start_time} - {row.end_time}</td>
+                            <td className="px-4 py-3 text-gray-800">{row.booking_title || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.requested_by_name || row.requested_by || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600 capitalize">{row.entity_type}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                row.status === "approved"
+                                  ? "bg-green-100 text-green-700"
+                                  : row.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : row.status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}>
+                                {row.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {venueBookingsTotalPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                        <p className="text-xs text-gray-500">
+                          {venueBookingsTotal} booking{venueBookingsTotal !== 1 ? "s" : ""} total · Page {venueBookingsPage} of {venueBookingsTotalPages}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <button
+                            disabled={venueBookingsPage <= 1}
+                            onClick={() => selectedVenueForBookings && handleViewVenueBookings(selectedVenueForBookings, venueBookingsPage - 1)}
+                            className="px-3 py-1.5 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >← Prev</button>
+                          <button
+                            disabled={venueBookingsPage >= venueBookingsTotalPages}
+                            onClick={() => selectedVenueForBookings && handleViewVenueBookings(selectedVenueForBookings, venueBookingsPage + 1)}
+                            className="px-3 py-1.5 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >Next →</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1841,10 +2185,20 @@ export default function MasterAdminPage() {
                                     View
                                   </a>
                                   <button
-                                    onClick={() => setShowDeleteEventConfirm(event.event_id)}
-                                    className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 hover:-translate-y-0.5 transition-all"
+                                    onClick={() => handleViewEventBookings(event)}
+                                    className="h-8 w-8 inline-flex items-center justify-center bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 hover:-translate-y-0.5 transition-all"
+                                    title="View bookings"
+                                    aria-label="View bookings"
                                   >
-                                    Delete
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setShowDeleteEventConfirm(event.event_id)}
+                                    className="h-8 w-8 inline-flex items-center justify-center bg-red-600 text-white rounded-lg hover:bg-red-700 hover:-translate-y-0.5 transition-all"
+                                    title="Delete event"
+                                    aria-label="Delete event"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               </td>
@@ -1854,6 +2208,81 @@ export default function MasterAdminPage() {
                       </tbody>
                     </table>
                   </div>
+                  {selectedEventForBookings && (
+                    <div className="border-t border-gray-200 p-6 bg-gray-50">
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Bookings for {selectedEventForBookings.title}
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Event ID: {selectedEventForBookings.event_id}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedEventForBookings(null);
+                            setEventBookings([]);
+                          }}
+                          className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      {eventBookingsLoading ? (
+                        <div className="text-sm text-gray-600">Loading event bookings...</div>
+                      ) : eventBookings.length === 0 ? (
+                        <div className="text-sm text-gray-600">No bookings found for this event.</div>
+                      ) : (
+                        <div className="overflow-x-auto bg-white border border-gray-200 rounded-lg">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Name</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Email</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Register No.</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Booked At</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {eventBookings.map((booking) => {
+                                const isTeam = booking.registration_type?.toLowerCase().includes("team");
+                                const name = isTeam
+                                  ? booking.team_leader_name
+                                  : booking.individual_name;
+                                const email = isTeam
+                                  ? booking.team_leader_email
+                                  : booking.individual_email;
+                                const registerNo = isTeam
+                                  ? booking.team_leader_register_number
+                                  : booking.individual_register_number;
+
+                                return (
+                                  <tr key={booking.registration_id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3 text-sm text-gray-700">{name || "-"}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-700">{email || booking.user_email || "-"}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-700">{registerNo ?? "-"}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-700 capitalize">{booking.registration_type || "-"}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-700">
+                                      {new Date(booking.created_at).toLocaleString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <PaginationControls
                     currentPage={eventPage}
                     totalPages={eventPagination.totalPages}
@@ -2734,6 +3163,95 @@ export default function MasterAdminPage() {
           </div>
         )}
 
+        {/* Edit venue modal */}
+        {editingVenue && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Edit Venue</h2>
+                <button onClick={() => setEditingVenue(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Venue Name</label>
+                  <input
+                    type="text"
+                    value={editVenueForm.name}
+                    onChange={e => setEditVenueForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Capacity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editVenueForm.capacity}
+                      onChange={e => setEditVenueForm(f => ({ ...f, capacity: e.target.value }))}
+                      placeholder="Max occupancy"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Location / Block</label>
+                    <input
+                      type="text"
+                      value={editVenueForm.location}
+                      onChange={e => setEditVenueForm(f => ({ ...f, location: e.target.value }))}
+                      placeholder="e.g. Block A, GF"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+                  <span className="text-sm text-gray-700">Active</span>
+                  <div className="inline-flex rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setEditVenueForm(f => ({ ...f, is_active: true }))}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${editVenueForm.is_active ? "bg-[#154CB3] text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                    >Yes</button>
+                    <button
+                      type="button"
+                      onClick={() => setEditVenueForm(f => ({ ...f, is_active: false }))}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${!editVenueForm.is_active ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                    >No</button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+                  <span className="text-sm text-gray-700">Needs Approval</span>
+                  <div className="inline-flex rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setEditVenueForm(f => ({ ...f, is_approval_needed: true }))}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${editVenueForm.is_approval_needed ? "bg-[#154CB3] text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                    >Yes</button>
+                    <button
+                      type="button"
+                      onClick={() => setEditVenueForm(f => ({ ...f, is_approval_needed: false }))}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${!editVenueForm.is_approval_needed ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}
+                    >No</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  onClick={() => setEditingVenue(null)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >Cancel</button>
+                <button
+                  onClick={handleSaveVenueEdit}
+                  disabled={editVenueSaving}
+                  className="px-4 py-2 text-sm bg-[#154CB3] text-white rounded-lg hover:bg-[#0f3a7a] disabled:opacity-50"
+                >{editVenueSaving ? "Saving…" : "Save Changes"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Venue delete confirmation modal */}
         {deleteVenueId && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -2765,25 +3283,31 @@ export default function MasterAdminPage() {
 
         {/* Roles Tab */}
         {activeTab === "roles" && (() => {
-          const ROLE_DEFS = [
+          const ASSIGN_ROLE_DEFS = [
             { key: "hod",      label: "HOD",             flag: "is_hod" as const },
             { key: "dean",     label: "Dean",            flag: "is_dean" as const },
             { key: "cfo",      label: "CFO",             flag: "is_cfo" as const },
             { key: "director", label: "Campus Dir",      flag: "is_campus_director" as const },
             { key: "accounts", label: "Finance Officer", flag: "is_accounts_office" as const },
           ] as const;
+          const ROLE_DEFS = [
+            { key: "organiser",  label: "Organiser",       flag: "is_organiser" as const },
+            { key: "support",    label: "Support",         flag: "is_support" as const },
+            { key: "masteradmin",label: "Master Admin",    flag: "is_masteradmin" as const },
+            ...ASSIGN_ROLE_DEFS,
+          ] as const;
 
-          // Flatten role holders into one row per user-role
-          type RoleRow = { user: User; roleKey: string; roleLabel: string };
-          const allRoleRows: RoleRow[] = [];
-          roleHolders.forEach(u => {
-            ROLE_DEFS.forEach(({ key, label, flag }) => {
-              if (u[flag]) allRoleRows.push({ user: u, roleKey: key, roleLabel: label });
-            });
-          });
+          // Group role holders by user — one row per user, multiple role badges
+          type UserRoleRow = { user: User; roles: Array<{ roleKey: string; roleLabel: string }> };
+          const allUserRows: UserRoleRow[] = roleHolders
+            .map(u => ({
+              user: u,
+              roles: ROLE_DEFS.filter(({ flag }) => u[flag]).map(({ key, label }) => ({ roleKey: key, roleLabel: label })),
+            }))
+            .filter(row => row.roles.length > 0);
 
-          const filteredRows = allRoleRows.filter(({ user, roleKey }) => {
-            if (roleListRoleFilter !== "all" && roleKey !== roleListRoleFilter) return false;
+          const filteredRows = allUserRows.filter(({ user, roles }) => {
+            if (roleListRoleFilter !== "all" && !roles.some(r => r.roleKey === roleListRoleFilter)) return false;
             if (roleListDeptFilter && (user.department || "") !== roleListDeptFilter) return false;
             if (roleListSchoolFilter && (user.school || "") !== roleListSchoolFilter) return false;
             if (roleListCampusFilter && (user.campus || "") !== roleListCampusFilter) return false;
@@ -2832,7 +3356,7 @@ export default function MasterAdminPage() {
 
                   {/* Role pills */}
                   <div className="flex gap-1.5 flex-wrap">
-                    {ROLE_DEFS.map(r => (
+                    {ASSIGN_ROLE_DEFS.map(r => (
                       <button key={r.key} type="button"
                         onClick={() => { setRoleSelectedRole(r.key as any); setRoleSchool(""); setRoleDept(""); setRoleCampus(""); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${roleSelectedRole === r.key ? "bg-[#154cb3] text-white border-[#154cb3]" : "border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50"}`}
@@ -2912,8 +3436,8 @@ export default function MasterAdminPage() {
                   <input value={roleListSearch} onChange={e => setRoleListSearch(e.target.value)}
                     placeholder="Search name / email…"
                     className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 min-w-[150px]" />
-                  <span className="ml-auto text-xs text-gray-400">{filteredRows.length} result{filteredRows.length !== 1 ? "s" : ""}</span>
-                  <button onClick={() => exportRolesToCSV(filteredRows.map(r => ({ user: r.user, role: r.roleKey, roleLabel: r.roleLabel })))}
+                  <span className="ml-auto text-xs text-gray-400">{filteredRows.length} user{filteredRows.length !== 1 ? "s" : ""}</span>
+                  <button onClick={() => exportRolesToCSV(filteredRows.flatMap(r => r.roles.map(role => ({ user: r.user, role: role.roleKey, roleLabel: role.roleLabel }))))}
                     className="ml-1 flex items-center gap-1.5 px-3 py-1 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Export CSV
@@ -2935,47 +3459,55 @@ export default function MasterAdminPage() {
                       <tr className="border-b border-gray-100 text-left">
                         <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
                         <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
-                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Roles</th>
                         <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept / School</th>
                         <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Campus</th>
-                        <th className="px-5 py-2.5 w-10" />
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRows.map(({ user, roleKey, roleLabel }, i) => {
-                        const removingThis = roleRemoving === `${user.email}:${roleKey}`;
+                      {(() => {
                         const ROLE_COLORS: Record<string, string> = {
-                          hod: "bg-purple-100 text-purple-700",
-                          dean: "bg-blue-100 text-blue-700",
-                          cfo: "bg-amber-100 text-amber-700",
-                          director: "bg-cyan-100 text-cyan-700",
-                          accounts: "bg-green-100 text-green-700",
+                          organiser:   "bg-indigo-100 text-indigo-700",
+                          support:     "bg-teal-100 text-teal-700",
+                          masteradmin: "bg-rose-100 text-rose-700",
+                          hod:         "bg-purple-100 text-purple-700",
+                          dean:        "bg-blue-100 text-blue-700",
+                          cfo:         "bg-amber-100 text-amber-700",
+                          director:    "bg-cyan-100 text-cyan-700",
+                          accounts:    "bg-green-100 text-green-700",
                         };
-                        return (
-                          <tr key={`${user.email}:${roleKey}`} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? "" : "bg-slate-50/40"}`}>
+                        return filteredRows.map(({ user, roles }, i) => (
+                          <tr key={user.email} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? "" : "bg-slate-50/40"}`}>
                             <td className="px-5 py-2.5 font-medium text-gray-900 truncate max-w-[140px]">{user.name || "—"}</td>
                             <td className="px-5 py-2.5 text-gray-500 text-xs truncate max-w-[180px]">{user.email}</td>
                             <td className="px-5 py-2.5">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${ROLE_COLORS[roleKey] || "bg-gray-100 text-gray-600"}`}>{roleLabel}</span>
+                              <div className="flex flex-wrap gap-1">
+                                {roles.map(({ roleKey, roleLabel }) => {
+                                  const removingThis = roleRemoving === `${user.email}:${roleKey}`;
+                                  return (
+                                    <span key={roleKey} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${ROLE_COLORS[roleKey] || "bg-gray-100 text-gray-600"}`}>
+                                      {roleLabel}
+                                      <button
+                                        onClick={() => removeApprovalRole(user, roleKey)}
+                                        disabled={!!roleRemoving}
+                                        title={`Remove ${roleLabel} role`}
+                                        className="opacity-50 hover:opacity-100 disabled:opacity-20 transition-opacity leading-none"
+                                      >
+                                        {removingThis
+                                          ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                          : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        }
+                                      </button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             </td>
                             <td className="px-5 py-2.5 text-gray-600 text-xs truncate max-w-[200px]">{user.department || user.school || "—"}</td>
                             <td className="px-5 py-2.5 text-gray-500 text-xs truncate max-w-[160px]">{user.campus || "—"}</td>
-                            <td className="px-3 py-2.5">
-                              <button
-                                onClick={() => removeApprovalRole(user, roleKey)}
-                                disabled={!!roleRemoving}
-                                title={`Remove ${roleLabel} role`}
-                                className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors"
-                              >
-                                {removingThis
-                                  ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                  : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                }
-                              </button>
-                            </td>
                           </tr>
-                        );
-                      })}
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 )}

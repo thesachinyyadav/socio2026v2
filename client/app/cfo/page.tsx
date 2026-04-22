@@ -49,6 +49,10 @@ function budgetTotal(items: BudgetItem[]) {
   return items.reduce((s, b) => s + b.quantity * b.unitPrice, 0);
 }
 
+function cfoStatus(item: QueueItem) {
+  return item.stages?.find((s) => s.role === "cfo")?.status ?? "pending";
+}
+
 export default function CfoDashboard() {
   const { session, userData, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -125,6 +129,122 @@ export default function CfoDashboard() {
     setRejectModal(null);
   }
 
+  const pendingItems = queue.filter((q) => cfoStatus(q) === "pending");
+  const reviewedItems = queue.filter((q) => cfoStatus(q) !== "pending");
+
+  function StatusBadge({ status }: { status: string }) {
+    if (status === "approved") {
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Approved</span>;
+    }
+    if (status === "rejected") {
+      return <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Returned</span>;
+    }
+    return <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Pending</span>;
+  }
+
+  function QueueCard({ item, showActions }: { item: QueueItem; showActions: boolean }) {
+    const hasBudget = Array.isArray(item.budget_items) && item.budget_items.length > 0;
+    const isExpanded = expandedId === item.id;
+    const status = cfoStatus(item);
+
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-gray-900 truncate">{item.item_title}</p>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">
+                {item.type}
+              </span>
+              <StatusBadge status={status} />
+              {hasBudget && (
+                <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full tabular-nums">
+                  ₹{budgetTotal(item.budget_items!).toLocaleString("en-IN")}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {item.organizing_school_snapshot || "—"}
+              {item.organizing_campus_snapshot ? ` · ${item.organizing_campus_snapshot}` : ""}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">Submitted {pendingDuration(item.created_at)}</p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {hasBudget && (
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                className="text-sm text-gray-500 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                {isExpanded ? "Hide budget" : "View budget"}
+              </button>
+            )}
+            <Link
+              href={`/approvals/${item.event_or_fest_id}?type=${item.type}`}
+              className="text-sm text-blue-600 hover:underline px-2 py-1"
+            >
+              Details
+            </Link>
+            {showActions && (
+              <>
+                <button
+                  disabled={actionItemId === item.event_or_fest_id}
+                  onClick={() => { setRejectModal({ itemId: item.event_or_fest_id, type: item.type }); setRejectNote(""); }}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Return
+                </button>
+                <button
+                  disabled={actionItemId === item.event_or_fest_id}
+                  onClick={() => handleAction(item, "approve")}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-[#154CB3] text-white hover:bg-[#0f3a7a] disabled:opacity-50"
+                >
+                  {actionItemId === item.event_or_fest_id ? "…" : "Approve"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {isExpanded && hasBudget && (
+          <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Budget Breakdown</p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-gray-400 border-b border-gray-100">
+                  <th className="text-left pb-1.5 font-medium">Item</th>
+                  <th className="text-center pb-1.5 font-medium w-16">Qty</th>
+                  <th className="text-right pb-1.5 font-medium w-24">Unit (₹)</th>
+                  <th className="text-right pb-1.5 font-medium w-24">Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {item.budget_items!.map((b, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-1 text-gray-800">{b.name || "—"}</td>
+                    <td className="py-1 text-center text-gray-600">{b.quantity}</td>
+                    <td className="py-1 text-right text-gray-600">{b.unitPrice.toLocaleString("en-IN")}</td>
+                    <td className="py-1 text-right font-medium text-gray-800">
+                      {(b.quantity * b.unitPrice).toLocaleString("en-IN")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={3} className="pt-2 text-right text-xs font-semibold text-gray-500">Total</td>
+                  <td className="pt-2 text-right font-bold text-gray-900">
+                    ₹{budgetTotal(item.budget_items!).toLocaleString("en-IN")}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -137,111 +257,38 @@ export default function CfoDashboard() {
 
         {loading ? (
           <p className="text-gray-500 text-sm">Loading queue…</p>
-        ) : queue.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <p className="text-gray-500">No pending approvals in your queue.</p>
-          </div>
         ) : (
-          <div className="space-y-3">
-            {queue.map((item) => {
-              const hasBudget = Array.isArray(item.budget_items) && item.budget_items.length > 0;
-              const isExpanded = expandedId === item.id;
-
-              return (
-                <div key={item.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                  {/* Main row */}
-                  <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-gray-900 truncate">{item.item_title}</p>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">
-                          {item.type}
-                        </span>
-                        {hasBudget && (
-                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full tabular-nums">
-                            ₹{budgetTotal(item.budget_items!).toLocaleString("en-IN")}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {item.organizing_school_snapshot || "—"}
-                        {item.organizing_campus_snapshot ? ` · ${item.organizing_campus_snapshot}` : ""}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">Submitted {pendingDuration(item.created_at)}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {hasBudget && (
-                        <button
-                          onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                          className="text-sm text-gray-500 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
-                        >
-                          {isExpanded ? "Hide budget" : "View budget"}
-                        </button>
-                      )}
-                      <Link
-                        href={`/approvals/${item.event_or_fest_id}?type=${item.type}`}
-                        className="text-sm text-blue-600 hover:underline px-2 py-1"
-                      >
-                        Details
-                      </Link>
-                      <button
-                        disabled={actionItemId === item.event_or_fest_id}
-                        onClick={() => { setRejectModal({ itemId: item.event_or_fest_id, type: item.type }); setRejectNote(""); }}
-                        className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        Return
-                      </button>
-                      <button
-                        disabled={actionItemId === item.event_or_fest_id}
-                        onClick={() => handleAction(item, "approve")}
-                        className="px-3 py-1.5 text-sm rounded-lg bg-[#154CB3] text-white hover:bg-[#0f3a7a] disabled:opacity-50"
-                      >
-                        {actionItemId === item.event_or_fest_id ? "…" : "Approve"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Budget breakdown */}
-                  {isExpanded && hasBudget && (
-                    <div className="border-t border-gray-100 px-4 pb-4 pt-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Budget Breakdown</p>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-xs text-gray-400 border-b border-gray-100">
-                            <th className="text-left pb-1.5 font-medium">Item</th>
-                            <th className="text-center pb-1.5 font-medium w-16">Qty</th>
-                            <th className="text-right pb-1.5 font-medium w-24">Unit (₹)</th>
-                            <th className="text-right pb-1.5 font-medium w-24">Total (₹)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {item.budget_items!.map((b, i) => (
-                            <tr key={i} className="border-b border-gray-50">
-                              <td className="py-1 text-gray-800">{b.name || "—"}</td>
-                              <td className="py-1 text-center text-gray-600">{b.quantity}</td>
-                              <td className="py-1 text-right text-gray-600">{b.unitPrice.toLocaleString("en-IN")}</td>
-                              <td className="py-1 text-right font-medium text-gray-800">
-                                {(b.quantity * b.unitPrice).toLocaleString("en-IN")}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr>
-                            <td colSpan={3} className="pt-2 text-right text-xs font-semibold text-gray-500">Total</td>
-                            <td className="pt-2 text-right font-bold text-gray-900">
-                              ₹{budgetTotal(item.budget_items!).toLocaleString("en-IN")}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
+          <>
+            <section>
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">
+                Pending <span className="text-gray-400 font-normal">({pendingItems.length})</span>
+              </h2>
+              {pendingItems.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                  <p className="text-gray-500">No pending approvals in your queue.</p>
                 </div>
-              );
-            })}
-          </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingItems.map((item) => (
+                    <QueueCard key={item.id} item={item} showActions />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {reviewedItems.length > 0 && (
+              <section>
+                <h2 className="text-sm font-semibold text-gray-700 mb-2">
+                  Reviewed <span className="text-gray-400 font-normal">({reviewedItems.length})</span>
+                </h2>
+                <div className="space-y-3">
+                  {reviewedItems.map((item) => (
+                    <QueueCard key={item.id} item={item} showActions={false} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </div>
 

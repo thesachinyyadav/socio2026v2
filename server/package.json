@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"No tests specified yet\" && exit 0",
     "start": "node index.js",
-    "dev": "nodemon index.js",
+    "dev": "node --env-file=.env index.js",
     "migration:up": "node scripts/migrate.js up",
     "migration:status": "node scripts/migrate.js status",
     "migration:create": "node scripts/migrate.js create"

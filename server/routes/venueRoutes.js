@@ -26,6 +26,67 @@ router.get(
   checkRoleExpiration,
   async (req, res) => {
     try {
+      const { campus, block } = req.query;
+      if (!campus) {
+        return res.status(400).json({ error: "campus query parameter is required" });
+      }
+
+      let query = supabase
+        .from("venues")
+        .select("id:venue_id, name, capacity, location, is_approval_needed")
+        .eq("campus", campus)
+        .eq("is_active", true);
+      if (block) query = query.eq("location", block);
+
+      const { data, error } = await query.order("name", { ascending: true });
+
+      if (error) throw error;
+      return res.json(data || []);
+    } catch (err) {
+      console.error("[Venues] GET /venues error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/venues/campuses
+// Returns a list of unique campuses that have active venues
+// ---------------------------------------------------------------------------
+router.get(
+  "/venues/campuses",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("venues")
+        .select("campus")
+        .eq("is_active", true);
+
+      if (error) throw error;
+      
+      const distinctCampuses = Array.from(new Set((data || []).map(v => v.campus).filter(Boolean)));
+      return res.json({ campuses: distinctCampuses.sort() });
+    } catch (err) {
+      console.error("[Venues] GET /venues/campuses error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/venues/blocks?campus=<campus>
+// Returns the distinct `location` (block) values for active venues in a campus.
+// Used to populate the Location dropdown on the booking page.
+// ---------------------------------------------------------------------------
+router.get(
+  "/venues/blocks",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
+    try {
       const { campus } = req.query;
       if (!campus) {
         return res.status(400).json({ error: "campus query parameter is required" });
@@ -33,15 +94,19 @@ router.get(
 
       const { data, error } = await supabase
         .from("venues")
-        .select("id, name, capacity, location")
+        .select("location")
         .eq("campus", campus)
-        .eq("is_active", true)
-        .order("name", { ascending: true });
+        .eq("is_active", true);
 
       if (error) throw error;
-      return res.json(data || []);
+
+      const blocks = Array.from(
+        new Set((data || []).map(v => v.location).filter(b => b && String(b).trim()))
+      ).sort();
+
+      return res.json({ blocks });
     } catch (err) {
-      console.error("[Venues] GET /venues error:", err);
+      console.error("[Venues] GET /venues/blocks error:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
@@ -67,16 +132,15 @@ router.get(
       }
 
       const { data, error } = await supabase
-        .from("service_requests")
-        .select("entity_type, requested_by, details")
-        .eq("service_type", "venue")
+        .from("venue_bookings")
+        .select("id, venue_id, requested_by, date, start_time, end_time, title, entity_type")
+        .eq("venue_id", id)
         .eq("status", "approved")
-        .filter("details->>venue_id", "eq", id)
-        .like("details->>date", `${month}-%`);
+        .like("date", `${month}-%`);
 
       if (error) throw error;
 
-      // Join requested_by → users.name / full_name
+      // Join requested_by → users display name
       const emails = Array.from(new Set((data || []).map((r) => r.requested_by).filter(Boolean)));
       const nameByEmail = new Map();
       if (emails.length > 0) {
@@ -90,16 +154,16 @@ router.get(
       }
 
       const bookings = (data || [])
+        .filter((r) => r.date && r.start_time && r.end_time)
         .map((r) => ({
-          date: r.details?.date,
-          start_time: r.details?.start_time || "",
-          end_time: r.details?.end_time || "",
+          date: r.date,
+          start_time: r.start_time,
+          end_time: r.end_time,
           requested_by: r.requested_by,
           full_name: nameByEmail.get(r.requested_by) || null,
-          booking_title: r.details?.booking_title || null,
+          booking_title: r.title || null,
           entity_type: r.entity_type,
-        }))
-        .filter((b) => b.date && b.start_time && b.end_time);
+        }));
 
       return res.json({ bookings });
     } catch (err) {
@@ -120,17 +184,35 @@ router.post(
   requireMasterAdmin,
   async (req, res) => {
     try {
-      const { campus, name, capacity, location } = req.body;
+      const { campus, name, capacity, location, is_approval_needed } = req.body;
       if (!campus || !name) {
         return res.status(400).json({ error: "campus and name are required" });
+      }
+
+      let venue_id = name
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/[\s_-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      if (!venue_id) {
+        return res.status(400).json({ error: "name must contain alphanumeric characters" });
+      }
+
+      const existingVenueId = await queryOne("venues", { where: { venue_id } });
+      if (existingVenueId) {
+        return res.status(409).json({ error: `A venue with venue_id "${venue_id}" already exists` });
       }
 
       const venue = await insert("venues", {
         campus,
         name,
+        venue_id,
         capacity: capacity ?? null,
         location: location ?? null,
         is_active: true,
+        is_approval_needed: Boolean(is_approval_needed),
       });
 
       return res.status(201).json({ venue });
@@ -161,19 +243,20 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, capacity, location, is_active } = req.body;
+      const { name, capacity, location, is_active, is_approval_needed } = req.body;
 
       const updates = {};
       if (name !== undefined) updates.name = name;
       if (capacity !== undefined) updates.capacity = capacity;
       if (location !== undefined) updates.location = location;
       if (is_active !== undefined) updates.is_active = is_active;
+      if (is_approval_needed !== undefined) updates.is_approval_needed = is_approval_needed;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: "No fields to update" });
       }
 
-      const venue = await update("venues", updates, { id });
+      const venue = await update("venues", updates, { venue_id: id });
       return res.json({ venue });
     } catch (err) {
       console.error("[Venues] PUT /venues/:id error:", err);
@@ -195,7 +278,7 @@ router.delete(
     try {
       const { id } = req.params;
 
-      const { error } = await supabase.from("venues").delete().eq("id", id);
+      const { error } = await supabase.from("venues").delete().eq("venue_id", id);
       if (error) throw error;
 
       return res.json({ success: true });
@@ -219,7 +302,7 @@ router.get(
     try {
       const { data, error } = await supabase
         .from("venues")
-        .select("*")
+        .select("id:venue_id, campus, name, capacity, location, is_active, is_approval_needed")
         .order("campus", { ascending: true })
         .order("name", { ascending: true });
 

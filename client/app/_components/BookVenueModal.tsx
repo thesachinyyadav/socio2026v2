@@ -9,7 +9,7 @@ interface VenueOption { id: string; name: string; capacity: number | null; locat
 
 interface Props {
   open: boolean;
-  onClose: () => void;
+  onClose: () => void; 
   onSubmitted?: () => void;
 }
 
@@ -73,20 +73,17 @@ export default function BookVenueModal({ open, onClose, onSubmitted }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/service-requests`, {
+      const res = await fetch(`${API_URL}/api/venue-bookings`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
+          venue_id:    form.venue_id,
+          date:        form.date,
+          start_time:  form.start_time,
+          end_time:    form.end_time,
+          title:       form.booking_title.trim(),
+          setup_notes: form.setup_notes || undefined,
           entity_type: "standalone",
-          details: {
-            booking_title: form.booking_title.trim(),
-            venue_id: form.venue_id,
-            venue_name: form.venue_name,
-            date: form.date,
-            start_time: form.start_time,
-            end_time: form.end_time,
-            setup_notes: form.setup_notes,
-          },
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -98,7 +95,7 @@ export default function BookVenueModal({ open, onClose, onSubmitted }: Props) {
         }
         return;
       }
-      toast.success("Venue booking submitted for approval");
+      toast.success(body.auto_approved ? "Venue booked and confirmed!" : "Venue booking submitted for approval");
       onSubmitted?.();
       onClose();
     } catch {

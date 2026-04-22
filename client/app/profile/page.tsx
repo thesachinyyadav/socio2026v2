@@ -56,6 +56,12 @@ interface UserData {
   avatar_url?: string;
   is_organiser?: boolean;
   is_support?: boolean;
+  is_masteradmin?: boolean;
+  is_hod?: boolean;
+  is_dean?: boolean;
+  is_cfo?: boolean;
+  is_campus_director?: boolean;
+  is_accounts_office?: boolean;
 }
 
 const StudentProfile = () => {
@@ -435,26 +441,35 @@ const StudentProfile = () => {
                       {student.joined}
                     </p>
                   </div>
-                  {(userData.is_organiser || userData.is_support || (userData as any).is_masteradmin) && (
+                  {(userData.is_organiser || userData.is_support || userData.is_masteradmin || userData.is_hod || userData.is_dean || userData.is_cfo || userData.is_campus_director || userData.is_accounts_office) && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-500">
                         Role
                       </h3>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {userData.is_organiser && (
-                          <p className="text-gray-800 font-medium bg-blue-100 px-2 py-1 rounded-full text-xs inline-block">
-                            Organiser
-                          </p>
+                          <span className="text-indigo-700 font-medium bg-indigo-100 px-2 py-1 rounded-full text-xs inline-block">Organiser</span>
                         )}
                         {userData.is_support && (
-                          <p className="text-gray-800 font-medium bg-green-100 px-2 py-1 rounded-full text-xs inline-block">
-                            Support
-                          </p>
+                          <span className="text-teal-700 font-medium bg-teal-100 px-2 py-1 rounded-full text-xs inline-block">Support</span>
                         )}
-                        {(userData as any).is_masteradmin && (
-                          <p className="text-gray-800 font-medium bg-red-100 px-2 py-1 rounded-full text-xs inline-block">
-                            Master Admin
-                          </p>
+                        {userData.is_masteradmin && (
+                          <span className="text-rose-700 font-medium bg-rose-100 px-2 py-1 rounded-full text-xs inline-block">Master Admin</span>
+                        )}
+                        {userData.is_hod && (
+                          <span className="text-purple-700 font-medium bg-purple-100 px-2 py-1 rounded-full text-xs inline-block">HOD</span>
+                        )}
+                        {userData.is_dean && (
+                          <span className="text-blue-700 font-medium bg-blue-100 px-2 py-1 rounded-full text-xs inline-block">Dean</span>
+                        )}
+                        {userData.is_cfo && (
+                          <span className="text-amber-700 font-medium bg-amber-100 px-2 py-1 rounded-full text-xs inline-block">CFO</span>
+                        )}
+                        {userData.is_campus_director && (
+                          <span className="text-cyan-700 font-medium bg-cyan-100 px-2 py-1 rounded-full text-xs inline-block">Campus Dir</span>
+                        )}
+                        {userData.is_accounts_office && (
+                          <span className="text-green-700 font-medium bg-green-100 px-2 py-1 rounded-full text-xs inline-block">Finance Officer</span>
                         )}
                       </div>
                     </div>
@@ -462,7 +477,7 @@ const StudentProfile = () => {
                 </div>
               </div>
 
-              {(userData.is_organiser || (userData as any).is_masteradmin) && (
+              {(userData.is_organiser || userData.is_masteradmin) && (
                 <div className="px-4 sm:px-6 pb-4 flex flex-col gap-2">
                   {userData.is_organiser && (
                     <Link
@@ -473,7 +488,7 @@ const StudentProfile = () => {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </Link>
                   )}
-                  {(userData as any).is_masteradmin && (
+                  {userData.is_masteradmin && (
                     <Link
                       href="/guide/masteradmin"
                       className="flex items-center justify-between w-full border border-red-500 text-red-500 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-red-500 hover:text-white transition-colors duration-150"
