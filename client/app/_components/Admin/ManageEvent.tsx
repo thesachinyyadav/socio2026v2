@@ -12,7 +12,7 @@ import {
   Resolver,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   EventFormData,
@@ -1422,7 +1422,11 @@ export default function EventForm({
   onOperationalConfigChange,
   publishBlockedByApproval = false,
 }: EventFormProps) {
-  const [activeTab, setActiveTab] = useState<'details' | 'approvals'>('details');
+  const searchParams = useSearchParams();
+  const shouldOpenApprovalsTab = searchParams.get("tab") === "approvals";
+  const [activeTab, setActiveTab] = useState<'details' | 'approvals'>(
+    shouldOpenApprovalsTab ? 'approvals' : 'details'
+  );
   const [blockingStages, setBlockingStages] = useState<BlockingStageConfig[]>(DEFAULT_BLOCKING_STAGES);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [festApprovalStages, setFestApprovalStages] = useState<any[]>([]);
@@ -1477,6 +1481,12 @@ export default function EventForm({
 
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "approvals") {
+      setActiveTab("approvals");
+    }
+  }, [searchParams]);
   const {
     register,
     handleSubmit,

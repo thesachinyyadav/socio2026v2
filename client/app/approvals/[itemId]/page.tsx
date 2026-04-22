@@ -176,6 +176,8 @@ export default function ApprovalsPage() {
   const [item, setItem] = useState<ItemMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMissingApprovalRecord, setIsMissingApprovalRecord] = useState(false);
+  const itemType = typeParam === "fest" ? "fest" : "event";
 
   useEffect(() => {
     if (authLoading) return;
@@ -186,6 +188,7 @@ export default function ApprovalsPage() {
   async function fetchApproval() {
     setLoading(true);
     setError(null);
+    setIsMissingApprovalRecord(false);
     try {
       const url = `${API_URL}/api/approvals/${itemId}${typeParam ? `?type=${typeParam}` : ""}`;
       const res = await fetch(url, {
@@ -194,6 +197,11 @@ export default function ApprovalsPage() {
       if (res.status === 403) { setError("You do not have access to this approval record."); return; }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (res.status === 404 && body.error === "Approval record not found") {
+          setIsMissingApprovalRecord(true);
+          setError(`This ${itemType} has not been sent for approvals yet.`);
+          return;
+        }
         setError(body.error || "Failed to load approval record.");
         return;
       }
@@ -219,6 +227,14 @@ export default function ApprovalsPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <p className="text-red-600 font-medium">{error}</p>
+        {isMissingApprovalRecord && (
+          <button
+            onClick={() => router.push(`/edit/${itemType}/${itemId}?tab=approvals`)}
+            className="px-4 py-2 rounded-md bg-[#154CB3] text-white text-sm font-medium hover:bg-[#0f3a7a]"
+          >
+            Send for Approvals
+          </button>
+        )}
         <button onClick={() => router.back()} className="text-sm text-blue-600 underline">Go back</button>
       </div>
     );

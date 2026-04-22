@@ -454,6 +454,7 @@ router.patch(
   async (req, res) => {
     try {
       const { itemId } = req.params;
+      const { type } = req.query;
       const { customStages, budgetItems } = req.body;
       const user = req.userInfo;
 
@@ -461,7 +462,14 @@ router.patch(
         return res.status(400).json({ error: "customStages array is required" });
       }
 
-      const record = await queryOne("approvals", { where: { event_or_fest_id: itemId } });
+      let record;
+      if (type) {
+        record = await queryOne("approvals", { where: { event_or_fest_id: itemId, type } });
+      } else {
+        record =
+          (await queryOne("approvals", { where: { event_or_fest_id: itemId, type: "event" } })) ||
+          (await queryOne("approvals", { where: { event_or_fest_id: itemId, type: "fest" } }));
+      }
       if (!record) return res.status(404).json({ error: "Approval record not found" });
 
       const isCreator = record.submitted_by === user.email;

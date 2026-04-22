@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../context/AuthContext"; // Adjust path as needed
 import {
   christCampuses,
@@ -1270,7 +1270,7 @@ function ApprovalsSetupView({
               {isSubmitting ? 'Saving...' : 'Update Workflow'}
             </button>
             <a
-              href={`/approvals/${festId}`}
+              href={`/approvals/${festId}?type=fest`}
               className="w-full sm:w-auto px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors text-center"
             >
               View Approval Status
@@ -1399,9 +1399,16 @@ function CreateFestForm(props?: CreateFestProps) {
 
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isEditModeFromPath = pathname.startsWith("/edit/fest");
   const festIdFromPath = isEditModeFromPath ? pathname.split("/").pop() : null;
   const finalIsEditMode = isEditMode || isEditModeFromPath;
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "approvals") {
+      setActiveView("approvals");
+    }
+  }, [searchParams]);
 
   const departmentOptionsForSelectedSchool = useMemo(() => {
     const selectedSchool = String(formData.organizingSchool || "").trim();
@@ -1550,7 +1557,7 @@ function CreateFestForm(props?: CreateFestProps) {
   useEffect(() => {
     if (!finalIsEditMode || !festIdFromPath || !session?.access_token) return;
     setSavedFestId(festIdFromPath);
-    fetch(`${API_URL}/api/approvals/${festIdFromPath}`, {
+    fetch(`${API_URL}/api/approvals/${festIdFromPath}?type=fest`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then(async (r) => {
@@ -2448,7 +2455,7 @@ function CreateFestForm(props?: CreateFestProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to submit for approval');
       toast.success('Submitted for approval.', { duration: 3000 });
-      router.push(`/approvals/${festId}`);
+      router.push(`/approvals/${festId}?type=fest`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit for approval');
     } finally {
@@ -2461,7 +2468,7 @@ function CreateFestForm(props?: CreateFestProps) {
     if (!festId || !session?.access_token) return;
     setIsSubmittingApproval(true);
     try {
-      const res = await fetch(`${API_URL}/api/approvals/${festId}/workflow`, {
+      const res = await fetch(`${API_URL}/api/approvals/${festId}/workflow?type=fest`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -3976,14 +3983,6 @@ function CreateFestForm(props?: CreateFestProps) {
                           {isSubmitting && submissionMode === "draft"
                             ? "Saving Draft..."
                             : "Save as Draft"}
-                        </button>
-
-                        <button
-                          type="submit"
-                          disabled={isSubmitting || isNavigating || isOpeningPreview}
-                          className="w-full sm:w-auto px-5 py-2.5 border border-[#154CB3] text-[#154CB3] bg-white text-sm font-medium rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          {isUploadingImage ? "Uploading image..." : isSubmitting ? (submissionMode === "draft" ? "Saving Draft..." : isDraftFest ? "Publishing..." : "Updating...") : isDraftFest ? "Publish Fest" : "Update Fest"}
                         </button>
                       </>
                     )}
