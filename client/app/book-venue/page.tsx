@@ -180,8 +180,14 @@ export default function BookVenuePage() {
 
   useEffect(() => {
     if (!authLoading && !session) router.replace("/auth");
-    if (!authLoading && session && userData && !userData.is_organiser && !userData.is_masteradmin) {
-      router.replace("/error");
+    if (!authLoading && session && userData) {
+      // Block only pure students — anyone with any role can access
+      const hasAnyRole =
+        userData.is_organiser || userData.is_masteradmin || userData.is_support ||
+        userData.is_hod || userData.is_dean || userData.is_cfo ||
+        userData.is_campus_director || userData.is_accounts_office ||
+        userData.is_it_support || userData.is_vendor_manager || userData.is_stalls;
+      if (!hasAnyRole) router.replace("/error");
     }
   }, [authLoading, session, userData, router]);
 
@@ -273,21 +279,19 @@ function SpecificVenueView({ session, userData }: { session: any; userData: any 
   const [loadingCal,    setLoadingCal]    = useState(false);
   const [modal,         setModal]         = useState<{ date: string; start_time: string; end_time: string } | null>(null);
 
-  // Load campuses
+  // Load campuses — masteradmin sees all; everyone else sees only their own campus
   useEffect(() => {
     if (!session?.access_token) return;
+    if (!userData?.is_masteradmin && userData?.campus) {
+      setCampuses([userData.campus]);
+      setSelectedCampus(userData.campus);
+      return;
+    }
     fetch(`${API_URL}/api/venues/campuses`, { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => setCampuses(d?.campuses?.length ? d.campuses : [...christCampuses].sort()))
       .catch(() => setCampuses([...christCampuses].sort()));
-  }, [session?.access_token]);
-
-  // Prefill campus from profile
-  useEffect(() => {
-    if (userData?.campus && !selectedCampus && campuses.includes(userData.campus)) {
-      setSelectedCampus(userData.campus);
-    }
-  }, [userData?.campus, campuses]);
+  }, [session?.access_token, userData?.is_masteradmin, userData?.campus]);
 
   // Campus → Blocks
   useEffect(() => {
@@ -982,15 +986,16 @@ function AnyAvailableView({ session, userData }: { session: any; userData: any }
 
   useEffect(() => {
     if (!session?.access_token) return;
+    if (!userData?.is_masteradmin && userData?.campus) {
+      setCampuses([userData.campus]);
+      setCampus(userData.campus);
+      return;
+    }
     fetch(`${API_URL}/api/venues/campuses`, { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => setCampuses(d?.campuses?.length ? d.campuses : [...christCampuses].sort()))
       .catch(() => setCampuses([...christCampuses].sort()));
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    if (userData?.campus && !campus && campuses.includes(userData.campus)) setCampus(userData.campus);
-  }, [userData?.campus, campuses]);
+  }, [session?.access_token, userData?.is_masteradmin, userData?.campus]);
 
   async function search() {
     if (!session?.access_token || !campus) return;

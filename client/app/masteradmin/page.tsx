@@ -288,6 +288,7 @@ export default function MasterAdminPage() {
   const [venues,           setVenues]           = useState<VenueRow[]>([]);
   const [venuesLoading,    setVenuesLoading]    = useState(false);
   const [venueForm,        setVenueForm]        = useState({ campus: "", name: "", capacity: "", location: "", is_approval_needed: false });
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
   const [venueFormError,   setVenueFormError]   = useState<string | null>(null);
   const [venueSubmitting,  setVenueSubmitting]  = useState(false);
   const [deleteVenueId,    setDeleteVenueId]    = useState<string | null>(null);
@@ -509,6 +510,19 @@ export default function MasterAdminPage() {
       fetchAllVenues();
     }
   }, [activeTab, isMasterAdmin, authToken]);
+
+  // Fetch existing location suggestions when campus changes (add form) or edit modal opens
+  const fetchLocationSuggestions = (campus: string) => {
+    if (!campus || !authToken) { setLocationSuggestions([]); return; }
+    fetch(`${API_URL}/api/venues/blocks?campus=${encodeURIComponent(campus)}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then(r => r.ok ? r.json() : { blocks: [] })
+      .then(d => setLocationSuggestions(Array.isArray(d.blocks) ? d.blocks : []))
+      .catch(() => setLocationSuggestions([]));
+  };
+  useEffect(() => { fetchLocationSuggestions(venueForm.campus); }, [venueForm.campus, authToken]);
+  useEffect(() => { if (editingVenue?.campus) fetchLocationSuggestions(editingVenue.campus); }, [editingVenue?.campus]);
 
   useEffect(() => {
     if (activeTab !== "venues") {
@@ -1513,11 +1527,20 @@ export default function MasterAdminPage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">Location / Block</label>
                   <input
                     type="text"
+                    list="venue-location-suggestions"
                     value={venueForm.location}
                     onChange={e => setVenueForm(f => ({ ...f, location: e.target.value }))}
                     placeholder="e.g. Block A, Ground Floor"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
+                  <datalist id="venue-location-suggestions">
+                    {locationSuggestions.map(l => <option key={l} value={l} />)}
+                  </datalist>
+                  {locationSuggestions.length > 0 && (
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Existing: {locationSuggestions.join(" · ")}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
@@ -3198,11 +3221,17 @@ export default function MasterAdminPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1">Location / Block</label>
                     <input
                       type="text"
+                      list="venue-location-suggestions"
                       value={editVenueForm.location}
                       onChange={e => setEditVenueForm(f => ({ ...f, location: e.target.value }))}
                       placeholder="e.g. Block A, GF"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
+                    {locationSuggestions.length > 0 && (
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Existing: {locationSuggestions.join(" · ")}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
