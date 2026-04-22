@@ -1253,27 +1253,24 @@ export default function ManageDashboard() {
             Manage Fests & Events
           </h1>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setBookVenueOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm"
-            >
-              <MapPin className="w-4 h-4" /> Book Venue
-            </button>
+           <div className="flex items-center gap-3">
+            <Link href="/book-venue">
+              <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                <MapPin className="w-4 h-4" /> Book Venue
+              </button>
+            </Link>
             <Link href="/create/fest">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+              <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
                 <Plus className="w-4 h-4" /> Create Fest
-                </button>
+              </button>
             </Link>
             <Link href="/create/event">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
+              <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                 <Plus className="w-4 h-4" /> Create Event
-                </button>
+              </button>
             </Link>
           </div>
         </div>
-
-        <BookVenueModal open={bookVenueOpen} onClose={() => setBookVenueOpen(false)} />
 
         {/* 2. The Control Bar (Tabs & Search) */}
         <div className="flex flex-col md:flex-row justify-between md:items-center border-b border-slate-200 gap-4 mb-6">

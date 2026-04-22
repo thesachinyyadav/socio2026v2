@@ -48,6 +48,32 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
+// GET /api/venues/campuses
+// Returns a list of unique campuses that have active venues
+// ---------------------------------------------------------------------------
+router.get(
+  "/venues/campuses",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("venues")
+        .select("campus")
+        .eq("is_active", true);
+
+      if (error) throw error;
+      
+      const distinctCampuses = Array.from(new Set((data || []).map(v => v.campus).filter(Boolean)));
+      return res.json({ campuses: distinctCampuses.sort() });
+    } catch (err) {
+      console.error("[Venues] GET /venues/campuses error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // GET /api/venues/:id/availability?month=YYYY-MM
 // Returns approved bookings (time windows) in the given month for this venue.
 // Response: { bookings: [{ date, start_time, end_time, requested_by, full_name, booking_title, entity_type }] }
