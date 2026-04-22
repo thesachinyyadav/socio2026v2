@@ -736,7 +736,8 @@ function BookingModal({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 409 && body.conflict) {
-          setError(`Conflicts with existing booking (${body.conflict.start_time}–${body.conflict.end_time}).`);
+          const conflictLabel = body.conflict.title || `${body.conflict.start_time}–${body.conflict.end_time}`;
+          setError(`This slot is already booked for "${conflictLabel}". Please choose a different time.`);
         } else {
           setError(body.error || "Failed to submit.");
         }

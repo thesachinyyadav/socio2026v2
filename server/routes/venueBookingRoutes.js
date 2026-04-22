@@ -126,7 +126,7 @@ router.post(
       if (conflict) {
         return res.status(409).json({
           error: "This time window conflicts with an existing approved booking",
-          conflict: { start_time: conflict.start_time, end_time: conflict.end_time },
+          conflict: { start_time: conflict.start_time, end_time: conflict.end_time, title: conflict.title || null },
         });
       }
 
@@ -410,7 +410,7 @@ router.post(
       if (action === "approved") {
         const { data: existing } = await supabase
           .from("venue_bookings")
-          .select("id, start_time, end_time")
+          .select("id, start_time, end_time, title")
           .eq("venue_id", booking.venue_id)
           .eq("date",     booking.date)
           .eq("status",   "approved");
@@ -421,7 +421,7 @@ router.post(
         if (conflict) {
           return res.status(409).json({
             error: "Another booking was approved for this time window",
-            conflict: { start_time: conflict.start_time, end_time: conflict.end_time },
+            conflict: { start_time: conflict.start_time, end_time: conflict.end_time, title: conflict.title || null },
           });
         }
       }
