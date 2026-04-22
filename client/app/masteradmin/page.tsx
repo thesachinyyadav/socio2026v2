@@ -1504,8 +1504,19 @@ export default function MasterAdminPage() {
         {activeTab === "venues" && (
           <div className="space-y-6">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Venue Management</h2>
-              <p className="text-sm text-gray-500">Add, edit, or remove campus venues. Organisers see these when booking after approval.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Venue Management</h2>
+                  <p className="text-sm text-gray-500">Add, edit, or remove campus venues. Organisers see these when booking after approval.</p>
+                </div>
+                <Link
+                  href="/book-venue"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm self-start sm:self-auto"
+                >
+                  <MapPin className="w-4 h-4" />
+                  Book Venue
+                </Link>
+              </div>
             </div>
 
             {/* Add venue form */}

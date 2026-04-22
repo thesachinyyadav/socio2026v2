@@ -717,10 +717,20 @@ function BookingModal({
   const [submitting, setSubmitting] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
 
-  const hcNum = parseInt(headcount || "0", 10);
+  const headcountText = headcount.trim();
+  const hcNum = headcountText ? parseInt(headcountText, 10) : null;
+  const invalidHeadcount =
+    headcountText.length > 0 &&
+    (Number.isNaN(hcNum) || (hcNum ?? 0) <= 0);
   const validTimes = toMinutes(endTime) > toMinutes(startTime);
-  const overCapacity = venue.capacity != null && hcNum > 0 && hcNum > venue.capacity;
-  const canSubmit = !!date && validTimes && title.trim().length >= 3 && hcNum > 0 && !overCapacity && !submitting;
+  const overCapacity = venue.capacity != null && hcNum != null && hcNum > venue.capacity;
+  const canSubmit =
+    !!date &&
+    validTimes &&
+    title.trim().length >= 3 &&
+    !invalidHeadcount &&
+    !overCapacity &&
+    !submitting;
 
   async function submit() {
     if (!canSubmit) return;
@@ -735,7 +745,7 @@ function BookingModal({
           start_time: startTime,
           end_time: endTime,
           title: title.trim(),
-          headcount: hcNum || null,
+          headcount: hcNum,
           setup_notes: notes.trim() || null,
           entity_type: "standalone",
         }),
@@ -800,7 +810,7 @@ function BookingModal({
             </FormField>
           </div>
 
-          <FormField label={`Headcount${venue.capacity != null ? ` (max ${venue.capacity})` : ""}`}>
+          <FormField label={`Headcount${venue.capacity != null ? ` (max ${venue.capacity})` : ""} (optional)`}>
             <input
               type="number" min={1}
               value={headcount}
@@ -808,6 +818,9 @@ function BookingModal({
               className={inputCls}
               placeholder="Expected attendees"
             />
+            {invalidHeadcount && (
+              <p className="text-[11px] text-red-600 mt-1">Headcount must be greater than 0 if provided.</p>
+            )}
             {overCapacity && (
               <p className="text-[11px] text-red-600 mt-1">Exceeds venue capacity of {venue.capacity}</p>
             )}
