@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -14,6 +14,7 @@ interface Venue {
   name: string;
   capacity: number | null;
   location: string | null;
+  is_approval_needed?: boolean;
 }
 
 interface VenueBooking {
@@ -26,372 +27,150 @@ interface VenueBooking {
   entity_type?: string;
 }
 
-interface TimeSlot {
+interface MyBooking {
   id: string;
-  name: string;
-  start: string;
-  end: string;
-  displayTime: string;
+  venue_id: string;
+  status: string;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  headcount: number | null;
+  decision_notes: string | null;
+  venue?: { name: string; campus: string; location: string | null; capacity: number | null };
 }
 
-const TIME_SLOTS: TimeSlot[] = [
-  { id: "morning",   name: "Morning",   start: "08:00", end: "12:00", displayTime: "8:00 AM – 12:00 PM" },
-  { id: "afternoon", name: "Afternoon", start: "12:00", end: "17:00", displayTime: "12:00 PM – 5:00 PM" },
-  { id: "evening",   name: "Evening",   start: "17:00", end: "21:00", displayTime: "5:00 PM – 9:00 PM" },
-];
-
-type SlotStatus = "available" | "selected" | "pending" | "booked" | "blocked";
+type TabKey = "mine" | "specific" | "any";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
-import { supabase } from "@/lib/supabaseClient";
+
+const HOUR_START  = 6;
+const HOUR_END    = 22;
+const HOUR_HEIGHT = 56; // px per hour
 
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 
-function toMinutes(t: string) {
+function toMinutes(t: string): number {
   if (!t || !/^\d{2}:\d{2}/.test(t)) return 0;
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
 
-function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  return toMinutes(aStart) < toMinutes(bEnd) && toMinutes(aEnd) > toMinutes(bStart);
-}
-
-function formatDisplayDate(dateStr: string) {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-}
-
-function getSlotStatus(slot: TimeSlot, bookings: VenueBooking[], date: string, selectedSlots: string[]): SlotStatus {
-  if (selectedSlots.includes(slot.id)) return "selected";
-  const dayBookings = bookings.filter(b => b.date === date);
-  for (const b of dayBookings) {
-    if (overlaps(slot.start, slot.end, b.start_time, b.end_time)) return "booked";
-  }
-  return "available";
-}
-
-function getSlotsTimeRange(slotIds: string[]): { start: string; end: string; label: string; adjacent: boolean } | null {
-  if (slotIds.length === 0) return null;
-  const sorted = [...slotIds].sort((a, b) => {
-    return TIME_SLOTS.findIndex(s => s.id === a) - TIME_SLOTS.findIndex(s => s.id === b);
-  });
-  const first = TIME_SLOTS.find(s => s.id === sorted[0]);
-  const last  = TIME_SLOTS.find(s => s.id === sorted[sorted.length - 1]);
-  if (!first || !last) return null;
-  const indices = sorted.map(id => TIME_SLOTS.findIndex(s => s.id === id));
-  let adjacent = true;
-  for (let i = 1; i < indices.length; i++) {
-    if (indices[i] !== indices[i - 1] + 1) { adjacent = false; break; }
-  }
-  return {
-    start: first.start,
-    end:   last.end,
-    label: sorted.map(id => TIME_SLOTS.find(s => s.id === id)?.name).join(" + "),
-    adjacent,
-  };
-}
-
-function formatTime12(t: string) {
+function formatTime12(t: string): string {
   if (!t) return "";
   const [h, m] = t.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
-  const h12  = h % 12 || 12;
+  const h12 = h % 12 || 12;
   return `${h12}:${pad2(m)} ${ampm}`;
 }
 
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  height: 44,
-  border: "1.5px solid #e2ddd4",
-  borderRadius: 8,
-  padding: "0 36px 0 12px",
-  fontSize: 13.5,
-  color: "#171c1f",
-  background: "#fff",
-  outline: "none",
-  cursor: "pointer",
-  appearance: "none",
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%238a8578' strokeWidth='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 12px center",
-  backgroundSize: "16px",
-  boxSizing: "border-box",
-};
-
-// ─── Small UI Primitives ───────────────────────────────────────────────────────
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#8a8578", textTransform: "uppercase", marginBottom: 10 }}>
-      {children}
-    </p>
-  );
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function Divider() {
-  return <div style={{ height: 1, background: "#e2ddd4", margin: "20px 0" }} />;
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - x.getDay()); // Sunday-start
+  return x;
 }
 
-function SkeletonPulse({ height = 36, radius = 8, width = "100%" }: { height?: number; radius?: number; width?: string | number }) {
-  return <div className="animate-pulse" style={{ height, borderRadius: radius, background: "#e8e6e1", width }} />;
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
 }
 
-// ─── Slot Card ────────────────────────────────────────────────────────────────
-
-function SlotCard({ slot, status, onClick }: { slot: TimeSlot; status: SlotStatus; onClick: () => void }) {
-  const styles: Record<SlotStatus, React.CSSProperties> = {
-    available: { background: "#e8f7f0", border: "1.5px solid #9ee0c0", cursor: "pointer", color: "#1a7a52" },
-    selected:  { background: "#1a7a52", border: "1.5px solid #1a7a52", cursor: "pointer", color: "#fff" },
-    pending:   { background: "#fef7ec", border: "1.5px solid #f5d08a", cursor: "not-allowed", color: "#b86c10", opacity: 0.8 },
-    booked:    { background: "#fef1f1", border: "1.5px solid #f5b8b8", cursor: "not-allowed", color: "#c42b2b" },
-    blocked:   { background: "#f0ede8", border: "1.5px solid #e2ddd4", cursor: "not-allowed", color: "#8a8578" },
-  };
-  const isInteractive = status === "available" || status === "selected";
-  return (
-    <div
-      role={isInteractive ? "button" : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
-      onClick={isInteractive ? onClick : undefined}
-      onKeyDown={isInteractive ? (e) => e.key === "Enter" && onClick() : undefined}
-      style={{ position: "relative", minWidth: 120, padding: "10px 16px", borderRadius: 8, display: "flex", flexDirection: "column", gap: 2, transition: "transform 0.1s, box-shadow 0.1s", flex: 1, ...styles[status] }}
-      className={isInteractive ? "hover:scale-[1.02] hover:shadow-sm" : ""}
-      title={status === "pending" ? "Reserved by another coordinator" : undefined}
-    >
-      {status === "selected" && <span style={{ position: "absolute", top: 6, right: 8, fontSize: 12 }}>✓</span>}
-      <span style={{ fontSize: 13, fontWeight: 600 }}>{slot.name}</span>
-      <span style={{ fontSize: 11, opacity: status === "selected" ? 0.9 : 0.8 }}>{slot.displayTime}</span>
-      {status === "pending" && <span style={{ fontSize: 10, fontStyle: "italic", marginTop: 2 }}>Reserved</span>}
-      {status === "booked"  && <span style={{ fontSize: 10, marginTop: 2 }}>Booked</span>}
-      {status === "blocked" && <span style={{ fontSize: 10, marginTop: 2 }}>Blocked</span>}
-    </div>
-  );
+function weekRangeLabel(ws: Date): string {
+  const end = addDays(ws, 6);
+  const sm = ws.toLocaleDateString("en-IN", { month: "short" });
+  const em = end.toLocaleDateString("en-IN", { month: "short" });
+  return sm === em
+    ? `${ws.getDate()} – ${end.getDate()} ${sm} ${ws.getFullYear()}`
+    : `${ws.getDate()} ${sm} – ${end.getDate()} ${em} ${end.getFullYear()}`;
 }
 
-// ─── Checklist Item ───────────────────────────────────────────────────────────
-
-function ChecklistItem({ icon, color, bg, text }: { icon: string; color: string; bg: string; text: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-      <span style={{ width: 20, height: 20, borderRadius: 10, background: bg, color, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 700 }}>
-        {icon}
-      </span>
-      <span style={{ fontSize: 12, color: "#545f73", lineHeight: 1.5 }}>{text}</span>
-    </div>
-  );
+function isPast(dateStr: string, time: string): boolean {
+  if (!dateStr) return false;
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  return new Date(y, mo - 1, d, h, mi, 0, 0).getTime() < Date.now();
 }
 
-// ─── Full-size Calendar ───────────────────────────────────────────────────────
-
-function FullCalendar({
-  bookings,
-  selectedDate,
-  currentMonth,
-  onMonthChange,
-  venueSelected,
-  venueName,
-}: {
-  bookings: VenueBooking[];
-  selectedDate: string;
-  currentMonth: { year: number; month: number };
-  onMonthChange: (y: number, m: number) => void;
-  venueSelected: boolean;
-  venueName?: string;
-}) {
-  const { year, month } = currentMonth;
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-
-  const firstDay    = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthLabel  = new Date(year, month).toLocaleString("en-IN", { month: "long", year: "numeric" });
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const bookingsByDate = useMemo(() => {
-    const map = new Map<string, VenueBooking[]>();
-    bookings.forEach(b => {
-      if (!map.has(b.date)) map.set(b.date, []);
-      map.get(b.date)!.push(b);
-    });
-    return map;
-  }, [bookings]);
-
-  function prevMonth() {
-    const nm = month === 0 ? 11 : month - 1;
-    const ny = month === 0 ? year - 1 : year;
-    onMonthChange(ny, nm);
+function statusStyle(status: string) {
+  switch (status) {
+    case "approved":               return "bg-green-50 text-green-700 border-green-200";
+    case "pending":                return "bg-amber-50 text-amber-700 border-amber-200";
+    case "rejected":               return "bg-red-50 text-red-700 border-red-200";
+    case "returned_for_revision":  return "bg-purple-50 text-purple-700 border-purple-200";
+    default:                       return "bg-gray-100 text-gray-600 border-gray-200";
   }
-  function nextMonth() {
-    const nm = month === 11 ? 0 : month + 1;
-    const ny = month === 11 ? year + 1 : year;
-    onMonthChange(ny, nm);
-  }
-
-  const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
-  // pill colors by entity_type / status
-  function getPillStyle(b: VenueBooking): React.CSSProperties {
-    return { background: "#dcfce7", color: "#166534" };
-  }
-
-  return (
-    <div>
-      {/* ── Card Header ── */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 20px", borderBottom: "1px solid #f0f4f8",
-      }}>
-        <div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#171c1f" }}>Venue Availability</span>
-          {venueName && (
-            <span style={{ marginLeft: 8, fontSize: 11, color: "#8a8578", background: "#f0f4f8", borderRadius: 6, padding: "2px 8px" }}>
-              {venueName}
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button
-            type="button" onClick={prevMonth}
-            style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid #e2ddd4", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#545f73" }}
-            className="hover:border-[#154CB3] hover:text-[#154CB3]"
-          >
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
-          </button>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#171c1f", minWidth: 130, textAlign: "center" }}>{monthLabel}</span>
-          <button
-            type="button" onClick={nextMonth}
-            style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid #e2ddd4", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#545f73" }}
-            className="hover:border-[#154CB3] hover:text-[#154CB3]"
-          >
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" /></svg>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Grid ── */}
-      <div style={{ padding: "0 16px 16px" }}>
-        {/* Day-of-week headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #f0f4f8", marginBottom: 0 }}>
-          {DAY_LABELS.map(d => (
-            <div key={d} style={{
-              fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
-              color: "#8a8578", textAlign: "center", padding: "10px 0",
-              background: "#f6fafe",
-            }}>
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {!venueSelected ? (
-          /* Empty state — big centered */
-          <div style={{
-            minHeight: 420, display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 12,
-            color: "#b5b0a5",
-          }}>
-            <svg width="56" height="56" fill="none" stroke="#b5b0a5" strokeWidth={1.2} viewBox="0 0 24 24">
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M16 2v4M8 2v4M3 10h18" />
-            </svg>
-            <p style={{ fontSize: 14, fontStyle: "italic", textAlign: "center" }}>Select a venue to see availability</p>
-          </div>
-        ) : (
-          /* Calendar cells */
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderLeft: "1px solid #f0ede8" }}>
-            {cells.map((day, i) => {
-              if (!day) {
-                return (
-                  <div key={i} style={{
-                    minHeight: 90, background: "#fafaf9",
-                    borderRight: "1px solid #f0ede8", borderBottom: "1px solid #f0ede8",
-                  }} />
-                );
-              }
-
-              const dateStr   = `${year}-${pad2(month + 1)}-${pad2(day)}`;
-              const isToday   = dateStr === todayStr;
-              const isSelected = dateStr === selectedDate;
-              const dayBookings = bookingsByDate.get(dateStr) || [];
-              const pills   = dayBookings.slice(0, 2);
-              const extra   = dayBookings.length - 2;
-
-              return (
-                <div key={i} style={{
-                  minHeight: 90,
-                  background: isSelected ? "#eef3ff" : "#fff",
-                  borderRight: "1px solid #f0ede8",
-                  borderBottom: "1px solid #f0ede8",
-                  padding: "6px 5px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 3,
-                }}>
-                  {/* Date number */}
-                  <div style={{ display: "flex", justifyContent: "flex-start", paddingLeft: 2 }}>
-                    {isToday ? (
-                      <span style={{
-                        width: 26, height: 26, borderRadius: 13, background: "#154CB3",
-                        color: "#fff", fontSize: 12, fontWeight: 700,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>{day}</span>
-                    ) : (
-                      <span style={{
-                        fontSize: 12, fontWeight: isSelected ? 700 : 500,
-                        color: isSelected ? "#154CB3" : "#171c1f",
-                      }}>{day}</span>
-                    )}
-                  </div>
-
-                  {/* Booking pills */}
-                  {pills.map((b, pi) => (
-                    <div key={pi} style={{
-                      padding: "2px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      ...getPillStyle(b),
-                    }}>
-                      {b.booking_title || b.full_name || "Booked"}
-                    </div>
-                  ))}
-                  {extra > 0 && (
-                    <span style={{ fontSize: 10, color: "#8a8578", paddingLeft: 3 }}>+{extra} more</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── Legend ── */}
-      <div style={{
-        display: "flex", gap: 16, flexWrap: "wrap",
-        padding: "10px 20px", borderTop: "1px solid #f0f4f8",
-      }}>
-        {[
-          { bg: "#dcfce7", border: "#166534", label: "Approved" },
-          { bg: "#fef08a", border: "#854d0e", label: "Pending" },
-          { bg: "#f3f4f6", border: "#4b5563", label: "Blocked" },
-          { bg: "#eef3ff", border: "#154CB3", label: "Your booking" },
-        ].map(({ bg, border, label }) => (
-          <span key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#8a8578" }}>
-            <span style={{ width: 10, height: 10, borderRadius: 5, background: bg, border: `1.5px solid ${border}`, display: "inline-block" }} />
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
 }
+
+function statusLabel(status: string): string {
+  if (status === "returned_for_revision") return "Revision";
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function bookingBarColor(status: string) {
+  switch (status) {
+    case "approved": return { bg: "#dcfce7", border: "#86efac", text: "#15803d" };
+    case "pending":  return { bg: "#fef3c7", border: "#fbbf24", text: "#92400e" };
+    default:         return { bg: "#e2e8f0", border: "#94a3b8", text: "#1e293b" };
+  }
+}
+
+// ─── SVG icons ────────────────────────────────────────────────────────────────
+
+const IconCalendar = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+
+const IconSearch = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+);
+
+const IconBuilding = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="1"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>
+  </svg>
+);
+
+const IconChevronLeft = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 18l-6-6 6-6"/>
+  </svg>
+);
+
+const IconChevronRight = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18l6-6-6-6"/>
+  </svg>
+);
+
+const IconX = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+const IconClock = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+);
+
+const IconUsers = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+);
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -399,7 +178,6 @@ export default function BookVenuePage() {
   const router = useRouter();
   const { session, userData, isLoading: authLoading } = useAuth() as any;
 
-  // Auth guard
   useEffect(() => {
     if (!authLoading && !session) router.replace("/auth");
     if (!authLoading && session && userData && !userData.is_organiser && !userData.is_masteradmin) {
@@ -407,687 +185,933 @@ export default function BookVenuePage() {
     }
   }, [authLoading, session, userData, router]);
 
-  const userEmail = userData?.email || "";
-
-  // ── Campus → Venue cascade ────────────────────────────────────────────────
-  const [dbCampuses, setDbCampuses]         = useState<string[]>([]);
-  const [loadingCampuses, setLoadingCampuses] = useState(true);
-  const [selectedCampus, setSelectedCampus] = useState("");
-  const [venues, setVenues]                 = useState<Venue[]>([]);
-  const [loadingVenues, setLoadingVenues]   = useState(false);
-
-  // Fetch unique campuses from the db, fallback if not deployed
-  useEffect(() => {
-    async function loadCampuses() {
-      if (!session?.access_token) return;
-      try {
-        const res = await fetch(`${API_URL}/api/venues/campuses`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.campuses && data.campuses.length > 0) {
-            setDbCampuses(data.campuses);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch campuses via API", err);
-      }
-      
-      // Fallback if API fails or returns empty (e.g. hitting Vercel before backend is deployed)
-      console.log("Falling back to local christCampuses list");
-      setDbCampuses([...christCampuses].sort());
-      setLoadingCampuses(false);
-    }
-    loadCampuses();
-  }, [session?.access_token]);
-
-  // Prefill campus from profile once loaded
-  useEffect(() => {
-    if (userData?.campus && !selectedCampus && dbCampuses.includes(userData.campus)) {
-      setSelectedCampus(userData.campus);
-    }
-  }, [userData?.campus, dbCampuses]);
-
-  // Fetch venues whenever campus changes
-  useEffect(() => {
-    if (!selectedCampus || !session?.access_token) {
-      setVenues([]);
-      return;
-    }
-    setLoadingVenues(true);
-    setSelectedVenueId("");
-    setSelectedDate("");
-    setSelectedSlots([]);
-    setBookings([]);
-    fetch(`${API_URL}/api/venues?campus=${encodeURIComponent(selectedCampus)}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setVenues(Array.isArray(data) ? data : []))
-      .catch(() => {})
-      .finally(() => setLoadingVenues(false));
-  }, [selectedCampus, session?.access_token]);
-
-  // ── Form state ────────────────────────────────────────────────────────────
-  const [selectedVenueId, setSelectedVenueId] = useState("");
-  const [selectedDate,    setSelectedDate]    = useState("");
-  const [selectedSlots,   setSelectedSlots]   = useState<string[]>([]);
-  const [headcount,       setHeadcount]       = useState("");
-  const [setupNotes,      setSetupNotes]      = useState("");
-  const [notesCount,      setNotesCount]      = useState(0);
-
-  // ── Bookings ──────────────────────────────────────────────────────────────
-  const [bookings,        setBookings]        = useState<VenueBooking[]>([]);
-  const [loadingBookings, setLoadingBookings] = useState(false);
-  const [calendarMonth,   setCalendarMonth]   = useState(() => {
-    const t = new Date();
-    return { year: t.getFullYear(), month: t.getMonth() };
-  });
-
-  const selectedVenue = venues.find(v => v.id === selectedVenueId) || null;
-
-  const loadBookings = useCallback(async (venueId: string, year: number, month: number) => {
-    if (!venueId || !session?.access_token) return;
-    const monthStr = `${year}-${pad2(month + 1)}`;
-    setLoadingBookings(true);
-    try {
-      const r = await fetch(`${API_URL}/api/venues/${venueId}/availability?month=${monthStr}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (r.ok) {
-        const d = await r.json();
-        setBookings(d.bookings || []);
-      }
-    } catch {}
-    finally { setLoadingBookings(false); }
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    if (selectedVenueId) {
-      loadBookings(selectedVenueId, calendarMonth.year, calendarMonth.month);
-    } else {
-      setBookings([]);
-    }
-  }, [selectedVenueId]);
-
-  // ── Date validation ───────────────────────────────────────────────────────
-  const minDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  }, []);
-
-  const dateState = useMemo<"" | "valid" | "too-soon">(() => {
-    if (!selectedDate) return "";
-    if (selectedDate < minDate) return "too-soon";
-    return "valid";
-  }, [selectedDate, minDate]);
-
-  // ── Slot statuses ─────────────────────────────────────────────────────────
-  const slotStatuses = useMemo<Record<string, SlotStatus>>(() => {
-    const result: Record<string, SlotStatus> = {};
-    TIME_SLOTS.forEach(slot => {
-      result[slot.id] = getSlotStatus(slot, bookings, selectedDate, selectedSlots);
-    });
-    return result;
-  }, [bookings, selectedDate, selectedSlots]);
-
-  const slotsRange  = useMemo(() => getSlotsTimeRange(selectedSlots), [selectedSlots]);
-  const areAdjacent = slotsRange?.adjacent !== false;
-
-  // ── Submit ────────────────────────────────────────────────────────────────
-  const [submitting,       setSubmitting]       = useState(false);
-  const [successState,     setSuccessState]     = useState<{ confirmationNumber: string } | null>(null);
-  const [slotConflictError, setSlotConflictError] = useState<string | null>(null);
-
-  const hcNum          = parseInt(headcount || "0", 10);
-  const exceedsCapacity = selectedVenue?.capacity != null && hcNum > selectedVenue.capacity;
-
-  const checks = {
-    campusSelected:   Boolean(selectedCampus),
-    venueSelected:    Boolean(selectedVenueId),
-    dateValid:        dateState === "valid",
-    dateTooSoon:      dateState === "too-soon",
-    slotSelected:     selectedSlots.length > 0,
-    headcountEntered: hcNum > 0,
-    overCapacity:     exceedsCapacity,
-  };
-
-  const canSubmit =
-    checks.venueSelected &&
-    checks.dateValid &&
-    checks.slotSelected &&
-    checks.headcountEntered &&
-    !submitting;
-
-  function toggleSlot(slotId: string) {
-    setSelectedSlots(prev => prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]);
-    setSlotConflictError(null);
-  }
-
-  async function handleSubmit() {
-    if (!canSubmit) return;
-    const range = getSlotsTimeRange(selectedSlots);
-    if (!range) return;
-
-    setSubmitting(true);
-    setSlotConflictError(null);
-
-    try {
-      const res = await fetch(`${API_URL}/api/service-requests`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entity_type: "standalone",
-          details: {
-            booking_title: `Venue booking by ${userData?.name || userEmail}`,
-            venue_id:      selectedVenueId,
-            venue_name:    selectedVenue?.name || "",
-            date:          selectedDate,
-            start_time:    range.start,
-            end_time:      range.end,
-            headcount:     hcNum,
-            setup_notes:   setupNotes.trim() || null,
-            slots:         selectedSlots,
-          },
-        }),
-      });
-
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        if (res.status === 409 && body.conflict) {
-          setSlotConflictError(
-            `This slot was just taken by another coordinator (${body.conflict.start_time}–${body.conflict.end_time}). Please select a different slot.`
-          );
-          await loadBookings(selectedVenueId, calendarMonth.year, calendarMonth.month);
-          setSelectedSlots([]);
-          return;
-        }
-        toast.error(body.error || "Failed to submit booking");
-        return;
-      }
-
-      const confNum = `VB-${String(body.request?.id || Date.now()).slice(-6).toUpperCase()}`;
-      setSuccessState({ confirmationNumber: confNum });
-      toast.success("Venue booking submitted successfully!");
-    } catch {
-      toast.error("Network error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  // ─── Success State ────────────────────────────────────────────────────────
-
-  if (successState) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#f6fafe", paddingTop: 72 }}>
-        <div style={{ maxWidth: 520, margin: "80px auto", padding: "0 24px" }}>
-          <div style={{
-            background: "#fff", borderRadius: 16, border: "1px solid #e2ddd4",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: 40,
-            textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
-          }}>
-            <div style={{ width: 64, height: 64, borderRadius: 32, background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, marginBottom: 4 }}>
-              ✓
-            </div>
-            <h2 style={{ fontSize: 20, fontWeight: 600, color: "#1a7a52", margin: 0 }}>Slots Reserved ✓</h2>
-            <p style={{ fontSize: 14, color: "#545f73", margin: 0, lineHeight: 1.6 }}>
-              Your request has been sent to the Venue Manager for approval.
-            </p>
-            <div style={{ background: "#f6fafe", borderRadius: 10, padding: "16px 24px", width: "100%", textAlign: "left" }}>
-              <p style={{ fontSize: 11, color: "#8a8578", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Confirmation Number</p>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#154CB3", margin: 0, letterSpacing: "0.05em" }}>{successState.confirmationNumber}</p>
-            </div>
-            <div style={{ background: "#f6fafe", borderRadius: 10, padding: "12px 20px", width: "100%", textAlign: "left" }}>
-              <p style={{ fontSize: 12, color: "#545f73", margin: 0 }}>📅 You'll receive an email once your booking is approved.</p>
-              <p style={{ fontSize: 12, color: "#545f73", margin: "6px 0 0" }}>📆 A Google Calendar invite will be sent on approval.</p>
-            </div>
-            <Link href="/manage" style={{
-              marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "10px 24px", borderRadius: 8,
-              background: "linear-gradient(135deg, #154CB3, #4f46e5)",
-              color: "#fff", fontSize: 13.5, fontWeight: 500, textDecoration: "none",
-            }}>
-              ← Back to Manage
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const [tab, setTab] = useState<TabKey>("specific");
 
   if (authLoading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#f6fafe", paddingTop: 72, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#8a8578", fontSize: 14 }}>Loading…</div>
+      <div className="min-h-screen bg-slate-50 pt-[72px] flex items-center justify-center">
+        <div className="text-sm text-gray-400">Loading…</div>
       </div>
     );
   }
 
-  // ─── Main Render ──────────────────────────────────────────────────────────
-
   return (
-    <div style={{ minHeight: "100vh", background: "#f6fafe", paddingTop: 72 }}>
+    <div className="min-h-screen bg-slate-50 pt-[72px]">
+      <div className="max-w-screen-xl mx-auto px-6 py-6">
 
-      {/* ── Page Header ── */}
-      <div style={{ padding: "32px 32px 20px", maxWidth: 1320, margin: "0 auto" }}>
-        <nav style={{ fontSize: 12, color: "#8a8578", marginBottom: 6 }}>
-          <Link href="/manage" style={{ color: "#8a8578", textDecoration: "none" }} className="hover:text-[#154CB3]">Manage</Link>
-          <span style={{ margin: "0 6px" }}>›</span>
-          <span style={{ color: "#545f73" }}>Book a Venue</span>
+        {/* Breadcrumb */}
+        <nav className="text-xs text-gray-400 mb-1">
+          <Link href="/manage" className="hover:text-[#154CB3] transition-colors">Manage</Link>
+          <span className="mx-1.5">›</span>
+          <span className="text-gray-600">Venue Booking</span>
         </nav>
-        <h1 style={{ fontSize: 28, fontWeight: 600, color: "#171c1f", margin: 0, letterSpacing: "-0.01em" }}>Book a Venue</h1>
-        <p style={{ fontSize: 14, color: "#545f73", marginTop: 6 }}>
-          Slots are reserved immediately on submission and sent to the Venue Manager for approval.
-        </p>
-      </div>
 
-      {/* ── Two-column layout ── */}
-      <div
-        style={{
-          maxWidth: 1320,
-          margin: "0 auto",
-          padding: "0 32px 48px",
-          display: "grid",
-          gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr)",
-          gap: 20,
-          alignItems: "start",
-        }}
-        className="max-lg:!grid-cols-1"
-      >
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight mb-5">Venue Booking</h1>
 
-        {/* ══════════════════════════════════════════════════════════════
-            LEFT — BOOKING FORM
-        ══════════════════════════════════════════════════════════════ */}
-        <div style={{
-          background: "#fff", borderRadius: 12,
-          border: "1px solid #e2ddd4", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-          padding: 24,
-        }}>
-
-          {/* ── Section 1: Campus & Venue ── */}
-          <SectionLabel>Select Campus &amp; Venue</SectionLabel>
-
-          {/* Campus dropdown */}
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="campus-select" style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#8a8578", marginBottom: 5 }}>
-              Campus
-            </label>
-            {loadingCampuses ? (
-              <SkeletonPulse height={44} />
-            ) : (
-              <select
-                id="campus-select"
-                value={selectedCampus}
-                onChange={e => setSelectedCampus(e.target.value)}
-                style={selectStyle}
-                onFocus={e  => { e.target.style.borderColor = "#154CB3"; }}
-                onBlur={e   => { e.target.style.borderColor = "#e2ddd4"; }}
-              >
-                <option value="">Select a campus…</option>
-                {dbCampuses.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            )}
-          </div>
-
-          {/* Venue dropdown — shown only after campus is chosen */}
-          {selectedCampus && (
-            <div style={{ marginBottom: 4 }}>
-              <label htmlFor="venue-select" style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#8a8578", marginBottom: 5 }}>
-                Venue
-              </label>
-
-              {loadingVenues ? (
-                <SkeletonPulse height={44} />
-              ) : venues.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "20px 0", color: "#b5b0a5" }}>
-                  <svg width="36" height="36" fill="none" stroke="#b5b0a5" strokeWidth={1.3} viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                  <p style={{ fontSize: 13, margin: 0 }}>No venues available for this campus</p>
-                  <p style={{ fontSize: 11, margin: 0 }}>Contact your Master Admin to add venues.</p>
-                </div>
-              ) : (
-                <select
-                  id="venue-select"
-                  value={selectedVenueId}
-                  onChange={e => {
-                    setSelectedVenueId(e.target.value);
-                    setSelectedDate("");
-                    setSelectedSlots([]);
-                    setSlotConflictError(null);
-                    if (e.target.value) {
-                      loadBookings(e.target.value, calendarMonth.year, calendarMonth.month);
-                    } else {
-                      setBookings([]);
-                    }
-                  }}
-                  style={selectStyle}
-                  onFocus={e => { e.target.style.borderColor = "#154CB3"; }}
-                  onBlur={e  => { e.target.style.borderColor = "#e2ddd4"; }}
-                >
-                  <option value="">Choose a venue…</option>
-                  {venues.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}{v.capacity ? ` (cap. ${v.capacity})` : ""}{v.location ? ` — ${v.location}` : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
-
-          {/* Venue info card */}
-          {selectedVenue && (
-            <div style={{ marginTop: 10, background: "#f0f4f8", borderRadius: 8, padding: 14, border: "1px solid #e2ddd4" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: selectedVenue.location ? 8 : 0 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "#171c1f" }}>{selectedVenue.name}</span>
-                <span style={{ fontSize: 10, background: "#eef3ff", color: "#154CB3", borderRadius: 9999, padding: "2px 8px", fontWeight: 600 }}>
-                  {selectedCampus}
-                </span>
-                {selectedVenue.capacity && (
-                  <span style={{ fontSize: 12, color: "#545f73" }}>👥 {selectedVenue.capacity} people</span>
-                )}
-              </div>
-              {selectedVenue.location && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {["Projector", "AC", "Stage", "PA System", "Whiteboard"].map(am => (
-                    <span key={am} style={{ fontSize: 11, color: "#464555", background: "#fff", border: "1px solid #e2ddd4", borderRadius: 6, padding: "2px 8px" }}>{am}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <Divider />
-
-          {/* ── Section 2: Date ── */}
-          <SectionLabel>Select Date</SectionLabel>
-          <input
-            id="booking-date"
-            type="date"
-            value={selectedDate}
-            min={minDate}
-            disabled={!selectedVenueId}
-            onChange={e => {
-              setSelectedDate(e.target.value);
-              setSelectedSlots([]);
-              setSlotConflictError(null);
-            }}
-            style={{
-              width: "100%", height: 44, border: "1.5px solid #e2ddd4",
-              borderRadius: 8, padding: "0 12px", fontSize: 13.5,
-              color: selectedDate ? "#171c1f" : "#8a8578",
-              background: !selectedVenueId ? "#f6fafe" : "#fff",
-              outline: "none", cursor: !selectedVenueId ? "not-allowed" : "pointer",
-              boxSizing: "border-box",
-            }}
-            onFocus={e => { e.target.style.borderColor = "#154CB3"; }}
-            onBlur={e  => { e.target.style.borderColor = "#e2ddd4"; }}
-          />
-
-          {selectedDate && (
-            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              {dateState === "valid" && (
-                <>
-                  <span style={{ width: 16, height: 16, borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✓</span>
-                  <span style={{ fontSize: 12, color: "#1a7a52" }}>{formatDisplayDate(selectedDate)}</span>
-                </>
-              )}
-              {dateState === "too-soon" && (
-                <>
-                  <span style={{ width: 16, height: 16, borderRadius: 8, background: "#fef7ec", color: "#b86c10", fontSize: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>⚠</span>
-                  <span style={{ fontSize: 12, color: "#b86c10" }}>Must book at least 48 hours in advance</span>
-                </>
-              )}
-            </div>
-          )}
-
-          <Divider />
-
-          {/* ── Section 3: Slots (only when venue + valid date) ── */}
-          {selectedVenueId && dateState === "valid" && (
-            <>
-              <SectionLabel>Select Slots</SectionLabel>
-
-              {slotConflictError && (
-                <div style={{ background: "#fef1f1", border: "1.5px solid #f5b8b8", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#c42b2b" }}>
-                  {slotConflictError}
-                </div>
-              )}
-
-              {loadingBookings ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <SkeletonPulse height={72} radius={8} />
-                  <SkeletonPulse height={72} radius={8} />
-                  <SkeletonPulse height={72} radius={8} />
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {TIME_SLOTS.map(slot => (
-                      <SlotCard key={slot.id} slot={slot} status={slotStatuses[slot.id]} onClick={() => toggleSlot(slot.id)} />
-                    ))}
-                  </div>
-
-                  {/* Adjacent summary pill */}
-                  {slotsRange && selectedSlots.length > 1 && areAdjacent && (
-                    <div style={{
-                      marginTop: 10, display: "inline-flex", alignItems: "center", gap: 4,
-                      background: "#eef3ff", borderRadius: 9999, padding: "5px 14px",
-                      fontSize: 12, color: "#154CB3", fontWeight: 500,
-                    }}>
-                      {slotsRange.label} = {formatTime12(slotsRange.start)} – {formatTime12(slotsRange.end)} ✓
-                    </div>
-                  )}
-
-                  {/* Non-adjacent warning */}
-                  {slotsRange && selectedSlots.length > 1 && !areAdjacent && (
-                    <div style={{ marginTop: 10, background: "#fef7ec", border: "1px solid #f5d08a", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#b86c10" }}>
-                      ⚠ Non-adjacent slots must be submitted as separate requests
-                    </div>
-                  )}
-
-                  {/* Slot legend */}
-                  <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
-                    {[
-                      { dot: "#9ee0c0", label: "Available" },
-                      { dot: "#f5d08a", label: "Reserved" },
-                      { dot: "#f5b8b8", label: "Booked" },
-                      { dot: "#e2ddd4", label: "Blocked" },
-                    ].map(({ dot, label }) => (
-                      <span key={label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#8a8578" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 4, background: dot, display: "inline-block" }} />
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <Divider />
-            </>
-          )}
-
-          {/* ── Section 4: Booking Details ── */}
-          <SectionLabel>Booking Details</SectionLabel>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="max-sm:!grid-cols-1">
-            <div>
-              <label htmlFor="headcount" style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#8a8578", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                Expected Headcount *
-              </label>
-              <input
-                id="headcount"
-                type="number"
-                min={1}
-                value={headcount}
-                onChange={e => setHeadcount(e.target.value)}
-                placeholder="e.g. 250"
-                style={{ width: "100%", height: 40, border: "1.5px solid #e2ddd4", borderRadius: 8, padding: "0 12px", fontSize: 13.5, color: "#171c1f", background: "#fff", outline: "none", boxSizing: "border-box" }}
-                onFocus={e => { e.target.style.borderColor = "#154CB3"; }}
-                onBlur={e  => { e.target.style.borderColor = "#e2ddd4"; }}
-              />
-              {exceedsCapacity && (
-                <p style={{ marginTop: 5, fontSize: 11, color: "#b86c10", display: "flex", alignItems: "center", gap: 4 }}>
-                  <span>⚠</span> Exceeds venue capacity of {selectedVenue?.capacity}. Manager will be alerted.
-                </p>
-              )}
-              {hcNum > 0 && !exceedsCapacity && (
-                <p style={{ marginTop: 5, fontSize: 11, color: "#1a7a52" }}>✓ Within capacity</p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="event-link" style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#8a8578", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                Link to Event (optional)
-              </label>
-              <select
-                id="event-link"
-                style={{ ...selectStyle, height: 40 }}
-                onFocus={e => { e.target.style.borderColor = "#154CB3"; }}
-                onBlur={e  => { e.target.style.borderColor = "#e2ddd4"; }}
-              >
-                <option>No link — standalone booking</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <label htmlFor="setup-notes" style={{ fontSize: 11, fontWeight: 600, color: "#8a8578", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Setup Notes (optional)
-              </label>
-              <span style={{ fontSize: 11, color: "#b5b0a5" }}>{notesCount} / 500</span>
-            </div>
-            <textarea
-              id="setup-notes"
-              rows={3}
-              value={setupNotes}
-              maxLength={500}
-              onChange={e => { setSetupNotes(e.target.value); setNotesCount(e.target.value.length); }}
-              placeholder="e.g. Need stage setup, 150 chairs in rows, 2 projectors, podium at front. AV team should arrive 1 hr early."
-              style={{ width: "100%", border: "1.5px solid #e2ddd4", borderRadius: 8, padding: "10px 12px", fontSize: 13, color: "#171c1f", background: "#fff", outline: "none", resize: "vertical", lineHeight: 1.55, boxSizing: "border-box" }}
-              onFocus={e => { e.target.style.borderColor = "#154CB3"; }}
-              onBlur={e  => { e.target.style.borderColor = "#e2ddd4"; }}
-            />
-          </div>
-
-          {/* ── Submit ── */}
-          <Divider />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <p style={{ fontSize: 12, color: "#8a8578", maxWidth: 340, lineHeight: 1.5, flex: 1 }}>
-              Slots are reserved immediately on submission.<br />
-              Venue Manager will be notified for approval.
-            </p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Link href="/manage" style={{
-                padding: "10px 20px", borderRadius: 8, border: "1.5px solid #e2ddd4",
-                background: "transparent", color: "#8a8578", fontSize: 13.5, fontWeight: 500,
-                textDecoration: "none", display: "inline-flex", alignItems: "center",
-              }}>
-                Cancel
-              </Link>
-              <button
-                id="reserve-submit-btn"
-                type="button"
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                style={{
-                  padding: "10px 24px", borderRadius: 8, border: "none",
-                  background: canSubmit ? "linear-gradient(135deg, #154CB3, #4f46e5)" : "#e2ddd4",
-                  color: canSubmit ? "#fff" : "#8a8578",
-                  fontSize: 13.5, fontWeight: 500,
-                  cursor: canSubmit ? "pointer" : "not-allowed",
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  transition: "opacity 0.15s",
-                }}
-                className={canSubmit ? "hover:opacity-90 active:scale-[0.97]" : ""}
-              >
-                {submitting ? (
-                  <>
-                    <svg className="animate-spin" width="14" height="14" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Reserving…
-                  </>
-                ) : "Reserve & Submit"}
-              </button>
-            </div>
-          </div>
+        {/* Tab row */}
+        <div className="grid grid-cols-3 gap-3 mb-5 max-md:grid-cols-1">
+          <TabButton active={tab === "mine"}     onClick={() => setTab("mine")}     icon={<IconCalendar />}  label="My Bookings" />
+          <TabButton active={tab === "specific"} onClick={() => setTab("specific")} icon={<IconBuilding />}  label="Book Specific Venue" />
+          <TabButton active={tab === "any"}      onClick={() => setTab("any")}      icon={<IconSearch />}    label="Find Available Venue" />
         </div>
 
-        {/* ══════════════════════════════════════════════════════════════
-            RIGHT — CALENDAR + CHECKLIST (calendar takes most space)
-        ══════════════════════════════════════════════════════════════ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {tab === "mine"     && <MyBookingsView session={session} />}
+        {tab === "specific" && <SpecificVenueView session={session} userData={userData} />}
+        {tab === "any"      && <AnyAvailableView session={session} userData={userData} />}
+      </div>
+    </div>
+  );
+}
 
-          {/* ── Big Calendar Card ── */}
-          <div style={{
-            background: "#fff", borderRadius: 12,
-            border: "1px solid #e2ddd4", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-            overflow: "hidden",
-          }}>
-            <FullCalendar
-              bookings={bookings}
-              selectedDate={selectedDate}
-              currentMonth={calendarMonth}
-              onMonthChange={(y, m) => {
-                setCalendarMonth({ year: y, month: m });
-                if (selectedVenueId) loadBookings(selectedVenueId, y, m);
-              }}
-              venueSelected={Boolean(selectedVenueId)}
-              venueName={selectedVenue?.name}
-            />
+// ─── Tab button ───────────────────────────────────────────────────────────────
+
+function TabButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all border ${
+        active
+          ? "bg-[#154CB3] text-white border-[#154CB3] shadow-sm"
+          : "bg-white text-gray-600 border-gray-200 hover:border-[#154CB3] hover:text-[#154CB3]"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIEW 1 — BOOK SPECIFIC VENUE
+// ══════════════════════════════════════════════════════════════════════════════
+
+function SpecificVenueView({ session, userData }: { session: any; userData: any }) {
+  const [campuses,       setCampuses]       = useState<string[]>([]);
+  const [selectedCampus, setSelectedCampus] = useState("");
+  const [blocks,         setBlocks]         = useState<string[]>([]);
+  const [loadingBlocks,  setLoadingBlocks]  = useState(false);
+  const [selectedBlock,  setSelectedBlock]  = useState("");
+  const [venues,         setVenues]         = useState<Venue[]>([]);
+  const [loadingVenues,  setLoadingVenues]  = useState(false);
+  const [selectedVenueId, setSelectedVenueId] = useState("");
+  const selectedVenue = venues.find(v => v.id === selectedVenueId) || null;
+
+  const [weekStart,     setWeekStart]     = useState<Date>(() => startOfWeek(new Date()));
+  const [bookings,      setBookings]      = useState<VenueBooking[]>([]);
+  const [ownBookings,   setOwnBookings]   = useState<MyBooking[]>([]);
+  const [loadingCal,    setLoadingCal]    = useState(false);
+  const [modal,         setModal]         = useState<{ date: string; start_time: string; end_time: string } | null>(null);
+
+  // Load campuses
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch(`${API_URL}/api/venues/campuses`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setCampuses(d?.campuses?.length ? d.campuses : [...christCampuses].sort()))
+      .catch(() => setCampuses([...christCampuses].sort()));
+  }, [session?.access_token]);
+
+  // Prefill campus from profile
+  useEffect(() => {
+    if (userData?.campus && !selectedCampus && campuses.includes(userData.campus)) {
+      setSelectedCampus(userData.campus);
+    }
+  }, [userData?.campus, campuses]);
+
+  // Campus → Blocks
+  useEffect(() => {
+    setSelectedBlock(""); setBlocks([]); setVenues([]); setSelectedVenueId("");
+    if (!selectedCampus || !session?.access_token) return;
+    setLoadingBlocks(true);
+    fetch(`${API_URL}/api/venues/blocks?campus=${encodeURIComponent(selectedCampus)}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(r => r.ok ? r.json() : { blocks: [] })
+      .then(d => setBlocks(Array.isArray(d.blocks) ? d.blocks : []))
+      .catch(() => {})
+      .finally(() => setLoadingBlocks(false));
+  }, [selectedCampus, session?.access_token]);
+
+  // Block → Venues
+  useEffect(() => {
+    setSelectedVenueId(""); setVenues([]);
+    if (!selectedCampus || !selectedBlock || !session?.access_token) return;
+    setLoadingVenues(true);
+    fetch(
+      `${API_URL}/api/venues?campus=${encodeURIComponent(selectedCampus)}&block=${encodeURIComponent(selectedBlock)}`,
+      { headers: { Authorization: `Bearer ${session.access_token}` } }
+    )
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setVenues(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setLoadingVenues(false));
+  }, [selectedCampus, selectedBlock, session?.access_token]);
+
+  // Load approved (public) availability for the visible week
+  const loadBookings = useCallback(async () => {
+    if (!selectedVenueId || !session?.access_token) { setBookings([]); return; }
+    setLoadingCal(true);
+    try {
+      const mid = addDays(weekStart, 3);
+      const monthStr = `${mid.getFullYear()}-${pad2(mid.getMonth() + 1)}`;
+      const r = await fetch(
+        `${API_URL}/api/venues/${selectedVenueId}/availability?month=${monthStr}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        setBookings(Array.isArray(d.bookings) ? d.bookings : []);
+      }
+    } catch {}
+    finally { setLoadingCal(false); }
+  }, [selectedVenueId, session?.access_token, weekStart]);
+
+  // Load current user's own non-approved bookings for this venue (pending/rejected/returned)
+  const loadOwnBookings = useCallback(async () => {
+    if (!selectedVenueId || !session?.access_token) { setOwnBookings([]); return; }
+    try {
+      const r = await fetch(`${API_URL}/api/venue-bookings/mine`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!r.ok) { setOwnBookings([]); return; }
+      const d = await r.json();
+      const all: MyBooking[] = [...(d.upcoming || []), ...(d.past || [])];
+      setOwnBookings(all.filter(b => b.venue_id === selectedVenueId && b.status !== "approved"));
+    } catch { setOwnBookings([]); }
+  }, [selectedVenueId, session?.access_token]);
+
+  useEffect(() => { loadBookings(); }, [loadBookings]);
+  useEffect(() => { loadOwnBookings(); }, [loadOwnBookings]);
+
+  function handleCellClick(date: string, hour: number) {
+    if (!selectedVenueId) return;
+    const start = `${pad2(hour)}:00`;
+    const end   = `${pad2(hour + 1)}:00`;
+    if (isPast(date, start)) { toast.error("Cannot book a past time slot."); return; }
+    setModal({ date, start_time: start, end_time: end });
+  }
+
+  return (
+    <>
+      {/* Filter row */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-4">
+        <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1">
+          <FormField label="Campus">
+            <select
+              value={selectedCampus}
+              onChange={e => setSelectedCampus(e.target.value)}
+              className={selectCls}
+            >
+              <option value="">Select campus…</option>
+              {campuses.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </FormField>
+
+          <FormField label="Location">
+            <select
+              value={selectedBlock}
+              disabled={!selectedCampus || loadingBlocks || blocks.length === 0}
+              onChange={e => setSelectedBlock(e.target.value)}
+              className={selectCls}
+            >
+              {!selectedCampus
+                ? <option>Select campus first</option>
+                : loadingBlocks
+                  ? <option>Loading…</option>
+                  : blocks.length === 0
+                    ? <option>No locations found</option>
+                    : <>
+                        <option value="">Select location…</option>
+                        {blocks.map(b => <option key={b} value={b}>{b}</option>)}
+                      </>
+              }
+            </select>
+          </FormField>
+
+          <FormField label="Venue">
+            <select
+              value={selectedVenueId}
+              disabled={!selectedBlock || loadingVenues || venues.length === 0}
+              onChange={e => setSelectedVenueId(e.target.value)}
+              className={selectCls}
+            >
+              {!selectedBlock
+                ? <option>Select location first</option>
+                : loadingVenues
+                  ? <option>Loading…</option>
+                  : venues.length === 0
+                    ? <option>No venues found</option>
+                    : <>
+                        <option value="">Select venue…</option>
+                        {venues.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}{v.capacity ? ` · cap ${v.capacity}` : ""}
+                          </option>
+                        ))}
+                      </>
+              }
+            </select>
+          </FormField>
+        </div>
+
+        {selectedVenue && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500 border-t border-gray-100 pt-3">
+            <span className="font-semibold text-gray-800 text-sm">{selectedVenue.name}</span>
+            {selectedVenue.location && <span>· {selectedVenue.location}</span>}
+            {selectedVenue.capacity != null && (
+              <span className="flex items-center gap-1"><IconUsers /> {selectedVenue.capacity} capacity</span>
+            )}
+            {selectedVenue.is_approval_needed && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-semibold">
+                Requires approval
+              </span>
+            )}
           </div>
+        )}
+      </div>
 
-          {/* ── Checklist Card ── */}
-          <div style={{
-            background: "#fff", borderRadius: 12,
-            border: "1px solid #e2ddd4", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-            padding: "18px 20px",
-          }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#171c1f", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Booking Checklist
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <ChecklistItem
-                icon={checks.campusSelected ? "✓" : "○"}
-                color={checks.campusSelected ? "#166534" : "#8a8578"}
-                bg={checks.campusSelected ? "#dcfce7" : "#f0ede8"}
-                text="Campus selected"
-              />
-              <ChecklistItem
-                icon={checks.venueSelected ? "✓" : "○"}
-                color={checks.venueSelected ? "#166534" : "#8a8578"}
-                bg={checks.venueSelected ? "#dcfce7" : "#f0ede8"}
-                text="Venue selected"
-              />
-              <ChecklistItem
-                icon={checks.dateTooSoon ? "⚠" : checks.dateValid ? "✓" : "○"}
-                color={checks.dateTooSoon ? "#b86c10" : checks.dateValid ? "#166534" : "#8a8578"}
-                bg={checks.dateTooSoon ? "#fef7ec" : checks.dateValid ? "#dcfce7" : "#f0ede8"}
-                text={checks.dateTooSoon ? "Less than 48 hours ahead" : "Date selected (min 48 hours ahead)"}
-              />
-              <ChecklistItem
-                icon={checks.slotSelected ? "✓" : "○"}
-                color={checks.slotSelected ? "#166534" : "#8a8578"}
-                bg={checks.slotSelected ? "#dcfce7" : "#f0ede8"}
-                text="At least one slot selected"
-              />
-              <ChecklistItem
-                icon={checks.overCapacity ? "⚠" : checks.headcountEntered ? "✓" : "○"}
-                color={checks.overCapacity ? "#b86c10" : checks.headcountEntered ? "#166534" : "#8a8578"}
-                bg={checks.overCapacity ? "#fef7ec" : checks.headcountEntered ? "#dcfce7" : "#f0ede8"}
-                text={checks.overCapacity ? "⚠ Over capacity — Venue Manager will be alerted" : "Headcount entered"}
-              />
+      {/* Calendar */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {!selectedVenueId ? (
+          <div className="py-16 text-center text-sm text-gray-400">
+            Select a campus, location, and venue to view the calendar.
+          </div>
+        ) : (
+          <WeekCalendar
+            weekStart={weekStart}
+            onWeekChange={setWeekStart}
+            bookings={bookings}
+            ownBookings={ownBookings}
+            loading={loadingCal}
+            onCellClick={handleCellClick}
+            venueName={selectedVenue?.name || ""}
+          />
+        )}
+      </div>
+
+      {modal && selectedVenue && (
+        <BookingModal
+          session={session}
+          userData={userData}
+          venue={selectedVenue}
+          initial={modal}
+          onClose={() => setModal(null)}
+          onSuccess={() => { setModal(null); loadBookings(); loadOwnBookings(); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Week Calendar ────────────────────────────────────────────────────────────
+
+function WeekCalendar({
+  weekStart, onWeekChange, bookings, ownBookings = [], loading, onCellClick, venueName,
+}: {
+  weekStart: Date;
+  onWeekChange: (d: Date) => void;
+  bookings: VenueBooking[];
+  ownBookings?: MyBooking[];
+  loading: boolean;
+  onCellClick: (date: string, hour: number) => void;
+  venueName: string;
+}) {
+  const days  = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
+  const todayStr = ymd(new Date());
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onWeekChange(addDays(weekStart, -7))}
+            className="w-8 h-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:border-[#154CB3] hover:text-[#154CB3] transition-colors"
+            aria-label="Previous week"
+          >
+            <IconChevronLeft />
+          </button>
+          <button
+            onClick={() => onWeekChange(startOfWeek(new Date()))}
+            className="px-3 h-8 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-[#154CB3] hover:text-[#154CB3] transition-colors"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => onWeekChange(addDays(weekStart, 7))}
+            className="w-8 h-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:border-[#154CB3] hover:text-[#154CB3] transition-colors"
+            aria-label="Next week"
+          >
+            <IconChevronRight />
+          </button>
+          <span className="ml-2 text-sm font-semibold text-gray-800">{weekRangeLabel(weekStart)}</span>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-gray-400">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-green-200 border border-green-400 inline-block" />
+            Approved
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-400 inline-block" />
+            My pending
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-400 inline-block" />
+            My rejected
+          </span>
+          {loading && <span className="text-gray-400">Loading…</span>}
+        </div>
+      </div>
+
+      {/* Day header row */}
+      <div
+        className="grid border-b border-gray-200 bg-gray-50"
+        style={{ gridTemplateColumns: "52px repeat(7, minmax(0,1fr))" }}
+      >
+        <div className="border-r border-gray-200" />
+        {days.map((d, i) => {
+          const isToday = ymd(d) === todayStr;
+          return (
+            <div key={i} className="py-2 px-1 text-center border-l border-gray-100 first:border-l-0">
+              <div className="text-[10px] font-semibold text-gray-400 tracking-widest">
+                {d.toLocaleDateString("en-IN", { weekday: "short" }).toUpperCase()}
+              </div>
+              <div className={`mt-1 mx-auto w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold ${
+                isToday ? "bg-[#154CB3] text-white" : "text-gray-700"
+              }`}>
+                {d.getDate()}
+              </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* Scrollable grid */}
+      <div className="overflow-y-auto" style={{ maxHeight: "min(62vh, 720px)" }}>
+        <div className="grid" style={{ gridTemplateColumns: "52px repeat(7, minmax(0,1fr))" }}>
+
+          {/* Hour labels */}
+          <div className="border-r border-gray-200">
+            {hours.map(h => (
+              <div
+                key={h}
+                className="border-b border-gray-100 text-[10px] text-gray-400 text-right pr-2 pt-1 select-none"
+                style={{ height: HOUR_HEIGHT }}
+              >
+                {h % 12 || 12}{h < 12 ? "a" : "p"}
+              </div>
+            ))}
           </div>
+
+          {/* 7 day columns */}
+          {days.map((d, di) => {
+            const dateStr    = ymd(d);
+            const dayBooks   = bookings.filter(b => b.date === dateStr);
+            const dayOwn     = ownBookings.filter(b => b.date === dateStr);
+            return (
+              <div key={di} className="relative border-l border-gray-100 first:border-l-0">
+                {/* Clickable hour cells */}
+                {hours.map(h => {
+                  const pastCell = isPast(dateStr, `${pad2(h)}:00`);
+                  return (
+                    <div
+                      key={h}
+                      role={pastCell ? undefined : "button"}
+                      tabIndex={pastCell ? undefined : 0}
+                      onClick={pastCell ? undefined : () => onCellClick(dateStr, h)}
+                      onKeyDown={pastCell ? undefined : e => { if (e.key === "Enter") onCellClick(dateStr, h); }}
+                      className={`border-b border-gray-100 ${pastCell ? "bg-gray-50 cursor-not-allowed" : "cursor-pointer hover:bg-blue-50 transition-colors"}`}
+                      style={{ height: HOUR_HEIGHT }}
+                      aria-label={pastCell ? "Past" : `Book ${formatTime12(`${pad2(h)}:00`)} — ${d.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}`}
+                    />
+                  );
+                })}
+
+                {/* Approved booking blocks (visible to everyone) */}
+                {dayBooks.map((b, bi) => {
+                  const startMin = toMinutes(b.start_time);
+                  const endMin   = toMinutes(b.end_time);
+                  const baseMin  = HOUR_START * 60;
+                  const top    = Math.max(0, (startMin - baseMin) / 60 * HOUR_HEIGHT);
+                  const height = Math.max(18, (endMin - startMin) / 60 * HOUR_HEIGHT - 2);
+                  const c = bookingBarColor("approved");
+                  return (
+                    <div
+                      key={bi}
+                      title={`${b.booking_title || b.full_name || "Booking"} · ${formatTime12(b.start_time)}–${formatTime12(b.end_time)}`}
+                      style={{
+                        position: "absolute",
+                        left: 3, right: 3,
+                        top, height,
+                        background: c.bg,
+                        borderLeft: `3px solid ${c.border}`,
+                        borderRadius: 4,
+                        padding: "2px 5px",
+                        zIndex: 2,
+                        pointerEvents: "none",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: c.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {b.booking_title || b.full_name || "Booking"}
+                      </p>
+                      <p style={{ margin: 0, fontSize: 9, color: c.text, opacity: 0.8 }}>
+                        {formatTime12(b.start_time)} – {formatTime12(b.end_time)}
+                      </p>
+                    </div>
+                  );
+                })}
+
+                {/* Own non-approved bookings (only visible to the requester) */}
+                {dayOwn.map((b, bi) => {
+                  const startMin = toMinutes(b.start_time);
+                  const endMin   = toMinutes(b.end_time);
+                  const baseMin  = HOUR_START * 60;
+                  const top    = Math.max(0, (startMin - baseMin) / 60 * HOUR_HEIGHT);
+                  const height = Math.max(18, (endMin - startMin) / 60 * HOUR_HEIGHT - 2);
+                  const c = bookingBarColor(b.status);
+                  const label =
+                    b.status === "pending"               ? "Awaiting approval" :
+                    b.status === "rejected"              ? "Rejected" :
+                    b.status === "returned_for_revision" ? "Returned" : b.status;
+                  return (
+                    <div
+                      key={`own-${bi}`}
+                      title={`${b.title} · ${label}${b.decision_notes ? ` — ${b.decision_notes}` : ""} · ${formatTime12(b.start_time)}–${formatTime12(b.end_time)}`}
+                      style={{
+                        position: "absolute",
+                        left: 4, right: 4,
+                        top, height,
+                        background: c.bg,
+                        borderLeft: `3px solid ${c.border}`,
+                        borderRadius: 4,
+                        padding: "2px 5px",
+                        zIndex: 3,
+                        pointerEvents: "none",
+                        overflow: "hidden",
+                        opacity: 0.92,
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: c.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {b.title}
+                      </p>
+                      <p style={{ margin: 0, fontSize: 9, color: c.text, opacity: 0.85 }}>
+                        {label} · {formatTime12(b.start_time)}–{formatTime12(b.end_time)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {venueName && (
+        <div className="px-5 py-2.5 border-t border-gray-200 bg-gray-50 text-xs text-gray-400">
+          Approved bookings for <span className="font-semibold text-gray-600">{venueName}</span> are visible to everyone. Your pending/rejected bookings are visible only to you. Click any empty slot to book.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Booking Modal ────────────────────────────────────────────────────────────
+
+function BookingModal({
+  session, userData, venue, initial, onClose, onSuccess,
+}: {
+  session: any; userData: any; venue: Venue;
+  initial: { date: string; start_time: string; end_time: string };
+  onClose: () => void; onSuccess: () => void;
+}) {
+  const [date,      setDate]      = useState(initial.date);
+  const [startTime, setStartTime] = useState(initial.start_time);
+  const [endTime,   setEndTime]   = useState(initial.end_time);
+  const [title,     setTitle]     = useState(`Venue booking — ${userData?.name || userData?.email || ""}`);
+  const [headcount, setHeadcount] = useState("");
+  const [notes,     setNotes]     = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+
+  const hcNum = parseInt(headcount || "0", 10);
+  const validTimes = toMinutes(endTime) > toMinutes(startTime);
+  const overCapacity = venue.capacity != null && hcNum > 0 && hcNum > venue.capacity;
+  const canSubmit = !!date && validTimes && title.trim().length >= 3 && hcNum > 0 && !overCapacity && !submitting;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setSubmitting(true); setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/venue-bookings`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          venue_id: venue.id,
+          date,
+          start_time: startTime,
+          end_time: endTime,
+          title: title.trim(),
+          headcount: hcNum || null,
+          setup_notes: notes.trim() || null,
+          entity_type: "standalone",
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409 && body.conflict) {
+          setError(`Conflicts with existing booking (${body.conflict.start_time}–${body.conflict.end_time}).`);
+        } else {
+          setError(body.error || "Failed to submit.");
+        }
+        return;
+      }
+      toast.success(body.auto_approved ? "Venue booked and confirmed!" : "Booking submitted — awaiting approval.");
+      onSuccess();
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false); }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Modal header */}
+        <div className="flex items-start justify-between px-5 py-4 border-b border-gray-200">
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">New booking</p>
+            <p className="text-base font-semibold text-gray-900">{venue.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5">
+            <IconX />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <FormField label="Title">
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className={inputCls}
+              placeholder="e.g. Department orientation"
+            />
+          </FormField>
+
+          <div className="grid grid-cols-3 gap-3">
+            <FormField label="Date">
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+            </FormField>
+            <FormField label="Start">
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputCls} />
+            </FormField>
+            <FormField label="End">
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputCls} />
+            </FormField>
+          </div>
+
+          <FormField label={`Headcount${venue.capacity != null ? ` (max ${venue.capacity})` : ""}`}>
+            <input
+              type="number" min={1}
+              value={headcount}
+              onChange={e => setHeadcount(e.target.value)}
+              className={inputCls}
+              placeholder="Expected attendees"
+            />
+            {overCapacity && (
+              <p className="text-[11px] text-red-600 mt-1">Exceeds venue capacity of {venue.capacity}</p>
+            )}
+          </FormField>
+
+          <FormField label="Setup notes (optional)">
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value.slice(0, 500))}
+              className={`${inputCls} h-20 resize-none pt-2`}
+              placeholder="Microphone, projector, seating layout…"
+            />
+          </FormField>
+
+          {!validTimes && date && (
+            <p className="text-xs text-red-600">End time must be after start time.</p>
+          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-200 bg-gray-50 flex gap-2.5 justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="px-5 py-2 rounded-lg text-sm font-semibold bg-[#154CB3] text-white hover:bg-[#0f3a7a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? "Submitting…" : "Submit booking"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIEW 2 — MY BOOKINGS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function MyBookingsView({ session }: { session: any }) {
+  const [sub,      setSub]      = useState<"upcoming" | "past">("upcoming");
+  const [upcoming, setUpcoming] = useState<MyBooking[]>([]);
+  const [past,     setPast]     = useState<MyBooking[]>([]);
+  const [loading,  setLoading]  = useState(false);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    setLoading(true);
+    setFetchErr(null);
+    fetch(`${API_URL}/api/venue-bookings/mine`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(r => {
+        if (!r.ok) return Promise.reject(new Error(`Server error ${r.status}`));
+        return r.json();
+      })
+      .then(d => { setUpcoming(d.upcoming || []); setPast(d.past || []); })
+      .catch(e => setFetchErr(e.message || "Failed to load bookings"))
+      .finally(() => setLoading(false));
+  }, [session?.access_token]);
+
+  const rows = sub === "upcoming" ? upcoming : past;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Sub-tab toggle */}
+      <div className="flex items-center border-b border-gray-200 px-5 py-3 gap-2">
+        <button
+          onClick={() => setSub("upcoming")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+            sub === "upcoming" ? "bg-[#154CB3] text-white" : "text-gray-500 hover:text-gray-800"
+          }`}
+        >
+          Upcoming
+        </button>
+        <button
+          onClick={() => setSub("past")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+            sub === "past" ? "bg-[#154CB3] text-white" : "text-gray-500 hover:text-gray-800"
+          }`}
+        >
+          Past
+        </button>
+        <span className="ml-auto text-xs text-gray-400">{rows.length} booking{rows.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      {loading ? (
+        <div className="py-16 text-center text-sm text-gray-400">Loading…</div>
+      ) : fetchErr ? (
+        <div className="py-16 text-center">
+          <p className="text-sm text-red-500 mb-1">Could not load bookings</p>
+          <p className="text-xs text-gray-400">{fetchErr}</p>
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="py-16 text-center text-sm text-gray-400">
+          No {sub} bookings.
+        </div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {rows.map(r => (
+            <li key={r.id} className="px-5 py-4">
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{r.title}</p>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusStyle(r.status)}`}>
+                      {statusLabel(r.status)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500">
+                    {r.venue?.name && <span className="font-medium text-gray-700">{r.venue.name}</span>}
+                    <span className="flex items-center gap-1">
+                      <IconClock />{r.date} · {formatTime12(r.start_time)} – {formatTime12(r.end_time)}
+                    </span>
+                    {r.headcount && (
+                      <span className="flex items-center gap-1"><IconUsers />{r.headcount}</span>
+                    )}
+                  </div>
+                  {r.decision_notes && (
+                    <p className={`mt-1.5 text-xs italic border-l-2 pl-2 ${
+                      r.status === "rejected" ? "border-red-300 text-red-600" :
+                      r.status === "returned_for_revision" ? "border-purple-300 text-purple-700" :
+                      "border-gray-200 text-gray-400"
+                    }`}>
+                      {r.decision_notes}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIEW 3 — FIND AVAILABLE VENUE
+// ══════════════════════════════════════════════════════════════════════════════
+
+function AnyAvailableView({ session, userData }: { session: any; userData: any }) {
+  const [campuses, setCampuses] = useState<string[]>([]);
+  const [campus,   setCampus]   = useState("");
+  const [date,     setDate]     = useState(() => { const d = new Date(); d.setDate(d.getDate() + 2); return ymd(d); });
+  const [startT,   setStartT]   = useState("09:00");
+  const [endT,     setEndT]     = useState("11:00");
+  const [minCap,   setMinCap]   = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results,  setResults]  = useState<null | { venue: Venue; free: boolean; conflict?: { start_time: string; end_time: string } }[]>(null);
+  const [picked,   setPicked]   = useState<Venue | null>(null);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch(`${API_URL}/api/venues/campuses`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setCampuses(d?.campuses?.length ? d.campuses : [...christCampuses].sort()))
+      .catch(() => setCampuses([...christCampuses].sort()));
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (userData?.campus && !campus && campuses.includes(userData.campus)) setCampus(userData.campus);
+  }, [userData?.campus, campuses]);
+
+  async function search() {
+    if (!session?.access_token || !campus) return;
+    if (toMinutes(endT) <= toMinutes(startT)) { toast.error("End must be after start time."); return; }
+    setSearching(true); setResults(null);
+    try {
+      const vr = await fetch(`${API_URL}/api/venues?campus=${encodeURIComponent(campus)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const vs: Venue[] = vr.ok ? await vr.json() : [];
+      const minCapN = parseInt(minCap || "0", 10);
+      const monthStr = date.slice(0, 7);
+
+      const checked = await Promise.all(vs.map(async v => {
+        if (minCapN > 0 && v.capacity != null && v.capacity < minCapN) {
+          return { venue: v, free: false, conflict: { start_time: "—", end_time: "capacity" } };
+        }
+        try {
+          const ar = await fetch(`${API_URL}/api/venues/${v.id}/availability?month=${monthStr}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const ab = ar.ok ? await ar.json() : { bookings: [] };
+          const clash = (ab.bookings || []).find((b: VenueBooking) =>
+            b.date === date &&
+            toMinutes(startT) < toMinutes(b.end_time) &&
+            toMinutes(endT)   > toMinutes(b.start_time)
+          );
+          return clash
+            ? { venue: v, free: false, conflict: { start_time: clash.start_time, end_time: clash.end_time } }
+            : { venue: v, free: true };
+        } catch {
+          return { venue: v, free: true };
+        }
+      }));
+      setResults(checked);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  const free      = results?.filter(r => r.free)  || [];
+  const occupied  = results?.filter(r => !r.free) || [];
+
+  return (
+    <>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-4">
+        <div className="grid grid-cols-6 gap-3 items-end max-lg:grid-cols-3 max-md:grid-cols-2">
+          <FormField label="Campus">
+            <select value={campus} onChange={e => setCampus(e.target.value)} className={selectCls}>
+              <option value="">Select…</option>
+              {campuses.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </FormField>
+          <FormField label="Date">
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+          </FormField>
+          <FormField label="Start">
+            <input type="time" value={startT} onChange={e => setStartT(e.target.value)} className={inputCls} />
+          </FormField>
+          <FormField label="End">
+            <input type="time" value={endT} onChange={e => setEndT(e.target.value)} className={inputCls} />
+          </FormField>
+          <FormField label="Min capacity">
+            <input type="number" min={1} value={minCap} onChange={e => setMinCap(e.target.value)} className={inputCls} placeholder="Any" />
+          </FormField>
+          <FormField label="&nbsp;">
+            <button
+              onClick={search}
+              disabled={!campus || searching}
+              className="w-full h-10 px-4 rounded-lg text-sm font-semibold bg-[#154CB3] text-white hover:bg-[#0f3a7a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <IconSearch />
+              {searching ? "Searching…" : "Search"}
+            </button>
+          </FormField>
+        </div>
+      </div>
+
+      {results && (
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-sm font-semibold text-green-700">Available — {free.length}</p>
+            </div>
+            {free.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-gray-400 text-center">No venues available in this window.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {free.map(({ venue }) => (
+                  <li key={venue.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{venue.name}</p>
+                      <p className="text-xs text-gray-400">{venue.location}{venue.capacity != null ? ` · cap ${venue.capacity}` : ""}</p>
+                    </div>
+                    <button
+                      onClick={() => setPicked(venue)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#154CB3] text-white hover:bg-[#0f3a7a] transition-colors"
+                    >
+                      Book
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-sm font-semibold text-red-700">Unavailable — {occupied.length}</p>
+            </div>
+            {occupied.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-gray-400 text-center">None.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {occupied.map(({ venue, conflict }) => (
+                  <li key={venue.id} className="px-4 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{venue.name}</p>
+                    <p className="text-xs text-red-500 mt-0.5">
+                      {conflict?.end_time === "capacity"
+                        ? `Below minimum capacity (${venue.capacity})`
+                        : `Booked ${formatTime12(conflict?.start_time || "")} – ${formatTime12(conflict?.end_time || "")}`
+                      }
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {picked && (
+        <BookingModal
+          session={session}
+          userData={userData}
+          venue={picked}
+          initial={{ date, start_time: startT, end_time: endT }}
+          onClose={() => setPicked(null)}
+          onSuccess={() => { setPicked(null); search(); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Shared micro-components ──────────────────────────────────────────────────
+
+function FormField({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// Shared Tailwind class strings
+const selectCls =
+  "w-full h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed";
+
+const inputCls =
+  "w-full h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent";

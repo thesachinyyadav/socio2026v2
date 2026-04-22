@@ -273,19 +273,24 @@ export default function ApprovalsPage() {
     setVenueSubmitting(true);
     setVenueError(null);
     try {
-      const res = await fetch(`${API_URL}/api/service-requests`, {
+      const res = await fetch(`${API_URL}/api/venue-bookings`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session!.access_token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
+          venue_id:    venueForm.venue_id,
+          date:        venueForm.date,
+          start_time:  venueForm.start_time,
+          end_time:    venueForm.end_time,
+          title:       item?.title || "Venue booking",
+          setup_notes: venueForm.setup_notes || undefined,
           entity_type: approval!.type,
-          entity_id: itemId,
-          details: venueForm,
+          entity_id:   itemId,
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { setVenueError(body.error || "Failed to submit venue request."); return; }
       setVenueSuccess(true);
-      setExistingVenueReq({ id: body.request?.id, status: "pending", details: venueForm, decision_notes: null });
+      setExistingVenueReq({ id: body.request?.id, status: body.request?.status || "pending", details: venueForm, decision_notes: null });
     } catch {
       setVenueError("Network error. Please try again.");
     } finally {

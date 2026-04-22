@@ -26,17 +26,19 @@ router.get(
   checkRoleExpiration,
   async (req, res) => {
     try {
-      const { campus } = req.query;
+      const { campus, block } = req.query;
       if (!campus) {
         return res.status(400).json({ error: "campus query parameter is required" });
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("venues")
         .select("id:venue_id, name, capacity, location, is_approval_needed")
         .eq("campus", campus)
-        .eq("is_active", true)
-        .order("name", { ascending: true });
+        .eq("is_active", true);
+      if (block) query = query.eq("location", block);
+
+      const { data, error } = await query.order("name", { ascending: true });
 
       if (error) throw error;
       return res.json(data || []);
@@ -74,6 +76,43 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
+// GET /api/venues/blocks?campus=<campus>
+// Returns the distinct `location` (block) values for active venues in a campus.
+// Used to populate the Location dropdown on the booking page.
+// ---------------------------------------------------------------------------
+router.get(
+  "/venues/blocks",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
+    try {
+      const { campus } = req.query;
+      if (!campus) {
+        return res.status(400).json({ error: "campus query parameter is required" });
+      }
+
+      const { data, error } = await supabase
+        .from("venues")
+        .select("location")
+        .eq("campus", campus)
+        .eq("is_active", true);
+
+      if (error) throw error;
+
+      const blocks = Array.from(
+        new Set((data || []).map(v => v.location).filter(b => b && String(b).trim()))
+      ).sort();
+
+      return res.json({ blocks });
+    } catch (err) {
+      console.error("[Venues] GET /venues/blocks error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // GET /api/venues/:id/availability?month=YYYY-MM
 // Returns approved bookings (time windows) in the given month for this venue.
 // Response: { bookings: [{ date, start_time, end_time, requested_by, full_name, booking_title, entity_type }] }
@@ -93,16 +132,15 @@ router.get(
       }
 
       const { data, error } = await supabase
-        .from("service_requests")
-        .select("entity_type, requested_by, details")
-        .eq("service_type", "venue")
+        .from("venue_bookings")
+        .select("id, venue_id, requested_by, date, start_time, end_time, title, entity_type")
+        .eq("venue_id", id)
         .eq("status", "approved")
-        .filter("details->>venue_id", "eq", id)
-        .like("details->>date", `${month}-%`);
+        .like("date", `${month}-%`);
 
       if (error) throw error;
 
-      // Join requested_by → users.name / full_name
+      // Join requested_by → users display name
       const emails = Array.from(new Set((data || []).map((r) => r.requested_by).filter(Boolean)));
       const nameByEmail = new Map();
       if (emails.length > 0) {
@@ -116,16 +154,16 @@ router.get(
       }
 
       const bookings = (data || [])
+        .filter((r) => r.date && r.start_time && r.end_time)
         .map((r) => ({
-          date: r.details?.date,
-          start_time: r.details?.start_time || "",
-          end_time: r.details?.end_time || "",
+          date: r.date,
+          start_time: r.start_time,
+          end_time: r.end_time,
           requested_by: r.requested_by,
           full_name: nameByEmail.get(r.requested_by) || null,
-          booking_title: r.details?.booking_title || null,
+          booking_title: r.title || null,
           entity_type: r.entity_type,
-        }))
-        .filter((b) => b.date && b.start_time && b.end_time);
+        }));
 
       return res.json({ bookings });
     } catch (err) {

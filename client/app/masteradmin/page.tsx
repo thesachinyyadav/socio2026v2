@@ -1492,6 +1492,60 @@ export default function MasterAdminPage() {
                   />
                 </div>
               </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-medium text-gray-700">
+                    Is approval needed for bookings at this venue?
+                  </label>
+                  <label
+                    htmlFor="venueApprovalNeeded"
+                    className="relative inline-flex items-center cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      id="venueApprovalNeeded"
+                      checked={venueForm.is_approval_needed}
+                      onChange={(e) => setVenueForm(f => ({ ...f, is_approval_needed: e.target.checked }))}
+                      className="sr-only"
+                    />
+                    <div
+                      className={`relative h-8 w-20 rounded-full border-2 transition-colors ${
+                        venueForm.is_approval_needed
+                          ? "border-green-500 bg-green-50"
+                          : "border-red-500 bg-red-50"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold tracking-wide ${
+                          venueForm.is_approval_needed
+                            ? "left-2 text-green-700"
+                            : "right-2 text-red-700"
+                        }`}
+                      >
+                        {venueForm.is_approval_needed ? "YES" : "NO"}
+                      </span>
+                      <span
+                        className={`absolute top-0.5 left-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-white transition-transform ${
+                          venueForm.is_approval_needed
+                            ? "translate-x-[3.25rem] border-green-500 text-green-600"
+                            : "translate-x-0 border-red-500 text-red-600"
+                        }`}
+                      >
+                        {venueForm.is_approval_needed ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">When YES, any booking request for this venue is routed to the venue dashboard for approval.</p>
+              </div>
               {venueFormError && <p className="text-sm text-red-600">{venueFormError}</p>}
               <button
                 onClick={handleCreateVenue}
@@ -1517,6 +1571,7 @@ export default function MasterAdminPage() {
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
                       <th className="text-center px-4 py-3 font-semibold text-gray-600">Cap.</th>
                       <th className="text-center px-4 py-3 font-semibold text-gray-600">Active</th>
+                      <th className="text-center px-4 py-3 font-semibold text-gray-600">Needs Approval</th>
                       <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
                     </tr>
                   </thead>
@@ -1527,17 +1582,95 @@ export default function MasterAdminPage() {
                         <td className="px-4 py-3 text-gray-600">{v.campus}</td>
                         <td className="px-4 py-3 text-gray-500">{v.location || "—"}</td>
                         <td className="px-4 py-3 text-center text-gray-600">{v.capacity ?? "—"}</td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => handleToggleVenueActive(v)}
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
-                              v.is_active
-                                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            }`}
-                          >
-                            {v.is_active ? "Active" : "Inactive"}
-                          </button>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVenueActive(v)}
+                              className="relative inline-flex items-center cursor-pointer select-none"
+                              title={v.is_active ? "Active — click to disable" : "Inactive — click to enable"}
+                            >
+                              <div
+                                className={`relative h-8 w-20 rounded-full border-2 transition-colors ${
+                                  v.is_active
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-red-500 bg-red-50"
+                                }`}
+                              >
+                                <span
+                                  className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold tracking-wide ${
+                                    v.is_active
+                                      ? "left-2 text-green-700"
+                                      : "right-2 text-red-700"
+                                  }`}
+                                >
+                                  {v.is_active ? "YES" : "NO"}
+                                </span>
+                                <span
+                                  className={`absolute top-0.5 left-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-white transition-transform ${
+                                    v.is_active
+                                      ? "translate-x-[3.25rem] border-green-500 text-green-600"
+                                      : "translate-x-0 border-red-500 text-red-600"
+                                  }`}
+                                >
+                                  {v.is_active ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  )}
+                                </span>
+                              </div>
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVenueApproval(v)}
+                              className="relative inline-flex items-center cursor-pointer select-none"
+                              title={v.is_approval_needed ? "Approval required — click to disable" : "No approval needed — click to enable"}
+                            >
+                              <div
+                                className={`relative h-8 w-20 rounded-full border-2 transition-colors ${
+                                  v.is_approval_needed
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-red-500 bg-red-50"
+                                }`}
+                              >
+                                <span
+                                  className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold tracking-wide ${
+                                    v.is_approval_needed
+                                      ? "left-2 text-green-700"
+                                      : "right-2 text-red-700"
+                                  }`}
+                                >
+                                  {v.is_approval_needed ? "YES" : "NO"}
+                                </span>
+                                <span
+                                  className={`absolute top-0.5 left-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-white transition-transform ${
+                                    v.is_approval_needed
+                                      ? "translate-x-[3.25rem] border-green-500 text-green-600"
+                                      : "translate-x-0 border-red-500 text-red-600"
+                                  }`}
+                                >
+                                  {v.is_approval_needed ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  )}
+                                </span>
+                              </div>
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex items-center gap-1">

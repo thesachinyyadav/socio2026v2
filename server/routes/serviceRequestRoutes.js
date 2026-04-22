@@ -1,5 +1,5 @@
 import express from "express";
-import { queryOne, insert } from "../config/database.js";
+import { queryOne } from "../config/database.js";
 import { createClient } from "@supabase/supabase-js";
 import {
   authenticateUser,
@@ -17,6 +17,11 @@ const router = express.Router();
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function timeOverlaps(aStart, aEnd, bStart, bEnd) {
+  return aStart < bEnd && aEnd > bStart;
+}
+
 async function fetchEntityTitle(entityId, entityType) {
   try {
     if (entityType === "event") {
@@ -33,25 +38,11 @@ async function fetchEntityTitle(entityId, entityType) {
   }
 }
 
-// HH:MM overlap check — two windows overlap iff aStart < bEnd AND aEnd > bStart
-function timeOverlaps(aStart, aEnd, bStart, bEnd) {
-  return aStart < bEnd && aEnd > bStart;
-}
-
-async function getVenueById(venueId) {
-  const { data } = await supabase
-    .from("venues")
-    .select("venue_id, campus, name")
-    .eq("venue_id", venueId)
-    .limit(1);
-  return data?.[0] || null;
-}
-
-// Enrich a service_requests row with entity title + booker full_name
+// Enrich a venue_bookings row with entity title + booker display name
 async function enrichRow(row, userCache) {
   const entity_title =
     row.entity_type === "standalone"
-      ? row.details?.booking_title || "Standalone Booking"
+      ? row.title || "Standalone Booking"
       : (await fetchEntityTitle(row.entity_id, row.entity_type)) || row.entity_id;
 
   let requested_by_name = userCache.get(row.requested_by);
@@ -61,12 +52,26 @@ async function enrichRow(row, userCache) {
     userCache.set(row.requested_by, requested_by_name);
   }
 
-  return { ...row, entity_title, requested_by_name };
+  // Return in the shape the venue dashboard expects
+  return {
+    ...row,
+    entity_title,
+    requested_by_name,
+    // Backwards-compat shim so the old venue/page.tsx still works
+    details: {
+      venue_name:    row.venue?.name  || row.venue_id,
+      date:          row.date,
+      start_time:    row.start_time,
+      end_time:      row.end_time,
+      booking_title: row.title,
+      setup_notes:   row.setup_notes,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
 // GET /api/service-requests/my-queue
-// Shared pool: any vendor manager on a campus sees every request for that campus
+// Proxies to venue_bookings — kept for backward compat with venue/page.tsx
 // ---------------------------------------------------------------------------
 router.get(
   "/service-requests/my-queue",
@@ -80,54 +85,49 @@ router.get(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Masteradmin without a campus sees everything; otherwise scope to manager's campus
       const managerCampus = user.campus || null;
 
-      // Fetch all pending + recent reviewed rows, then filter by campus via venues lookup
       const { data: pendingRaw, error: pendErr } = await supabase
-        .from("service_requests")
+        .from("venue_bookings")
         .select("*")
-        .eq("service_type", "venue")
         .eq("status", "pending")
-        .order("id", { ascending: false });
+        .order("date", { ascending: true });
       if (pendErr) throw pendErr;
 
       const { data: reviewedRaw, error: revErr } = await supabase
-        .from("service_requests")
+        .from("venue_bookings")
         .select("*")
-        .eq("service_type", "venue")
         .neq("status", "pending")
-        .order("id", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(50);
       if (revErr) throw revErr;
 
-      // Build venue id → campus map for campus filtering
-      const venueIds = new Set();
-      [...(pendingRaw || []), ...(reviewedRaw || [])].forEach((r) => {
-        const vid = r.details?.venue_id;
-        if (vid) venueIds.add(vid);
-      });
-      let venueCampusMap = new Map();
-      if (venueIds.size > 0) {
-        const { data: vs } = await supabase
+      // Attach venue info via explicit lookup (no FK constraint required)
+      const allRaw = [...(pendingRaw || []), ...(reviewedRaw || [])];
+      const venueIds = [...new Set(allRaw.map(r => r.venue_id).filter(Boolean))];
+      const venueMap = new Map();
+      if (venueIds.length > 0) {
+        const { data: venues } = await supabase
           .from("venues")
-          .select("venue_id, campus")
-          .in("venue_id", Array.from(venueIds));
-        (vs || []).forEach((v) => venueCampusMap.set(v.venue_id, v.campus));
+          .select("venue_id, name, campus, location, capacity, is_approval_needed")
+          .in("venue_id", venueIds);
+        (venues || []).forEach(v => venueMap.set(v.venue_id, v));
       }
+      const attachVenue = rows => (rows || []).map(r => ({ ...r, venue: venueMap.get(r.venue_id) || null }));
 
       const inScope = (row) => {
         if (user.is_masteradmin && !managerCampus) return true;
-        const c = venueCampusMap.get(row.details?.venue_id);
-        return c && managerCampus && c === managerCampus;
+        return row.venue?.campus === managerCampus;
       };
 
       const userCache = new Map();
-      const enriched = async (rows) =>
+      const enrich = (rows) =>
         Promise.all((rows || []).filter(inScope).map((r) => enrichRow(r, userCache)));
 
-      const pending = await enriched(pendingRaw);
-      const reviewed = await enriched(reviewedRaw);
+      const [pending, reviewed] = await Promise.all([
+        enrich(attachVenue(pendingRaw)),
+        enrich(attachVenue(reviewedRaw)),
+      ]);
 
       return res.json({ pending, reviewed });
     } catch (err) {
@@ -138,7 +138,8 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
-// GET /api/service-requests?entity_id=&service_type=venue
+// GET /api/service-requests?entity_id=X
+// Returns venue bookings linked to an event/fest (approvals page)
 // ---------------------------------------------------------------------------
 router.get(
   "/service-requests",
@@ -147,17 +148,42 @@ router.get(
   checkRoleExpiration,
   async (req, res) => {
     try {
-      const { entity_id, service_type } = req.query;
+      const { entity_id } = req.query;
       if (!entity_id) {
         return res.status(400).json({ error: "entity_id is required" });
       }
 
-      let query = supabase.from("service_requests").select("*").eq("entity_id", entity_id);
-      if (service_type) query = query.eq("service_type", service_type);
-
-      const { data, error } = await query.limit(10);
+      const { data, error } = await supabase
+        .from("venue_bookings")
+        .select("*")
+        .eq("entity_id", entity_id)
+        .limit(10);
       if (error) throw error;
-      return res.json(data || []);
+
+      // Attach venue info via explicit lookup
+      const venueIds2 = [...new Set((data || []).map(r => r.venue_id).filter(Boolean))];
+      const vMap2 = new Map();
+      if (venueIds2.length > 0) {
+        const { data: vs } = await supabase.from("venues").select("venue_id, name, campus, location, capacity").in("venue_id", venueIds2);
+        (vs || []).forEach(v => vMap2.set(v.venue_id, v));
+      }
+      const dataWithVenue = (data || []).map(r => ({ ...r, venue: vMap2.get(r.venue_id) || null }));
+
+      // Shape response so existing callers (approvals page) still see a `details` field
+      const shaped = dataWithVenue.map((r) => ({
+        ...r,
+        details: {
+          venue_id:      r.venue_id,
+          venue_name:    r.venue?.name || r.venue_id,
+          date:          r.date,
+          start_time:    r.start_time,
+          end_time:      r.end_time,
+          booking_title: r.title,
+          setup_notes:   r.setup_notes,
+        },
+      }));
+
+      return res.json(shaped);
     } catch (err) {
       console.error("[ServiceRequests] GET /service-requests error:", err);
       return res.status(500).json({ error: "Internal server error" });
@@ -167,7 +193,8 @@ router.get(
 
 // ---------------------------------------------------------------------------
 // POST /api/service-requests
-// entity_type: 'event' | 'fest' | 'standalone'
+// Accepts old-format body { entity_type, entity_id, details:{...} } and
+// writes a venue_bookings row with auto-approve based on is_approval_needed.
 // ---------------------------------------------------------------------------
 router.post(
   "/service-requests",
@@ -180,97 +207,98 @@ router.post(
       const { entity_type, entity_id, details } = req.body;
 
       if (!entity_type || !["event", "fest", "standalone"].includes(entity_type)) {
-        return res.status(400).json({ error: "entity_type must be 'event', 'fest', or 'standalone'" });
+        return res.status(400).json({ error: "entity_type must be event, fest, or standalone" });
       }
       if (!details || typeof details !== "object") {
         return res.status(400).json({ error: "details object is required" });
       }
-      const { venue_id, venue_name, date, start_time, end_time } = details;
-      if (!venue_id || !venue_name || !date || !start_time || !end_time) {
-        return res.status(400).json({
-          error: "details must include venue_id, venue_name, date, start_time, end_time",
-        });
+
+      const {
+        venue_id, venue_name, date, start_time, end_time,
+        booking_title, setup_notes, headcount,
+      } = details;
+
+      if (!venue_id || !date || !start_time || !end_time) {
+        return res.status(400).json({ error: "details must include venue_id, date, start_time, end_time" });
       }
       if (start_time >= end_time) {
         return res.status(400).json({ error: "start_time must be before end_time" });
       }
 
-      // Event/fest-linked: enforce full approval + duplicate guard
+      const title = booking_title || venue_name || "Venue booking";
+
+      // For event/fest bookings: check approval record + duplicate guard
       if (entity_type !== "standalone") {
         if (!entity_id) {
           return res.status(400).json({ error: "entity_id is required for event/fest bookings" });
         }
-
         const { data: approvalRows } = await supabase
           .from("approvals")
-          .select("went_live_at, organizing_campus_snapshot")
+          .select("went_live_at")
           .eq("event_or_fest_id", entity_id)
           .eq("type", entity_type)
           .limit(1);
-
-        const approval = approvalRows?.[0];
-        if (!approval) {
-          return res.status(400).json({ error: "No approval record found for this entity" });
-        }
-        if (!approval.went_live_at) {
-          return res.status(400).json({
-            error: "Venue can only be requested after the event/fest is fully approved",
-          });
+        if (!approvalRows?.[0]?.went_live_at) {
+          return res.status(400).json({ error: "Venue can only be requested after the event/fest is fully approved" });
         }
 
         const { data: existing } = await supabase
-          .from("service_requests")
+          .from("venue_bookings")
           .select("id, status")
           .eq("entity_id", entity_id)
-          .eq("service_type", "venue")
           .limit(1);
-
-        if (existing && existing.length > 0) {
-          return res.status(409).json({
-            error: "A venue request already exists for this event/fest",
-            existing: existing[0],
-          });
-        }
-      } else {
-        if (!details.booking_title || String(details.booking_title).trim().length < 3) {
-          return res.status(400).json({ error: "booking_title is required (min 3 characters)" });
+        if (existing?.length > 0) {
+          return res.status(409).json({ error: "A venue booking already exists for this event/fest", existing: existing[0] });
         }
       }
 
-      // Time-window overlap check against APPROVED rows for the same venue/date
-      const { data: approvedSlots, error: slotErr } = await supabase
-        .from("service_requests")
-        .select("id, details")
-        .eq("service_type", "venue")
-        .eq("status", "approved")
-        .filter("details->>venue_id", "eq", venue_id)
-        .filter("details->>date", "eq", date);
-      if (slotErr) throw slotErr;
+      // Overlap check against approved bookings for same venue/date
+      const { data: approved, error: overlapErr } = await supabase
+        .from("venue_bookings")
+        .select("id, start_time, end_time")
+        .eq("venue_id", venue_id)
+        .eq("date", date)
+        .eq("status", "approved");
+      if (overlapErr) throw overlapErr;
 
-      const conflict = (approvedSlots || []).find((r) =>
-        timeOverlaps(start_time, end_time, r.details?.start_time || "", r.details?.end_time || "")
+      const conflict = (approved || []).find((b) =>
+        timeOverlaps(start_time, end_time, b.start_time, b.end_time)
       );
       if (conflict) {
         return res.status(409).json({
           error: "This time window conflicts with an existing approved booking",
-          conflict: {
-            start_time: conflict.details?.start_time,
-            end_time: conflict.details?.end_time,
-          },
+          conflict: { start_time: conflict.start_time, end_time: conflict.end_time },
         });
       }
 
-      const newRequest = await insert("service_requests", {
-        entity_type,
-        entity_id: entity_type === "standalone" ? null : entity_id,
-        service_type: "venue",
-        details,
-        assigned_incharge_email: null,
-        status: "pending",
-        requested_by: user.email,
-      });
+      // Auto-approve if venue doesn't require approval
+      const { data: venueRow } = await supabase
+        .from("venues")
+        .select("is_approval_needed")
+        .eq("venue_id", venue_id)
+        .limit(1);
+      const needsApproval = Boolean(venueRow?.[0]?.is_approval_needed);
 
-      return res.status(201).json({ success: true, request: newRequest });
+      const { data: booking, error: insertErr } = await supabase
+        .from("venue_bookings")
+        .insert({
+          venue_id,
+          requested_by:  user.email,
+          date,
+          start_time,
+          end_time,
+          title:         String(title).trim(),
+          headcount:     headcount ? Number(headcount) : null,
+          setup_notes:   setup_notes ? String(setup_notes).trim() : null,
+          entity_type,
+          entity_id:     entity_type === "standalone" ? null : entity_id,
+          status:        needsApproval ? "pending" : "approved",
+        })
+        .select()
+        .single();
+      if (insertErr) throw insertErr;
+
+      return res.status(201).json({ success: true, request: booking, auto_approved: !needsApproval });
     } catch (err) {
       console.error("[ServiceRequests] POST /service-requests error:", err);
       return res.status(500).json({ error: "Internal server error" });
@@ -280,7 +308,7 @@ router.post(
 
 // ---------------------------------------------------------------------------
 // POST /api/service-requests/:id/action
-// Authorized by role (is_vendor_manager) + campus match — shared pool
+// Approve / reject / return — kept for backward compat
 // ---------------------------------------------------------------------------
 router.post(
   "/service-requests/:id/action",
@@ -298,66 +326,60 @@ router.post(
       }
 
       const { data: rows } = await supabase
-        .from("service_requests")
+        .from("venue_bookings")
         .select("*")
         .eq("id", id)
         .limit(1);
 
-      const request = rows?.[0];
-      if (!request) return res.status(404).json({ error: "Service request not found" });
+      const booking = rows?.[0];
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
+      if (booking.status !== "pending") {
+        return res.status(409).json({ error: "This booking has already been actioned" });
+      }
 
-      // Authorize: masteradmin, or vendor_manager on same campus as the venue
+      // Fetch venue separately (no FK join)
+      const { data: venueRows } = await supabase
+        .from("venues")
+        .select("venue_id, campus, name")
+        .eq("venue_id", booking.venue_id)
+        .limit(1);
+      const bookingVenue = venueRows?.[0] || null;
+
       let authorized = Boolean(user.is_masteradmin);
       if (!authorized && user.is_vendor_manager) {
-        const venue = await getVenueById(request.details?.venue_id);
-        if (venue && user.campus && venue.campus === user.campus) authorized = true;
+        authorized = bookingVenue?.campus === user.campus;
       }
       if (!authorized) {
-        return res.status(403).json({ error: "You are not authorized to act on this request" });
+        return res.status(403).json({ error: "Not authorized to act on this booking" });
       }
 
-      if (action !== "approved") {
-        if (!notes || String(notes).trim().length < 20) {
-          return res.status(400).json({ error: "Notes are required (min 20 characters) when rejecting or returning" });
-        }
+      if (action !== "approved" && (!notes || String(notes).trim().length < 10)) {
+        return res.status(400).json({ error: "Notes are required (min 10 characters) when rejecting or returning" });
       }
 
-      // Re-check overlap at approval time to avoid double-approving conflicting slots
+      // Overlap guard at approval time
       if (action === "approved") {
-        const d = request.details || {};
-        const { data: approvedSlots } = await supabase
-          .from("service_requests")
-          .select("id, details")
-          .eq("service_type", "venue")
-          .eq("status", "approved")
-          .filter("details->>venue_id", "eq", d.venue_id)
-          .filter("details->>date", "eq", d.date);
-
-        const conflict = (approvedSlots || []).find(
-          (r) =>
-            r.id !== request.id &&
-            timeOverlaps(
-              d.start_time || "",
-              d.end_time || "",
-              r.details?.start_time || "",
-              r.details?.end_time || ""
-            )
+        const { data: existing } = await supabase
+          .from("venue_bookings")
+          .select("id, start_time, end_time")
+          .eq("venue_id", booking.venue_id)
+          .eq("date", booking.date)
+          .eq("status", "approved");
+        const conflict = (existing || []).find(
+          (b) => b.id !== booking.id && timeOverlaps(booking.start_time, booking.end_time, b.start_time, b.end_time)
         );
         if (conflict) {
           return res.status(409).json({
-            error: "Another booking was approved for this time slot. Please return this request with a note.",
-            conflict: {
-              start_time: conflict.details?.start_time,
-              end_time: conflict.details?.end_time,
-            },
+            error: "Another booking was approved for this time window",
+            conflict: { start_time: conflict.start_time, end_time: conflict.end_time },
           });
         }
       }
 
-      const updates = { status: action };
-      if (notes) updates.decision_notes = String(notes).trim();
-
-      await supabase.from("service_requests").update(updates).eq("id", id);
+      await supabase
+        .from("venue_bookings")
+        .update({ status: action, decision_notes: notes ? String(notes).trim() : null })
+        .eq("id", id);
 
       return res.json({ success: true });
     } catch (err) {
