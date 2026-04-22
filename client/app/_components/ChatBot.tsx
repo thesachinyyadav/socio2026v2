@@ -86,14 +86,16 @@ export default function ChatBot() {
   const isOrganiser  = Boolean((userData as any)?.is_organiser);
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
 
-  const [isOpen,       setIsOpen]       = useState(false);
-  const [messages,     setMessages]     = useState<Message[]>([]);
-  const [input,        setInput]        = useState("");
-  const [isThinking,   setIsThinking]   = useState(false);
+  const [isOpen,        setIsOpen]        = useState(false);
+  const [messages,      setMessages]      = useState<Message[]>([]);
+  const [input,         setInput]         = useState("");
+  const [isThinking,    setIsThinking]    = useState(false);
+  const [isTyping,      setIsTyping]      = useState(false);
   const [isUnavailable, setIsUnavailable] = useState(false);
-  const [showPulse,    setShowPulse]    = useState(true);
-  const endRef  = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [showPulse,     setShowPulse]     = useState(true);
+  const endRef        = useRef<HTMLDivElement>(null);
+  const inputRef      = useRef<HTMLInputElement>(null);
+  const typingVersion = useRef(0);
 
   const allQA = useMemo(() => getPageQA(pathname, isOrganiser, isMasterAdmin), [pathname, isOrganiser, isMasterAdmin]);
   const presets = useMemo(() => allQA.slice(0, 4).map(q => q.question), [allQA]);
@@ -124,8 +126,28 @@ export default function ChatBot() {
     setIsUnavailable(false);
   }, [pathname]);
 
-  const addAssistant = useCallback((content: string) => {
-    setMessages(prev => [...prev, { role: "assistant", content }]);
+  // Word-by-word typing effect — abortable via typingVersion
+  const typeMessage = useCallback(async (content: string) => {
+    const version = ++typingVersion.current;
+    setIsTyping(true);
+    // Seed an empty assistant bubble
+    setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+    const tokens = content.match(/\S+\s*/g) ?? [content]; // words + trailing space
+    let built = "";
+
+    for (const token of tokens) {
+      if (typingVersion.current !== version) break; // reset/abort
+      built += token;
+      setMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === "assistant") next[next.length - 1] = { ...last, content: built };
+        return next;
+      });
+      await new Promise(r => setTimeout(r, 28));
+    }
+    if (typingVersion.current === version) setIsTyping(false);
   }, []);
 
   const handleQuestion = async (text: string) => {
@@ -140,9 +162,9 @@ export default function ChatBot() {
     const key = normalize(trimmed);
     const local = qaMap.get(key);
     if (local) {
-      await new Promise(r => setTimeout(r, 320));
-      addAssistant(local);
+      await new Promise(r => setTimeout(r, 350)); // brief "thinking" pause
       setIsThinking(false);
+      await typeMessage(local);
       return;
     }
 
@@ -151,7 +173,8 @@ export default function ChatBot() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) {
-        addAssistant("Please sign in to chat with SocioAssist.");
+        setIsThinking(false);
+        await typeMessage("Please sign in to chat with SocioAssist.");
         return;
       }
 
@@ -162,32 +185,37 @@ export default function ChatBot() {
       });
 
       const data = await res.json().catch(() => ({}));
+      setIsThinking(false);
 
       if (!res.ok) {
         const errMsg = (data.error || data.details || "").toLowerCase();
         if (UNAVAILABLE_KEYWORDS.some(k => errMsg.includes(k)) || res.status === 429 || res.status === 503) {
           setIsUnavailable(true);
         } else {
-          addAssistant("I couldn't get an answer right now. Try a preset question or rephrase.");
+          await typeMessage("I couldn't get an answer right now. Try a preset question or rephrase.");
         }
         return;
       }
 
-      addAssistant(data.reply || "I'm not sure about that. Try asking differently.");
+      await typeMessage(data.reply || "I'm not sure about that. Try asking differently.");
     } catch {
-      addAssistant("Couldn't reach the server. Please check your connection.");
+      setIsThinking(false);
+      await typeMessage("Couldn't reach the server. Please check your connection.");
     } finally {
       setIsThinking(false);
     }
   };
 
   const resetChat = () => {
+    typingVersion.current++;  // abort any in-progress typing
+    setIsTyping(false);
+    setIsThinking(false);
     setMessages([]);
     setInput("");
     setIsUnavailable(false);
   };
 
-  const showPresets = messages.length === 0;
+  const showPresets = messages.length === 0 && !isThinking && !isTyping;
 
   if (pathname.startsWith("/statuscheck")) return null;
 
@@ -216,9 +244,9 @@ export default function ChatBot() {
                   <p className="font-semibold text-white text-sm leading-tight">SocioAssist</p>
                   <p className="text-[11px] text-blue-100 flex items-center gap-1.5 mt-0.5">
                     <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-                      isUnavailable ? "bg-amber-300" : isThinking ? "bg-blue-200 animate-pulse" : "bg-emerald-300"
+                      isUnavailable ? "bg-amber-300" : (isThinking || isTyping) ? "bg-blue-200 animate-pulse" : "bg-emerald-300"
                     }`} />
-                    {isUnavailable ? "Taking a break" : isThinking ? "Thinking…" : "Online"}
+                    {isUnavailable ? "Taking a break" : isThinking ? "Thinking…" : isTyping ? "Typing…" : "Online"}
                   </p>
                 </div>
               </div>
@@ -311,17 +339,18 @@ export default function ChatBot() {
                   ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  disabled={isThinking || isUnavailable}
+                  disabled={isThinking || isTyping || isUnavailable}
                   placeholder={
                     isUnavailable ? "Unavailable right now…"
-                    : isThinking   ? "Thinking…"
+                    : isThinking  ? "Thinking…"
+                    : isTyping    ? "Typing…"
                     : "Ask me anything…"
                   }
                   className="flex-1 text-[13px] border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition disabled:bg-gray-50 disabled:text-gray-400 placeholder:text-gray-400"
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || isThinking || isUnavailable}
+                  disabled={!input.trim() || isThinking || isTyping || isUnavailable}
                   className="w-9 h-9 bg-[#154CB3] text-white rounded-xl flex items-center justify-center flex-shrink-0 hover:bg-[#0f3a7a] transition disabled:opacity-35 disabled:cursor-not-allowed"
                   aria-label="Send"
                 >
