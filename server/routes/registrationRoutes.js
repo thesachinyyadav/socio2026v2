@@ -967,6 +967,57 @@ router.get("/registrations/:registrationId/gated-status", async (req, res) => {
   }
 });
 
+// Cancel own registration — authenticated user, 24-hour cutoff
+router.delete("/registrations/self/:registrationId", authenticateUser, getUserInfo(), async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    const user = req.userInfo;
+
+    const registration = await queryOne("registrations", { where: { registration_id: registrationId } });
+    if (!registration) return res.status(404).json({ error: "Registration not found" });
+
+    // Ownership check
+    const regNum = String(user.register_number || user.visitor_id || "").trim().toUpperCase();
+    const indivNum = String(registration.individual_register_number || "").trim().toUpperCase();
+    const leaderNum = String(registration.team_leader_register_number || "").trim().toUpperCase();
+    if (!regNum || (regNum !== indivNum && regNum !== leaderNum)) {
+      return res.status(403).json({ error: "You are not authorized to cancel this registration" });
+    }
+
+    // 24-hour cutoff
+    const event = await queryOne("events", { where: { event_id: registration.event_id } });
+    if (event?.event_date) {
+      const timeStr = event.event_time ? String(event.event_time).slice(0, 5) : "00:00";
+      const eventStart = new Date(`${event.event_date}T${timeStr}:00`);
+      const hoursUntil = (eventStart.getTime() - Date.now()) / 3_600_000;
+      if (hoursUntil < 24) {
+        return res.status(403).json({
+          error: "Cannot cancel within 24 hours of event start",
+          code: "TOO_LATE",
+        });
+      }
+    }
+
+    await supabase.from("registrations").delete().eq("registration_id", registrationId);
+
+    if (event) {
+      const participantCount =
+        registration.registration_type === "individual" ? 1
+        : registration.teammates
+          ? Array.isArray(registration.teammates) ? registration.teammates.length + 1
+            : (() => { try { return JSON.parse(registration.teammates).length + 1; } catch { return 1; } })()
+          : 1;
+      const updatedTotal = Math.max(0, (event.total_participants || 0) - participantCount);
+      await update("events", { total_participants: updatedTotal }, { event_id: registration.event_id });
+    }
+
+    return res.status(200).json({ message: "Registration cancelled successfully" });
+  } catch (error) {
+    console.error("Error cancelling registration:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Delete registration
 // Delete registration - REQUIRES MASTER ADMIN ROLE
 router.delete("/registrations/:registrationId", (req, res, next) => {

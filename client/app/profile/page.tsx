@@ -13,6 +13,7 @@ interface DisplayableEvent {
   event_id: string;
   name: string;
   date: string;
+  rawDate: string;
   department: string;
   status: "upcoming" | "completed";
 }
@@ -88,6 +89,38 @@ const StudentProfile = () => {
     useState(true);
   const [showCampusDetect, setShowCampusDetect] = useState(false);
   const [activeQR, setActiveQR] = useState<ActiveQR | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+
+  const isEventSoon = (rawDate: string) => {
+    if (!rawDate) return false;
+    const eventStart = new Date(rawDate + "T00:00:00");
+    return (eventStart.getTime() - Date.now()) < 24 * 60 * 60 * 1000;
+  };
+
+  const handleCancelRegistration = async (event: DisplayableEvent) => {
+    setCancellingId(event.registration_id);
+    setCancelConfirmId(null);
+    try {
+      const res = await fetch(`${API_URL}/api/registrations/self/${event.registration_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(body.error || "Failed to cancel registration.");
+        return;
+      }
+      setRegisteredEventsList(prev => prev.filter(e => e.registration_id !== event.registration_id));
+      setStudent(prev => ({ ...prev, registeredEvents: Math.max(0, prev.registeredEvents - 1) }));
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     if (userData) {
@@ -160,9 +193,10 @@ const StudentProfile = () => {
               return {
                 id: event.id,
                 registration_id: event.registration_id || event.id,
-                event_id: event.event_id || event.id, // fallback to id if event_id not available
+                event_id: event.event_id || event.id,
                 name: event.name,
                 date: formattedDate,
+                rawDate: event.date,
                 department: event.department,
                 status: eventStatus,
               };
@@ -628,6 +662,39 @@ const StudentProfile = () => {
                             {event.status.charAt(0).toUpperCase() +
                               event.status.slice(1)}
                           </span>
+                          {event.status === "upcoming" && (
+                            cancelConfirmId === event.registration_id ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleCancelRegistration(event)}
+                                  disabled={cancellingId === event.registration_id}
+                                  className="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
+                                >
+                                  {cancellingId === event.registration_id ? "…" : "Yes"}
+                                </button>
+                                <button
+                                  onClick={() => setCancelConfirmId(null)}
+                                  className="text-xs px-2 py-0.5 rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                title={isEventSoon(event.rawDate) ? "Cannot cancel — event starts in less than 24 hours" : "Cancel registration"}
+                                disabled={isEventSoon(event.rawDate) || cancellingId === event.registration_id}
+                                onClick={() => !isEventSoon(event.rawDate) && setCancelConfirmId(event.registration_id)}
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-sm transition-colors ${
+                                  isEventSoon(event.rawDate)
+                                    ? "text-gray-300 cursor-not-allowed"
+                                    : "text-gray-400 hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                                }`}
+                              >
+                                ✕
+                              </button>
+                            )
+                          )}
                         </div>
                       </div>
                     ))
