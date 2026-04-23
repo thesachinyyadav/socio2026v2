@@ -3174,7 +3174,11 @@ export default function EventForm({
                                   checked={s.enabled}
                                   onChange={(e) =>
                                     setBlockingStages(prev =>
-                                      prev.map(bs => bs.role === s.role ? { ...bs, enabled: e.target.checked } : bs)
+                                      prev.map(bs => {
+                                        if (bs.role === s.role) return { ...bs, enabled: e.target.checked };
+                                        if (s.role === 'cfo' && bs.role === 'accounts' && e.target.checked) return { ...bs, enabled: true };
+                                        return bs;
+                                      })
                                     )
                                   }
                                 />

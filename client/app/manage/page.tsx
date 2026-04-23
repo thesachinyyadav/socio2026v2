@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   useEvents,
@@ -55,20 +56,26 @@ interface Fest {
 
 const ITEMS_PER_PAGE = 12;
 
-type StatusFilter = "all" | "upcoming" | "past" | "archived";
+type StatusFilter = "all" | "upcoming" | "past" | "archived" | "draft" | "pending_approvals" | "live";
 
 const FEST_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "upcoming", label: "Upcoming" },
-  { value: "past", label: "Past" },
-  { value: "archived", label: "Archived" },
+  { value: "all",               label: "All" },
+  { value: "upcoming",          label: "Upcoming" },
+  { value: "past",              label: "Past" },
+  { value: "live",              label: "Live" },
+  { value: "draft",             label: "Draft" },
+  { value: "pending_approvals", label: "Pending Approvals" },
+  { value: "archived",          label: "Archived" },
 ];
 
 const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "upcoming", label: "Upcoming" },
-  { value: "past", label: "Past" },
-  { value: "archived", label: "Archived" },
+  { value: "all",               label: "All" },
+  { value: "upcoming",          label: "Upcoming" },
+  { value: "past",              label: "Past" },
+  { value: "live",              label: "Live" },
+  { value: "draft",             label: "Draft" },
+  { value: "pending_approvals", label: "Pending Approvals" },
+  { value: "archived",          label: "Archived" },
 ];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
@@ -400,7 +407,15 @@ const MappedEventCard = ({
 
 // ─── MAIN DASHBOARD COMPONENT ───────────────────────────────────────────────
 export default function ManageDashboard() {
-  const [activeTab, setActiveTab] = useState<"fests" | "events" | "report">("fests");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  type ManageTab = "fests" | "events" | "report";
+  const activeTab = (searchParams.get("tab") as ManageTab) || "fests";
+  const setActiveTab = (tab: ManageTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`?${params.toString()}`);
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [eventsPage, setEventsPage] = useState(1);
   const [festsPage, setFestsPage] = useState(1);
@@ -732,25 +747,34 @@ export default function ManageDashboard() {
     return toBoolean(fest.is_archived);
   };
 
-  const matchesStatus = (isPast: boolean, isArchived: boolean) => {
-    if (statusFilter === "all") return !isArchived;
-    if (statusFilter === "archived") return isArchived;
-    if (statusFilter === "past") return !isArchived && isPast;
-    return !isArchived && !isPast;
+  const matchesStatus = (isPast: boolean, isArchived: boolean, isDraft = false, isPendingApproval = false, isLive = false) => {
+    if (statusFilter === "all")               return !isArchived;
+    if (statusFilter === "archived")          return isArchived;
+    if (statusFilter === "pending_approvals") return !isArchived && isPendingApproval;
+    if (statusFilter === "draft")             return !isArchived && isDraft && !isPendingApproval;
+    if (statusFilter === "live")              return !isArchived && !isDraft && isLive;
+    if (statusFilter === "past")              return !isArchived && !isDraft && isPast;
+    return !isArchived && !isDraft && !isPast && !isLive; // upcoming
   };
 
-  const matchesEventStatus = (isPast: boolean, isArchived: boolean) => {
-    if (statusFilter === "all") return true;
-    if (statusFilter === "archived") return isArchived;
-    if (statusFilter === "past") return !isArchived && isPast;
-    return !isArchived && !isPast;
+  const matchesEventStatus = (isPast: boolean, isArchived: boolean, isDraft = false, isPendingApproval = false, isLive = false) => {
+    if (statusFilter === "all")               return true;
+    if (statusFilter === "archived")          return isArchived;
+    if (statusFilter === "pending_approvals") return !isArchived && isPendingApproval;
+    if (statusFilter === "draft")             return !isArchived && isDraft && !isPendingApproval;
+    if (statusFilter === "live")              return !isArchived && !isDraft && isLive;
+    if (statusFilter === "past")              return !isArchived && !isDraft && isPast;
+    return !isArchived && !isDraft && !isPast && !isLive; // upcoming
   };
 
-  const matchesFestStatus = (isPast: boolean, isArchived: boolean) => {
-    if (statusFilter === "all") return true;
-    if (statusFilter === "archived") return isArchived;
-    if (statusFilter === "past") return !isArchived && isPast;
-    return !isArchived && !isPast;
+  const matchesFestStatus = (isPast: boolean, isArchived: boolean, isDraft = false, isPendingApproval = false, isLive = false) => {
+    if (statusFilter === "all")               return true;
+    if (statusFilter === "archived")          return isArchived;
+    if (statusFilter === "pending_approvals") return !isArchived && isPendingApproval;
+    if (statusFilter === "draft")             return !isArchived && isDraft && !isPendingApproval;
+    if (statusFilter === "live")              return !isArchived && !isDraft && isLive;
+    if (statusFilter === "past")              return !isArchived && !isDraft && isPast;
+    return !isArchived && !isDraft && !isPast && !isLive; // upcoming
   };
 
   const userSpecificContextEvents = (liveEvents.length > 0 ? liveEvents : contextAllEvents as ContextEvent[]).filter((e) => {
@@ -760,9 +784,13 @@ export default function ManageDashboard() {
       (e as any).organiser_email
     );
     const matchesCampus = campusFilter === "all" || (e as any).campus_hosted_at === campusFilter;
-    const eventIsPast = isPastDate(e.event_date);
+    const eventStarted = isPastDate(e.event_date);
+    const eventIsPast = isPastDate((e as any).end_date || e.event_date);
+    const eventIsLive = eventStarted && !eventIsPast;
     const archiveState = getEffectiveArchiveState(e);
-    return isOwnerOrMaster && matchesCampus && matchesEventStatus(eventIsPast, archiveState.isArchived);
+    const eventIsDraft = toBoolean((e as any).is_draft);
+    const eventIsPendingApproval = eventIsDraft && approvalStatuses[e.event_id] === "pending_approvals";
+    return isOwnerOrMaster && matchesCampus && matchesEventStatus(eventIsPast, archiveState.isArchived, eventIsDraft, eventIsPendingApproval, eventIsLive);
   });
 
   // Filter Grids
@@ -772,9 +800,13 @@ export default function ManageDashboard() {
   const searchedUserFests = fests.filter((fest) => {
     const matchesSearch = fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCampus = campusFilter === "all" || (fest as any).campus_hosted_at === campusFilter;
+    const festStarted = isPastDate(fest.opening_date);
     const festIsPast = isPastDate(fest.closing_date);
+    const festIsLive = festStarted && !festIsPast;
     const festIsArchived = getEffectiveFestArchiveState(fest);
-    return matchesSearch && matchesCampus && matchesFestStatus(festIsPast, festIsArchived);
+    const festIsDraft = fest.is_draft === true;
+    const festIsPendingApproval = festIsDraft && approvalStatuses[fest.fest_id] === "pending_approvals";
+    return matchesSearch && matchesCampus && matchesFestStatus(festIsPast, festIsArchived, festIsDraft, festIsPendingApproval, festIsLive);
   });
 
   const activeStatusFilterOptions =

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -190,9 +190,14 @@ const ACCREDITATION_BODIES = [
 export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles" | "venues"
-  >("dashboard");
+  const searchParams = useSearchParams();
+  type AdminTab = "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles" | "venues";
+  const activeTab = (searchParams.get("tab") as AdminTab) || "dashboard";
+  const setActiveTab = (tab: AdminTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`?${params.toString()}`);
+  };
   const authToken = session?.access_token || null;
 
   // Helper to get a fresh access token (avoids stale token from session state)
