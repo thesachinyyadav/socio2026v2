@@ -20,6 +20,7 @@ import approvalRoutes from "./routes/approvalRoutes.js";
 import serviceRequestRoutes from "./routes/serviceRequestRoutes.js";
 import venueRoutes from "./routes/venueRoutes.js";
 import venueBookingRoutes from "./routes/venueBookingRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 dotenv.config();
 
@@ -145,7 +146,8 @@ app.get('/', (req, res) => {
       contact: '/api/contact',
       supportMessages: '/api/support/messages',
       chat: '/api/chat',
-      report: '/api/report'
+      report: '/api/report',
+      analytics: '/api/analytics/*'
     }
   });
 });
@@ -165,6 +167,7 @@ app.use("/api", serviceRequestRoutes);
 app.use("/api", venueRoutes);
 app.use("/api", venueBookingRoutes);
 app.use("/api/statuscheck", statuscheckRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Global error handler - ensures CORS headers are always sent
 app.use((err, req, res, next) => {
