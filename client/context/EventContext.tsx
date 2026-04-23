@@ -16,6 +16,8 @@ export interface EventForCard {
   allow_outsiders?: boolean | null;
   is_archived?: boolean | null;
   is_draft?: boolean | null;
+  created_by?: string | null;
+  organizer_email?: string | null;
 }
 
 export interface CarouselDisplayImage {
@@ -241,6 +243,8 @@ const toEventCard = (event: FetchedEvent): EventForCard => {
     allow_outsiders: event.allow_outsiders ?? false,
     is_archived: event.is_archived,
     is_draft: event.is_draft,
+    created_by: event.created_by,
+    organizer_email: event.organizer_email,
   };
 };
 

@@ -13,6 +13,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "concurrently": "^8.2.2",
+    "cypress": "^15.14.1",
     "dotenv": "^17.4.0",
     "pg": "^8.20.0",
     "supabase": "^2.84.6"

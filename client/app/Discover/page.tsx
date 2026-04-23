@@ -34,6 +34,7 @@ interface Fest {
   venue?: string | null;
   is_archived?: boolean;
   is_draft?: boolean;
+  created_by?: string | null;
   archived_at?: string | null;
 }
 
@@ -120,6 +121,7 @@ const DiscoverPageContent = () => {
               venue: fest.venue ?? null,
               is_archived: Boolean(fest.is_archived),
               is_draft: Boolean(fest.is_draft),
+              created_by: fest.created_by || fest.user_email || fest.organiser_email || null,
               archived_at: fest.archived_at ?? null,
             }))
           : [];

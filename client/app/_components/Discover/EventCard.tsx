@@ -24,6 +24,8 @@ interface EventCardProps {
   archivedVisualMode?: "tag" | "muted";
   onArchiveToggle?: (eventId: string, shouldArchive: boolean) => Promise<void>;
   isArchiveLoading?: boolean;
+  createdBy?: string | null;
+  organizerEmail?: string | null;
 }
 
 export const EventCard = ({
@@ -45,12 +47,21 @@ export const EventCard = ({
   archivedVisualMode = "tag",
   onArchiveToggle,
   isArchiveLoading = false,
+  createdBy,
+  organizerEmail,
 }: EventCardProps) => {
   const { userData, session, isLoading: authLoading } = useAuth();
 
   const isOutsiderUser = userData?.organization_type === "outsider";
   const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
   const isAdminOrOrganizer = !authLoading && (userData?.is_organiser || userData?.is_masteradmin);
+  
+  const isOwner = !authLoading && (
+    (session?.user?.id && createdBy && session.user.id === createdBy) || 
+    (userData?.email && organizerEmail && userData.email.toLowerCase() === organizerEmail.toLowerCase())
+  );
+  
+  const canManage = !authLoading && (userData?.is_masteradmin || (userData?.is_organiser && isOwner));
   const reminderAuthToken = authToken || session?.access_token || "";
 
   const eventSlug = idForLink;
@@ -230,7 +241,7 @@ export const EventCard = ({
             <span className="truncate">{location}</span>
           </div>
         </div>
-        {!authLoading && isAdminOrOrganizer ? (
+        {canManage ? (
           <div className="mt-auto pt-2 border-t border-gray-200 flex flex-wrap gap-x-4 gap-y-2">
             <Link
               href={participantsPageUrl}

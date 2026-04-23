@@ -26,6 +26,8 @@ interface FetchedEvent {
   organizing_dept: string | null;
   allow_outsiders?: boolean | null;
   is_archived?: boolean | null;
+  created_by?: string | null;
+  organizer_email?: string | null;
 }
 
 interface FilterOption {
@@ -424,6 +426,8 @@ const EventsPageContent = () => {
                         isArchived={Boolean(event.is_archived)}
                         onArchiveToggle={handleToggleArchive}
                         isArchiveLoading={archiveUpdatingIds.has(event.event_id)}
+                        createdBy={event.created_by}
+                        organizerEmail={event.organizer_email}
                       />
                     </div>
                   ))}

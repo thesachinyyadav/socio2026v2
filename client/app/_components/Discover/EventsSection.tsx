@@ -16,6 +16,8 @@ interface Event {
   allow_outsiders?: boolean | null;
   is_archived?: boolean | null;
   is_draft?: boolean | null;
+  created_by?: string | null;
+  organizer_email?: string | null;
 }
 
 interface EventsSectionProps {
@@ -63,6 +65,8 @@ export const EventsSection = ({
             archivedVisualMode={archivedVisualMode}
             onArchiveToggle={onArchiveToggle}
             isArchiveLoading={archiveLoadingIds.has(event.event_id)}
+            createdBy={event.created_by}
+            organizerEmail={event.organizer_email}
           />
         ))}
       </div>

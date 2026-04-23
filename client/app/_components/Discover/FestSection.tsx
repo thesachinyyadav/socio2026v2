@@ -14,6 +14,7 @@ interface Fest {
   closing_date: Date;
   is_archived?: boolean | null;
   is_draft?: boolean | null;
+  created_by?: string | null;
 }
 
 interface FestsSectionProps {

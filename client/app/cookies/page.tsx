@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import Link from "next/link";
 
 export default function CookiePolicy() {
-  // Scroll to top on page load
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -13,277 +12,185 @@ export default function CookiePolicy() {
     <div className="min-h-screen bg-gradient-to-b from-white to-blue-50">
       <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
-          {/* Header */}
           <div className="bg-[#063168] py-6 px-8">
             <h1 className="text-3xl font-bold text-white">Cookie Policy</h1>
-            <p className="mt-2 text-blue-100">
-              Last updated: January 30, 2026
-            </p>
+            <p className="mt-2 text-blue-100">Effective Date: January 30,06</p>
           </div>
 
-          {/* Content */}
-          <div className="px-8 py-6 prose prose-blue max-w-none">
+          <div className="px-8 py-6 prose prose-blue max-w-none text-gray-700">
             <div className="mb-8">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-[#063168]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-[#063168] m-0">What Are Cookies</h2>
-              </div>
+              <h2 className="text-2xl font-bold text-[#063168] m-0">1. Introduction</h2>
               <p>
-                Cookies are small pieces of text sent to your web browser by a website you visit. A cookie file is stored in 
-                your web browser and allows the Service or a third party to recognize you and make your next visit easier and 
-                the Service more useful to you.
+                This Cookie Policy explains how SOCIO (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) uses cookies and similar technologies when
+                you access or use the SOCIO platform available at https://socio.christuniversity.in/ (&quot;Platform&quot;).
               </p>
               <p>
-                Cookies can be "persistent" or "session" cookies. Persistent cookies remain on your device when you go offline, 
-                while session cookies are deleted as soon as you close your web browser.
+                This Policy should be read together with our Privacy Policy, which explains how we collect, use, and
+                process personal data, including data collected through cookies.
               </p>
             </div>
 
             <div className="mb-8">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-[#063168]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-[#063168] m-0">How Socio Uses Cookies</h2>
-              </div>
+              <h2 className="text-2xl font-bold text-[#063168] m-0">2. What Are Cookies</h2>
               <p>
-                When you use and access the Socio platform, we may place a number of cookie files in your web browser.
+                Cookies are small text files that are placed on your device (computer, mobile device, or tablet) when
+                you visit a website. Cookies help websites function efficiently and provide information to website
+                operators.
               </p>
               <p>
-                We use cookies for the following purposes:
+                Cookies may be Session cookies, which expire when you close your browser or Persistent cookies, which
+                remain on your device until they expire or are deleted.
               </p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">3. Types of Cookies We Use</h2>
+              <h3 className="text-xl font-semibold text-gray-800">3.1 Essential Cookies</h3>
+              <p>
+                These cookies are strictly necessary for the functioning of the Platform and enable core features such
+                as authentication, account access, and security. These cookies do not require user consent.
+              </p>
+              <h3 className="text-xl font-semibold text-gray-800">3.2 Performance and Analytics Cookies</h3>
+              <p>
+                These cookies collect information about how users interact with the Platform, such as pages visited,
+                time spent, and errors encountered. This data is generally aggregated and used to improve performance and
+                functionality.
+              </p>
+              <h3 className="text-xl font-semibold text-gray-800">3.3 Functional Cookies</h3>
+              <p>
+                These cookies allow the Platform to remember user preferences and provide enhanced, personalized features.
+              </p>
+              <h3 className="text-xl font-semibold text-gray-800">3.4 Advertising and Promotional Cookies</h3>
+              <p>
+                These cookies may be used to display relevant announcements, featured events, or promotional content
+                based on your interaction with the Platform.
+              </p>
+              <p>SOCIO does not sell personal data to third-party advertisers.</p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">4. Legal Basis for Use of Cookies</h2>
+              <p>We use cookies based on the following legal grounds:</p>
               <ul className="list-disc ml-6 mb-4">
-                <li><strong>Authentication:</strong> We use cookies to identify you when you visit our website and as you 
-                navigate our website, and to help us determine if you are logged into our website.</li>
-                <li><strong>Security:</strong> We use cookies as an element of the security measures to protect user accounts, 
-                including preventing fraudulent use of login credentials and protecting our website and services generally.</li>
-                <li><strong>Status:</strong> We use cookies to help us determine if you are logged into our website.</li>
-                <li><strong>Personalization:</strong> We use cookies to store information about your preferences and to personalize 
-                our website for you (such as remembering your preferred language or the region you are in).</li>
-                <li><strong>Analysis:</strong> We use cookies to analyze the use and performance of our website and services.</li>
-              </ul>
-            </div>
-
-            <div className="mb-8">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-[#063168]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-[#063168] m-0">Types of Cookies We Use</h2>
-              </div>
-              <p>
-                The cookies we use on the Socio platform can be categorized as follows:
-              </p>
-              <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                <h3 className="text-xl font-semibold text-[#063168] mb-2">Essential Cookies</h3>
-                <p className="mb-2">
-                  These cookies are necessary for the website to function properly. They enable core functionality such as 
-                  security, network management, and account access. You may disable these by changing your browser settings, 
-                  but this may affect how the website functions.
-                </p>
-                <p className="text-sm text-gray-600">
-                  Examples: session cookies, authentication cookies
-                </p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                <h3 className="text-xl font-semibold text-[#063168] mb-2">Functionality Cookies</h3>
-                <p className="mb-2">
-                  These cookies allow the website to remember choices you make (such as your user name, language, or the region 
-                  you are in) and provide enhanced, more personal features.
-                </p>
-                <p className="text-sm text-gray-600">
-                  Examples: language preference cookies, theme preference cookies
-                </p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                <h3 className="text-xl font-semibold text-[#063168] mb-2">Performance and Analytics Cookies</h3>
-                <p className="mb-2">
-                  These cookies collect information about how visitors use a website, for instance which pages visitors go to most 
-                  often, and if they get error messages from web pages. All information these cookies collect is aggregated and 
-                  therefore anonymous.
-                </p>
-                <p className="text-sm text-gray-600">
-                  Examples: Google Analytics cookies
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-[#063168]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-[#063168] m-0">Managing Cookies</h2>
-              </div>
-              <p>
-                Most browsers allow you to refuse to accept cookies and to delete cookies. The methods for doing so vary from 
-                browser to browser, and from version to version.
-              </p>
-              <p>
-                You can obtain up-to-date information about blocking and deleting cookies via these links:
-              </p>
-              <ul className="list-disc ml-6 mb-4">
+                <li>Essential cookies are used as they are necessary for providing the Platform and its core services</li>
                 <li>
-                  <a href="https://support.google.com/chrome/answer/95647" target="_blank" rel="noopener noreferrer" 
-                  className="text-[#063168] hover:text-[#3D75BD]">
-                    Google Chrome
-                  </a>
-                </li>
-                <li>
-                  <a href="https://support.mozilla.org/en-US/kb/enhanced-tracking-protection-firefox-desktop" 
-                  target="_blank" rel="noopener noreferrer" className="text-[#063168] hover:text-[#3D75BD]">
-                    Mozilla Firefox
-                  </a>
-                </li>
-                <li>
-                  <a href="https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09" 
-                  target="_blank" rel="noopener noreferrer" className="text-[#063168] hover:text-[#3D75BD]">
-                    Microsoft Edge
-                  </a>
-                </li>
-                <li>
-                  <a href="https://support.apple.com/guide/safari/manage-cookies-and-website-data-sfri11471/mac" 
-                  target="_blank" rel="noopener noreferrer" className="text-[#063168] hover:text-[#3D75BD]">
-                    Safari (macOS)
-                  </a>
-                </li>
-                <li>
-                  <a href="https://support.apple.com/en-us/HT201265" target="_blank" rel="noopener noreferrer" 
-                  className="text-[#063168] hover:text-[#3D75BD]">
-                    Safari (iOS)
-                  </a>
+                  Non-essential cookies (such as analytics, functional, and promotional cookies) are used only with your
+                  consent
                 </li>
               </ul>
               <p>
-                Please note that blocking cookies may have a negative impact on the functions of many websites, including our 
-                Site. Some features of the Site may cease to be available to you.
+                Where required under applicable laws, including Indian data protection principles, your consent will be
+                obtained before placing non-essential cookies on your device.
               </p>
             </div>
 
             <div className="mb-8">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-[#063168]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-[#063168] m-0">Changes to This Cookie Policy</h2>
-              </div>
+              <h2 className="text-2xl font-bold text-[#063168] m-0">5. Cookie Consent and Control</h2>
               <p>
-                We may update our Cookie Policy from time to time. We will notify you of any changes by posting the new 
-                Cookie Policy on this page.
+                When you first visit the Platform, you may be presented with a cookie banner requesting your consent for
+                the use of non-essential cookies.
               </p>
               <p>
-                You are advised to review this Cookie Policy periodically for any changes. Changes to this Cookie Policy 
-                are effective when they are posted on this page.
+                You have the option to accept all cookies, reject non-essential cookies and customize your cookie
+                preferences (if available). You may withdraw or modify your consent at any time through your browser
+                settings or any cookie preference tool made available on the Platform.
+              </p>
+              <p>
+                Please note that disabling certain cookies may affect the functionality and performance of the Platform.
               </p>
             </div>
 
             <div className="mb-8">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-[#063168]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-[#063168] m-0">Contact Us</h2>
-              </div>
+              <h2 className="text-2xl font-bold text-[#063168] m-0">6. Purpose of Cookies</h2>
               <p>
-                If you have any questions about this Cookie Policy, please contact us:
+                We use cookies and similar technologies to ensure the proper functioning and security of the Platform,
+                authenticate users and maintain session integrity, improve user experience and performance, analyze usage
+                patterns and trends, and display relevant announcements and promotional content.
               </p>
-              <p className="text-[#063168] font-bold">thesocio.blr@gmail.com</p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">7. Data Collected Through Cookies</h2>
+              <p>
+                Cookies may collect certain technical and usage-related information, including IP address, browser type
+                and version, device information, pages visited and interaction patterns and date and time of access.
+              </p>
+              <p>
+                This information may, in some cases, be associated with a user account and treated as personal data in
+                accordance with our Privacy Policy.
+              </p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">8. Cookie Duration</h2>
+              <p>
+                Cookies may remain on your device for varying periods depending on their purpose, where Session cookies
+                are deleted when you close your browser and Persistent cookies remain for a predefined period or until
+                manually deleted.
+              </p>
+              <p>The duration of cookies depends on their specific function and configuration.</p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">9. Third-Party Cookies</h2>
+              <p>
+                We may use third-party service providers, such as analytics or hosting providers, who may place cookies
+                on your device to assist in delivering services.
+              </p>
+              <p>
+                These third parties may independently collect and process certain information through their cookies,
+                subject to their own privacy policies. SOCIO does not control such third-party cookies and encourages
+                users to review the policies of such providers.
+              </p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">10. Do Not Track Signals</h2>
+              <p>
+                Some browsers offer a &quot;Do Not Track&quot; (&quot;DNT&quot;) feature that signals websites that you do not wish to be
+                tracked. Currently, the Platform does not respond to DNT signals. However, you may manage tracking
+                preferences through your cookie settings and browser controls.
+              </p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">11. Managing Cookies Through Browser Settings</h2>
+              <p>
+                Most web browsers allow you to control cookies through their settings. You can block cookies, delete
+                stored cookies and configure preferences for specific websites.
+              </p>
+              <p>Disabling cookies may limit certain functionalities of the Platform.</p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">12. Updates to This Cookie Policy</h2>
+              <p>
+                We may update this Cookie Policy from time to time to reflect changes in technology, legal requirements,
+                or Platform features.
+              </p>
+              <p>
+                Any updates will be posted on this page with a revised &quot;Effective Date.&quot; Continued use of the Platform
+                after such updates constitutes your acceptance of the revised Policy.
+              </p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#063168] m-0">13. Contact Information</h2>
+              <p>If you have any questions or concerns regarding this Cookie Policy, you may contact:</p>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="font-medium text-gray-800">SOCIO Platform Support</p>
+                <p>Email: support@withsocio.com</p>
+              </div>
             </div>
 
             <div className="mt-8 border-t border-gray-200 pt-6">
               <div className="flex justify-between">
                 <Link href="/" className="text-[#063168] hover:text-[#3D75BD] font-medium">
-                  ← Back to Home
+                  &larr; Back to Home
                 </Link>
                 <div className="space-x-4">
                   <Link href="/terms" className="text-[#063168] hover:text-[#3D75BD] font-medium">
-                    Terms of Service
+                    Terms and Conditions
                   </Link>
                   <Link href="/privacy" className="text-[#063168] hover:text-[#3D75BD] font-medium">
                     Privacy Policy

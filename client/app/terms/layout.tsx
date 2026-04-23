@@ -2,11 +2,11 @@ import { Metadata } from "next";
 import { SITE_URL } from "@/lib/siteConfig";
 
 export const metadata: Metadata = {
-  title: "Terms of Service",
+  title: "Terms and Conditions",
   description:
-    "Read the SOCIO Terms of Service. These terms govern your access and use of the SOCIO campus event management platform at Christ University.",
+    "Read the SOCIO Terms and Conditions. These terms govern your access and use of the SOCIO campus event management platform at Christ University.",
   openGraph: {
-    title: "Terms of Service | SOCIO",
+    title: "Terms and Conditions | SOCIO",
     description:
       "Terms governing access and use of the SOCIO campus event management platform.",
     url: `${SITE_URL}/terms`,

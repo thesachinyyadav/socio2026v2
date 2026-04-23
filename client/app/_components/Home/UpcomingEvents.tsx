@@ -216,6 +216,8 @@ const UpcomingEvents = () => {
             archivedVisualMode: "muted" as const,
             onArchiveToggle: handleToggleArchive,
             isArchiveLoading: archiveUpdatingIds.has(String(event.event_id)),
+            createdBy: event.created_by,
+            organizerEmail: event.organizer_email,
           };
 
           return (
