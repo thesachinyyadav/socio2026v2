@@ -117,7 +117,8 @@ const SupportPage = () => {
         bgColor: "bg-red-50",
         iconBg: "bg-red-100",
         textColor: "text-red-600",
-        buttonClasses: "bg-red-600 hover:bg-red-700 text-white"
+        buttonClasses: "bg-red-600 hover:bg-red-700 text-white",
+        href: "/contact?subject=bug"
       },
       {
         title: "Request a Feature",
@@ -131,7 +132,8 @@ const SupportPage = () => {
         bgColor: "bg-green-50",
         iconBg: "bg-green-100",
         textColor: "text-green-600",
-        buttonClasses: "bg-green-600 hover:bg-green-700 text-white"
+        buttonClasses: "bg-green-600 hover:bg-green-700 text-white",
+        href: "/contact?subject=feature"
       },
       {
         title: "Contact Support",
@@ -145,7 +147,8 @@ const SupportPage = () => {
         bgColor: "bg-blue-50",
         iconBg: "bg-blue-100",
         textColor: "text-[#154CB3]",
-        buttonClasses: "bg-[#154CB3] hover:bg-[#063168] text-white"
+        buttonClasses: "bg-[#154CB3] hover:bg-[#063168] text-white",
+        href: "/contact?subject=help"
       },
       {
         title: "Join the SOCIO Team",
@@ -194,26 +197,7 @@ const SupportPage = () => {
             <h1 className="text-3xl font-black text-[#154CB3] mb-2 mt-6">
               Help & Support
             </h1>
-            <Link
-              href="/contact"
-              className="flex items-center text-[#063168] hover:underline cursor-pointer text-xs sm:text-base"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              Contact Us
-            </Link>
+
           </div>
           <p className="text-gray-500 mb-8 text-sm sm:text-base">
             Find answers to common questions or get personalized help from our support team.

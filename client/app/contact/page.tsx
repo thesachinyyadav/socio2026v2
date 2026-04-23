@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Footer from "../_components/Home/Footer";
 
-const ContactPage = () => {
+const ContactForm = () => {
+  const searchParams = useSearchParams();
   const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
   const [formData, setFormData] = useState({
     name: "",
@@ -13,6 +15,21 @@ const ContactPage = () => {
     subject: "",
     message: ""
   });
+
+  useEffect(() => {
+    const subject = searchParams.get("subject");
+    if (subject) {
+      const subjectMap: Record<string, string> = {
+        bug: "Bug Report",
+        feature: "Feature Request",
+        help: "General Support"
+      };
+      setFormData(prev => ({
+        ...prev,
+        subject: subjectMap[subject] || subject
+      }));
+    }
+  }, [searchParams]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"success" | "error" | null>(null);
@@ -366,6 +383,14 @@ const ContactPage = () => {
       
       <Footer />
     </div>
+  );
+};
+
+const ContactPage = () => {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <ContactForm />
+    </Suspense>
   );
 };
 
