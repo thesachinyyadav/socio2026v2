@@ -323,7 +323,7 @@ export default function TeamPage() {
                   </div>
                   <h4 className="font-bold text-gray-800">Technical Team</h4>
                 </div>
-                <p className="text-sm text-[#154CB3] font-semibold mb-3">4 Technical Interns</p>
+                <p className="text-sm text-[#154CB3] font-semibold mb-3">8 Technical Interns</p>
                 <ul className="text-xs text-gray-600 space-y-2">
                   <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#154CB3] rounded-full" /> Frontend Development & UI/UX</li>
                   <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#154CB3] rounded-full" /> Backend Development & Database</li>
