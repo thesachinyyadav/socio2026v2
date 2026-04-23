@@ -9,7 +9,6 @@ import {
 } from "../config/database.js";
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
 import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled, pushEventToGated } from "../utils/gatedSync.js";
-import { sendRegistrationEmail } from "../utils/emailService.js";
 import { createOrUpdateTeammateUsers } from "../utils/teammateService.js";
 import { 
   authenticateUser, 
@@ -642,18 +641,6 @@ router.post("/register", async (req, res) => {
       { total_participants: newTotalParticipants },
       { event_id: normalizedEventId }
     );
-
-    // Send confirmation email with QR code (non-blocking)
-    (async () => {
-      try {
-        const emailRecipient = participantEmail;
-        const recipientName = processedData.individual_name || processedData.team_leader_name || 'Participant';
-        const qrImage = await generateQRCodeImage(qrCodeData);
-        await sendRegistrationEmail(emailRecipient, recipientName, event, registration_id, qrImage);
-      } catch (emailErr) {
-        console.error('⚠️  Failed to send registration email:', emailErr.message);
-      }
-    })();
 
     return res.status(201).json({
       message: "Registration successful",
