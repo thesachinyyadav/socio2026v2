@@ -106,18 +106,20 @@ function KpiCard({ kpi }: { kpi: AnalyticsKpi }) {
   const trendPositive = isDropOff ? !isPositive : isPositive;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{kpi.label}</p>
-        <Icon className="h-4 w-4 text-[#154CB3]" />
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-200/40 transition-shadow hover:shadow-md">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{kpi.label}</p>
+        <span className="inline-flex rounded-lg bg-slate-100 p-1.5">
+          <Icon className="h-4 w-4 text-[#154CB3]" />
+        </span>
       </div>
 
-      <p className="text-2xl font-bold text-slate-900">
+      <p className="text-2xl font-bold tracking-tight text-slate-900">
         {kpi.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         {kpi.unit}
       </p>
 
-      <div className="mt-2 flex items-center gap-1.5">
+      <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ring-1 ring-inset ring-slate-200">
         {trendPositive ? (
           <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
         ) : (
@@ -129,6 +131,10 @@ function KpiCard({ kpi }: { kpi: AnalyticsKpi }) {
       </div>
     </div>
   );
+}
+
+function SectionCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={classNames("rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/40", className)}>{children}</div>;
 }
 
 export default function DataExplorerDashboard() {
@@ -270,16 +276,17 @@ export default function DataExplorerDashboard() {
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-9 w-9 animate-spin text-[#154CB3]" />
-        <p className="text-sm font-medium text-slate-600">Building analytics intelligence layer...</p>
+      <div className="rounded-3xl border border-slate-200/80 bg-white p-14 text-center shadow-sm shadow-slate-200/40">
+        <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-[#154CB3]" />
+        <p className="text-sm font-semibold text-slate-700">Building analytics intelligence layer...</p>
+        <p className="mt-1 text-xs text-slate-500">Preparing engagement, event, and behavior data views.</p>
       </div>
     );
   }
 
   if (error || !bundle) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+      <div className="rounded-3xl border border-red-200 bg-red-50/80 p-7">
         <h3 className="text-base font-semibold text-red-800">Analytics engine unavailable</h3>
         <p className="mt-1 text-sm text-red-700">{error ?? "Unable to load analytics."}</p>
         <button
@@ -287,7 +294,7 @@ export default function DataExplorerDashboard() {
           onClick={() => {
             void loadAnalytics(false);
           }}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+          className="mt-5 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Retry
         </button>
@@ -296,30 +303,37 @@ export default function DataExplorerDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-20 rounded-xl border border-slate-200 bg-slate-50/95 p-4 backdrop-blur">
-        <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="space-y-7">
+      <div className="sticky top-3 z-20 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm shadow-slate-200/40 backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Socio Engagement Intelligence</p>
-            <p className="text-xs text-slate-500">Decision dashboard for participation, attendance quality, risk, and growth planning.</p>
+            <p className="text-base font-bold tracking-tight text-slate-900">Socio Engagement Intelligence</p>
+            <p className="mt-1 text-xs text-slate-500">Master admin data explorer for participation, performance, behavior, and growth planning.</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              void loadAnalytics(true);
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            <RefreshCw className={classNames("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Data Snapshot</p>
+              <p className="text-xs font-medium text-slate-700">{new Date(bundle.overview.generatedAt).toLocaleString()}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void loadAnalytics(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <RefreshCw className={classNames("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+              Refresh
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(300px,420px)]">
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Date Window</label>
-            <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1">
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Date Window</label>
+            <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
               {(["30", "90", "180", "365"] as DatePreset[]).map((value) => (
                 <button
                   key={value}
@@ -330,8 +344,8 @@ export default function DataExplorerDashboard() {
                     setCustomEnd("");
                   }}
                   className={classNames(
-                    "rounded-md px-2.5 py-1.5 text-[11px] font-semibold",
-                    preset === value && !customStart && !customEnd ? "bg-[#154CB3] text-white" : "text-slate-600 hover:bg-slate-100"
+                    "rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors",
+                    preset === value && !customStart && !customEnd ? "bg-[#154CB3] text-white" : "text-slate-600 hover:bg-white"
                   )}
                 >
                   {value}D
@@ -340,29 +354,24 @@ export default function DataExplorerDashboard() {
             </div>
           </div>
 
-          <div className="min-w-[260px]">
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Range</label>
-            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Range</label>
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
               <CalendarRange className="h-3.5 w-3.5 text-slate-400" />
               <input
                 type="date"
                 value={customStart}
                 onChange={(event) => setCustomStart(event.target.value)}
-                className="w-full text-xs text-slate-700 outline-none"
+                className="w-full bg-transparent text-xs text-slate-700 outline-none"
               />
               <span className="text-xs text-slate-400">to</span>
               <input
                 type="date"
                 value={customEnd}
                 onChange={(event) => setCustomEnd(event.target.value)}
-                className="w-full text-xs text-slate-700 outline-none"
+                className="w-full bg-transparent text-xs text-slate-700 outline-none"
               />
             </div>
-          </div>
-
-          <div className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Data Snapshot</p>
-            <p className="text-xs font-medium text-slate-700">{new Date(bundle.overview.generatedAt).toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -374,7 +383,7 @@ export default function DataExplorerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard>
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-slate-900">Monthly Engagement Trend</h3>
@@ -400,9 +409,9 @@ export default function DataExplorerDashboard() {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </SectionCard>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard>
           <div className="mb-4">
             <h3 className="text-sm font-bold text-slate-900">Drop-off Funnel</h3>
             <p className="text-xs text-slate-500">Shows conversion from registration to attendance to feedback completion.</p>
@@ -423,11 +432,11 @@ export default function DataExplorerDashboard() {
               </FunnelChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </SectionCard>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard>
           <div className="mb-4">
             <h3 className="text-sm font-bold text-slate-900">Event Category Performance</h3>
             <p className="text-xs text-slate-500">Compares category-level success and helps prioritize programming strategy.</p>
@@ -447,9 +456,9 @@ export default function DataExplorerDashboard() {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </SectionCard>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard>
           <div className="mb-4">
             <h3 className="text-sm font-bold text-slate-900">Student Segmentation</h3>
             <p className="text-xs text-slate-500">Active vs inactive students, with top engaged and at-risk cohorts.</p>
@@ -499,19 +508,19 @@ export default function DataExplorerDashboard() {
               </div>
             </div>
           </div>
-        </div>
+        </SectionCard>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard>
           <div className="mb-4">
             <h3 className="text-sm font-bold text-slate-900">Department Analytics</h3>
             <p className="text-xs text-slate-500">Participation rates, hosted events, and engagement score by department.</p>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full min-w-[650px] text-xs">
-              <thead>
+              <thead className="bg-slate-50">
                 <tr className="border-b border-slate-200 text-slate-500">
                   <th className="px-2 py-2 text-left font-semibold uppercase tracking-wider">Department</th>
                   <th className="px-2 py-2 text-right font-semibold uppercase tracking-wider">Participation</th>
@@ -542,9 +551,9 @@ export default function DataExplorerDashboard() {
               </tbody>
             </table>
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard>
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-slate-900">Insights Engine</h3>
@@ -579,10 +588,10 @@ export default function DataExplorerDashboard() {
               {bundle.insights.peakAttendanceTime.day} at {bundle.insights.peakAttendanceTime.hour} ({bundle.insights.peakAttendanceTime.attendedCount.toLocaleString()} attended records)
             </p>
           </div>
-        </div>
+        </SectionCard>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <SectionCard>
         <div className="mb-4 flex items-center gap-2">
           <Activity className="h-4 w-4 text-[#154CB3]" />
           <div>
@@ -735,7 +744,7 @@ export default function DataExplorerDashboard() {
             <p className="text-base font-bold text-slate-900">{bundle.insights.peakAttendanceTime.day} • {bundle.insights.peakAttendanceTime.hour}</p>
           </div>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }
