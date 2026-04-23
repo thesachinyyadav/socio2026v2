@@ -490,15 +490,15 @@ export default function TeamPage() {
             to hear from you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/contact"
+            <a
+              href="mailto:thesocio.blr@gmail.com"
               className="inline-flex items-center justify-center gap-2 bg-[#154CB3] text-white px-8 py-3.5 rounded-xl font-semibold hover:bg-[#063168] transition-all duration-300"
             >
               Get In Touch
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
-            </Link>
+            </a>
             <a
               href="mailto:thesocio.blr@gmail.com"
               className="inline-flex items-center justify-center gap-2 border-2 border-[#154CB3] text-[#154CB3] px-8 py-3.5 rounded-xl font-semibold hover:bg-[#154CB3] hover:text-white transition-all duration-300"
