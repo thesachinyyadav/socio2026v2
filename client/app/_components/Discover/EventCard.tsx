@@ -58,9 +58,15 @@ export const EventCard = ({
   
   const isOwner = !authLoading && (
     (session?.user?.id && createdBy && session.user.id === createdBy) || 
+    (userData?.email && createdBy && userData.email.toLowerCase() === createdBy.toLowerCase()) || 
     (userData?.email && organizerEmail && userData.email.toLowerCase() === organizerEmail.toLowerCase())
   );
   
+  // Debug logging to help identify why management buttons might be appearing incorrectly
+  if (userData?.is_organiser && !authLoading) {
+    console.log(`[EventCard Debug] title: ${title}, isOwner: ${isOwner}, createdBy: ${createdBy}, sessionUserId: ${session?.user?.id}, organizerEmail: ${organizerEmail}, userEmail: ${userData?.email}`);
+  }
+
   const canManage = !authLoading && (userData?.is_masteradmin || (userData?.is_organiser && isOwner));
   const reminderAuthToken = authToken || session?.access_token || "";
 
