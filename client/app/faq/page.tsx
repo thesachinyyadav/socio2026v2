@@ -246,21 +246,7 @@ export default function FAQPage() {
               ))}
             </div>
 
-            {/* Contact Card */}
-            <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="font-bold text-gray-800 mb-2 text-sm">
-                Still have questions?
-              </h4>
-              <p className="text-gray-600 mb-4 text-xs">
-                Our support team is here to help you succeed.
-              </p>
-              <Link
-                href="/contact"
-                className="bg-[#154CB3] text-white px-4 py-2 rounded-lg font-medium hover:bg-[#063168] transition-all text-xs block text-center"
-              >
-                Contact Support
-              </Link>
-            </div>
+
           </div>
 
           {/* FAQ Content */}

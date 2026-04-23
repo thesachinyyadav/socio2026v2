@@ -330,7 +330,7 @@ const ContactPage = () => {
                 </p>
                 <a
                   href={`mailto:${member.email}`}
-                  className="text-gray-600 hover:text-[#154CB3] text-sm"
+                  className="text-[#154CB3] hover:underline text-sm font-medium"
                 >
                   {member.email}
                 </a>
