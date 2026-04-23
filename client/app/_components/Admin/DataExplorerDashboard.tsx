@@ -20,7 +20,6 @@ import {
 } from "recharts";
 import {
   Activity,
-  AlertTriangle,
   Brain,
   CalendarRange,
   Clock3,
@@ -205,6 +204,69 @@ export default function DataExplorerDashboard() {
       { name: "Inactive", value: segmentation.inactive },
     ];
   }, [bundle?.students.segmentation]);
+
+  const eventPerformanceGraph = useMemo(
+    () =>
+      (bundle?.events.attendanceByEvent ?? []).slice(0, 8).map((event) => ({
+        name: event.title.length > 18 ? `${event.title.slice(0, 18)}…` : event.title,
+        attendanceRate: event.attendanceRate,
+        successScore: event.successScore,
+        dropOffRate: Math.max(0, 100 - event.attendanceRate),
+      })),
+    [bundle?.events.attendanceByEvent]
+  );
+
+  const categoryPopularityGraph = useMemo(
+    () =>
+      (bundle?.events.categoryPerformance ?? []).slice(0, 8).map((category) => ({
+        category: category.category,
+        popularityIndex: category.popularityIndex,
+        attendanceRate: category.attendanceRate,
+      })),
+    [bundle?.events.categoryPerformance]
+  );
+
+  const departmentContributionGraph = useMemo(
+    () =>
+      (bundle?.departments.departments ?? []).slice(0, 10).map((dept) => ({
+        department: dept.department,
+        participationRate: dept.participationRate,
+        contributionIndex: dept.contributionIndex,
+        crossDepartmentParticipationRate: dept.crossDepartmentParticipationRate,
+      })),
+    [bundle?.departments.departments]
+  );
+
+  const timingEfficiencyGraph = useMemo(
+    () => (bundle?.insights.timingEfficiency ?? []).slice(0, 8),
+    [bundle?.insights.timingEfficiency]
+  );
+
+  const noShowGraph = useMemo(
+    () =>
+      (bundle?.students.engagementScores ?? [])
+        .slice()
+        .sort((a, b) => b.noShowRate - a.noShowRate)
+        .slice(0, 8)
+        .map((student) => ({
+          name: student.name.length > 16 ? `${student.name.slice(0, 16)}…` : student.name,
+          noShowRate: student.noShowRate,
+          engagementDrop: student.engagementDrop,
+        })),
+    [bundle?.students.engagementScores]
+  );
+
+  const retentionSummary = useMemo(() => {
+    const behavior = bundle?.students.behavior;
+    return {
+      retentionRate: behavior?.retentionRate ?? 0,
+      dropDetectionRate: behavior?.dropDetectionRate ?? 0,
+      averageNoShowRate: behavior?.averageNoShowRate ?? 0,
+      activeRatio: bundle?.students.segmentation.active
+        ? (bundle.students.segmentation.active / Math.max(bundle.students.segmentation.inactive, 1)).toFixed(2)
+        : "0.00",
+    };
+  }, [bundle?.students.behavior, bundle?.students.segmentation.active, bundle?.students.segmentation.inactive]);
 
   if (isLoading) {
     return (
@@ -522,56 +584,155 @@ export default function DataExplorerDashboard() {
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-[#154CB3]" />
+          <Activity className="h-4 w-4 text-[#154CB3]" />
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Predictive Hooks</h3>
-            <p className="text-xs text-slate-500">Heuristic predictions for attendance and drop-off risk (ML-ready interface).</p>
+            <h3 className="text-sm font-bold text-slate-900">Advanced Analytics Graphs</h3>
+            <p className="text-xs text-slate-500">Student engagement, event performance, departments, timing behavior, and retention intelligence.</p>
+          </div>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Participation Rate</p>
+            <p className="text-base font-bold text-slate-900">{toPercent(bundle.overview.stats.participationRate)}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Avg Events / Student</p>
+            <p className="text-base font-bold text-slate-900">{bundle.overview.stats.avgEventsPerStudent.toFixed(2)}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Active : Inactive Ratio</p>
+            <p className="text-base font-bold text-slate-900">{retentionSummary.activeRatio}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Retention Rate</p>
+            <p className="text-base font-bold text-slate-900">{toPercent(retentionSummary.retentionRate)}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <div className="rounded-lg border border-slate-200 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Attendance Prediction</p>
-            <div className="space-y-2">
-              {bundle.events.predictions.attendancePrediction.slice(0, 6).map((prediction) => (
-                <div key={prediction.eventId} className="rounded-md bg-slate-50 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-slate-800">{prediction.title}</p>
-                    <span className={classNames("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", confidencePill(prediction.confidence))}>
-                      {prediction.confidence}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    Predicted attendance: {prediction.predictedAttendanceRate.toFixed(1)}% • Drop-off risk: {prediction.predictedDropOffRisk.toFixed(1)}%
-                  </p>
-                </div>
-              ))}
-              {bundle.events.predictions.attendancePrediction.length === 0 && (
-                <p className="text-xs text-slate-400">No upcoming events available for attendance prediction.</p>
-              )}
-            </div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Event Performance (Attendance, Success, Drop-off)</p>
+            {eventPerformanceGraph.length === 0 ? (
+              <p className="py-16 text-center text-xs text-slate-400">No event performance data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={eventPerformanceGraph} margin={{ top: 8, right: 8, left: -14, bottom: 32 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#64748b" }} angle={-20} textAnchor="end" height={52} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <Tooltip contentStyle={{ borderRadius: 10, borderColor: "#cbd5e1" }} />
+                  <Bar dataKey="attendanceRate" fill="#154CB3" radius={[4, 4, 0, 0]} name="Attendance Rate %" />
+                  <Bar dataKey="successScore" fill="#0EA5A4" radius={[4, 4, 0, 0]} name="Success Score" />
+                  <Bar dataKey="dropOffRate" fill="#EF4444" radius={[4, 4, 0, 0]} name="Drop-off Rate %" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="rounded-lg border border-slate-200 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Drop-off Risk Forecast</p>
-            <div className="space-y-2">
-              {bundle.events.predictions.dropOffPrediction.slice(0, 6).map((prediction) => (
-                <div key={prediction.eventId} className="rounded-md bg-slate-50 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-slate-800">{prediction.title}</p>
-                    <span className={classNames("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", confidencePill(prediction.confidence))}>
-                      {prediction.confidence}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    Risk score: {prediction.riskScore.toFixed(1)} • {prediction.rationale}
-                  </p>
-                </div>
-              ))}
-              {bundle.events.predictions.dropOffPrediction.length === 0 && (
-                <p className="text-xs text-slate-400">No risk forecasts available.</p>
-              )}
-            </div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Popularity Index by Category</p>
+            {categoryPopularityGraph.length === 0 ? (
+              <p className="py-16 text-center text-xs text-slate-400">No category popularity data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={categoryPopularityGraph} margin={{ top: 8, right: 8, left: -14, bottom: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="category" tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <Tooltip contentStyle={{ borderRadius: 10, borderColor: "#cbd5e1" }} />
+                  <Line type="monotone" dataKey="popularityIndex" stroke="#154CB3" strokeWidth={2.2} name="Popularity Index" />
+                  <Line type="monotone" dataKey="attendanceRate" stroke="#0EA5A4" strokeWidth={2.1} name="Attendance Rate %" />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Department Participation, Contribution, Cross-Dept</p>
+            {departmentContributionGraph.length === 0 ? (
+              <p className="py-16 text-center text-xs text-slate-400">No department analytics available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={departmentContributionGraph} margin={{ top: 8, right: 8, left: -14, bottom: 34 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="department" tick={{ fontSize: 10, fill: "#64748b" }} angle={-20} textAnchor="end" height={55} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <Tooltip contentStyle={{ borderRadius: 10, borderColor: "#cbd5e1" }} />
+                  <Bar dataKey="participationRate" fill="#154CB3" radius={[4, 4, 0, 0]} name="Dept Participation %" />
+                  <Bar dataKey="contributionIndex" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Contribution Index %" />
+                  <Bar dataKey="crossDepartmentParticipationRate" fill="#8B5CF6" radius={[4, 4, 0, 0]} name="Cross-Dept Participation %" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Timing Efficiency by Peak Slots</p>
+            {timingEfficiencyGraph.length === 0 ? (
+              <p className="py-16 text-center text-xs text-slate-400">No timing efficiency data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={timingEfficiencyGraph} margin={{ top: 8, right: 8, left: -14, bottom: 38 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="slot" tick={{ fontSize: 10, fill: "#64748b" }} angle={-20} textAnchor="end" height={60} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <Tooltip contentStyle={{ borderRadius: 10, borderColor: "#cbd5e1" }} />
+                  <Bar dataKey="attendanceRate" fill="#0EA5A4" radius={[4, 4, 0, 0]} name="Slot Attendance Rate %" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Seasonal Trend and Growth</p>
+            {monthlyTrend.length === 0 ? (
+              <p className="py-16 text-center text-xs text-slate-400">No seasonal trend data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={monthlyTrend} margin={{ top: 8, right: 8, left: -14, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <Tooltip contentStyle={{ borderRadius: 10, borderColor: "#cbd5e1" }} />
+                  <Line type="monotone" dataKey="registrations" stroke="#154CB3" strokeWidth={2.2} name="Registrations" />
+                  <Line type="monotone" dataKey="attendanceRate" stroke="#22C55E" strokeWidth={2.1} name="Attendance Rate %" />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">No-Show and Engagement Drop Detection</p>
+            {noShowGraph.length === 0 ? (
+              <p className="py-16 text-center text-xs text-slate-400">No student behavior data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={noShowGraph} margin={{ top: 8, right: 8, left: -14, bottom: 32 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#64748b" }} angle={-20} textAnchor="end" height={54} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <Tooltip contentStyle={{ borderRadius: 10, borderColor: "#cbd5e1" }} />
+                  <Bar dataKey="noShowRate" fill="#EF4444" radius={[4, 4, 0, 0]} name="No-show Rate %" />
+                  <Bar dataKey="engagementDrop" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Engagement Drop %" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Average No-show Rate</p>
+            <p className="text-base font-bold text-slate-900">{toPercent(retentionSummary.averageNoShowRate)}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Drop Detection Rate</p>
+            <p className="text-base font-bold text-slate-900">{toPercent(retentionSummary.dropDetectionRate)}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Peak Engagement Time</p>
+            <p className="text-base font-bold text-slate-900">{bundle.insights.peakAttendanceTime.day} • {bundle.insights.peakAttendanceTime.hour}</p>
           </div>
         </div>
       </div>

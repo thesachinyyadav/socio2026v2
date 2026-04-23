@@ -61,7 +61,9 @@ export type StudentsResponse = {
     year: string;
     engagementScore: number;
     attendedCount: number;
+    organizedCount: number;
     noShows: number;
+    noShowRate: number;
   }>;
   atRisk: Array<{
     studentId: string;
@@ -69,8 +71,46 @@ export type StudentsResponse = {
     department: string;
     year: string;
     engagementScore: number;
+    attendedCount: number;
+    organizedCount: number;
+    noShows: number;
+    noShowRate: number;
+    engagementDrop: number;
+    currentAttendedCount: number;
+    previousAttendedCount: number;
     atRiskReason: string | null;
     lastActivityAt: string | null;
+  }>;
+  behavior: {
+    averageNoShowRate: number;
+    retentionRate: number;
+    dropDetectionRate: number;
+    droppedStudents: Array<{
+      studentId: string;
+      name: string;
+      department: string;
+      engagementDrop: number;
+      currentAttendedCount: number;
+      previousAttendedCount: number;
+    }>;
+  };
+  engagementScores: Array<{
+    studentId: string;
+    name: string;
+    department: string;
+    year: string;
+    registeredCount: number;
+    attendedCount: number;
+    organizedCount: number;
+    noShows: number;
+    noShowRate: number;
+    engagementScore: number;
+    status: "active" | "inactive";
+    atRiskReason: string | null;
+    lastActivityAt: string | null;
+    engagementDrop: number;
+    currentAttendedCount: number;
+    previousAttendedCount: number;
   }>;
 };
 
@@ -98,6 +138,7 @@ export type EventsResponse = {
   categoryPerformance: Array<{
     category: string;
     events: number;
+    popularityIndex: number;
     attendanceRate: number;
     avgFeedback: number;
     avgSuccessScore: number;
@@ -134,6 +175,9 @@ export type DepartmentsResponse = {
     department: string;
     participationRate: number;
     eventsHosted: number;
+    contributionIndex: number;
+    crossDepartmentParticipationRate: number;
+    crossDepartmentParticipants: number;
     avgEngagementScore: number;
     participatingStudents: number;
     totalStudents: number;
@@ -154,6 +198,14 @@ export type InsightsResponse = {
     day: string;
     dayAttendanceCount: number;
   };
+  timingEfficiency: Array<{
+    slot: string;
+    day: string;
+    hour: string;
+    registrations: number;
+    attended: number;
+    attendanceRate: number;
+  }>;
   predictions: EventsResponse["predictions"];
 };
 

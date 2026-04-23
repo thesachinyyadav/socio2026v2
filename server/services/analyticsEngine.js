@@ -20,6 +20,12 @@ function normalizeText(value, fallback = "Unknown") {
   return trimmed ? trimmed : fallback;
 }
 
+function normalizeEmail(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || null;
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -134,8 +140,8 @@ function chooseAttendance(registration, attendanceMap) {
   return status === "attended";
 }
 
-function calculateEngagementScore(attendedCount, noShowCount) {
-  return attendedCount * 5 - noShowCount * 3;
+function calculateEngagementScore(attendedCount, organizedCount, noShowCount) {
+  return attendedCount * 5 + organizedCount * 10 - noShowCount * 3;
 }
 
 function getCacheKey(range) {
@@ -234,8 +240,21 @@ function getKpiBundle(currentRows, previousRows, allRows, totalStudents) {
   };
 }
 
-function getStudentAnalytics(students, rows, referenceDate) {
+function getStudentAnalytics(students, currentRows, previousRows, events, referenceDate) {
   const byStudent = new Map();
+
+  const organizedCounts = new Map();
+  events.forEach((event) => {
+    const organizerStudentId = event.organizerStudentId;
+    if (!organizerStudentId) return;
+    organizedCounts.set(organizerStudentId, (organizedCounts.get(organizerStudentId) ?? 0) + 1);
+  });
+
+  const previousAttendanceByStudent = new Map();
+  previousRows.forEach((row) => {
+    if (!row.studentId || !row.attended) return;
+    previousAttendanceByStudent.set(row.studentId, (previousAttendanceByStudent.get(row.studentId) ?? 0) + 1);
+  });
 
   students.forEach((student) => {
     const key = student.studentId;
@@ -251,13 +270,18 @@ function getStudentAnalytics(students, rows, referenceDate) {
       feedbackAverage: 0,
       feedbackTotal: 0,
       lastActivityAt: null,
+      organizedCount: organizedCounts.get(key) ?? 0,
       engagementScore: 0,
+      noShowRate: 0,
+      currentAttendedCount: 0,
+      previousAttendedCount: previousAttendanceByStudent.get(key) ?? 0,
+      engagementDrop: 0,
       status: "inactive",
       atRiskReason: null,
     });
   });
 
-  rows.forEach((row) => {
+  currentRows.forEach((row) => {
     const key = row.studentId;
     if (!key) return;
 
@@ -274,7 +298,12 @@ function getStudentAnalytics(students, rows, referenceDate) {
         feedbackAverage: 0,
         feedbackTotal: 0,
         lastActivityAt: null,
+        organizedCount: organizedCounts.get(key) ?? 0,
         engagementScore: 0,
+        noShowRate: 0,
+        currentAttendedCount: 0,
+        previousAttendedCount: previousAttendanceByStudent.get(key) ?? 0,
+        engagementDrop: 0,
         status: "inactive",
         atRiskReason: null,
       });
@@ -284,6 +313,7 @@ function getStudentAnalytics(students, rows, referenceDate) {
     item.registeredCount += 1;
     if (row.attended) {
       item.attendedCount += 1;
+      item.currentAttendedCount += 1;
     } else {
       item.noShows += 1;
     }
@@ -303,7 +333,13 @@ function getStudentAnalytics(students, rows, referenceDate) {
 
   const rowsOut = Array.from(byStudent.values()).map((item) => {
     item.feedbackAverage = item.feedbackCount > 0 ? item.feedbackTotal / item.feedbackCount : 0;
-    item.engagementScore = calculateEngagementScore(item.attendedCount, item.noShows);
+    item.engagementScore = calculateEngagementScore(item.attendedCount, item.organizedCount, item.noShows);
+    item.noShowRate = percent(item.noShows, item.registeredCount);
+
+    item.engagementDrop =
+      item.previousAttendedCount > 0
+        ? percent(item.previousAttendedCount - item.currentAttendedCount, item.previousAttendedCount)
+        : 0;
 
     const isActive = item.lastActivityAt && item.lastActivityAt >= inactivityCutoff;
     item.status = isActive ? "active" : "inactive";
@@ -318,6 +354,11 @@ function getStudentAnalytics(students, rows, referenceDate) {
       ...item,
       feedbackAverage: round(item.feedbackAverage, 2),
       engagementScore: round(item.engagementScore, 1),
+      noShowRate: round(item.noShowRate, 1),
+      organizedCount: item.organizedCount,
+      currentAttendedCount: item.currentAttendedCount,
+      previousAttendedCount: item.previousAttendedCount,
+      engagementDrop: round(item.engagementDrop, 1),
       lastActivityAt: item.lastActivityAt ? item.lastActivityAt.toISOString() : null,
     };
   });
@@ -325,10 +366,30 @@ function getStudentAnalytics(students, rows, referenceDate) {
   const active = rowsOut.filter((row) => row.status === "active").length;
   const inactive = rowsOut.length - active;
 
+  const retainedOnePlus = rowsOut.filter((row) => row.attendedCount >= 1).length;
+  const retainedTwoPlus = rowsOut.filter((row) => row.attendedCount >= 2).length;
+
+  const behavior = {
+    averageNoShowRate: round(rowsOut.length ? rowsOut.reduce((sum, row) => sum + row.noShowRate, 0) / rowsOut.length : 0, 1),
+    retentionRate: round(percent(retainedTwoPlus, retainedOnePlus), 1),
+    dropDetectionRate: round(
+      percent(
+        rowsOut.filter((row) => row.previousAttendedCount > 0 && row.currentAttendedCount < row.previousAttendedCount).length,
+        rowsOut.filter((row) => row.previousAttendedCount > 0).length
+      ),
+      1
+    ),
+    droppedStudents: rowsOut
+      .filter((row) => row.previousAttendedCount > 0 && row.currentAttendedCount < row.previousAttendedCount)
+      .sort((a, b) => b.engagementDrop - a.engagementDrop)
+      .slice(0, 15),
+  };
+
   return {
     segmentation: { active, inactive },
     topEngaged: [...rowsOut].sort((a, b) => b.engagementScore - a.engagementScore).slice(0, 10),
     atRisk: rowsOut.filter((row) => row.atRiskReason).sort((a, b) => a.engagementScore - b.engagementScore).slice(0, 15),
+    behavior,
     byStudent: rowsOut,
   };
 }
@@ -423,6 +484,7 @@ function getEventAnalytics(events, rows, studentAnalytics) {
     .map((item) => ({
       category: item.category,
       events: item.events,
+      popularityIndex: round(item.attended / item.events, 1),
       attendanceRate: round(percent(item.attended, item.registrations), 1),
       avgFeedback: round(item.feedbackCount ? item.feedbackTotal / item.feedbackCount : 0, 2),
       avgSuccessScore: round(item.successTotal / item.events, 1),
@@ -479,16 +541,44 @@ function getDepartmentAnalytics(students, events, rows, studentAnalytics) {
     new Set([...deptStudentTotals.keys(), ...deptParticipantSets.keys(), ...deptEventCounts.keys(), ...engagementByDept.keys()])
   );
 
+  const studentDepartmentById = new Map(
+    students
+      .filter((student) => student.studentId)
+      .map((student) => [student.studentId, student.department || "Unknown"])
+  );
+
+  const totalParticipants = new Set(rows.map((row) => row.studentId).filter(Boolean)).size;
+  const crossDepartmentStudentSet = new Set();
+  const crossDepartmentByDept = new Map();
+
+  rows.forEach((row) => {
+    if (!row.studentId) return;
+    const studentDept = studentDepartmentById.get(row.studentId) || row.studentDepartment || "Unknown";
+    const eventDept = row.eventDepartment || "Unknown";
+    if (studentDept !== eventDept) {
+      crossDepartmentStudentSet.add(row.studentId);
+      if (!crossDepartmentByDept.has(studentDept)) crossDepartmentByDept.set(studentDept, new Set());
+      crossDepartmentByDept.get(studentDept).add(row.studentId);
+    }
+  });
+
+  const totalEvents = events.length;
+
   return departments
     .map((department) => {
       const totalStudents = deptStudentTotals.get(department) ?? 0;
       const participantCount = deptParticipantSets.get(department)?.size ?? 0;
       const engagement = engagementByDept.get(department);
+      const eventsHosted = deptEventCounts.get(department) ?? 0;
+      const crossDepartmentParticipants = crossDepartmentByDept.get(department)?.size ?? 0;
 
       return {
         department,
         participationRate: round(percent(participantCount, totalStudents), 1),
-        eventsHosted: deptEventCounts.get(department) ?? 0,
+        eventsHosted,
+        contributionIndex: round(percent(eventsHosted, totalEvents), 1),
+        crossDepartmentParticipationRate: round(percent(crossDepartmentParticipants, participantCount), 1),
+        crossDepartmentParticipants,
         avgEngagementScore: round(engagement ? engagement.total / engagement.count : 0, 1),
         participatingStudents: participantCount,
         totalStudents,
@@ -500,20 +590,22 @@ function getDepartmentAnalytics(students, events, rows, studentAnalytics) {
 function getTimeAnalytics(rows) {
   const hourMap = new Map();
   const weekdayMap = new Map();
+  const slotAttendance = new Map();
+  const slotRegistrations = new Map();
 
-  rows
-    .filter((row) => row.attended)
-    .forEach((row) => {
-      const hour = extractHour(row.eventStartTime);
-      if (hour !== null) {
-        hourMap.set(hour, (hourMap.get(hour) ?? 0) + 1);
-      }
+  rows.forEach((row) => {
+    const hour = extractHour(row.eventStartTime);
+    if (hour === null || !row.eventDate) return;
+    const day = getWeekday(row.eventDate);
+    const slotKey = `${day}|${hour}`;
 
-      if (row.eventDate) {
-        const day = getWeekday(row.eventDate);
-        weekdayMap.set(day, (weekdayMap.get(day) ?? 0) + 1);
-      }
-    });
+    slotRegistrations.set(slotKey, (slotRegistrations.get(slotKey) ?? 0) + 1);
+    if (row.attended) {
+      hourMap.set(hour, (hourMap.get(hour) ?? 0) + 1);
+      weekdayMap.set(day, (weekdayMap.get(day) ?? 0) + 1);
+      slotAttendance.set(slotKey, (slotAttendance.get(slotKey) ?? 0) + 1);
+    }
+  });
 
   const peakHourEntry = Array.from(hourMap.entries()).sort((a, b) => b[1] - a[1])[0] ?? null;
   const peakDayEntry = Array.from(weekdayMap.entries()).sort((a, b) => b[1] - a[1])[0] ?? null;
@@ -556,6 +648,24 @@ function getTimeAnalytics(rows) {
   const previousMonth = monthlyTrend[monthlyTrend.length - 2] ?? null;
   const growthRate = latestMonth && previousMonth ? pctChange(latestMonth.registrations, previousMonth.registrations) : 0;
 
+  const timingEfficiency = Array.from(slotRegistrations.entries())
+    .map(([slotKey, registrations]) => {
+      const [day, hourText] = slotKey.split("|");
+      const hour = Number(hourText);
+      const attended = slotAttendance.get(slotKey) ?? 0;
+
+      return {
+        slot: `${day} ${formatHourLabel(hour)}`,
+        day,
+        hour: formatHourLabel(hour),
+        registrations,
+        attended,
+        attendanceRate: round(percent(attended, registrations), 1),
+      };
+    })
+    .sort((a, b) => b.attendanceRate - a.attendanceRate)
+    .slice(0, 24);
+
   return {
     peakAttendanceTime: {
       hour: peakHourEntry ? formatHourLabel(peakHourEntry[0]) : "N/A",
@@ -563,6 +673,7 @@ function getTimeAnalytics(rows) {
       day: peakDayEntry ? peakDayEntry[0] : "N/A",
       dayAttendanceCount: peakDayEntry ? peakDayEntry[1] : 0,
     },
+    timingEfficiency,
     monthlyTrend,
     growthRate: round(growthRate, 1),
   };
@@ -730,7 +841,24 @@ function normalizeData(users, events, registrations, attendanceRows) {
     department: normalizeText(row.department || row.organizing_dept, "Unknown"),
     eventDate: toDate(row.event_date || row.eventDate),
     startTime: normalizeText(row.start_time || row.startTime || row.event_time, ""),
+    organizerEmail: normalizeEmail(row.created_by || row.organizer_email || row.organiser_email),
+    organizerStudentId: normalizeText(row.created_by_id || row.organizer_id || row.organiser_id || "", ""),
   }));
+
+  const studentById = new Map(normalizedStudents.map((student) => [student.studentId, student]));
+
+  normalizedEvents.forEach((event) => {
+    const organizerById = event.organizerStudentId ? studentById.get(event.organizerStudentId) : null;
+    if (organizerById) {
+      event.organizerStudentId = organizerById.studentId;
+      return;
+    }
+
+    if (event.organizerEmail) {
+      const organizerByEmail = studentByEmail.get(event.organizerEmail);
+      event.organizerStudentId = organizerByEmail?.studentId || "";
+    }
+  });
 
   const eventById = new Map(normalizedEvents.map((event) => [event.eventId, event]));
 
@@ -798,7 +926,13 @@ export async function buildAnalyticsSnapshot(query = {}) {
   const totalStudents = normalized.students.length || new Set(normalized.registrations.map((row) => row.studentId).filter(Boolean)).size;
 
   const overview = getKpiBundle(currentRows, previousRows, normalized.registrations, totalStudents);
-  const studentAnalytics = getStudentAnalytics(normalized.students, currentRows, range.current.end);
+  const studentAnalytics = getStudentAnalytics(
+    normalized.students,
+    currentRows,
+    previousRows,
+    currentEvents.length > 0 ? currentEvents : normalized.events,
+    range.current.end
+  );
   const eventAnalytics = getEventAnalytics(currentEvents.length > 0 ? currentEvents : normalized.events, currentRows, studentAnalytics);
   const departmentAnalytics = getDepartmentAnalytics(normalized.students, currentEvents, currentRows, studentAnalytics);
   const timeAnalytics = getTimeAnalytics(normalized.registrations);

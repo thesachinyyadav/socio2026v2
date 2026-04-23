@@ -17,7 +17,7 @@
 ### Frontend (React/Next.js)
 - **Dashboard UI**: `client/app/_components/Admin/DataExplorerDashboard.tsx`
 - **API client**: `client/lib/masterAdminAnalyticsApi.ts`
-- Renders KPI cards, event analytics, engagement analytics, department analytics, insights, and predictive hooks.
+- Renders KPI cards, event analytics, engagement analytics, department analytics, insights, and advanced analytics graphs.
 
 ## 2) Data Processing Logic
 
@@ -30,25 +30,36 @@ Computed dynamically with period-over-period change:
 5. Active Students Percentage (last 30 days)
 
 ### Student Engagement
-- Engagement score formula: `5 × attended - 3 × noShows`
+- Participation Rate: `unique students who attended ≥1 event / total students × 100`
+- Average Events per Student: `total attendances / total students`
+- Engagement score formula: `(5 × events attended) + (10 × events organized) - (3 × noShows)`
 - Active/Inactive segmentation
 - Top engaged students
 - At-risk students (low score or inactivity > 30 days)
+- Student behavior intelligence:
+  - No-show rate per student
+  - Retention rate (`students with ≥2 attended / students with ≥1 attended × 100`)
+  - Engagement drop detection (previous period vs current period attended activity)
 
 ### Event Analytics
 - Attendance rate per event
 - Event success score:
   - `0.5 × attendanceRate + 0.3 × avgFeedback(1-5 mapped to 0-100) + 0.2 × repeatParticipation`
+- Drop-off rate: `(registered - attended) / registered × 100`
 - Category performance
+- Category popularity index (attendance-weighted by event count)
 - Drop-off funnel: Registered → Attended → Feedback
 
 ### Department Analytics
 - Participation rate by department
 - Events hosted by department
+- Contribution index by department (`events hosted by dept / total events × 100`)
+- Cross-department engagement (`students attending outside their department`)
 - Average engagement score by department
 
 ### Time Analytics
 - Peak attendance day + hour
+- Event timing efficiency by day-hour slot (`attendance rate by slot`)
 - Monthly engagement trend
 - Growth rate (latest month vs previous month)
 
@@ -56,10 +67,15 @@ Computed dynamically with period-over-period change:
 Rule-based, data-driven insights generated from live metrics.
 Examples include trend shifts, top categories, participation gaps, and risk cohorts.
 
-### Predictive Hook
-Heuristic prediction layer (ML-ready contract):
-- Attendance prediction for upcoming events
-- Drop-off risk forecast
+### Advanced Analytics Graph Layer
+The dashboard replaces the predictive hook UI block with grouped analytics graphs covering:
+- Student engagement
+- Event performance
+- Department analytics
+- Time and behavior analytics
+- Student behavior intelligence
+
+Note: predictive outputs are still available in backend contracts and can be surfaced later if required.
 
 ## 3) Performance Design
 - Single analytics snapshot computation shared across endpoints.
@@ -184,4 +200,4 @@ Heuristic prediction layer (ML-ready contract):
 
 ## 5) Notes
 - The implementation is schema-tolerant and maps field variants where possible.
-- Predictive hooks are intentionally heuristic and can be swapped with ML services later without changing dashboard contracts.
+- Predictive outputs remain heuristic and ML-ready in the API layer, even though the dashboard now prioritizes graph-first analytics sections.

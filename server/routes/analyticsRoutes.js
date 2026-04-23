@@ -44,6 +44,7 @@ router.get("/students", async (req, res) => {
     segmentation: snapshot.students.segmentation,
     topEngaged: snapshot.students.topEngaged,
     atRisk: snapshot.students.atRisk,
+    behavior: snapshot.students.behavior,
     engagementScores: snapshot.students.byStudent,
   });
 });
@@ -83,6 +84,7 @@ router.get("/insights", async (req, res) => {
     range: snapshot.range,
     insights: snapshot.insights,
     peakAttendanceTime: snapshot.time.peakAttendanceTime,
+    timingEfficiency: snapshot.time.timingEfficiency,
     predictions: snapshot.predictions,
   });
 });
