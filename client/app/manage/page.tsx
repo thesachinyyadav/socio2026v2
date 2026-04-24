@@ -83,6 +83,33 @@ const EVENT_STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }>
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const MANUAL_UNARCHIVE_OVERRIDE = "system:manual_unarchive_override";
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (value == null) return fallback;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => entry != null);
+    return safeText(first, fallback);
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = ["event_creator", "fest_creator", "created_by", "title", "name", "email", "fest_title", "id"] as const;
+    for (const key of preferred) {
+      const candidate = record[key];
+      if (candidate != null && typeof candidate !== "object") {
+        const normalized = safeText(candidate, "");
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return fallback;
+};
+
+const safeLower = (value: unknown): string => safeText(value, "").toLowerCase();
+
 const CAMPUSES = [
   "Central Campus (Main)",
   "Bannerghatta Road Campus",
@@ -456,7 +483,7 @@ export default function ManageDashboard() {
   const [approvalStatuses, setApprovalStatuses] = useState<Record<string, "pending_approvals" | "live">>({});
 
   const normalizeEmail = (value: string | null | undefined) =>
-    String(value || "").trim().toLowerCase();
+    safeLower(value);
   const currentUserEmail = normalizeEmail(userData?.email);
   const isCurrentUserFestHead = (fest: Fest) => {
     if (!currentUserEmail) return false;
@@ -541,14 +568,14 @@ export default function ManageDashboard() {
 
       const mappedFests: Fest[] = rawFests.map((fest: any) => ({
         fest_id: String(fest.fest_id || fest.id || fest.festId || fest.fest_title || fest.title || ""),
-        fest_title: fest.fest_title || fest.title || "Untitled",
-        description: fest.description || "",
+        fest_title: safeText(fest.fest_title || fest.title, "Untitled"),
+        description: safeText(fest.description, ""),
         opening_date: fest.opening_date || null,
         closing_date: fest.closing_date || null,
-        fest_image_url: fest.fest_image_url || "",
-        organizing_dept: fest.organizing_dept || "",
-        created_by: fest.created_by || fest.createdBy || fest.user_email || fest.organiser_email || null,
-        contact_email: fest.contact_email || fest.contactEmail || null,
+        fest_image_url: safeText(fest.fest_image_url, ""),
+        organizing_dept: safeText(fest.organizing_dept, ""),
+        created_by: safeText(fest.created_by || fest.createdBy || fest.user_email || fest.organiser_email, "") || null,
+        contact_email: safeText(fest.contact_email || fest.contactEmail, "") || null,
         event_heads: Array.isArray(fest.event_heads)
           ? fest.event_heads
           : Array.isArray(fest.eventHeads)
@@ -644,7 +671,16 @@ export default function ManageDashboard() {
         }
 
         const payload = await response.json();
-        setLiveEvents(Array.isArray(payload?.events) ? payload.events : []);
+        const rawEvents = Array.isArray(payload?.events) ? payload.events : [];
+        const normalizedEvents = rawEvents.map((event: any) => ({
+          ...event,
+          title: safeText(event?.title, "Untitled event"),
+          fest: safeText(event?.fest, ""),
+          organizing_dept: safeText(event?.organizing_dept, "No Department"),
+          created_by: safeText(event?.created_by ?? event?.event_creator ?? event?.fest_creator, ""),
+          venue: safeText(event?.venue, "Venue TBA"),
+        }));
+        setLiveEvents(normalizedEvents);
       } catch (err) {
         console.error("Error fetching live events:", err);
         // Fall back to context events if fetch fails
@@ -793,14 +829,20 @@ export default function ManageDashboard() {
     const eventIsDraft = toBoolean((e as any).is_draft);
     const eventIsPendingApproval = eventIsDraft && approvalStatuses[e.event_id] === "pending_approvals";
     return isOwnerOrMaster && matchesCampus && matchesEventStatus(eventIsPast, archiveState.isArchived, eventIsDraft, eventIsPendingApproval, eventIsLive);
-  });
+  }).map((event) => ({
+    ...event,
+    title: safeText(event.title, "Untitled event"),
+    fest: safeText((event as any).fest, ""),
+    organizing_dept: safeText(event.organizing_dept, "No Department"),
+    created_by: safeText((event as any).created_by ?? (event as any).event_creator ?? (event as any).fest_creator, ""),
+  }));
 
   // Filter Grids
   const searchedUserEvents = userSpecificContextEvents.filter((event) =>
-    event.title.toLowerCase().includes(searchTerm.toLowerCase())
+    safeLower(event.title).includes(safeLower(searchTerm))
   );
   const searchedUserFests = fests.filter((fest) => {
-    const matchesSearch = fest.fest_title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = safeLower(fest.fest_title).includes(safeLower(searchTerm));
     const matchesCampus = campusFilter === "all" || (fest as any).campus_hosted_at === campusFilter;
     const festStarted = isPastDate(fest.opening_date);
     const festIsPast = isPastDate(fest.closing_date);
@@ -1562,8 +1604,7 @@ export default function ManageDashboard() {
                         String((event as any).fest_id || "") === String(selectedFestObj?.fest_id || "");
 
                       const matchesByFestTitle =
-                        String(event.fest || "").toLowerCase() ===
-                        String(selectedFestObj?.fest_title || "").toLowerCase();
+                        safeLower(event.fest) === safeLower(selectedFestObj?.fest_title);
 
                       return matchesByFestId || matchesByFestTitle;
                     });
@@ -1615,8 +1656,8 @@ export default function ManageDashboard() {
                 const eventsForReport = liveEvents.length > 0 ? liveEvents : contextAllEvents;
                 const userEvents = isMasterAdmin ? eventsForReport : eventsForReport.filter(e => e.created_by === userData?.email);
                 const filteredEvents = userEvents.filter(e => 
-                  e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
-                  (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())
+                  safeLower(e.title).includes(safeLower(searchTermReport)) ||
+                  safeLower(e.organizing_dept).includes(safeLower(searchTermReport))
                 );
                 return (
                   <>
@@ -1662,7 +1703,7 @@ export default function ManageDashboard() {
                               />
                               <div className="flex-1">
                                 <p className="text-sm font-bold text-slate-800">{event.title}</p>
-                                <p className="text-[11px] font-semibold text-slate-500 uppercase mt-0.5">{event.organizing_dept} ΓÇó {formatDateFull(event.event_date, "TBD")} ΓÇó {event.fest || "No Parent Fest"}</p>
+                                <p className="text-[11px] font-semibold text-slate-500 uppercase mt-0.5">{safeText(event.organizing_dept, "No Department")} ΓÇó {formatDateFull(event.event_date, "TBD")} ΓÇó {safeText(event.fest, "No Parent Fest")}</p>
                               </div>
                             </label>
                           ))}

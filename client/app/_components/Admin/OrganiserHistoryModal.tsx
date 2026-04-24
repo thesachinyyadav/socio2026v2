@@ -47,6 +47,45 @@ type OrganiserHistoryModalProps = {
   onClose: () => void;
 };
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (value == null) return fallback;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => entry != null);
+    return safeText(first, fallback);
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferredKeys = [
+      "event_creator",
+      "fest_creator",
+      "created_by",
+      "title",
+      "name",
+      "email",
+      "fest_id",
+      "event_id",
+      "id",
+    ] as const;
+
+    for (const key of preferredKeys) {
+      const candidate = record[key];
+      if (candidate != null && typeof candidate !== "object") {
+        const normalized = safeText(candidate, "");
+        if (normalized) return normalized;
+      }
+    }
+  }
+
+  return fallback;
+};
+
 const formatDate = (value: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "Unavailable";
@@ -58,11 +97,12 @@ const formatDate = (value: string) => {
 };
 
 const formatTime = (value?: string | null) => {
-  if (!value) return "TBA";
+  const normalizedValue = safeText(value, "");
+  if (!normalizedValue) return "TBA";
 
-  const safeValue = value.length === 5 ? `${value}:00` : value;
+  const safeValue = normalizedValue.length === 5 ? `${normalizedValue}:00` : normalizedValue;
   const parsed = new Date(`1970-01-01T${safeValue}`);
-  if (Number.isNaN(parsed.getTime())) return value;
+  if (Number.isNaN(parsed.getTime())) return normalizedValue;
 
   return parsed.toLocaleTimeString("en-IN", {
     hour: "2-digit",
@@ -106,7 +146,7 @@ const getEventStatus = (eventDate: string) => {
 };
 
 const normalizeRegistrationType = (value?: string | null) => {
-  return (value || "individual").toLowerCase() === "team" ? "team" : "individual";
+  return safeText(value, "individual").toLowerCase() === "team" ? "team" : "individual";
 };
 
 const parseTeammates = (teammates: OrganiserRegistration["teammates"]) => {
@@ -166,7 +206,7 @@ type OrganiserTagMeta = {
 };
 
 const getOrganiserTagMeta = (value?: string | null): OrganiserTagMeta => {
-  const normalized = (value || "").trim();
+  const normalized = safeText(value, "");
 
   if (!normalized) {
     return {
@@ -339,11 +379,26 @@ export default function OrganiserHistoryModal({
           scope === "organiser"
             ? await getEventsByOrganiser(activeIdentifier)
             : await getAllEvents();
-        const eventIds = result.map((event) => event.event_id).filter(Boolean);
+        const normalizedEvents = result.map((event: any) => ({
+          ...event,
+          event_id: safeText(event?.event_id, ""),
+          title: safeText(event?.title, "Untitled Event"),
+          event_date: safeText(event?.event_date, ""),
+          event_time: safeText(event?.event_time, null as any),
+          venue: safeText(event?.venue, "Venue TBA"),
+          category: safeText(event?.category, "General"),
+          fest_id: safeText(event?.fest_id, ""),
+          fest: safeText(event?.fest, ""),
+          organizing_dept: safeText(event?.organizing_dept, "No Department"),
+          created_by: safeText(event?.created_by ?? event?.event_creator ?? event?.fest_creator, "Unknown organiser"),
+          created_at: safeText(event?.created_at, ""),
+        }));
+
+        const eventIds = normalizedEvents.map((event) => event.event_id).filter(Boolean);
         const registrationResult = await getRegistrationsByEventIds(eventIds);
 
         if (alive) {
-          setEvents(result);
+          setEvents(normalizedEvents);
           setRegistrations(registrationResult);
         }
       } catch (err: any) {
@@ -708,7 +763,7 @@ export default function OrganiserHistoryModal({
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
                         <FolderKanban className="h-3 w-3" />
-                        {event.fest_id || event.fest || "No Fest"}
+                        {safeText(event.fest_id, safeText(event.fest, "No Fest"))}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
                         <Building2 className="h-3 w-3" />

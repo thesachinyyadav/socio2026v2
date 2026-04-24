@@ -24,6 +24,8 @@ interface VendorOption {
   catering_name: string;
 }
 
+const safeLower = (value: unknown): string => String(value ?? "").toLowerCase();
+
 function timeAgo(dateStr: string) {
   const ms = Date.now() - new Date(dateStr).getTime();
   const days = Math.floor(ms / 86400000);
@@ -229,7 +231,7 @@ export default function CateringDashboard() {
                   )}
                 </div>
               </div>
-              {contact?.email && booking.booked_by && contact.email.toLowerCase() !== booking.booked_by.toLowerCase() && (
+              {contact?.email && booking.booked_by && safeLower(contact.email) !== safeLower(booking.booked_by) && (
                 <p className="mt-1.5 text-[11px] text-gray-500">
                   Submitted by <span className="font-medium text-gray-700">{booking.booked_by}</span>
                 </p>

@@ -9,6 +9,14 @@ import { useAuth } from "../../../context/AuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const safeLower = (value: unknown): string => safeText(value, "").toLowerCase();
+
 type ContactMessage = {
   id: string;
   name: string;
@@ -62,7 +70,18 @@ const SupportInboxPage = () => {
       }
 
       const data = await response.json();
-      setMessages(Array.isArray(data.messages) ? data.messages : []);
+      const incoming = Array.isArray(data?.messages) ? data.messages : [];
+      const normalized: ContactMessage[] = incoming.map((entry: any) => ({
+        id: safeText(entry?.id),
+        name: safeText(entry?.name, "Unknown"),
+        email: safeText(entry?.email, ""),
+        subject: safeText(entry?.subject, "No subject"),
+        message: safeText(entry?.message, ""),
+        source: safeText(entry?.source, "") || null,
+        status: safeText(entry?.status, "new") || "new",
+        created_at: safeText(entry?.created_at, "") || null,
+      }));
+      setMessages(normalized);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to load messages.";
       setError(message);
@@ -136,11 +155,11 @@ const SupportInboxPage = () => {
     if (filter === "all") {
       return messages;
     }
-    return messages.filter((entry) => (entry.status || "new").toLowerCase() === filter);
+    return messages.filter((entry) => safeLower(entry.status || "new") === filter);
   }, [messages, filter]);
 
   const renderStatusBadge = (status?: string | null) => {
-    const normalized = (status || "new").toLowerCase();
+    const normalized = safeLower(status || "new");
     const style = statusBadgeStyles[normalized] || "bg-gray-100 text-gray-600";
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${style}`}>

@@ -29,9 +29,17 @@ interface FilterOption {
   active: boolean;
 }
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const safeLower = (value: unknown): string => safeText(value, "").toLowerCase();
+
 const buildFestsUrl = (category: string | null, searchValue: string) => {
   const params = new URLSearchParams();
-  if (category && category.toLowerCase() !== "all") {
+  if (category && safeLower(category) !== "all") {
     params.set("category", category);
   }
 
@@ -80,7 +88,19 @@ const FestsPageContent = () => {
       .then((res) => res.json())
       .then((data) => {
         if (data && Array.isArray(data.fests)) {
-          setAllFests(data.fests);
+          const normalizedFests: Fest[] = data.fests.map((fest: any) => ({
+            fest_id: Number(fest?.fest_id ?? 0),
+            fest_title: safeText(fest?.fest_title, "Untitled Fest"),
+            organizing_dept: safeText(fest?.organizing_dept, ""),
+            description: safeText(fest?.description, ""),
+            opening_date: safeText(fest?.opening_date, ""),
+            closing_date: safeText(fest?.closing_date, ""),
+            fest_image_url: safeText(fest?.fest_image_url, ""),
+            category: safeText(fest?.category, ""),
+            is_archived: Boolean(fest?.is_archived),
+            archived_at: safeText(fest?.archived_at, "") || undefined,
+          }));
+          setAllFests(normalizedFests);
         } else {
           console.error(
             "Error: API response is not in the expected format",
@@ -98,20 +118,21 @@ const FestsPageContent = () => {
   useEffect(() => {
     const activeFilter = filterOptions
       .find((f) => f.active)
-      ?.name.toLowerCase();
-    const paramToMatch = categoryParam?.toLowerCase();
+      ?.name;
+    const normalizedActiveFilter = safeLower(activeFilter);
+    const paramToMatch = safeLower(categoryParam);
 
-    if (categoryParam && activeFilter !== paramToMatch) {
-      const normalizedCategoryParam = categoryParam.toLowerCase();
+    if (categoryParam && normalizedActiveFilter !== paramToMatch) {
+      const normalizedCategoryParam = safeLower(categoryParam);
       const newActiveExists = filterOptions.some(
-        (filter) => filter.name.toLowerCase() === normalizedCategoryParam
+        (filter) => safeLower(filter.name) === normalizedCategoryParam
       );
 
       setFilterOptions((prevFilters) =>
         prevFilters.map((filter) => ({
           ...filter,
           active: newActiveExists
-            ? filter.name.toLowerCase() === normalizedCategoryParam
+            ? safeLower(filter.name) === normalizedCategoryParam
             : filter.name === "All",
         }))
       );
@@ -158,17 +179,17 @@ const FestsPageContent = () => {
 
     if (
       activeFilter !== "All" &&
-      fest.category?.toLowerCase() !== activeFilter.toLowerCase()
+      safeLower(fest.category) !== safeLower(activeFilter)
     ) {
       return false;
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      const titleMatch = fest.fest_title?.toLowerCase().includes(q);
-      const deptMatch = fest.organizing_dept?.toLowerCase().includes(q);
-      const descriptionMatch = fest.description?.toLowerCase().includes(q);
-      const categoryMatch = fest.category?.toLowerCase().includes(q);
+      const q = safeLower(searchQuery.trim());
+      const titleMatch = safeLower(fest.fest_title).includes(q);
+      const deptMatch = safeLower(fest.organizing_dept).includes(q);
+      const descriptionMatch = safeLower(fest.description).includes(q);
+      const categoryMatch = safeLower(fest.category).includes(q);
 
       if (!titleMatch && !deptMatch && !descriptionMatch && !categoryMatch) {
         return false;

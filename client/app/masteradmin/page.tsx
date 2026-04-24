@@ -48,6 +48,49 @@ import { deleteClub, ClubRecord } from "@/app/actions/clubs";
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const ITEMS_PER_PAGE = 20;
 
+const safeLower = (value: unknown): string =>
+  typeof value === "string" ? value.toLowerCase() : String(value ?? "").toLowerCase();
+
+const safeText = (value: unknown, fallback = ""): string => {
+  if (value == null) return fallback;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const first = value.find((item) => item != null);
+    return safeText(first, fallback);
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferredKeys = [
+      "event_creator",
+      "fest_creator",
+      "created_by",
+      "title",
+      "name",
+      "fest_title",
+      "event_title",
+      "email",
+      "fest_id",
+      "event_id",
+      "id",
+    ] as const;
+
+    for (const key of preferredKeys) {
+      const candidate = record[key];
+      if (candidate != null && typeof candidate !== "object") {
+        const normalized = safeText(candidate, "");
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return fallback;
+};
+
 const AnalyticsDashboard = dynamic(
   () => import("../_components/Admin/AnalyticsDashboard"),
   {
@@ -946,7 +989,16 @@ function MasterAdminPageInner() {
       }
 
       const data = await eventsResponse.json();
-      const nextEvents = data.events || [];
+      const rawEvents = data.events || [];
+      const nextEvents = Array.isArray(rawEvents)
+        ? rawEvents.map((event: any) => ({
+            ...event,
+            title: safeText(event?.title, "Untitled event"),
+            organizing_dept: safeText(event?.organizing_dept, "No Department"),
+            created_by: safeText(event?.created_by ?? event?.event_creator ?? event?.fest_creator, "Unknown"),
+            fest: safeText(event?.fest, safeText(event?.fest_id, "No fest")),
+          }))
+        : [];
       setEvents(nextEvents);
       setEventPagination(getPaginationState(data.pagination, eventPage, ITEMS_PER_PAGE, nextEvents.length));
     } catch (error) {
@@ -979,7 +1031,15 @@ function MasterAdminPageInner() {
       }
 
       const festsData = await festsResponse.json();
-      const nextFests = festsData.fests || festsData || [];
+      const rawFests = festsData.fests || festsData || [];
+      const nextFests = Array.isArray(rawFests)
+        ? rawFests.map((fest: any) => ({
+            ...fest,
+            fest_title: safeText(fest?.fest_title ?? fest?.title, "Untitled fest"),
+            organizing_dept: safeText(fest?.organizing_dept, "No Department"),
+            created_by: safeText(fest?.created_by ?? fest?.fest_creator, "Unknown"),
+          }))
+        : [];
       setFests(nextFests);
       setFestPagination(getPaginationState(festsData.pagination, festPage, ITEMS_PER_PAGE, nextFests.length));
     } catch (error) {
@@ -2373,7 +2433,7 @@ function MasterAdminPageInner() {
                                   {event.registration_count || 0}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-600 max-w-[140px] truncate">{event.created_by}</td>
+                              <td className="px-6 py-4 text-sm text-gray-600 max-w-[140px] truncate">{safeText(event.created_by, "Unknown")}</td>
                               <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <a
@@ -2588,8 +2648,8 @@ function MasterAdminPageInner() {
                               </span>
                             </td>
                             <td className="px-6 py-5 text-sm text-gray-600 align-top">
-                              <span className="inline-block max-w-full truncate" title={fest.created_by}>
-                                {fest.created_by}
+                              <span className="inline-block max-w-full truncate" title={safeText(fest.created_by, "Unknown")}>
+                                {safeText(fest.created_by, "Unknown")}
                               </span>
                             </td>
                             <td className="px-6 py-5 text-right align-top">
@@ -2899,9 +2959,10 @@ function MasterAdminPageInner() {
 
             {/* Events Mode */}
             {reportMode === "events" && (() => {
+              const searchTerm = safeLower(searchTermReport);
               const filteredReportEvents = reportEvents.filter((e: any) =>
-                e.title.toLowerCase().includes(searchTermReport.toLowerCase()) ||
-                (e.organizing_dept || "").toLowerCase().includes(searchTermReport.toLowerCase())
+                safeLower(e?.title).includes(searchTerm) ||
+                safeLower(e?.organizing_dept).includes(searchTerm)
               );
               return (
                 <>
@@ -2949,7 +3010,7 @@ function MasterAdminPageInner() {
                             />
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900">{event.title}</p>
-                              <p className="text-xs text-gray-500">{event.organizing_dept} &bull; {event.event_date} &bull; {event.fest || "No fest"}</p>
+                              <p className="text-xs text-gray-500">{safeText(event.organizing_dept, "No Department")} &bull; {safeText(event.event_date, "Date TBD")} &bull; {safeText(event.fest, "No fest")}</p>
                             </div>
                           </label>
                         ))}

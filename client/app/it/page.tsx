@@ -27,6 +27,27 @@ interface ITRequest {
   is_draft: boolean | null;
 }
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (value == null) return fallback;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = ["event_creator", "fest_creator", "created_by", "email", "name", "id"] as const;
+    for (const key of preferred) {
+      const candidate = record[key];
+      if (candidate != null && typeof candidate !== "object") {
+        const normalized = safeText(candidate, "");
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return fallback;
+};
+
 type ExpandedState = { eventId: string; type: "decline" | "return" } | null;
 
 const STATUS_BADGE: Record<string, string> = {
@@ -448,8 +469,8 @@ export default function ItDashboard() {
 
                     <div className="text-right flex-shrink-0">
                       <p className="text-xs text-gray-400">{timeAgo(req.created_at)}</p>
-                      {req.created_by && (
-                        <p className="text-xs text-gray-400 mt-0.5">by {req.created_by}</p>
+                      {safeText(req.created_by) && (
+                        <p className="text-xs text-gray-400 mt-0.5">by {safeText(req.created_by)}</p>
                       )}
                     </div>
                   </div>

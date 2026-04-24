@@ -5,6 +5,8 @@ import Link from "next/link";
 import Footer from "../_components/Home/Footer";
 import { useAuth } from "../../context/AuthContext";
 
+const safeLower = (value: unknown): string => String(value ?? "").toLowerCase();
+
 const SupportPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -95,9 +97,10 @@ const SupportPage = () => {
 
   const filteredArticles = supportArticles.filter(article => {
     const matchesCategory = selectedCategory === "all" || article.category === selectedCategory;
-    const matchesSearch = searchQuery === "" || 
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = safeLower(searchQuery);
+    const matchesSearch = query === "" || 
+      safeLower(article.title).includes(query) ||
+      safeLower(article.description).includes(query);
     return matchesCategory && matchesSearch;
   });
 

@@ -58,6 +58,12 @@ interface ItemMeta {
   created_by: string | null;
 }
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
 function isPhase1Complete(stages: ApprovalStage[]): boolean {
   return stages.filter((s) => s.blocking).every(
     (s) => s.status === "approved" || s.status === "skipped"
@@ -148,7 +154,7 @@ function StepCard({
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm">{label}</p>
         {approvedBy && (
-          <p className="text-xs opacity-70 mt-0.5">by {approvedBy}</p>
+          <p className="text-xs opacity-70 mt-0.5">by {safeText(approvedBy)}</p>
         )}
       </div>
       <span className="text-xs font-semibold uppercase tracking-wide">{status}</span>
@@ -400,7 +406,7 @@ export default function ApprovalsPage() {
                       <span className="text-xs font-semibold bg-rose-100 text-rose-800 px-2 py-0.5 rounded uppercase">
                         {e.step}
                       </span>
-                      <span className="text-xs text-rose-700/80">{e.by} · {formatDate(e.at)}</span>
+                      <span className="text-xs text-rose-700/80">{safeText(e.by)} · {formatDate(e.at)}</span>
                       {e.is_override && (
                         <span className="text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Override</span>
                       )}
@@ -516,7 +522,7 @@ export default function ApprovalsPage() {
                           <span className="ml-2 text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Override</span>
                         )}
                       </p>
-                      <p className="text-xs text-gray-500">{entry.by} · {formatDate(entry.at)}</p>
+                      <p className="text-xs text-gray-500">{safeText(entry.by)} · {formatDate(entry.at)}</p>
                       {entry.note && <p className="text-sm text-gray-600 mt-1 italic">"{entry.note}"</p>}
                     </li>
                   ))}
@@ -546,8 +552,8 @@ export default function ApprovalsPage() {
                   Venue request — <span className="capitalize">{existingVenueReq.status.replace(/_/g, " ")}</span>
                 </p>
                 <p className="text-xs mt-1 opacity-80">
-                  {existingVenueReq.details?.venue_name}{existingVenueReq.details?.date ? `, ${existingVenueReq.details.date}` : ""}
-                  {existingVenueReq.details?.start_time ? ` · ${existingVenueReq.details.start_time}–${existingVenueReq.details.end_time}` : ""}
+                  {safeText(existingVenueReq.details?.venue_name)}{existingVenueReq.details?.date ? `, ${safeText(existingVenueReq.details.date)}` : ""}
+                  {existingVenueReq.details?.start_time ? ` · ${safeText(existingVenueReq.details.start_time)}–${safeText(existingVenueReq.details.end_time)}` : ""}
                 </p>
                 {existingVenueReq.decision_notes && (
                   <p className="text-xs mt-2 italic">"{existingVenueReq.decision_notes}"</p>
@@ -681,7 +687,7 @@ export default function ApprovalsPage() {
 
         <p className="text-xs text-gray-400 text-center">
           Submitted on {formatDate(approval.created_at)}
-          {approval.submitted_by ? ` by ${approval.submitted_by}` : ""}
+          {approval.submitted_by ? ` by ${safeText(approval.submitted_by)}` : ""}
         </p>
       </div>
     </div>

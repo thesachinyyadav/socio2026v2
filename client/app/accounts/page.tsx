@@ -37,6 +37,14 @@ interface QueueItem {
   _queue_role: string;
 }
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const safeLower = (value: unknown): string => safeText(value, "").toLowerCase();
+
 function pendingDuration(createdAt: string) {
   const ms = Date.now() - new Date(createdAt).getTime();
   const days = Math.floor(ms / 86400000);
@@ -46,7 +54,7 @@ function pendingDuration(createdAt: string) {
 }
 
 function budgetTotal(items: BudgetItem[]) {
-  return items.reduce((s, b) => s + b.quantity * b.unitPrice, 0);
+  return items.reduce((s, b) => s + Number(b.quantity || 0) * Number(b.unitPrice || 0), 0);
 }
 
 export default function FinanceDashboard() {
@@ -78,7 +86,38 @@ export default function FinanceDashboard() {
       });
       if (!res.ok) { toast.error("Failed to load queue"); return; }
       const data = await res.json();
-      setQueue(data.queue.filter((q: QueueItem) => q._queue_role === "accounts"));
+      const queueItems = Array.isArray(data?.queue) ? data.queue : [];
+      const normalizedQueue: QueueItem[] = queueItems.map((q: any) => ({
+        id: safeText(q?.id),
+        event_or_fest_id: safeText(q?.event_or_fest_id),
+        type: safeLower(q?.type) === "fest" ? "fest" : "event",
+        item_title: safeText(q?.item_title, "Untitled"),
+        item_date: safeText(q?.item_date, "") || null,
+        organizing_department_snapshot: safeText(q?.organizing_department_snapshot, "") || null,
+        organizing_school_snapshot: safeText(q?.organizing_school_snapshot, "") || null,
+        organizing_campus_snapshot: safeText(q?.organizing_campus_snapshot, "") || null,
+        created_at: safeText(q?.created_at, new Date().toISOString()),
+        stages: Array.isArray(q?.stages)
+          ? q.stages.map((s: any) => ({
+              step: Number(s?.step ?? 0),
+              role: safeText(s?.role),
+              label: safeText(s?.label),
+              status: safeText(s?.status, "pending"),
+              blocking: Boolean(s?.blocking),
+              approved_by: safeText(s?.approved_by, "") || null,
+            }))
+          : [],
+        budget_items: Array.isArray(q?.budget_items)
+          ? q.budget_items.map((b: any) => ({
+              id: safeText(b?.id, "") || undefined,
+              name: safeText(b?.name, ""),
+              quantity: Number(b?.quantity ?? 0),
+              unitPrice: Number(b?.unitPrice ?? 0),
+            }))
+          : [],
+        _queue_role: safeLower(q?._queue_role),
+      }));
+      setQueue(normalizedQueue.filter((q) => q._queue_role === "accounts"));
     } catch {
       toast.error("Network error");
     } finally {

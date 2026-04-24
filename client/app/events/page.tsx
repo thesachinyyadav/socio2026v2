@@ -11,6 +11,33 @@ import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 12;
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (value == null) return fallback;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => entry != null);
+    return safeText(first, fallback);
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = ["event_creator", "fest_creator", "created_by", "title", "name", "email", "fest_title", "id"] as const;
+    for (const key of preferred) {
+      const candidate = record[key];
+      if (candidate != null && typeof candidate !== "object") {
+        const normalized = safeText(candidate, "");
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return fallback;
+};
+
+const safeLower = (value: unknown): string => safeText(value, "").toLowerCase();
+
 interface FetchedEvent {
   fest: string;
   id: number;
@@ -132,7 +159,16 @@ const EventsPageContent = () => {
 
   const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
   
-  const eventsToFilter = Array.isArray(allEvents) ? allEvents : [];
+  const eventsToFilter: FetchedEvent[] = (Array.isArray(allEvents) ? allEvents : []).map((event: any) => ({
+    ...event,
+    title: safeText(event?.title, "Untitled event"),
+    venue: safeText(event?.venue, "") || null,
+    organizing_dept: safeText(event?.organizing_dept, "") || null,
+    category: safeText(event?.category, "") || null,
+    fest: safeText(event?.fest, ""),
+    created_by: safeText(event?.created_by ?? event?.event_creator ?? event?.fest_creator, "") || null,
+    organizer_email: safeText(event?.organizer_email, "") || null,
+  }));
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
     console.log(`🔄 Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
@@ -195,7 +231,7 @@ const EventsPageContent = () => {
       });
     }
   };
-  const filteredEvents = (eventsToFilter as FetchedEvent[]).filter((event) => {
+  const filteredEvents = eventsToFilter.filter((event) => {
     // Archive filter - hide archived events from normal users (including locally archived)
     if (localArchivedIds.has(event.event_id)) {
       return false;
@@ -214,17 +250,17 @@ const EventsPageContent = () => {
         eventTagsForFiltering.push("Free");
       }
       if (!eventTagsForFiltering.some(
-        (tag) => tag.toLowerCase() === activeFilterName.toLowerCase()
+        (tag) => safeLower(tag) === safeLower(activeFilterName)
       )) return false;
     }
     // Text search filter
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      const titleMatch = event.title?.toLowerCase().includes(q);
-      const venueMatch = event.venue?.toLowerCase().includes(q);
-      const deptMatch = event.organizing_dept?.toLowerCase().includes(q);
-      const categoryMatch = event.category?.toLowerCase().includes(q);
-      const festMatch = event.fest?.toLowerCase().includes(q);
+      const q = safeLower(searchQuery.trim());
+      const titleMatch = safeLower(event.title).includes(q);
+      const venueMatch = safeLower(event.venue).includes(q);
+      const deptMatch = safeLower(event.organizing_dept).includes(q);
+      const categoryMatch = safeLower(event.category).includes(q);
+      const festMatch = safeLower(event.fest).includes(q);
       if (!titleMatch && !venueMatch && !deptMatch && !categoryMatch && !festMatch) return false;
     }
     return true;

@@ -32,6 +32,11 @@ const UpcomingEvents = () => {
     [upcomingEvents, isAdminOrOrganizer, localArchivedIds]
   );
 
+  const displayedUpcomingEvents = useMemo(
+    () => filteredUpcomingEvents.slice(0, 3),
+    [filteredUpcomingEvents]
+  );
+
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
     console.log(`🔄 Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
     
@@ -202,8 +207,8 @@ const UpcomingEvents = () => {
       <p className="mt-1 text-[#1e1e1e8e] text-base sm:text-lg font-medium text-center px-4">
         Here's a glimpse of what's next. Don't miss out!
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-6 mt-8 sm:mt-12 w-full px-4 sm:px-6 lg:px-8">
-        {filteredUpcomingEvents.map((event: ContextEventForCard) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-6 mt-8 sm:mt-12 w-full px-4 sm:px-6 lg:px-8">
+        {displayedUpcomingEvents.map((event: ContextEventForCard) => {
           const eventCardData = {
             title: event.title,
             dept: event.organizing_dept,

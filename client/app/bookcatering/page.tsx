@@ -52,6 +52,7 @@ type TabKey = "book" | "mine";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+const safeLower = (value: unknown): string => String(value ?? "").toLowerCase();
 
 function isPastDate(dateStr?: string | null) {
   if (!dateStr) return false;
@@ -190,7 +191,7 @@ export default function BookCateringPage() {
   // Fetch user's own fests
   useEffect(() => {
     if (!session?.access_token || !userData?.email) return;
-    const userEmail = (userData.email || "").toLowerCase();
+    const userEmail = safeLower(userData.email || "");
     fetch(`${API_URL}/api/fests?sortBy=created_at&sortOrder=desc`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
@@ -198,8 +199,8 @@ export default function BookCateringPage() {
       .then((d: any) => {
         const all: MyFest[] = Array.isArray(d.fests) ? d.fests : (Array.isArray(d) ? d : []);
         setMyFests(all.filter((f: any) =>
-          (f.created_by || "").toLowerCase() === userEmail ||
-          (f.contact_email || "").toLowerCase() === userEmail
+          safeLower(f.created_by || "") === userEmail ||
+          safeLower(f.contact_email || "") === userEmail
         ));
       })
       .catch(() => setMyFests([]));
@@ -207,17 +208,17 @@ export default function BookCateringPage() {
 
   // User's own upcoming events for the dropdown
   const myEvents = useMemo(() => {
-    const userEmail = (userData?.email || "").toLowerCase();
+    const userEmail = safeLower(userData?.email || "");
     if (!userEmail) return [];
     const events: ContextEvent[] = Array.isArray(allEvents) ? allEvents : [];
     return events.filter((e: any) => {
-      const creator = (e.created_by || e.organizer_email || e.organiser_email || "").toLowerCase();
+      const creator = safeLower(e.created_by || e.organizer_email || e.organiser_email || "");
       const isOwner = creator && creator === userEmail;
       const isHead =
         Array.isArray(e.event_heads) &&
         e.event_heads.some((h: any) => {
           const em = typeof h === "string" ? h : h?.email;
-          return (em || "").toLowerCase() === userEmail;
+          return safeLower(em || "") === userEmail;
         });
       return (isOwner || isHead) && !isPastDate(e.event_date);
     });

@@ -12,7 +12,13 @@ import { useAuth } from "@/context/AuthContext";
 
 type OrganizationTypeFilter = "all" | "club" | "centre" | "cell";
 
-const normalizeCategory = (category: string) => category.trim().toLowerCase();
+const safeText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const normalizeCategory = (category: unknown) => safeText(category).trim().toLowerCase();
 const TYPE_FILTERS: { label: string; value: OrganizationTypeFilter }[] = [
   { label: "All", value: "all" },
   { label: "Clubs", value: "club" },
@@ -48,7 +54,7 @@ const buildCentresUrl = (
   if (typeFilter !== "all") {
     params.set("type", typeFilter);
   }
-  if (category && category.toLowerCase() !== "all") {
+  if (category && normalizeCategory(category) !== "all") {
     params.set("category", category);
   }
 
@@ -193,11 +199,11 @@ const CentresPageContent = () => {
         }
 
         if (searchQuery.trim()) {
-          const q = searchQuery.trim().toLowerCase();
-          const titleMatch = centre.club_name?.toLowerCase().includes(q);
-          const subtitleMatch = centre.subtitle?.toLowerCase().includes(q);
-          const descriptionMatch = centre.club_description?.toLowerCase().includes(q);
-          const categoryMatch = centre.category?.toLowerCase().includes(q);
+          const q = normalizeCategory(searchQuery.trim());
+          const titleMatch = normalizeCategory(centre.club_name).includes(q);
+          const subtitleMatch = normalizeCategory(centre.subtitle).includes(q);
+          const descriptionMatch = normalizeCategory(centre.club_description).includes(q);
+          const categoryMatch = normalizeCategory(centre.category).includes(q);
 
           if (!titleMatch && !subtitleMatch && !descriptionMatch && !categoryMatch) {
             return false;

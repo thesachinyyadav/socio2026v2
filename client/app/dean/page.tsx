@@ -28,6 +28,14 @@ interface QueueItem {
   _queue_role: string;
 }
 
+const safeText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const safeLower = (value: unknown): string => safeText(value, "").toLowerCase();
+
 function timeAgo(dateStr: string) {
   const ms = Date.now() - new Date(dateStr).getTime();
   const days = Math.floor(ms / 86400000);
@@ -37,7 +45,7 @@ function timeAgo(dateStr: string) {
 }
 
 function deanStatus(item: QueueItem) {
-  return item.stages?.find((s) => s.role === "dean")?.status ?? "pending";
+  return safeLower(item.stages?.find((s) => s.role === "dean")?.status) || "pending";
 }
 
 export default function DeanDashboard() {
@@ -68,7 +76,29 @@ export default function DeanDashboard() {
       });
       if (!res.ok) { toast.error("Failed to load queue"); return; }
       const data = await res.json();
-      setQueue(data.queue.filter((q: QueueItem) => q._queue_role === "dean"));
+      const queueItems = Array.isArray(data?.queue) ? data.queue : [];
+      const normalizedQueue: QueueItem[] = queueItems.map((q: any) => ({
+        id: safeText(q?.id),
+        event_or_fest_id: safeText(q?.event_or_fest_id),
+        type: safeLower(q?.type) === "fest" ? "fest" : "event",
+        item_title: safeText(q?.item_title, "Untitled"),
+        item_date: safeText(q?.item_date, "") || null,
+        organizing_department_snapshot: safeText(q?.organizing_department_snapshot, "") || null,
+        organizing_school_snapshot: safeText(q?.organizing_school_snapshot, "") || null,
+        created_at: safeText(q?.created_at, new Date().toISOString()),
+        stages: Array.isArray(q?.stages)
+          ? q.stages.map((s: any) => ({
+              step: Number(s?.step ?? 0),
+              role: safeText(s?.role),
+              label: safeText(s?.label),
+              status: safeText(s?.status, "pending"),
+              blocking: Boolean(s?.blocking),
+              approved_by: safeText(s?.approved_by, "") || null,
+            }))
+          : [],
+        _queue_role: safeLower(q?._queue_role),
+      }));
+      setQueue(normalizedQueue.filter((q) => q._queue_role === "dean"));
     } catch {
       toast.error("Network error");
     } finally {
@@ -124,9 +154,10 @@ export default function DeanDashboard() {
   const reviewedItems = queue.filter((q) => deanStatus(q) !== "pending");
 
   function StatusBadge({ status }: { status: string }) {
-    if (status === "approved")
+    const normalizedStatus = safeLower(status);
+    if (normalizedStatus === "approved")
       return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Approved</span>;
-    if (status === "rejected")
+    if (normalizedStatus === "rejected")
       return <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Returned</span>;
     return <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Pending</span>;
   }
@@ -146,7 +177,7 @@ export default function DeanDashboard() {
             <StatusBadge status={status} />
             {hodDone && (
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                HOD {hodStage?.status ?? "cleared"}{hodActedBy ? ` by ${hodActedBy}` : ""}
+                HOD {safeText(hodStage?.status, "cleared")}{hodActedBy ? ` by ${safeText(hodActedBy)}` : ""}
               </span>
             )}
           </div>

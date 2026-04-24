@@ -65,6 +65,8 @@ interface UserData {
   is_accounts_office?: boolean;
 }
 
+const safeLower = (value: unknown): string => String(value ?? "").toLowerCase();
+
 const StudentProfile = () => {
   const { userData, signOut, session, isLoading } = useAuth();
   const router = useRouter();
@@ -132,7 +134,7 @@ const StudentProfile = () => {
         year: "numeric",
       });
 
-      const isStaff = userData.email?.toLowerCase().endsWith('@christuniversity.in');
+      const isStaff = safeLower(userData.email).endsWith('@christuniversity.in');
 
       setStudent((prevState) => ({
         ...prevState,
