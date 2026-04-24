@@ -47,14 +47,22 @@ interface Category {
 
 const DEFAULT_DISCOVER_CAMPUS = "Central Campus (Main)";
 
+const normalizeText = (value: unknown): string =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
 const findCampusByQueryValue = (value: string | null) => {
   if (!value) {
     return null;
   }
 
+  const normalizedValue = normalizeText(value);
+  if (!normalizedValue) {
+    return null;
+  }
+
   return (
     christCampuses.find(
-      (campus) => campus.toLowerCase() === value.toLowerCase()
+      (campus) => normalizeText(campus) === normalizedValue
     ) || null
   );
 };
@@ -220,8 +228,9 @@ const DiscoverPageContent = () => {
     return baseCategories.map((cat) => {
       const count = filteredEvents.filter(
         (event: ContextFetchedEvent) =>
-          event.category && cat.title && 
-          event.category.toLowerCase() === cat.title.toLowerCase()
+          normalizeText(event.category) &&
+          normalizeText(cat.title) &&
+          normalizeText(event.category) === normalizeText(cat.title)
       ).length;
       return { ...cat, count: `${count} event${count !== 1 ? "s" : ""}` };
     });

@@ -26,7 +26,7 @@ export const FestCard = ({
   isDraft = false,
   isPendingApproval = false,
 }: FestCardProps) => {
-  const formattedTitle = (title || "")
+  const formattedTitle = String(title ?? "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")

@@ -26,7 +26,7 @@ export const CentreClubCard = ({
 }: CardProps) => {
   const [imageError, setImageError] = useState(false);
   // Use provided slug or create URL-friendly version of title for linking
-  const slugTitle = slug || (title || "")
+  const slugTitle = slug || String(title ?? "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")

@@ -4,6 +4,12 @@ import { formatDate, formatTime } from "@/lib/dateUtils";
 import { useAuth } from "../../../context/AuthContext";
 import EventReminderButton from "../EventReminderButton";
 
+const toLowerSafe = (value: unknown): string =>
+  typeof value === "string" ? value.toLowerCase() : "";
+
+const toStringArray = (values: unknown): string[] =>
+  Array.isArray(values) ? values.filter((item): item is string => typeof item === "string") : [];
+
 interface EventCardProps {
   title: string;
   dept: string;
@@ -57,10 +63,14 @@ export const EventCard = ({
   const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
   const isAdminOrOrganizer = !authLoading && (userData?.is_organiser || userData?.is_masteradmin);
 
+  const userEmailLower = toLowerSafe(userData?.email);
+  const createdByLower = toLowerSafe(createdBy);
+  const organizerEmailLower = toLowerSafe(organizerEmail);
+
   const isOwner = !authLoading && (
     (session?.user?.id && createdBy && session.user.id === createdBy) ||
-    (userData?.email && createdBy && userData.email.toLowerCase() === createdBy.toLowerCase()) ||
-    (userData?.email && organizerEmail && userData.email.toLowerCase() === organizerEmail.toLowerCase())
+    (userEmailLower && createdByLower && userEmailLower === createdByLower) ||
+    (userEmailLower && organizerEmailLower && userEmailLower === organizerEmailLower)
   );
 
   if (userData?.is_organiser && !authLoading) {
@@ -82,8 +92,9 @@ export const EventCard = ({
   const overlayLabel = isDraft ? (isPendingApproval ? "PENDING" : "DRAFT") : isArchived ? "ARCHIVED" : null;
 
   // Separate Free/Paid from category tags — price shown in footer row instead
-  const isFree = tags.includes("Free") || tags.some(t => t.toLowerCase() === "free");
-  const displayTags = tags.filter(t => !["Free", "Paid"].includes(
+  const normalizedTags = toStringArray(tags);
+  const isFree = normalizedTags.includes("Free") || normalizedTags.some((t) => toLowerSafe(t) === "free");
+  const displayTags = normalizedTags.filter((t) => !["Free", "Paid"].includes(
     t.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
   ));
 
@@ -91,7 +102,7 @@ export const EventCard = ({
     ? `₹${registrationFee}`
     : isFree || registrationFee === 0
       ? "Free entry"
-      : tags.some(t => t.toLowerCase() === "paid") ? "Paid" : "Free entry";
+      : normalizedTags.some((t) => toLowerSafe(t) === "paid") ? "Paid" : "Free entry";
 
   const deptLabel = (festName && festName !== "none" ? festName : dept) || "";
 
