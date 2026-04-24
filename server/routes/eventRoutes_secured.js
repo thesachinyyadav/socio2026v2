@@ -20,6 +20,7 @@ import {
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
+import { supabase } from "../config/database.js";
 
 const router = express.Router();
 const debugRoutesEnabled = process.env.NODE_ENV !== "production";
@@ -455,6 +456,43 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
   }
 });
 
+// ─── IT REQUESTS DASHBOARD ────────────────────────────────────────────────────
+// Returns events that have an IT support request, filtered by the IT manager's campus.
+
+router.get(
+  "/it-requests",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
+    try {
+      const user = req.userInfo;
+      if (!user.is_it_support && !user.is_masteradmin) {
+        return res.status(403).json({ error: "IT Support role required." });
+      }
+
+      let query = supabase
+        .from("events")
+        .select("event_id, title, event_date, venue, campus_hosted_at, it_description, organizing_dept, organizing_school, created_by, created_at, is_draft")
+        .not("it_description", "is", null);
+
+      if (user.is_it_support && !user.is_masteradmin && user.campus) {
+        query = query.eq("campus_hosted_at", user.campus);
+      }
+
+      query = query.order("created_at", { ascending: false });
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return res.json({ requests: data || [] });
+    } catch (error) {
+      console.error("Error fetching IT requests:", error);
+      return res.status(500).json({ error: "Failed to fetch IT requests." });
+    }
+  }
+);
+
 // GET specific event by ID - PUBLIC ACCESS
 router.get("/:eventId", async (req, res) => {
   try {
@@ -744,6 +782,9 @@ router.post(
         campus_hosted_at: campusHostedAt,
         allowed_campuses: parsedAllowedCampuses,
         min_participants: parseOptionalInt(req.body.min_participants || req.body.minParticipants, 1),
+        it_description: (req.body.it_enabled === "true" || req.body.it_enabled === true)
+          ? (req.body.it_description || null)
+          : null,
       }]);
 
       if (!created || created.length === 0) {
@@ -751,6 +792,37 @@ router.post(
       }
 
       console.log("✅ Event inserted successfully:", event_id);
+
+      // Notify IT managers if IT support was requested (non-blocking)
+      const itEnabled = req.body.it_enabled === "true" || req.body.it_enabled === true;
+      const itDescription = req.body.it_description || null;
+      if (itEnabled && itDescription && campusHostedAt) {
+        (async () => {
+          try {
+            const { data: itManagers } = await supabase
+              .from("users")
+              .select("email")
+              .eq("is_it_support", true)
+              .eq("campus", campusHostedAt);
+            if (itManagers && itManagers.length > 0) {
+              const notifications = itManagers.map(u => ({
+                title: "IT Support Request",
+                message: `${title} needs IT support: ${itDescription}`,
+                type: "info",
+                event_id: event_id,
+                event_title: title,
+                action_url: `/it-dashboard`,
+                user_email: u.email,
+                is_broadcast: false,
+                read: false,
+              }));
+              await supabase.from("notifications").insert(notifications);
+            }
+          } catch (notifErr) {
+            console.error("❌ Failed to send IT support notifications:", notifErr.message);
+          }
+        })();
+      }
 
       // Send notifications to all users about the new event (non-blocking)
       if (shouldSendNotifications) {

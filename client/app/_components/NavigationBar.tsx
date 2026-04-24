@@ -63,7 +63,7 @@ type RoleAction = {
   key: string;
   label: string;
   href: string;
-  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "venue" | "support" | "catering";
+  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "venue" | "support" | "catering" | "stalls" | "it";
 };
 
 function NavigationBar() {
@@ -105,6 +105,8 @@ function NavigationBar() {
   const isOrganiser = Boolean(userData?.is_organiser);
   const isSupport = Boolean(userData?.is_support);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
+  const isStalls = Boolean((userData as any)?.is_stalls);
+  const isItSupport = Boolean((userData as any)?.is_it_support);
   const catersList = (() => {
     const c = (userData as any)?.caters;
     return Array.isArray(c) ? c : c ? [c] : [];
@@ -120,6 +122,8 @@ function NavigationBar() {
   if (isOrganiser) roleActions.push({ key: "organiser", label: "Organiser", href: "/manage", variant: "organiser" });
   if (isVenueManager) roleActions.push({ key: "venue", label: "Venue", href: "/venue", variant: "venue" });
   if (isCaterer) roleActions.push({ key: "catering", label: "Catering", href: "/catering", variant: "catering" });
+  if (isStalls) roleActions.push({ key: "stalls", label: "Stalls", href: "/stalls", variant: "stalls" });
+  if (isItSupport) roleActions.push({ key: "it", label: "IT Role", href: "/it-dashboard", variant: "it" });
 
   const visibleRoleActions = roleActions.length > 2 ? roleActions.slice(0, 1) : roleActions;
   const dashboardDropdownRoles = roleActions.length > 2 ? roleActions.slice(1) : [];
@@ -136,6 +140,8 @@ function NavigationBar() {
     venue:     "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     support:   "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     catering:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    stalls:    "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    it:        "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
   };
 
   const roleQuickActionMap: Record<RoleAction["variant"], string> = {
@@ -148,6 +154,8 @@ function NavigationBar() {
     venue:     "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     support:   "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     catering:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    stalls:    "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    it:        "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
   };
 
   const getRolePillClasses = (variant: RoleAction["variant"]) => rolePillMap[variant];

@@ -28,14 +28,23 @@ interface MyCateringBooking {
   booked_by: string;
   description: string | null;
   status: "pending" | "accepted" | "declined";
-  event_id: string | null;
+  event_fest_id: string | null;
+  event_fest_type: "event" | "fest" | null;
   catering_id: string | null;
   contact_details: any;
   catering_name: string | null;
   catering_location: string | null;
   event_title: string | null;
   event_date: string | null;
+  fest_title: string | null;
+  fest_opening_date: string | null;
   created_at: string;
+}
+
+interface MyFest {
+  fest_id: string;
+  fest_title: string;
+  opening_date: string | null;
 }
 
 type TabKey = "book" | "mine";
@@ -140,6 +149,8 @@ export default function BookCateringPage() {
   const [campusFilter, setCampusFilter] = useState("");
 
   const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedFestId, setSelectedFestId] = useState("");
+  const [myFests, setMyFests] = useState<MyFest[]>([]);
   const [description, setDescription] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -175,6 +186,24 @@ export default function BookCateringPage() {
       .catch(() => setVendors([]))
       .finally(() => setLoadingVendors(false));
   }, [session?.access_token, campusFilter]);
+
+  // Fetch user's own fests
+  useEffect(() => {
+    if (!session?.access_token || !userData?.email) return;
+    const userEmail = (userData.email || "").toLowerCase();
+    fetch(`${API_URL}/api/fests?sortBy=created_at&sortOrder=desc`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(r => r.ok ? r.json() : {})
+      .then(d => {
+        const all: MyFest[] = Array.isArray(d.fests) ? d.fests : (Array.isArray(d) ? d : []);
+        setMyFests(all.filter((f: any) =>
+          (f.created_by || "").toLowerCase() === userEmail ||
+          (f.contact_email || "").toLowerCase() === userEmail
+        ));
+      })
+      .catch(() => setMyFests([]));
+  }, [session?.access_token, userData?.email]);
 
   // User's own upcoming events for the dropdown
   const myEvents = useMemo(() => {
@@ -227,7 +256,8 @@ export default function BookCateringPage() {
         },
         body: JSON.stringify({
           catering_id: selectedVendorId,
-          event_id: selectedEventId || null,
+          event_fest_id: selectedEventId || selectedFestId || null,
+          event_fest_type: selectedEventId ? "event" : selectedFestId ? "fest" : null,
           description: description.trim(),
           contact_details,
         }),
@@ -240,6 +270,7 @@ export default function BookCateringPage() {
       toast.success("Catering request sent — awaiting caterer's response.");
       setSelectedVendorId("");
       setSelectedEventId("");
+      setSelectedFestId("");
       setDescription("");
       loadMyBookings();
       setTab("mine");
@@ -409,6 +440,11 @@ export default function BookCateringPage() {
                                 {b.event_date ? ` · ${formatDateShort(b.event_date)}` : ""}
                               </span>
                             )}
+                            {b.fest_title && (
+                              <span>Fest: <span className="font-medium text-gray-700">{b.fest_title}</span>
+                                {b.fest_opening_date ? ` · ${formatDateShort(b.fest_opening_date)}` : ""}
+                              </span>
+                            )}
                             <span className="text-gray-400">Submitted {formatDateTime(b.created_at)}</span>
                           </div>
                           {b.description && (
@@ -545,7 +581,7 @@ export default function BookCateringPage() {
                   <FormField label="Event (optional)">
                     <select
                       value={selectedEventId}
-                      onChange={e => setSelectedEventId(e.target.value)}
+                      onChange={e => { setSelectedEventId(e.target.value); if (e.target.value) setSelectedFestId(""); }}
                       className={selectCls}
                     >
                       <option value="">— Not linked to a specific event —</option>
@@ -558,6 +594,24 @@ export default function BookCateringPage() {
                     {myEvents.length === 0 && (
                       <p className="text-[11px] text-gray-400 mt-1">
                         You have no upcoming events. You can still submit a standalone request.
+                      </p>
+                    )}
+                  </FormField>
+
+                  <FormField label="Fest (optional)">
+                    <select
+                      value={selectedFestId}
+                      onChange={e => { setSelectedFestId(e.target.value); if (e.target.value) setSelectedEventId(""); }}
+                      className={selectCls}
+                    >
+                      <option value="">— Not linked to a specific fest —</option>
+                      {myFests.map(f => (
+                        <option key={f.fest_id} value={f.fest_id}>{f.fest_title}</option>
+                      ))}
+                    </select>
+                    {myFests.length === 0 && (
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        You have no fests. You can still submit a standalone request.
                       </p>
                     )}
                   </FormField>
@@ -609,7 +663,7 @@ export default function BookCateringPage() {
                 <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 flex gap-2.5 justify-end">
                   <button
                     type="button"
-                    onClick={() => { setSelectedVendorId(""); setDescription(""); setSelectedEventId(""); }}
+                    onClick={() => { setSelectedVendorId(""); setDescription(""); setSelectedEventId(""); setSelectedFestId(""); }}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
                   >
                     Cancel

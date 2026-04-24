@@ -14,7 +14,7 @@ export default function PrivacyPolicy() {
         <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
           <div className="bg-[#063168] py-6 px-8">
             <h1 className="text-3xl font-bold text-white">Privacy Policy</h1>
-            <p className="mt-2 text-blue-100">Effective Date: January 30, 2026</p>
+            <p className="mt-2 text-blue-100">Effective Date: April 23, 2026</p>
           </div>
 
           <div className="px-8 py-6 prose prose-blue max-w-none text-gray-700">

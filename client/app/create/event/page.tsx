@@ -171,6 +171,12 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("custom_fields", dataFromHookForm.customFields);
     appendIfExists("created_by", userEmail);
 
+    const itConfig = operationalConfigRef.current.it;
+    if (itConfig.enabled) {
+      formData.append("it_enabled", "true");
+      appendIfExists("it_description", itConfig.description);
+    }
+
     const appendFile = (key: string, file: any) => {
       if (!file) return;
       if (file instanceof FileList) {

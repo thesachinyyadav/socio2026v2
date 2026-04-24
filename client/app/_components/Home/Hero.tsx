@@ -85,6 +85,8 @@ const Hero = () => {
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
   const isOrganiser = Boolean(userData?.is_organiser);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
+  const isStalls = Boolean((userData as any)?.is_stalls);
+  const isItSupport = Boolean((userData as any)?.is_it_support);
   const isCaterer = (() => {
     const c = (userData as any)?.caters;
     const list = Array.isArray(c) ? c : c ? [c] : [];
@@ -168,6 +170,13 @@ const Hero = () => {
                 Book Venue
               </button>
               <button
+                onClick={() => router.push("/bookstall")}
+                disabled={buttonsDisabled}
+                className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#154CB3] text-sm sm:text-base rounded-md text-[#154CB3] bg-white hover:bg-[#154CB3]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+              >
+                Book Stall
+              </button>
+              <button
                 onClick={() => router.push("/manage")}
                 disabled={buttonsDisabled}
                 className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#154CB3] text-sm sm:text-base rounded-md text-white bg-[#154CB3] hover:bg-[#0d3a8a] hover:border-[#0d3a8a] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
@@ -190,6 +199,22 @@ const Hero = () => {
               className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
             >
               Catering Approval
+            </button>
+          ) : session && isStalls ? (
+            <button
+              onClick={() => router.push("/stalls")}
+              disabled={buttonsDisabled}
+              className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+            >
+              Stall Dashboard
+            </button>
+          ) : session && isItSupport ? (
+            <button
+              onClick={() => router.push("/it-dashboard")}
+              disabled={buttonsDisabled}
+              className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+            >
+              IT Dashboard
             </button>
           ) : (
             <button

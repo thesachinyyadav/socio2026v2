@@ -280,26 +280,33 @@ router.get(
       if (error) throw error;
 
       const vendorIds = Array.from(new Set((bookings || []).map(b => b.catering_id).filter(Boolean)));
-      const eventIds  = Array.from(new Set((bookings || []).map(b => b.event_id).filter(Boolean)));
+      const eventIds  = Array.from(new Set((bookings || []).filter(b => b.event_fest_type === "event" && b.event_fest_id).map(b => b.event_fest_id)));
+      const festIds   = Array.from(new Set((bookings || []).filter(b => b.event_fest_type === "fest"  && b.event_fest_id).map(b => b.event_fest_id)));
 
-      const [vendorsResult, eventsResult] = await Promise.all([
+      const [vendorsResult, eventsResult, festsResult] = await Promise.all([
         vendorIds.length
           ? supabase.from("caters").select("catering_id, catering_name, location").in("catering_id", vendorIds)
           : Promise.resolve({ data: [] }),
         eventIds.length
           ? supabase.from("events").select("event_id, title, event_date").in("event_id", eventIds)
           : Promise.resolve({ data: [] }),
+        festIds.length
+          ? supabase.from("fests").select("fest_id, fest_title, opening_date").in("fest_id", festIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const vendorsById = new Map((vendorsResult.data || []).map(v => [v.catering_id, v]));
       const eventsById  = new Map((eventsResult.data  || []).map(e => [e.event_id, e]));
+      const festsById   = new Map((festsResult.data   || []).map(f => [f.fest_id, f]));
 
       const enriched = (bookings || []).map(b => ({
         ...b,
-        catering_name:    b.catering_id ? vendorsById.get(b.catering_id)?.catering_name  || null : null,
-        catering_location:b.catering_id ? vendorsById.get(b.catering_id)?.location       || null : null,
-        event_title:      b.event_id    ? eventsById.get(b.event_id)?.title              || null : null,
-        event_date:       b.event_id    ? eventsById.get(b.event_id)?.event_date         || null : null,
+        catering_name:     b.catering_id                           ? vendorsById.get(b.catering_id)?.catering_name  || null : null,
+        catering_location: b.catering_id                           ? vendorsById.get(b.catering_id)?.location       || null : null,
+        event_title:       b.event_fest_type === "event" && b.event_fest_id ? eventsById.get(b.event_fest_id)?.title      || null : null,
+        event_date:        b.event_fest_type === "event" && b.event_fest_id ? eventsById.get(b.event_fest_id)?.event_date || null : null,
+        fest_title:        b.event_fest_type === "fest"  && b.event_fest_id ? festsById.get(b.event_fest_id)?.fest_title  || null : null,
+        fest_opening_date: b.event_fest_type === "fest"  && b.event_fest_id ? festsById.get(b.event_fest_id)?.opening_date|| null : null,
       }));
 
       return res.json({ bookings: enriched });
@@ -330,9 +337,13 @@ router.post(
         return res.status(403).json({ error: "Insufficient role to create a catering booking" });
       }
 
-      const { catering_id, event_id, description, contact_details } = req.body || {};
+      const { catering_id, event_fest_id, event_fest_type, description, contact_details } = req.body || {};
       if (!catering_id || typeof catering_id !== "string") {
         return res.status(400).json({ error: "catering_id is required" });
+      }
+
+      if (event_fest_id && !["event", "fest"].includes(event_fest_type)) {
+        return res.status(400).json({ error: "event_fest_type must be 'event' or 'fest' when event_fest_id is provided" });
       }
 
       const { data: vendor, error: vendorErr } = await supabase
@@ -345,15 +356,22 @@ router.post(
         return res.status(404).json({ error: "Caterer not found" });
       }
 
-      if (event_id) {
+      if (event_fest_id && event_fest_type === "event") {
         const { data: ev } = await supabase
           .from("events")
           .select("event_id")
-          .eq("event_id", event_id)
+          .eq("event_id", event_fest_id)
           .maybeSingle();
-        if (!ev) {
-          return res.status(400).json({ error: "Selected event does not exist" });
-        }
+        if (!ev) return res.status(400).json({ error: "Selected event does not exist" });
+      }
+
+      if (event_fest_id && event_fest_type === "fest") {
+        const { data: ft } = await supabase
+          .from("fests")
+          .select("fest_id")
+          .eq("fest_id", event_fest_id)
+          .maybeSingle();
+        if (!ft) return res.status(400).json({ error: "Selected fest does not exist" });
       }
 
       const booking_id = `cb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -365,7 +383,8 @@ router.post(
           booked_by: u.email,
           description: description?.trim() || null,
           status: "pending",
-          event_id: event_id || null,
+          event_fest_id: event_fest_id || null,
+          event_fest_type: event_fest_id ? event_fest_type : null,
           catering_id,
           contact_details: contact_details || null,
         })
@@ -561,28 +580,35 @@ router.get(
 
       if (error) throw error;
 
-      // Enrich with event title/date and vendor name (vendor name needed when
+      // Enrich with event/fest title/date and vendor name (vendor name needed when
       // a user belongs to multiple shops and the UI groups orders by vendor).
-      const eventIds = Array.from(new Set((bookings || []).map(b => b.event_id).filter(Boolean)));
+      const eventIds  = Array.from(new Set((bookings || []).filter(b => b.event_fest_type === "event" && b.event_fest_id).map(b => b.event_fest_id)));
+      const festIds   = Array.from(new Set((bookings || []).filter(b => b.event_fest_type === "fest"  && b.event_fest_id).map(b => b.event_fest_id)));
       const vendorIds = Array.from(new Set((bookings || []).map(b => b.catering_id).filter(Boolean)));
 
-      const [eventsResult, vendorsResult] = await Promise.all([
+      const [eventsResult, festsResult, vendorsResult] = await Promise.all([
         eventIds.length
           ? supabase.from("events").select("event_id, title, event_date").in("event_id", eventIds)
+          : Promise.resolve({ data: [] }),
+        festIds.length
+          ? supabase.from("fests").select("fest_id, fest_title, opening_date").in("fest_id", festIds)
           : Promise.resolve({ data: [] }),
         vendorIds.length
           ? supabase.from("caters").select("catering_id, catering_name").in("catering_id", vendorIds)
           : Promise.resolve({ data: [] }),
       ]);
 
-      const eventsById = new Map((eventsResult.data || []).map(e => [e.event_id, e]));
+      const eventsById  = new Map((eventsResult.data  || []).map(e => [e.event_id, e]));
+      const festsById   = new Map((festsResult.data   || []).map(f => [f.fest_id, f]));
       const vendorsById = new Map((vendorsResult.data || []).map(v => [v.catering_id, v]));
 
       const enriched = (bookings || []).map(b => ({
         ...b,
-        event_title: b.event_id ? eventsById.get(b.event_id)?.title || null : null,
-        event_date: b.event_id ? eventsById.get(b.event_id)?.event_date || null : null,
-        catering_name: b.catering_id ? vendorsById.get(b.catering_id)?.catering_name || null : null,
+        event_title:       b.event_fest_type === "event" && b.event_fest_id ? eventsById.get(b.event_fest_id)?.title       || null : null,
+        event_date:        b.event_fest_type === "event" && b.event_fest_id ? eventsById.get(b.event_fest_id)?.event_date  || null : null,
+        fest_title:        b.event_fest_type === "fest"  && b.event_fest_id ? festsById.get(b.event_fest_id)?.fest_title   || null : null,
+        fest_opening_date: b.event_fest_type === "fest"  && b.event_fest_id ? festsById.get(b.event_fest_id)?.opening_date || null : null,
+        catering_name:     b.catering_id                                    ? vendorsById.get(b.catering_id)?.catering_name || null : null,
       }));
 
       // Vendor list for the dashboard's filter UI when the user belongs to >1 shop.
