@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -188,7 +188,7 @@ const ACCREDITATION_BODIES = [
   { id: "ugc", name: "UGC", fullName: "University Grants Commission", description: "Regulatory authority for universities in India.", focus: "University standards, grants, governance." },
 ];
 
-export default function MasterAdminPage() {
+function MasterAdminPageInner() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -3994,6 +3994,14 @@ export default function MasterAdminPage() {
 
       </main>
     </div>
+  );
+}
+
+export default function MasterAdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <MasterAdminPageInner />
+    </Suspense>
   );
 }
 

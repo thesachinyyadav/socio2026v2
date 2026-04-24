@@ -1,7 +1,10 @@
 -- Migration 025 — Catering schema (reflects actual Supabase state)
 -- All tables and columns below already exist — this file is documentation only.
+-- NOTE: Tables were later renamed in migration 028 (catering_vendors → caters,
+-- catering_booking → cater_bookings). The CREATE statements below preserve the
+-- original names for historical accuracy.
 
--- catering_vendors: vendor profiles
+-- catering_vendors → caters (renamed in 028): vendor profiles
 CREATE TABLE IF NOT EXISTS public.catering_vendors (
   catering_id      TEXT     PRIMARY KEY,
   catering_name    TEXT     NOT NULL,
@@ -13,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.catering_vendors (
 CREATE INDEX IF NOT EXISTS idx_cvi_campuses
   ON public.catering_vendors USING GIN (campuses);
 
--- catering_booking: individual orders linked to a vendor
+-- catering_booking → cater_bookings (renamed in 028): orders linked to a vendor
 CREATE TABLE IF NOT EXISTS public.catering_booking (
   booking_id      TEXT        PRIMARY KEY,
   booked_by       TEXT        NOT NULL,
@@ -25,7 +28,8 @@ CREATE TABLE IF NOT EXISTS public.catering_booking (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- users.caters: single JSONB column storing catering role
--- Shape when assigned: { "is_catering": true, "catering_id": "<vendor-slug>" }
+-- users.caters: JSONB column storing catering role assignments
+-- Shape when assigned: [ { "is_catering": true, "catering_id": "<vendor-slug>" }, ... ]
 -- Null when not a catering contact.
 -- Column already present on users table — no ALTER needed.
+-- See migration 027 for the object→array conversion of legacy rows.

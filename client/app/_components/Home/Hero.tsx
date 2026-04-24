@@ -85,7 +85,11 @@ const Hero = () => {
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
   const isOrganiser = Boolean(userData?.is_organiser);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
-  const isCaterer = Boolean((userData as any)?.caters?.is_catering);
+  const isCaterer = (() => {
+    const c = (userData as any)?.caters;
+    const list = Array.isArray(c) ? c : c ? [c] : [];
+    return list.some((entry: any) => entry?.is_catering);
+  })();
 
   return (
     <div
