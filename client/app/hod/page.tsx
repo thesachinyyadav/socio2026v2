@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
+import { Pagination } from "../_components/UI/Pagination";
 
 interface ApprovalStage {
   step: number;
@@ -73,6 +74,11 @@ export default function HodDashboard() {
   const [rejectModal, setRejectModal] = useState<{ itemId: string; type: string } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
 
+  // Pagination state
+  const [pendingPage, setPendingPage] = useState(1);
+  const [reviewedPage, setReviewedPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
   useEffect(() => {
     if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
@@ -97,6 +103,8 @@ export default function HodDashboard() {
       if (!res.ok) { toast.error("Failed to load queue"); return; }
       const data = await res.json();
       setQueue(data.queue.filter((q: QueueItem) => q._queue_role === "hod"));
+      setPendingPage(1);
+      setReviewedPage(1);
     } catch {
       toast.error("Network error");
     } finally {
@@ -253,39 +261,59 @@ export default function HodDashboard() {
 
       {/* Queue view — constrained width */}
       {activeView === "queue" && (
-        <div className="max-w-3xl mx-auto space-y-6">
+        <div className="max-w-3xl mx-auto space-y-8">
           {loading ? (
             <p className="text-gray-500 text-sm">Loading queue…</p>
           ) : (
             <>
               <section>
-                <h2 className="text-sm font-semibold text-gray-700 mb-2">
-                  Pending{" "}
-                  <span className="text-gray-400 font-normal">({pendingItems.length})</span>
+                <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center justify-between">
+                  <span>Pending <span className="text-gray-400 font-normal ml-1">({pendingItems.length})</span></span>
                 </h2>
                 {pendingItems.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-                    <p className="text-gray-400 text-sm">No pending approvals.</p>
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                    <p className="text-gray-400 text-sm font-medium">No pending approvals.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {pendingItems.map((item) => (
-                      <QueueCard key={item.id} item={item} showActions />
-                    ))}
+                  <div>
+                    <div className="space-y-3">
+                      {pendingItems
+                        .slice((pendingPage - 1) * ITEMS_PER_PAGE, pendingPage * ITEMS_PER_PAGE)
+                        .map((item) => (
+                          <QueueCard key={item.id} item={item} showActions />
+                        ))}
+                    </div>
+                    <Pagination
+                      currentPage={pendingPage}
+                      totalPages={Math.ceil(pendingItems.length / ITEMS_PER_PAGE)}
+                      onNext={() => setPendingPage((p) => p + 1)}
+                      onPrev={() => setPendingPage((p) => p - 1)}
+                      totalItems={pendingItems.length}
+                    />
                   </div>
                 )}
               </section>
 
               {reviewedItems.length > 0 && (
                 <section>
-                  <h2 className="text-sm font-semibold text-gray-700 mb-2">
-                    Reviewed{" "}
-                    <span className="text-gray-400 font-normal">({reviewedItems.length})</span>
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center justify-between">
+                    <span>Reviewed <span className="text-gray-400 font-normal ml-1">({reviewedItems.length})</span></span>
                   </h2>
-                  <div className="space-y-3">
-                    {reviewedItems.map((item) => (
-                      <QueueCard key={item.id} item={item} showActions={false} />
-                    ))}
+                  <div>
+                    <div className="space-y-3">
+                      {reviewedItems
+                        .slice((reviewedPage - 1) * ITEMS_PER_PAGE, reviewedPage * ITEMS_PER_PAGE)
+                        .map((item) => (
+                          <QueueCard key={item.id} item={item} showActions={false} />
+                        ))}
+                    </div>
+                    <Pagination
+                      currentPage={reviewedPage}
+                      totalPages={Math.ceil(reviewedItems.length / ITEMS_PER_PAGE)}
+                      onNext={() => setReviewedPage((p) => p + 1)}
+                      onPrev={() => setReviewedPage((p) => p - 1)}
+                      totalItems={reviewedItems.length}
+                    />
                   </div>
                 </section>
               )}

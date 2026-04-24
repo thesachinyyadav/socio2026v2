@@ -40,6 +40,7 @@ import {
   type HodAnalyticsBundle,
 } from "@/lib/hodAnalyticsApi";
 import { exportHodReport } from "@/lib/xlsxTheme";
+import { Pagination } from "../UI/Pagination";
 
 type DatePreset = "30" | "90" | "180" | "365";
 type InsightTone = "risk" | "opportunity";
@@ -178,6 +179,10 @@ export default function HodDataExplorer() {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination for teachers
+  const [teacherPage, setTeacherPage] = useState(1);
+  const TEACHERS_PER_PAGE = 10;
+
   const query = useMemo(() => {
     if (customStart || customEnd) {
       return { start: customStart || undefined, end: customEnd || undefined };
@@ -201,6 +206,7 @@ export default function HodDataExplorer() {
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
+        setTeacherPage(1);
       }
     },
     [query]
@@ -373,6 +379,7 @@ export default function HodDataExplorer() {
                     setPreset(value);
                     setCustomStart("");
                     setCustomEnd("");
+                    setTeacherPage(1);
                   }}
                   className={classNames(
                     "rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors",
@@ -649,7 +656,9 @@ export default function HodDataExplorer() {
               </tr>
             </thead>
             <tbody>
-              {bundle.teachers.teachers.byTeacher.map((teacher) => (
+              {bundle.teachers.teachers.byTeacher
+                .slice((teacherPage - 1) * TEACHERS_PER_PAGE, teacherPage * TEACHERS_PER_PAGE)
+                .map((teacher) => (
                 <tr key={teacher.teacherId} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-3 py-2">
                     <p className="font-medium text-slate-800">{teacher.name}</p>
@@ -701,6 +710,13 @@ export default function HodDataExplorer() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={teacherPage}
+          totalPages={Math.ceil(bundle.teachers.teachers.byTeacher.length / TEACHERS_PER_PAGE)}
+          onNext={() => setTeacherPage((p) => p + 1)}
+          onPrev={() => setTeacherPage((p) => p - 1)}
+          totalItems={bundle.teachers.teachers.byTeacher.length}
+        />
       </SectionCard>
 
       {/* Quick stats row */}
