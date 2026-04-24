@@ -36,6 +36,21 @@ function escapeLike(s) {
   return String(s).replace(/[\\%_]/g, c => "\\" + c);
 }
 
+// users.caters is an array of { is_catering, catering_id } entries so a single
+// email can belong to multiple vendors. Older rows may still hold a single
+// object — normalize to array on read.
+function catersToArray(caters) {
+  if (Array.isArray(caters)) return caters.filter(c => c && c.catering_id);
+  if (caters && typeof caters === "object" && caters.catering_id) return [caters];
+  return [];
+}
+
+function extractCateringIds(caters) {
+  return catersToArray(caters)
+    .filter(c => c.is_catering && c.catering_id)
+    .map(c => c.catering_id);
+}
+
 // Find-then-update by primary key. For each email we first SELECT the matching
 // user row (case-insensitive), then UPDATE by register_number. This isolates
 // every update so ambiguous filters or JSONB quirks cannot drop rows.
@@ -49,7 +64,7 @@ async function assignCateringRole(emails, catering_id) {
     try {
       const { data: matches, error: findErr } = await supabase
         .from("users")
-        .select("register_number, email")
+        .select("register_number, email, caters")
         .ilike("email", escapeLike(email));
 
       if (findErr) {
@@ -64,9 +79,15 @@ async function assignCateringRole(emails, catering_id) {
       }
 
       for (const match of matches) {
+        const existing = catersToArray(match.caters);
+        const alreadyAssigned = existing.some(c => c.catering_id === catering_id);
+        const nextCaters = alreadyAssigned
+          ? existing
+          : [...existing, { is_catering: true, catering_id }];
+
         const { data: updated, error: updErr } = await supabase
           .from("users")
-          .update({ caters: { is_catering: true, catering_id } })
+          .update({ caters: nextCaters })
           .eq("register_number", match.register_number)
           .select("register_number, email, caters");
 
@@ -126,12 +147,16 @@ async function revokeCateringRole(emails, catering_id) {
       }
 
       for (const match of matches) {
+        const existing = catersToArray(match.caters);
         // Only clear if this user still belongs to THIS vendor
-        if (match.caters?.catering_id !== catering_id) continue;
+        if (!existing.some(c => c.catering_id === catering_id)) continue;
+
+        const remaining = existing.filter(c => c.catering_id !== catering_id);
+        const nextCaters = remaining.length ? remaining : null;
 
         const { data: updated, error: updErr } = await supabase
           .from("users")
-          .update({ caters: null })
+          .update({ caters: nextCaters })
           .eq("register_number", match.register_number)
           .select("register_number");
 
@@ -178,7 +203,7 @@ router.get(
   async (req, res) => {
     try {
       const { data, error } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .select("*")
         .order("catering_name", { ascending: true });
       if (error) throw error;
@@ -212,7 +237,7 @@ router.get(
       }
 
       const { data, error } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .select("catering_id, catering_name, contact_details, campuses, location")
         .order("catering_name", { ascending: true });
       if (error) throw error;
@@ -248,7 +273,7 @@ router.get(
       if (!u.email) return res.status(401).json({ error: "Unauthenticated" });
 
       const { data: bookings, error } = await supabase
-        .from("catering_booking")
+        .from("cater_bookings")
         .select("*")
         .eq("booked_by", u.email)
         .order("created_at", { ascending: false });
@@ -259,7 +284,7 @@ router.get(
 
       const [vendorsResult, eventsResult] = await Promise.all([
         vendorIds.length
-          ? supabase.from("catering_vendors").select("catering_id, catering_name, location").in("catering_id", vendorIds)
+          ? supabase.from("caters").select("catering_id, catering_name, location").in("catering_id", vendorIds)
           : Promise.resolve({ data: [] }),
         eventIds.length
           ? supabase.from("events").select("event_id, title, event_date").in("event_id", eventIds)
@@ -311,7 +336,7 @@ router.post(
       }
 
       const { data: vendor, error: vendorErr } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .select("catering_id")
         .eq("catering_id", catering_id)
         .maybeSingle();
@@ -334,7 +359,7 @@ router.post(
       const booking_id = `cb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
       const { data, error } = await supabase
-        .from("catering_booking")
+        .from("cater_bookings")
         .insert({
           booking_id,
           booked_by: u.email,
@@ -378,7 +403,7 @@ router.post(
       }
 
       const { data: existing } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .select("catering_id")
         .eq("catering_id", catering_id)
         .maybeSingle();
@@ -388,7 +413,7 @@ router.post(
       }
 
       const { data, error } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .insert({
           catering_id,
           catering_name: catering_name.trim(),
@@ -443,7 +468,7 @@ router.put(
       let oldEmails = [];
       if (contact_details !== undefined) {
         const { data: old } = await supabase
-          .from("catering_vendors")
+          .from("caters")
           .select("contact_details")
           .eq("catering_id", id)
           .maybeSingle();
@@ -451,7 +476,7 @@ router.put(
       }
 
       const { data, error } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .update(updates)
         .eq("catering_id", id)
         .select()
@@ -483,24 +508,25 @@ router.put(
 
 // ---------------------------------------------------------------------------
 // Helper middleware — require the authenticated user to be a catering contact
-// (users.caters.is_catering === true).  Attaches req.catering_id from the
-// JSONB column so handlers can scope by vendor.
+// for at least one vendor. Attaches req.catering_ids (array) so handlers can
+// scope to every vendor the user belongs to.
 // ---------------------------------------------------------------------------
 const requireCatering = (req, res, next) => {
-  const caters = req.userInfo?.caters;
-  if (!caters?.is_catering || !caters?.catering_id) {
+  const ids = extractCateringIds(req.userInfo?.caters);
+  if (!ids.length) {
     if (!req.userInfo?.is_masteradmin) {
       return res.status(403).json({ error: "Catering role required" });
     }
   }
-  req.catering_id = caters?.catering_id || null;
+  req.catering_ids = ids;
   next();
 };
 
 // ---------------------------------------------------------------------------
 // GET /api/catering/bookings — catering role
-// Returns this vendor's orders (scoped by caters.catering_id), newest first.
-// Enriched with event title/date via join.
+// Returns orders for every vendor the user belongs to (scoped by req.catering_ids),
+// newest first. Optional ?catering_id=<id> filters to one vendor (must be in the
+// user's allowed set). Enriched with event title/date and vendor name.
 // ---------------------------------------------------------------------------
 router.get(
   "/catering/bookings",
@@ -510,33 +536,63 @@ router.get(
   requireCatering,
   async (req, res) => {
     try {
-      const catering_id = req.query.catering_id || req.catering_id;
-      if (!catering_id) {
+      const allowed = req.catering_ids || [];
+      const requested = (req.query.catering_id || "").trim();
+      let scopeIds;
+
+      if (requested) {
+        if (!req.userInfo?.is_masteradmin && !allowed.includes(requested)) {
+          return res.status(403).json({ error: "Not authorized for this caterer" });
+        }
+        scopeIds = [requested];
+      } else {
+        scopeIds = allowed;
+      }
+
+      if (!scopeIds.length) {
         return res.status(400).json({ error: "No catering_id associated with this user" });
       }
 
       const { data: bookings, error } = await supabase
-        .from("catering_booking")
+        .from("cater_bookings")
         .select("*")
-        .eq("catering_id", catering_id)
+        .in("catering_id", scopeIds)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // Enrich with event title/date
+      // Enrich with event title/date and vendor name (vendor name needed when
+      // a user belongs to multiple shops and the UI groups orders by vendor).
       const eventIds = Array.from(new Set((bookings || []).map(b => b.event_id).filter(Boolean)));
-      const eventsByIdResult = eventIds.length
-        ? await supabase.from("events").select("event_id, title, event_date").in("event_id", eventIds)
-        : { data: [] };
-      const eventsById = new Map((eventsByIdResult.data || []).map(e => [e.event_id, e]));
+      const vendorIds = Array.from(new Set((bookings || []).map(b => b.catering_id).filter(Boolean)));
+
+      const [eventsResult, vendorsResult] = await Promise.all([
+        eventIds.length
+          ? supabase.from("events").select("event_id, title, event_date").in("event_id", eventIds)
+          : Promise.resolve({ data: [] }),
+        vendorIds.length
+          ? supabase.from("caters").select("catering_id, catering_name").in("catering_id", vendorIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const eventsById = new Map((eventsResult.data || []).map(e => [e.event_id, e]));
+      const vendorsById = new Map((vendorsResult.data || []).map(v => [v.catering_id, v]));
 
       const enriched = (bookings || []).map(b => ({
         ...b,
         event_title: b.event_id ? eventsById.get(b.event_id)?.title || null : null,
         event_date: b.event_id ? eventsById.get(b.event_id)?.event_date || null : null,
+        catering_name: b.catering_id ? vendorsById.get(b.catering_id)?.catering_name || null : null,
       }));
 
-      return res.json({ catering_id, bookings: enriched });
+      // Vendor list for the dashboard's filter UI when the user belongs to >1 shop.
+      const vendors = (await supabase
+        .from("caters")
+        .select("catering_id, catering_name")
+        .in("catering_id", allowed.length ? allowed : ["__none__"])
+      ).data || [];
+
+      return res.json({ catering_ids: allowed, vendors, bookings: enriched });
     } catch (err) {
       console.error("[Caterers] GET /catering/bookings error:", err);
       return res.status(500).json({ error: err?.message || "Internal server error" });
@@ -565,7 +621,7 @@ router.patch(
       }
 
       const { data: booking } = await supabase
-        .from("catering_booking")
+        .from("cater_bookings")
         .select("catering_id, status")
         .eq("booking_id", booking_id)
         .maybeSingle();
@@ -574,8 +630,8 @@ router.patch(
         return res.status(404).json({ error: "Booking not found" });
       }
 
-      // Authorization: booking must belong to this caterer (bypass for masteradmin)
-      if (!req.userInfo?.is_masteradmin && booking.catering_id !== req.catering_id) {
+      // Authorization: booking must belong to one of this user's caterers (bypass for masteradmin)
+      if (!req.userInfo?.is_masteradmin && !req.catering_ids?.includes(booking.catering_id)) {
         return res.status(403).json({ error: "Not authorized for this booking" });
       }
 
@@ -586,7 +642,7 @@ router.patch(
       const newStatus = action === "accept" ? "accepted" : "declined";
 
       const { data, error } = await supabase
-        .from("catering_booking")
+        .from("cater_bookings")
         .update({ status: newStatus })
         .eq("booking_id", booking_id)
         .select()
@@ -615,13 +671,13 @@ router.delete(
       const { id } = req.params;
 
       const { data: caterer } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .select("contact_details")
         .eq("catering_id", id)
         .maybeSingle();
 
       const { error } = await supabase
-        .from("catering_vendors")
+        .from("caters")
         .delete()
         .eq("catering_id", id);
 

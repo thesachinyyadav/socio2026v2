@@ -15,7 +15,13 @@ interface Booking {
   contact_details: any;
   event_title: string | null;
   event_date: string | null;
+  catering_name: string | null;
   created_at: string;
+}
+
+interface VendorOption {
+  catering_id: string;
+  catering_name: string;
 }
 
 function timeAgo(dateStr: string) {
@@ -74,7 +80,8 @@ export default function CateringDashboard() {
   const router = useRouter();
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
-  const [cateringId, setCateringId] = useState<string | null>(null);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionBookingId, setActionBookingId] = useState<string | null>(null);
@@ -82,8 +89,9 @@ export default function CateringDashboard() {
   useEffect(() => {
     if (authLoading) return;
     if (!session) { router.replace("/auth"); return; }
-    const caters = (userData as any)?.caters;
-    const isCaterer = caters?.is_catering === true;
+    const c = (userData as any)?.caters;
+    const list = Array.isArray(c) ? c : c ? [c] : [];
+    const isCaterer = list.some((entry: any) => entry?.is_catering);
     if (userData && !isCaterer && !(userData as any)?.is_masteradmin) {
       router.replace("/error");
       return;
@@ -103,7 +111,7 @@ export default function CateringDashboard() {
         return;
       }
       const data = await res.json();
-      setCateringId(data.catering_id);
+      setVendors(data.vendors || []);
       setBookings(data.bookings || []);
     } catch {
       toast.error("Network error");
@@ -137,8 +145,11 @@ export default function CateringDashboard() {
     }
   }
 
-  const pendingBookings = bookings.filter(b => b.status === "pending");
-  const reviewedBookings = bookings.filter(b => b.status !== "pending");
+  const visibleBookings = vendorFilter === "all"
+    ? bookings
+    : bookings.filter(b => b.catering_id === vendorFilter);
+  const pendingBookings = visibleBookings.filter(b => b.status === "pending");
+  const reviewedBookings = visibleBookings.filter(b => b.status !== "pending");
 
   function BookingCard({ booking, showActions }: { booking: Booking; showActions: boolean }) {
     const contact = parseContact(booking.contact_details);
@@ -154,6 +165,11 @@ export default function CateringDashboard() {
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-gray-900 truncate">{title}</p>
               <StatusBadge status={booking.status} />
+              {vendors.length > 1 && booking.catering_name && (
+                <span className="text-[11px] bg-blue-50 text-[#154CB3] border border-[#154CB3]/20 px-2 py-0.5 rounded-full font-medium">
+                  {booking.catering_name}
+                </span>
+              )}
             </div>
 
             {/* Event + submitted meta */}
@@ -248,11 +264,35 @@ export default function CateringDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Catering Orders</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Incoming orders for your catering service{cateringId ? ` (${cateringId})` : ""}.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Catering Orders</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              {vendors.length === 0
+                ? "Incoming orders for your catering service."
+                : vendors.length === 1
+                ? `Incoming orders for your catering service (${vendors[0].catering_name}).`
+                : `Incoming orders across ${vendors.length} catering services you manage.`}
+            </p>
+          </div>
+          {vendors.length > 1 && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="vendor-filter" className="text-xs font-medium text-gray-600">
+                Shop:
+              </label>
+              <select
+                id="vendor-filter"
+                value={vendorFilter}
+                onChange={(e) => setVendorFilter(e.target.value)}
+                className="text-sm rounded-lg border border-gray-300 px-3 py-1.5 bg-white"
+              >
+                <option value="all">All shops</option>
+                {vendors.map(v => (
+                  <option key={v.catering_id} value={v.catering_id}>{v.catering_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {loading ? (

@@ -165,8 +165,11 @@ export async function middleware(req: NextRequest) {
       return redirect("/error");
     }
 
-    if (isCateringRoute && !(userData?.caters as any)?.is_catering && !userData?.is_masteradmin) {
-      return redirect("/error");
+    if (isCateringRoute && !userData?.is_masteradmin) {
+      const caters = (userData as any)?.caters;
+      const list = Array.isArray(caters) ? caters : caters ? [caters] : [];
+      const isCaterer = list.some((c: any) => c?.is_catering);
+      if (!isCaterer) return redirect("/error");
     }
   }
 

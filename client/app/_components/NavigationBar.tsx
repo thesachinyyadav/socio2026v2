@@ -105,7 +105,11 @@ function NavigationBar() {
   const isOrganiser = Boolean(userData?.is_organiser);
   const isSupport = Boolean(userData?.is_support);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
-  const isCaterer = Boolean((userData as any)?.caters?.is_catering);
+  const catersList = (() => {
+    const c = (userData as any)?.caters;
+    return Array.isArray(c) ? c : c ? [c] : [];
+  })();
+  const isCaterer = catersList.some((c: any) => c?.is_catering);
 
   const roleActions: RoleAction[] = [];
   if (isMasterAdmin) roleActions.push({ key: "admin", label: "Admin", href: "/masteradmin", variant: "admin" });
