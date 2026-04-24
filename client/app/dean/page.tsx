@@ -41,7 +41,7 @@ function deanStatus(item: QueueItem) {
 }
 
 export default function DeanDashboard() {
-  const { session, userData, isLoading: authLoading } = useAuth();
+  const { session, userData, isLoading } = useAuth();
   const router = useRouter();
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
@@ -52,13 +52,13 @@ export default function DeanDashboard() {
   const [rejectNote, setRejectNote] = useState("");
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
     if (userData && !(userData as any).is_dean && !(userData as any).is_masteradmin) {
       router.replace("/error"); return;
     }
     fetchQueue();
-  }, [authLoading, session, userData]);
+  }, [isLoading, session, userData]);
 
   async function fetchQueue() {
     setLoading(true);

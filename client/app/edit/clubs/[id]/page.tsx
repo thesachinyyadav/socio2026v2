@@ -12,7 +12,7 @@ import Footer from "@/app/_components/Home/Footer";
 export default function EditClubPage() {
   const params = useParams();
   const id = String(params.id ?? "");
-  const { userData, session, isLoading: authLoading } = useAuth();
+  const { userData, session, isLoading } = useAuth();
 
   const [club, setClub] = useState<ClubRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +91,7 @@ export default function EditClubPage() {
     Boolean(userData?.is_masteradmin) ||
     editors.some((editor) => String(editor || "").trim().toLowerCase() === currentEmail);
 
-  if (authLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-[#154CB3]" />

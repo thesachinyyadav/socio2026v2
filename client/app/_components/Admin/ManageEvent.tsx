@@ -1433,6 +1433,7 @@ export default function EventForm({
   const [festApprovalStages, setFestApprovalStages] = useState<any[]>([]);
   const [operationalConfig, setOperationalConfig] = useState<OperationalConfig>(DEFAULT_OPERATIONAL_CONFIG);
   const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
+  const { session, isStudentOrganiser, subHeadFestIds } = useAuth();
 
   useEffect(() => {
     async function fetchFests() {
@@ -1458,6 +1459,10 @@ export default function EventForm({
               allowedCampuses: normalizeAllowedCampuses(f.allowed_campuses),
               allowOutsiders: normalizeBoolean(f.allow_outsiders ?? f.allowOutsiders),
             }));
+          const filteredOptions = isStudentOrganiser && subHeadFestIds.length > 0
+            ? options.filter((o) => subHeadFestIds.includes(o.value))
+            : options;
+
           setFetchedFests([
             {
               value: "none",
@@ -1470,7 +1475,7 @@ export default function EventForm({
               allowedCampuses: [],
               allowOutsiders: false,
             },
-            ...options,
+            ...filteredOptions,
           ]);
         }
       } catch (error) {
@@ -1478,7 +1483,7 @@ export default function EventForm({
       }
     }
     fetchFests();
-  }, []);
+  }, [isStudentOrganiser, subHeadFestIds]);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -1680,7 +1685,6 @@ export default function EventForm({
     []
   );
 
-  const { session } = useAuth();
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] =
     React.useState(false);
@@ -3322,7 +3326,13 @@ export default function EventForm({
                   {activeTab === 'details' ? (
                     <button
                       type="button"
-                      onClick={() => setActiveTab('approvals')}
+                      onClick={() => {
+                        if (onSubmitDraft) {
+                          handleSubmit(processDraftSubmit, handleInvalidSubmit)();
+                        } else {
+                          setActiveTab('approvals');
+                        }
+                      }}
                       disabled={
                         isSubmittingProp ||
                         rhfIsSubmitting ||
@@ -3331,7 +3341,7 @@ export default function EventForm({
                       }
                       className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Go ahead for Approvals Tab
+                      {isSubmittingProp || rhfIsSubmitting ? "Saving..." : "Go ahead for Approvals Tab"}
                     </button>
                   ) : (
                     <button

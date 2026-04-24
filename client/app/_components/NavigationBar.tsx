@@ -63,11 +63,11 @@ type RoleAction = {
   key: string;
   label: string;
   href: string;
-  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "venue" | "support" | "catering" | "stalls" | "it";
+  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "student_organiser" | "venue" | "support" | "catering" | "stalls" | "it";
 };
 
 function NavigationBar() {
-  const { session, userData, isLoading, signInWithGoogle, signOut } = useAuth();
+  const { session, userData, isLoading, signInWithGoogle, signOut, isStudentOrganiser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -120,6 +120,7 @@ function NavigationBar() {
   if (isDean) roleActions.push({ key: "dean", label: "Dean", href: "/dean", variant: "dean" });
   if (isHod) roleActions.push({ key: "hod", label: "HOD", href: "/hod", variant: "hod" });
   if (isOrganiser) roleActions.push({ key: "organiser", label: "Organiser", href: "/manage", variant: "organiser" });
+  if (!isOrganiser && isStudentOrganiser) roleActions.push({ key: "student_organiser", label: "Student Organiser", href: "/manage", variant: "student_organiser" });
   if (isVenueManager) roleActions.push({ key: "venue", label: "Venue", href: "/venue", variant: "venue" });
   if (isCaterer) roleActions.push({ key: "catering", label: "Catering", href: "/catering", variant: "catering" });
   if (isStalls) roleActions.push({ key: "stalls", label: "Stalls", href: "/stalls", variant: "stalls" });
@@ -136,8 +137,9 @@ function NavigationBar() {
     dean:      "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     hod:       "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     accounts:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
-    organiser: "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
-    venue:     "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    organiser:          "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    student_organiser:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    venue:              "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     support:   "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     catering:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     stalls:    "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
@@ -150,8 +152,9 @@ function NavigationBar() {
     dean:      "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     hod:       "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     accounts:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
-    organiser: "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
-    venue:     "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    organiser:          "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    student_organiser:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    venue:              "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     support:   "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     catering:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     stalls:    "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",

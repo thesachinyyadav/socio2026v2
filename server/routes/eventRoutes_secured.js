@@ -11,12 +11,13 @@ import { uploadFileToSupabase, getPathFromStorageUrl, deleteFileFromLocal } from
 import { parseOptionalFloat, parseOptionalInt, parseJsonField } from "../utils/parsers.js";
 import { v4 as uuidv4 } from "uuid";
 import { 
-  authenticateUser, 
-  getUserInfo, 
+  authenticateUser,
+  getUserInfo,
   checkRoleExpiration,
-  requireOrganiser, 
-  requireOwnership, 
-  optionalAuth 
+  requireOrganiser,
+  requireOrganiserOrSubHead,
+  requireOwnership,
+  optionalAuth
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
@@ -687,7 +688,7 @@ router.get("/:eventId", async (req, res) => {
   }
 });
 
-// POST create new event - REQUIRES AUTHENTICATION + ORGANISER PRIVILEGES
+// POST create new event - REQUIRES AUTHENTICATION + ORGANISER OR SUB-HEAD PRIVILEGES
 router.post(
   "/",
   multerUpload.fields([
@@ -695,9 +696,9 @@ router.post(
     { name: "bannerImage", maxCount: 1 },
     { name: "pdfFile", maxCount: 1 },
   ]),
-  authenticateUser,           // Verify JWT token
-  getUserInfo(),           // Get user info from DB via helper
-  requireOrganiser,          // Check if user is organiser
+  authenticateUser,
+  getUserInfo(),
+  requireOrganiserOrSubHead,  // Full organiser OR active sub-head of a fest
   async (req, res) => {
     const uploadedFilePaths = {
       image: null,
@@ -882,12 +883,29 @@ router.post(
         });
       }
 
+      // Sub-head restriction: must create event under one of their assigned fests
+      let matchedSubHeadFest = null;
+      if (req.isSubHead) {
+        const incomingFestId = normalizeFestReference(fest_id ?? fest);
+        matchedSubHeadFest = (req.subHeadFests || []).find((f) => f.fest_id === incomingFestId) || null;
+        if (!incomingFestId || !matchedSubHeadFest) {
+          const allowed = (req.subHeadFests || []).map((f) => f.fest_id).join(", ");
+          return res.status(403).json({
+            error: `Sub-heads can only create events under their assigned fest(s): ${allowed}.`,
+          });
+        }
+      }
+
+      const createdByValue = req.isSubHead
+        ? { event_creator: req.userInfo.email, fest_creator: matchedSubHeadFest.created_by, fest_id: matchedSubHeadFest.fest_id }
+        : req.userInfo?.email;
+
       console.log("✅ JSON fields parsed successfully");
       console.log("About to insert event into database with:", {
         event_id,
         title: title?.trim(),
         organizing_dept,
-        created_by: req.userInfo?.email,
+        created_by: createdByValue,
         fileUrls: uploadedFilePaths
       });
 
@@ -919,7 +937,7 @@ router.post(
           normalizeSingleStringField(organizing_school || req.body.organizingSchool || "") || null,
         organizing_dept: organizing_dept || null,
         fest_id: normalizeFestReference(fest_id ?? fest),
-        created_by: req.userInfo?.email,
+        created_by: createdByValue,
         auth_uuid: req.userId,
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,

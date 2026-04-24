@@ -362,6 +362,54 @@ export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => 
 };
 
 /**
+ * Middleware to check if user is an organiser OR a sub-head of an active fest.
+ * Sub-heads are stored in fests.sub_heads as [{ email, expiresAt }].
+ * If the user is a sub-head, req.isSubHead = true and req.subHeadFest = { fest_id, created_by } are set.
+ */
+export const requireOrganiserOrSubHead = async (req, res, next) => {
+  if (!req.userInfo) {
+    return res.status(401).json({ error: 'User info not available' });
+  }
+
+  if (req.userInfo.is_organiser) {
+    console.log(`[SubHead] ✅ User ${req.userInfo.email} is a full organiser. Proceeding.`);
+    return next();
+  }
+
+  const userEmail = req.userInfo.email;
+
+  try {
+    const { data: fests, error } = await supabase
+      .from('fests')
+      .select('fest_id, created_by, sub_heads')
+      .filter('sub_heads', 'cs', JSON.stringify([{ email: userEmail }]));
+
+    if (error) throw error;
+
+    const now = new Date();
+    const activeFests = (fests || []).filter((fest) => {
+      if (!Array.isArray(fest.sub_heads)) return false;
+      return fest.sub_heads.some(
+        (sh) => sh.email === userEmail && sh.expiresAt && new Date(sh.expiresAt) > now
+      );
+    });
+
+    if (activeFests.length > 0) {
+      req.isSubHead = true;
+      req.subHeadFests = activeFests.map((f) => ({ fest_id: f.fest_id, created_by: f.created_by }));
+      console.log(`[SubHead] ✅ User ${userEmail} is sub-head of ${activeFests.length} fest(s)`);
+      return next();
+    }
+
+    console.warn(`[SubHead] ❌ User ${userEmail} has no organiser or active sub-head role`);
+    return res.status(403).json({ error: 'Access denied: Organiser or sub-head privileges required' });
+  } catch (error) {
+    console.error('[SubHead] Error checking sub-head status:', error);
+    return res.status(500).json({ error: 'Server error checking permissions' });
+  }
+};
+
+/**
  * Optional authentication - allows both authenticated and anonymous users
  */
 export const optionalAuth = async (req, res, next) => {

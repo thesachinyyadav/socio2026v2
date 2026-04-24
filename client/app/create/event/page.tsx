@@ -5,10 +5,12 @@ import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const { isStudentOrganiser } = useAuth();
   const approvalConfigRef = useRef<{ enabled: boolean; stages: WorkflowStage[]; budgetItems: BudgetItem[] }>({
     enabled: true,
     stages: STANDALONE_EVENT_STAGES,
@@ -248,6 +250,12 @@ export default function CreateEventPage() {
         } catch {
           // Non-critical
         }
+      }
+
+      // Student organisers publish directly under their fest — no approval redirect
+      if (isStudentOrganiser) {
+        router.push('/manage');
+        return;
       }
 
       // Redirect to approval status page (or manage if no approval)

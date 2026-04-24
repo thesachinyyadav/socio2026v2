@@ -204,7 +204,7 @@ function BookingCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VenueDashboard() {
-  const { session, userData, isLoading: authLoading } = useAuth();
+  const { session, userData, isLoading } = useAuth();
   const router = useRouter();
 
   const [pending,  setPending]  = useState<BookingRow[]>([]);
@@ -221,12 +221,12 @@ export default function VenueDashboard() {
   const [notesText,  setNotesText]  = useState("");
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
     const u = userData as any;
     if (u && !u.is_venue_manager && !u.is_masteradmin) { router.replace("/error"); return; }
     fetchQueue();
-  }, [authLoading, session, userData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoading, session, userData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchQueue() {
     setLoading(true);

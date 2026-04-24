@@ -51,23 +51,23 @@ export const EventCard = ({
   organizerEmail,
   registrationFee,
 }: EventCardProps) => {
-  const { userData, session, isLoading: authLoading } = useAuth();
+  const { userData, session, isLoading } = useAuth();
 
   const isOutsiderUser = userData?.organization_type === "outsider";
-  const showOutsiderBadge = !authLoading && isOutsiderUser && Boolean(allowOutsiders);
-  const isAdminOrOrganizer = !authLoading && (userData?.is_organiser || userData?.is_masteradmin);
+  const showOutsiderBadge = !isLoading && isOutsiderUser && Boolean(allowOutsiders);
+  const isAdminOrOrganizer = !isLoading && (userData?.is_organiser || userData?.is_masteradmin);
 
-  const isOwner = !authLoading && (
+  const isOwner = !isLoading && (
     (session?.user?.id && createdBy && session.user.id === createdBy) ||
     (userData?.email && createdBy && userData.email.toLowerCase() === createdBy.toLowerCase()) ||
     (userData?.email && organizerEmail && userData.email.toLowerCase() === organizerEmail.toLowerCase())
   );
 
-  if (userData?.is_organiser && !authLoading) {
+  if (userData?.is_organiser && !isLoading) {
     console.log(`[EventCard Debug] title: ${title}, isOwner: ${isOwner}, createdBy: ${createdBy}, sessionUserId: ${session?.user?.id}, organizerEmail: ${organizerEmail}, userEmail: ${userData?.email}`);
   }
 
-  const canManage = !authLoading && (userData?.is_masteradmin || (userData?.is_organiser && isOwner));
+  const canManage = !isLoading && (userData?.is_masteradmin || (userData?.is_organiser && isOwner));
   const reminderAuthToken = authToken || session?.access_token || "";
 
   const eventSlug = idForLink;

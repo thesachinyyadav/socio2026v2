@@ -152,9 +152,10 @@ interface MappedFestCardProps {
   isArchiveUpdating?: boolean;
   onArchiveToggle?: (festId: string, shouldArchive: boolean) => void;
   isPendingApproval?: boolean;
+  readOnly?: boolean;
 }
 
-const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveToggle, isPendingApproval = false }: MappedFestCardProps) => {
+const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveToggle, isPendingApproval = false, readOnly = false }: MappedFestCardProps) => {
   const isPast = fest.closing_date ? new Date(fest.closing_date) < new Date() : false;
   const isArchived = fest.is_archived ?? false;
   const isDraft =
@@ -212,7 +213,7 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
           <Calendar className="w-4 h-4 text-slate-400" />
           {formatDateFull(fest.opening_date, "TBD")}
         </div>
-        {isDraft ? (
+        {!readOnly && (isDraft ? (
           <div className="flex items-center gap-2">
             <Link
               href={`/approvals/${fest.fest_id}?type=fest`}
@@ -271,7 +272,7 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
               Edit <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
@@ -430,7 +431,7 @@ export default function ManageDashboard() {
   
   // Auth Context & Session
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const { userData, isMasterAdmin } = useAuth();
+  const { userData, isMasterAdmin, isStudentOrganiser, subHeadFestIds } = useAuth();
   
   // Fests Data
   const [fests, setFests] = useState<Fest[]>([]);
@@ -560,11 +561,13 @@ export default function ManageDashboard() {
         archived_at: fest.archived_at || null,
       }));
 
-      const userSpecificFests = mappedFests.filter(
-        (fest) =>
-          isOwnedByCurrentUser(fest.created_by, fest.contact_email) ||
-          isCurrentUserFestHead(fest)
-      );
+      const userSpecificFests = isStudentOrganiser
+        ? mappedFests.filter((fest) => subHeadFestIds.includes(fest.fest_id))
+        : mappedFests.filter(
+            (fest) =>
+              isOwnedByCurrentUser(fest.created_by, fest.contact_email) ||
+              isCurrentUserFestHead(fest)
+          );
 
       setFests(userSpecificFests);
 
@@ -1310,26 +1313,30 @@ export default function ManageDashboard() {
           </h1>
 
            <div className="flex items-center gap-3">
-            <Link href="/bookvenue">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
-                <MapPin className="w-4 h-4" /> Book Venue
-              </button>
-            </Link>
-            <Link href="/bookcatering">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
-                <ChefHat className="w-4 h-4" /> Book Catering
-              </button>
-            </Link>
-            <Link href="/bookstall">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold border-2 border-[#154cb3] rounded-full hover:bg-[#1240a0] transition-colors shadow-sm text-sm">
-                <Store className="w-4 h-4" /> Book Stalls
-              </button>
-            </Link>
-            <Link href="/create/fest">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
-                <Plus className="w-4 h-4" /> Fest
-              </button>
-            </Link>
+            {!isStudentOrganiser && (
+              <>
+                <Link href="/bookvenue">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
+                    <MapPin className="w-4 h-4" /> Book Venue
+                  </button>
+                </Link>
+                <Link href="/bookcatering">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                    <ChefHat className="w-4 h-4" /> Book Catering
+                  </button>
+                </Link>
+                <Link href="/bookstall">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold border-2 border-[#154cb3] rounded-full hover:bg-[#1240a0] transition-colors shadow-sm text-sm">
+                    <Store className="w-4 h-4" /> Book Stalls
+                  </button>
+                </Link>
+                <Link href="/create/fest">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                    <Plus className="w-4 h-4" /> Fest
+                  </button>
+                </Link>
+              </>
+            )}
             <Link href="/create/event">
               <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                 <Plus className="w-4 h-4" /> Event
@@ -1459,6 +1466,7 @@ export default function ManageDashboard() {
                           isArchiveUpdating={festArchiveUpdatingIds.has(fest.fest_id)}
                           onArchiveToggle={handleToggleArchiveFest}
                           isPendingApproval={approvalStatuses[fest.fest_id] === "pending_approvals"}
+                          readOnly={isStudentOrganiser}
                         />
                       );
                     })}

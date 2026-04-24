@@ -191,7 +191,7 @@ const ACCREDITATION_BODIES = [
 ];
 
 function MasterAdminPageInner() {
-  const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
+  const { userData, isMasterAdmin, isLoading: authIsLoading, session } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   type AdminTab = "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles" | "venues" | "caterers";
@@ -598,10 +598,10 @@ function MasterAdminPageInner() {
 
   useEffect(() => {
     const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-    if (!authLoading && !isMasterAdmin && !isLocalhost) {
+    if (!authIsLoading && !isMasterAdmin && !isLocalhost) {
       router.push("/");
     }
-  }, [authLoading, isMasterAdmin, router]);
+  }, [authIsLoading, isMasterAdmin, router]);
 
   // Check if user is on localhost for dev access
   const [isLocalhostDev, setIsLocalhostDev] = useState(false);
@@ -1417,7 +1417,7 @@ function MasterAdminPageInner() {
     </div>
   );
 
-  if (authLoading || !authToken) {
+  if (isLoading || !authToken) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
