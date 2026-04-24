@@ -156,7 +156,7 @@ function BookingCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StallsDashboardPage() {
-  const { session, userData, authLoading } = useAuth();
+  const { session, userData, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [pending, setPending] = useState<StallBooking[]>([]);
