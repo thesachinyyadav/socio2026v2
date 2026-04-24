@@ -63,7 +63,7 @@ type RoleAction = {
   key: string;
   label: string;
   href: string;
-  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "venue" | "support";
+  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "venue" | "support" | "catering";
 };
 
 function NavigationBar() {
@@ -105,6 +105,7 @@ function NavigationBar() {
   const isOrganiser = Boolean(userData?.is_organiser);
   const isSupport = Boolean(userData?.is_support);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
+  const isCaterer = Boolean((userData as any)?.caters?.is_catering);
 
   const roleActions: RoleAction[] = [];
   if (isMasterAdmin) roleActions.push({ key: "admin", label: "Admin", href: "/masteradmin", variant: "admin" });
@@ -114,6 +115,7 @@ function NavigationBar() {
   if (isHod) roleActions.push({ key: "hod", label: "HOD", href: "/hod", variant: "hod" });
   if (isOrganiser) roleActions.push({ key: "organiser", label: "Organiser", href: "/manage", variant: "organiser" });
   if (isVenueManager) roleActions.push({ key: "venue", label: "Venue", href: "/venue", variant: "venue" });
+  if (isCaterer) roleActions.push({ key: "catering", label: "Catering", href: "/catering", variant: "catering" });
 
   const visibleRoleActions = roleActions.length > 2 ? roleActions.slice(0, 1) : roleActions;
   const dashboardDropdownRoles = roleActions.length > 2 ? roleActions.slice(1) : [];
@@ -129,6 +131,7 @@ function NavigationBar() {
     organiser: "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     venue:     "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     support:   "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    catering:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
   };
 
   const roleQuickActionMap: Record<RoleAction["variant"], string> = {
@@ -140,6 +143,7 @@ function NavigationBar() {
     organiser: "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     venue:     "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     support:   "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    catering:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
   };
 
   const getRolePillClasses = (variant: RoleAction["variant"]) => rolePillMap[variant];

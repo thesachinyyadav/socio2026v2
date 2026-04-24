@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -34,6 +34,7 @@ import {
   Trash2,
   PlusCircle,
   Pencil,
+  UtensilsCrossed,
 } from "lucide-react";
 import {
   organizingSchools,
@@ -190,9 +191,14 @@ const ACCREDITATION_BODIES = [
 export default function MasterAdminPage() {
   const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles" | "venues"
-  >("dashboard");
+  const searchParams = useSearchParams();
+  type AdminTab = "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles" | "venues" | "caterers";
+  const activeTab = (searchParams.get("tab") as AdminTab) || "dashboard";
+  const setActiveTab = (tab: AdminTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`?${params.toString()}`);
+  };
   const authToken = session?.access_token || null;
 
   // Helper to get a fresh access token (avoids stale token from session state)
@@ -310,6 +316,120 @@ export default function MasterAdminPage() {
   const VENUE_BOOKINGS_PAGE_SIZE = 10;
   const venueBookingsPanelRef = useRef<HTMLDivElement>(null);
   const [venueBookingsHighlight, setVenueBookingsHighlight] = useState(false);
+
+  // Catering management state
+  type ContactDetail = { name: string; email: string; mobile: string[] };
+  type CatererRow = { catering_id: string; catering_name: string; contact_details: ContactDetail[]; campuses: string[]; location: string | null };
+  type CatererFormContact = { name: string; email: string; mobile: string };
+  const [caterers,         setCaterers]         = useState<CatererRow[]>([]);
+  const [caterersLoading,  setCaterersLoading]  = useState(false);
+  const [catererForm,      setCatererForm]      = useState({ catering_name: "", campuses: [] as string[], location: "", contacts: [{ name: "", email: "", mobile: "" }] as CatererFormContact[] });
+  const [catererFormError, setCatererFormError] = useState<string | null>(null);
+  const [catererSubmitting,setCatererSubmitting]= useState(false);
+  const [deleteCatererId,  setDeleteCatererId]  = useState<string | null>(null);
+  const [editingCaterer,   setEditingCaterer]   = useState<CatererRow | null>(null);
+  const [editCatererForm,  setEditCatererForm]  = useState({ catering_name: "", campuses: [] as string[], location: "", contacts: [] as CatererFormContact[] });
+  const [editCatererSaving,setEditCatererSaving]= useState(false);
+  const [catererPage,      setCatererPage]      = useState(1);
+  const CATERER_PAGE_SIZE = 15;
+
+  async function fetchAllCaterers() {
+    setCaterersLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/caterers/all`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) setCaterers(await res.json());
+    } catch { /* non-critical */ } finally {
+      setCaterersLoading(false);
+    }
+  }
+
+  async function handleCreateCaterer() {
+    if (!catererForm.catering_name.trim()) { setCatererFormError("Caterer name is required."); return; }
+    setCatererSubmitting(true); setCatererFormError(null);
+    try {
+      const contact_details = catererForm.contacts
+        .filter(c => (c.name || "").trim() || (c.email || "").trim() || (c.mobile || "").trim())
+        .map(c => ({
+          name: (c.name || "").trim(),
+          email: (c.email || "").trim(),
+          mobile: (c.mobile || "").split(",").map(m => m.trim()).filter(Boolean),
+        }));
+      console.log("[Caterer form] submitting", catererForm.contacts.length, "contact row(s), sending", contact_details.length, "after filter:", contact_details);
+      const res = await fetch(`${API_URL}/api/caterers`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ catering_name: catererForm.catering_name.trim(), contact_details, campuses: catererForm.campuses, location: catererForm.location || null }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setCatererFormError(body.error || "Failed to create caterer"); return; }
+      const ra = body.role_assignment;
+      if (ra && (ra.notFound?.length || ra.errors?.length)) {
+        const parts: string[] = [];
+        if (ra.updated?.length) parts.push(`${ra.updated.length} of ${ra.requested} contacts assigned`);
+        if (ra.notFound?.length) parts.push(`${ra.notFound.length} email(s) have no Socio account: ${ra.notFound.join(", ")}`);
+        if (ra.errors?.length) parts.push(`${ra.errors.length} update error(s) — check server logs`);
+        toast(`Caterer added, but: ${parts.join("; ")}`, { icon: "⚠️", duration: 6000 });
+        console.warn("[Caterer] role_assignment partial:", ra);
+      } else {
+        toast.success("Caterer added");
+      }
+      setCatererForm({ catering_name: "", campuses: [], location: "", contacts: [{ name: "", email: "", mobile: "" }] });
+      fetchAllCaterers();
+    } catch { setCatererFormError("Network error"); } finally { setCatererSubmitting(false); }
+  }
+
+  async function handleDeleteCaterer(id: string) {
+    try {
+      const res = await fetch(`${API_URL}/api/caterers/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) { toast.error("Failed to delete caterer"); return; }
+      toast.success("Caterer deleted");
+      setDeleteCatererId(null);
+      fetchAllCaterers();
+    } catch { toast.error("Network error"); }
+  }
+
+  async function handleSaveCatererEdit() {
+    if (!editingCaterer) return;
+    setEditCatererSaving(true);
+    try {
+      const contact_details = editCatererForm.contacts
+        .filter(c => (c.name || "").trim() || (c.email || "").trim() || (c.mobile || "").trim())
+        .map(c => ({
+          name: (c.name || "").trim(),
+          email: (c.email || "").trim(),
+          mobile: (c.mobile || "").split(",").map(m => m.trim()).filter(Boolean),
+        }));
+      console.log("[Caterer edit] saving", editCatererForm.contacts.length, "contact row(s), sending", contact_details.length, "after filter:", contact_details);
+      const res = await fetch(`${API_URL}/api/caterers/${editingCaterer.catering_id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ catering_name: editCatererForm.catering_name, contact_details, campuses: editCatererForm.campuses, location: editCatererForm.location || null }),
+      });
+      if (!res.ok) { toast.error("Failed to save changes"); return; }
+      const body = await res.json().catch(() => ({}));
+      const ra = body.role_assignment;
+      const rr = body.role_revocation;
+      const warnings: string[] = [];
+      if (ra && (ra.notFound?.length || ra.errors?.length)) {
+        if (ra.notFound?.length) warnings.push(`${ra.notFound.length} new email(s) have no Socio account: ${ra.notFound.join(", ")}`);
+        if (ra.errors?.length) warnings.push(`${ra.errors.length} assign error(s)`);
+      }
+      if (rr?.errors?.length) warnings.push(`${rr.errors.length} revoke error(s)`);
+      if (warnings.length) {
+        toast(`Caterer updated, but: ${warnings.join("; ")} — check server logs`, { icon: "⚠️", duration: 6000 });
+        console.warn("[Caterer] role diagnostics:", { role_assignment: ra, role_revocation: rr });
+      } else {
+        toast.success("Caterer updated");
+      }
+      setEditingCaterer(null);
+      fetchAllCaterers();
+    } catch { toast.error("Network error"); } finally { setEditCatererSaving(false); }
+  }
 
   async function fetchAllVenues() {
     setVenuesLoading(true);
@@ -511,6 +631,8 @@ export default function MasterAdminPage() {
       fetchReportData();
     } else if (activeTab === "venues") {
       fetchAllVenues();
+    } else if (activeTab === "caterers") {
+      fetchAllCaterers();
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -1421,6 +1543,27 @@ export default function MasterAdminPage() {
               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                 activeTab === "venues" ? "bg-[#154cb3]/10 text-[#154cb3]" : "bg-slate-100 text-slate-500"
               }`}>{venues.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("caterers")}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
+              activeTab === "caterers"
+                ? "bg-blue-50 text-[#154cb3] font-semibold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            {activeTab === "caterers" && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#154cb3] rounded-r-full" />
+            )}
+            <span className={activeTab === "caterers" ? "text-[#154cb3]" : "text-slate-400 group-hover:text-slate-600"}>
+              <UtensilsCrossed className="w-4 h-4" />
+            </span>
+            <span className="flex-1 text-left">Catering</span>
+            {caterers.length > 0 && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                activeTab === "caterers" ? "bg-[#154cb3]/10 text-[#154cb3]" : "bg-slate-100 text-slate-500"
+              }`}>{caterers.length}</span>
             )}
           </button>
         </div>
@@ -3343,6 +3486,274 @@ export default function MasterAdminPage() {
             </div>
           </div>
         )}
+          </div>
+        )}
+
+        {/* ── Caterers Tab ─────────────────────────────────────────────────── */}
+        {activeTab === "caterers" && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Catering Management</h2>
+                <p className="text-sm text-gray-500">Add and manage catering vendors. Catering IDs are auto-generated from the vendor name.</p>
+              </div>
+            </div>
+
+            {/* Add caterer form */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-5">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <PlusCircle className="w-4 h-4 text-[#154CB3]" /> Add New Caterer
+              </h3>
+
+              {/* Name + Location */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Caterer Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={catererForm.catering_name}
+                    onChange={e => setCatererForm(f => ({ ...f, catering_name: e.target.value }))}
+                    placeholder="e.g. Prestige Catering Co."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                  {catererForm.catering_name.trim() && (
+                    <p className="text-[11px] text-gray-400 mt-1">ID: <span className="font-mono text-gray-600">{catererForm.catering_name.toLowerCase().trim().replace(/[^\w\s-]/g,"").replace(/[\s_-]+/g,"-").replace(/^-+|-+$/g,"")}</span></p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={catererForm.location}
+                    onChange={e => setCatererForm(f => ({ ...f, location: e.target.value }))}
+                    placeholder="e.g. Central Kitchen, Block C"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+
+              {/* Campuses */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Campuses Served</label>
+                <div className="flex flex-wrap gap-2">
+                  {christCampuses.map(campus => (
+                    <label key={campus} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${catererForm.campuses.includes(campus) ? "bg-[#154CB3] text-white border-[#154CB3]" : "border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50"}`}>
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={catererForm.campuses.includes(campus)}
+                        onChange={e => setCatererForm(f => ({ ...f, campuses: e.target.checked ? [...f.campuses, campus] : f.campuses.filter(c => c !== campus) }))}
+                      />
+                      {campus}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Contacts */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-gray-600">Contact Details</label>
+                  <button
+                    type="button"
+                    onClick={() => setCatererForm(f => ({ ...f, contacts: [...f.contacts, { name: "", email: "", mobile: "" }] }))}
+                    className="text-xs text-[#154CB3] font-medium hover:underline"
+                  >+ Add Contact</button>
+                </div>
+                <div className="space-y-3">
+                  {catererForm.contacts.map((contact, idx) => (
+                    <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact {idx + 1}</span>
+                        {catererForm.contacts.length > 1 && (
+                          <button type="button" onClick={() => setCatererForm(f => ({ ...f, contacts: f.contacts.filter((_, i) => i !== idx) }))} className="text-gray-400 hover:text-red-500 text-sm leading-none">&times; Remove</button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-1">Name</label>
+                          <input type="text" value={contact.name} onChange={e => setCatererForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, name: e.target.value } : c) }))} placeholder="Contact name" className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-1">Email</label>
+                          <input type="email" value={contact.email} onChange={e => setCatererForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, email: e.target.value } : c) }))} placeholder="email@example.com" className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-1">Mobile(s) — comma-separated</label>
+                          <input type="text" value={contact.mobile} onChange={e => setCatererForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, mobile: e.target.value } : c) }))} placeholder="9900001111, 9900002222" className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {catererFormError && <p className="text-sm text-red-600">{catererFormError}</p>}
+              <button
+                type="button"
+                onClick={handleCreateCaterer}
+                disabled={catererSubmitting}
+                className="px-5 py-2 text-sm font-semibold bg-[#154CB3] text-white rounded-lg hover:bg-[#0f3a7a] disabled:opacity-50"
+              >
+                {catererSubmitting ? "Adding…" : "Add Caterer"}
+              </button>
+            </div>
+
+            {/* Caterers list */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+              {caterersLoading ? (
+                <div className="p-8 text-center text-sm text-gray-400">Loading caterers…</div>
+              ) : caterers.length === 0 ? (
+                <div className="p-8 text-center text-sm text-gray-400">No caterers yet. Add one above.</div>
+              ) : (
+                <>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">ID</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Campuses</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Contacts</th>
+                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {caterers.slice((catererPage - 1) * CATERER_PAGE_SIZE, catererPage * CATERER_PAGE_SIZE).map(c => (
+                        <tr key={c.catering_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 font-medium text-gray-900">{c.catering_name}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-500">{c.catering_id}</td>
+                          <td className="px-4 py-3 text-xs text-gray-600">
+                            {c.campuses?.length > 0
+                              ? <div className="flex flex-wrap gap-1">{c.campuses.map(campus => <span key={campus} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px]">{campus}</span>)}</div>
+                              : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-600">{c.location || <span className="text-gray-400">—</span>}</td>
+                          <td className="px-4 py-3 text-xs text-gray-600">
+                            {c.contact_details?.length > 0
+                              ? <div className="space-y-0.5">{c.contact_details.map((cd, i) => <div key={i} className="text-[11px]"><span className="font-medium">{cd.name}</span>{cd.mobile?.length > 0 && <span className="text-gray-400 ml-1">{cd.mobile.join(", ")}</span>}</div>)}</div>
+                              : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => { setEditingCaterer(c); setEditCatererForm({ catering_name: c.catering_name, campuses: c.campuses || [], location: c.location || "", contacts: c.contact_details?.length > 0 ? c.contact_details.map(cd => ({ name: cd.name, email: cd.email, mobile: cd.mobile?.join(", ") || "" })) : [{ name: "", email: "", mobile: "" }] }); }}
+                                className="p-1.5 text-gray-400 hover:text-[#154CB3] hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Edit"
+                              ><Pencil className="w-3.5 h-3.5" /></button>
+                              <button
+                                onClick={() => setDeleteCatererId(c.catering_id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete"
+                              ><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {caterers.length > CATERER_PAGE_SIZE && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm text-gray-500">
+                      <span>{caterers.length} caterers</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setCatererPage(p => Math.max(1, p - 1))} disabled={catererPage === 1} className="px-3 py-1 border border-gray-200 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">Prev</button>
+                        <button onClick={() => setCatererPage(p => p + 1)} disabled={catererPage * CATERER_PAGE_SIZE >= caterers.length} className="px-3 py-1 border border-gray-200 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">Next</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Edit caterer modal */}
+            {editingCaterer && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-base font-semibold text-gray-900">Edit Caterer</h2>
+                    <button onClick={() => setEditingCaterer(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Caterer Name</label>
+                        <input type="text" value={editCatererForm.catering_name} onChange={e => setEditCatererForm(f => ({ ...f, catering_name: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Location</label>
+                        <input type="text" value={editCatererForm.location} onChange={e => setEditCatererForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Block C, Ground Floor" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Campuses Served</label>
+                      <div className="flex flex-wrap gap-2">
+                        {christCampuses.map(campus => (
+                          <label key={campus} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${editCatererForm.campuses.includes(campus) ? "bg-[#154CB3] text-white border-[#154CB3]" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
+                            <input type="checkbox" className="sr-only" checked={editCatererForm.campuses.includes(campus)} onChange={e => setEditCatererForm(f => ({ ...f, campuses: e.target.checked ? [...f.campuses, campus] : f.campuses.filter(c => c !== campus) }))} />
+                            {campus}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-medium text-gray-600">Contacts</label>
+                        <button type="button" onClick={() => setEditCatererForm(f => ({ ...f, contacts: [...f.contacts, { name: "", email: "", mobile: "" }] }))} className="text-xs text-[#154CB3] font-medium hover:underline">+ Add Contact</button>
+                      </div>
+                      <div className="space-y-3">
+                        {editCatererForm.contacts.map((contact, idx) => (
+                          <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact {idx + 1}</span>
+                              {editCatererForm.contacts.length > 1 && (
+                                <button type="button" onClick={() => setEditCatererForm(f => ({ ...f, contacts: f.contacts.filter((_, i) => i !== idx) }))} className="text-gray-400 hover:text-red-500 text-sm leading-none">&times; Remove</button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[11px] text-gray-500 mb-1">Name</label>
+                              <input type="text" value={contact.name} onChange={e => setEditCatererForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, name: e.target.value } : c) }))} placeholder="Contact name" className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-gray-500 mb-1">Email</label>
+                              <input type="email" value={contact.email} onChange={e => setEditCatererForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, email: e.target.value } : c) }))} placeholder="email@example.com" className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-gray-500 mb-1">Mobile(s)</label>
+                              <input type="text" value={contact.mobile} onChange={e => setEditCatererForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, mobile: e.target.value } : c) }))} placeholder="9900001111, 9900002222" className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-1">
+                    <button onClick={() => setEditingCaterer(null)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleSaveCatererEdit} disabled={editCatererSaving} className="px-4 py-2 text-sm bg-[#154CB3] text-white rounded-lg hover:bg-[#0f3a7a] disabled:opacity-50">{editCatererSaving ? "Saving…" : "Save Changes"}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Delete caterer confirmation modal */}
+            {deleteCatererId && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Delete Caterer</h2>
+                  <p className="text-sm text-gray-600">This will permanently delete the caterer and cannot be undone.</p>
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setDeleteCatererId(null)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={() => handleDeleteCaterer(deleteCatererId)} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

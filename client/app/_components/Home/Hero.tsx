@@ -85,6 +85,7 @@ const Hero = () => {
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
   const isOrganiser = Boolean(userData?.is_organiser);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
+  const isCaterer = Boolean((userData as any)?.caters?.is_catering);
 
   return (
     <div
@@ -177,6 +178,14 @@ const Hero = () => {
               className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
             >
               Venue Approvals
+            </button>
+          ) : session && isCaterer ? (
+            <button
+              onClick={() => router.push("/catering")}
+              disabled={buttonsDisabled}
+              className="cursor-pointer font-semibold px-6 py-2.5 sm:px-6 sm:py-3 border-2 border-[#3D75BD] text-sm sm:text-base rounded-md text-[#063168] bg-white hover:bg-[#3D75BD]/10 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ease-in-out hover:shadow-md"
+            >
+              Catering Approval
             </button>
           ) : (
             <button

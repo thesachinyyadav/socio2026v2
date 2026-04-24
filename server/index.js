@@ -21,6 +21,7 @@ import serviceRequestRoutes from "./routes/serviceRequestRoutes.js";
 import venueRoutes from "./routes/venueRoutes.js";
 import venueBookingRoutes from "./routes/venueBookingRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import cateringRoutes from "./routes/cateringRoutes.js";
 
 dotenv.config();
 
@@ -166,6 +167,7 @@ app.use("/api", approvalRoutes);
 app.use("/api", serviceRequestRoutes);
 app.use("/api", venueRoutes);
 app.use("/api", venueBookingRoutes);
+app.use("/api", cateringRoutes);
 app.use("/api/statuscheck", statuscheckRoutes);
 app.use("/api/analytics", analyticsRoutes);
 
