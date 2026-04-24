@@ -10,10 +10,10 @@ export default function Footer() {
   return (
     <footer className="w-full bg-gradient-to-b from-[#063168] to-[#3D75BD] pt-16 pb-8 px-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-wrap justify-between gap-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
 
           {/* Logo and contact info */}
-          <div className="w-full md:w-1/3 mb-6 md:mb-0">
+          <div className="lg:col-span-1">
             <Link href={session ? "/Discover" : "/"}>
               <Image src={Logo} alt="SOCIO Logo" width={120} height={120} className="mb-5 brightness-0 invert" />
             </Link>
@@ -68,42 +68,46 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Navigation links */}
-          <div className="w-full md:w-2/3 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">Navigate</h3>
-              <ul className="space-y-3">
-                <li><Link href="/" className="text-white/70 text-base hover:text-white transition-colors">Home</Link></li>
-                <li><Link href="/Discover" className="text-white/70 text-base hover:text-white transition-colors">Discover</Link></li>
-                <li><Link href="/events" className="text-white/70 text-base hover:text-white transition-colors">Events</Link></li>
-                <li><Link href="/clubs" className="text-white/70 text-base hover:text-white transition-colors">Clubs</Link></li>
-                <li><Link href="/about" className="text-white/70 text-base hover:text-white transition-colors">About Us</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">Support</h3>
-              <ul className="space-y-3">
-                <li><a href="/contact" className="text-white/70 text-base hover:text-white transition-colors">Contact Us</a></li>
-                <li><a href="/faq" className="text-white/70 text-base hover:text-white transition-colors">FAQs</a></li>
-                <li><a href="/support" className="text-white/70 text-base hover:text-white transition-colors">Help Center</a></li>
-                <li><Link href="/support/careers" className="text-white/70 text-base hover:text-white transition-colors">Careers</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">For Organizers</h3>
-              <ul className="space-y-3">
-                <li><Link href="/solutions" className="text-white/70 text-base hover:text-white transition-colors">Our Solutions</Link></li>
-                <li><a href="https://withsocio.com" target="_blank" rel="noopener noreferrer" className="text-white/70 text-base hover:text-white transition-colors">With Socio</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">Legal</h3>
-              <ul className="space-y-3">
-                <li><Link href="/terms" className="text-white/70 text-base hover:text-white transition-colors">Terms of Service</Link></li>
-                <li><Link href="/privacy" className="text-white/70 text-base hover:text-white transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/cookies" className="text-white/70 text-base hover:text-white transition-colors">Cookie Policy</Link></li>
-              </ul>
-            </div>
+          {/* Navigate */}
+          <div>
+            <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">Navigate</h3>
+            <ul className="space-y-3">
+              <li><Link href="/" className="text-white/70 text-base hover:text-white transition-colors">Home</Link></li>
+              <li><Link href="/Discover" className="text-white/70 text-base hover:text-white transition-colors">Discover</Link></li>
+              <li><Link href="/events" className="text-white/70 text-base hover:text-white transition-colors">Events</Link></li>
+              <li><Link href="/clubs" className="text-white/70 text-base hover:text-white transition-colors">Clubs</Link></li>
+              <li><Link href="/about" className="text-white/70 text-base hover:text-white transition-colors">About Us</Link></li>
+            </ul>
+          </div>
+
+          {/* Support */}
+          <div>
+            <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">Support</h3>
+            <ul className="space-y-3">
+              <li><a href="/contact" className="text-white/70 text-base hover:text-white transition-colors">Contact Us</a></li>
+              <li><a href="/faq" className="text-white/70 text-base hover:text-white transition-colors">FAQs</a></li>
+              <li><a href="/support" className="text-white/70 text-base hover:text-white transition-colors">Help Center</a></li>
+              <li><Link href="/support/careers" className="text-white/70 text-base hover:text-white transition-colors">Careers</Link></li>
+            </ul>
+          </div>
+
+          {/* For Organizers */}
+          <div>
+            <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">For Organizers</h3>
+            <ul className="space-y-3">
+              <li><Link href="/solutions" className="text-white/70 text-base hover:text-white transition-colors">Our Solutions</Link></li>
+              <li><a href="https://withsocio.com" target="_blank" rel="noopener noreferrer" className="text-white/70 text-base hover:text-white transition-colors">With Socio</a></li>
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h3 className="font-semibold text-lg mb-5 text-white border-b border-[#FFCC00] pb-2">Legal</h3>
+            <ul className="space-y-3">
+              <li><Link href="/terms" className="text-white/70 text-base hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="text-white/70 text-base hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/cookies" className="text-white/70 text-base hover:text-white transition-colors">Cookie Policy</Link></li>
+            </ul>
           </div>
         </div>
 
