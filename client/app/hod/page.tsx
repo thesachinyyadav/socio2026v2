@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
 
 import { Pagination } from "../_components/UI/Pagination";
+import HodFestDashboard from "../_components/Hod/HodFestDashboard";
 
 interface ApprovalStage {
   step: number;
