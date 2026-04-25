@@ -15,7 +15,6 @@ const supabase = createClient(
 
 const router = express.Router();
 
-// Resolve organiser email from events.created_by (text or jsonb)
 function resolveCreatedByEmail(createdBy) {
   if (!createdBy) return null;
   if (typeof createdBy === "string") return createdBy.trim();
@@ -27,7 +26,7 @@ function resolveCreatedByEmail(createdBy) {
 
 // ─── POST /api/feedbacks/:eventId/send ───────────────────────────────────────
 // Organiser sends feedback notifications to all registered participants.
-// Gated: event must have ended >= 7 days ago. One-shot per event.
+// Gated: event must have ended. One-shot per event.
 
 router.post(
   "/feedbacks/:eventId/send",
@@ -63,14 +62,14 @@ router.post(
         return res.status(400).json({ error: "Event has no date set" });
       }
 
-      const endDateTime = new Date(endDateStr);
-      endDateTime.setHours(23, 59, 59, 999);
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const endMidnight = new Date(endDateStr);
+      endMidnight.setHours(0, 0, 0, 0);
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
 
-      if (endDateTime > sevenDaysAgo) {
+      if (endMidnight > todayMidnight) {
         return res.status(400).json({
-          error: "Feedback form can only be sent 7 or more days after the event ends",
+          error: "Feedback form can only be sent after the event ends",
           event_ends: endDateStr,
         });
       }
@@ -142,6 +141,7 @@ router.post(
 
 // ─── GET /api/feedbacks/:eventId/check ──────────────────────────────────────
 // Participant checks if they have already submitted feedback for this event.
+// Looks up their reg_no as a key in the event's data blob.
 
 router.get(
   "/feedbacks/:eventId/check",
@@ -155,16 +155,17 @@ router.get(
         req.userInfo.visitor_id ||
         req.userInfo.email;
 
-      const { data, error } = await supabase
-        .from("feedbacks")
-        .select("id")
-        .eq("event_id", eventId)
-        .eq("reg_no", reg_no)
-        .maybeSingle();
+      const [{ data: row, error }, { data: event }] = await Promise.all([
+        supabase.from("feedbacks").select("data").eq("event_id", eventId).maybeSingle(),
+        supabase.from("events").select("feedback_sent_at").eq("event_id", eventId).maybeSingle(),
+      ]);
 
       if (error) throw error;
 
-      return res.json({ submitted: !!data });
+      return res.json({
+        submitted: !!(row?.data?.[reg_no]),
+        feedback_sent: !!event?.feedback_sent_at,
+      });
     } catch (error) {
       console.error("Error checking feedback status:", error);
       return res.status(500).json({ error: "Failed to check feedback status" });
@@ -173,7 +174,8 @@ router.get(
 );
 
 // ─── POST /api/feedbacks/:eventId/submit ────────────────────────────────────
-// Participant submits feedback. Verified: must be registered for the event.
+// Participant submits feedback. Must be registered for the event.
+// Merges submission into the single event row: data[reg_no] = ratings
 
 router.post(
   "/feedbacks/:eventId/submit",
@@ -212,18 +214,35 @@ router.post(
         req.userInfo.visitor_id ||
         req.userInfo.email;
 
-      const { error: insertError } = await supabase
+      // Read current event row
+      const { data: existing, error: fetchError } = await supabase
         .from("feedbacks")
-        .insert({ event_id: eventId, reg_no, data: { reg_no, ratings } });
+        .select("id, data")
+        .eq("event_id", eventId)
+        .maybeSingle();
 
-      if (insertError) {
-        if (insertError.code === "23505") {
-          return res.status(409).json({ error: "You have already submitted feedback for this event" });
-        }
-        throw insertError;
+      if (fetchError) throw fetchError;
+
+      if (existing?.data?.[reg_no]) {
+        return res.status(409).json({ error: "You have already submitted feedback for this event" });
       }
 
-      // Mark any feedback_form notifications for this event as read for this user
+      const mergedData = { ...(existing?.data || {}), [reg_no]: ratings };
+
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from("feedbacks")
+          .update({ data: mergedData })
+          .eq("id", existing.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from("feedbacks")
+          .insert({ event_id: eventId, data: { [reg_no]: ratings } });
+        if (insertError) throw insertError;
+      }
+
+      // Mark the feedback_form notification as read for this user
       await supabase
         .from("notifications")
         .update({ read: true })
@@ -242,6 +261,7 @@ router.post(
 
 // ─── GET /api/feedbacks/:eventId ─────────────────────────────────────────────
 // Organiser views aggregates + raw submission table for an event they own.
+// Reads the single event row and expands data blob into per-question stats.
 
 router.get(
   "/feedbacks/:eventId",
@@ -275,24 +295,23 @@ router.get(
 
       if (countError) throw countError;
 
-      const { data: feedbacks, error: fbError } = await supabase
+      const { data: fbRow, error: fbError } = await supabase
         .from("feedbacks")
-        .select("*")
+        .select("data")
         .eq("event_id", eventId)
-        .order("submitted_at", { ascending: false });
+        .maybeSingle();
 
       if (fbError) throw fbError;
 
-      const submissions = feedbacks || [];
+      // data blob: { "reg_no": [q1, q2, q3, q4, q5], ... }
+      const dataBlob = fbRow?.data || {};
+      const submissions = Object.values(dataBlob);
       const totalSubmissions = submissions.length;
       const registered = totalRegistered ?? 0;
 
       const questionAverages = [0, 1, 2, 3, 4].map((qIdx) => {
         if (totalSubmissions === 0) return "0.00";
-        const sum = submissions.reduce((acc, fb) => {
-          const r = Array.isArray(fb.data?.ratings) ? fb.data.ratings[qIdx] : 0;
-          return acc + (typeof r === "number" ? r : 0);
-        }, 0);
+        const sum = submissions.reduce((acc, ratings) => acc + (ratings[qIdx] ?? 0), 0);
         return (sum / totalSubmissions).toFixed(2);
       });
 
@@ -300,22 +319,19 @@ router.get(
         totalSubmissions === 0
           ? "0.00"
           : (() => {
-              const all = submissions.flatMap((fb) =>
-                Array.isArray(fb.data?.ratings) ? fb.data.ratings : []
-              );
+              const all = submissions.flat();
               return all.length > 0
                 ? (all.reduce((a, b) => a + b, 0) / all.length).toFixed(2)
                 : "0.00";
             })();
 
-      const rows = submissions.map((fb) => ({
-        reg_no: fb.reg_no,
-        q1: fb.data?.ratings?.[0] ?? null,
-        q2: fb.data?.ratings?.[1] ?? null,
-        q3: fb.data?.ratings?.[2] ?? null,
-        q4: fb.data?.ratings?.[3] ?? null,
-        q5: fb.data?.ratings?.[4] ?? null,
-        submitted_at: fb.submitted_at,
+      const rows = Object.entries(dataBlob).map(([reg_no, ratings]) => ({
+        reg_no,
+        q1: ratings[0] ?? null,
+        q2: ratings[1] ?? null,
+        q3: ratings[2] ?? null,
+        q4: ratings[3] ?? null,
+        q5: ratings[4] ?? null,
       }));
 
       return res.json({

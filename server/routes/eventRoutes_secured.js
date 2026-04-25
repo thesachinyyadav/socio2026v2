@@ -179,19 +179,12 @@ const getTodayStart = () => {
 };
 
 const shouldAutoArchiveEvent = (event) => {
-  const archivedBy = String(event?.archived_by || "").trim().toLowerCase();
-  if (archivedBy === MANUAL_UNARCHIVE_OVERRIDE) {
-    return false;
-  }
-
   const parsedEndDate = getValidDate(event?.end_date || event?.event_date);
   if (!parsedEndDate) return false;
 
   parsedEndDate.setHours(0, 0, 0, 0);
-  const archiveThreshold = new Date(parsedEndDate);
-  archiveThreshold.setDate(archiveThreshold.getDate() + 2);
 
-  return getTodayStart().getTime() >= archiveThreshold.getTime();
+  return getTodayStart().getTime() > parsedEndDate.getTime();
 };
 
 const asBoolean = (value) => {
@@ -251,7 +244,7 @@ const persistAutoArchivedEvents = async (events) => {
         {
           is_archived: true,
           archived_at: nowIso,
-          archived_by: event?.archived_by || "system:auto_end_date",
+          archived_by: "system:auto_end_date",
           updated_at: nowIso,
         },
         { event_id: eventId }

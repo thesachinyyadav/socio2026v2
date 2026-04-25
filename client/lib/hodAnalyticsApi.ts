@@ -256,3 +256,85 @@ export async function fetchHodAnalytics(
   ]);
   return { overview, students, teachers, events };
 }
+
+// ── Fest Dashboard types & helpers ─────────────────────────────────────────
+
+export interface HodFest {
+  id: string;
+  name: string;
+  dates: string;
+}
+
+export interface HodFestBudget {
+  allocated: number;
+  spent: number;
+  breakdown: { item: string; cost: number }[];
+}
+
+export interface HodFestFeedback {
+  count: number;
+  q1: number;
+  q2: number;
+  q3: number;
+  q4: number;
+  q5: number;
+  score: number;
+}
+
+export interface HodFestEvent {
+  id: string;
+  name: string;
+  cat: string;
+  date: string;
+  regs: number;
+  attend: number;
+  rate: number;
+  insiders: number;
+  outsiders: number;
+  description: string;
+  budget: HodFestBudget;
+  feedback: HodFestFeedback;
+}
+
+export interface HodFestSummaryStats {
+  events: number;
+  registrations: number;
+  attendance: number;
+  attendanceRate: number;
+  dropOff: number;
+  insiders: number;
+  outsiders: number;
+  feedbackRate: number;
+}
+
+export interface HodFestSummary {
+  fest: HodFest;
+  department: string;
+  summary: HodFestSummaryStats;
+  events: HodFestEvent[];
+  deptBreakdown: { dept: string; count: number; color?: string }[];
+}
+
+export async function fetchHodFests(token: string): Promise<HodFest[]> {
+  const response = await fetch(`${API_URL}/api/hod-analytics/fests`, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error || `Failed to fetch fests: ${response.status}`);
+  }
+  const data = await response.json() as { fests: HodFest[] };
+  return data.fests;
+}
+
+export async function fetchHodFestSummary(token: string, festId: string): Promise<HodFestSummary> {
+  const response = await fetch(
+    `${API_URL}/api/hod-analytics/fest-summary?festId=${encodeURIComponent(festId)}`,
+    { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+  );
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error || `Failed to fetch fest summary: ${response.status}`);
+  }
+  return response.json() as Promise<HodFestSummary>;
+}

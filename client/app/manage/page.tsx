@@ -828,25 +828,16 @@ export default function ManageDashboard() {
   };
 
   const isAutoArchivedEvent = (event: ContextEvent) => {
-    const archivedBy = String((event as any).archived_by || "").trim().toLowerCase();
-    if (!toBoolean((event as any).is_archived) && archivedBy === MANUAL_UNARCHIVE_OVERRIDE) {
-      return false;
-    }
+    const endDateStr = (event as any).end_date || event.event_date;
+    if (!endDateStr) return false;
 
-    // Match backend auto-archive logic: archive when event_date is in the past
-    // (not after 15 days). If event is manually archived, this won't be called
-    // due to getEffectiveArchiveState logic ordering.
-    const eventDate = getValidDate(event.event_date);
-    if (!eventDate) return false;
-    
-    // Set to midnight to match backend comparison
-    const eventDateMidnight = new Date(eventDate);
-    eventDateMidnight.setHours(0, 0, 0, 0);
-    
+    const endMidnight = new Date(endDateStr);
+    endMidnight.setHours(0, 0, 0, 0);
+
     const todayMidnight = new Date();
     todayMidnight.setHours(0, 0, 0, 0);
-    
-    return eventDateMidnight.getTime() < todayMidnight.getTime();
+
+    return todayMidnight.getTime() > endMidnight.getTime();
   };
 
   const toBoolean = (value: unknown) =>

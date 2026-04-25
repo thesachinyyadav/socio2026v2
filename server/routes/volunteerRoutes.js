@@ -24,7 +24,7 @@ router.get("/events", authenticateUser, getUserInfo(), checkRoleExpiration, asyn
     // Using string representation of empty JSON array to filter out empty ones
     const { data: events, error } = await supabase
       .from("events")
-      .select("event_id, title, event_date, end_date, venue, campus_hosted_at, volunteers, is_archived, archived_effective")
+      .select("event_id, title, event_date, end_date, venue, campus_hosted_at, volunteers, is_archived")
       .not("volunteers", "eq", "[]");
 
     if (error) {
@@ -41,10 +41,7 @@ router.get("/events", authenticateUser, getUserInfo(), checkRoleExpiration, asyn
     // Filter events to only those where the current user is an *active* volunteer
     const assignedEvents = events
       .filter((event) => {
-        // Exclude archived events if archived_effective or is_archived is true
-        if (event.is_archived || event.archived_effective) {
-            return false;
-        }
+        if (event.is_archived) return false;
         return hasActiveVolunteerAccess(event.volunteers, registerNumber, now);
       })
       .map((event) => {

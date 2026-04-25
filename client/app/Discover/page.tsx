@@ -7,6 +7,7 @@ import { FullWidthCarousel } from "../_components/Discover/ImageCarousel";
 import { FestsSection } from "../_components/Discover/FestSection";
 import { CategorySection } from "../_components/Discover/CategorySection";
 import { ClubSection } from "../_components/Discover/ClubSection";
+import { PendingFeedbackSection } from "../_components/Discover/PendingFeedbackSection";
 import Footer from "../_components/Home/Footer";
 import { allCentres } from "../lib/centresData";
 import { christCampuses } from "../lib/eventFormSchema";
@@ -461,6 +462,8 @@ const DiscoverPageContent = () => {
               Error loading events: {errorEventsFromContext}
             </div>
           )}
+
+          <PendingFeedbackSection />
 
           {!isLoadingEventsFromContext && !errorEventsFromContext && (
             <>

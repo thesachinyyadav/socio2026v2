@@ -55,7 +55,8 @@ export default function VolunteerDashboard() {
         });
 
         if (!res.ok) {
-          throw new Error("Failed to fetch assigned events.");
+          const payload = await res.json().catch(() => null);
+          throw new Error(payload?.error || "Failed to fetch assigned events.");
         }
 
         const data = await res.json();

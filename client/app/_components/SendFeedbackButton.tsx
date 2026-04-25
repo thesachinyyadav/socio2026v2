@@ -41,14 +41,14 @@ export default function SendFeedbackButton({
 
   const alreadySent = !!localSentAt;
 
-  // Check if event ended >= 7 days ago
+  // Allow sending on the event day or any day after
   const canSend = (() => {
     if (!endDate) return false;
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    return end <= sevenDaysAgo;
+    const endMidnight = new Date(endDate);
+    endMidnight.setHours(0, 0, 0, 0);
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    return endMidnight <= todayMidnight;
   })();
 
   const handleSend = async () => {
@@ -93,7 +93,7 @@ export default function SendFeedbackButton({
     return (
       <span
         className="inline-flex items-center gap-1 text-xs text-slate-300 font-medium cursor-not-allowed"
-        title={endDate ? "Available 7 days after the event ends" : "Event has no end date"}
+        title={endDate ? "Available after the event ends" : "Event has no end date"}
       >
         <ClipboardIcon />
         Feedback

@@ -23,9 +23,10 @@ interface EventCardProps {
   archivedVisualMode?: "tag" | "muted";
   onArchiveToggle?: (eventId: string, shouldArchive: boolean) => Promise<void>;
   isArchiveLoading?: boolean;
-  createdBy?: string | null;
+  createdBy?: string | object | null;
   organizerEmail?: string | null;
   registrationFee?: number | null;
+  feedbackUrl?: string;
 }
 
 export const EventCard = ({
@@ -50,6 +51,7 @@ export const EventCard = ({
   createdBy,
   organizerEmail,
   registrationFee,
+  feedbackUrl,
 }: EventCardProps) => {
   const { userData, session, isLoading } = useAuth();
 
@@ -60,18 +62,22 @@ export const EventCard = ({
   const normalizeEmail = (value?: string | null) =>
     typeof value === "string" ? value.toLowerCase() : null;
 
-  const createdByEmail = normalizeEmail(createdBy);
+  const createdByRaw = typeof createdBy === "object" && createdBy !== null
+    ? (createdBy as { event_creator?: string }).event_creator ?? null
+    : createdBy as string | null;
+
+  const createdByEmail = normalizeEmail(createdByRaw);
   const organizerEmailLower = normalizeEmail(organizerEmail);
   const userEmail = normalizeEmail(userData?.email);
 
   const isOwner = !isLoading && (
-    (session?.user?.id && createdBy && session.user.id === createdBy) ||
+    (session?.user?.id && createdByRaw && session.user.id === createdByRaw) ||
     (userEmail && createdByEmail && userEmail === createdByEmail) ||
     (userEmail && organizerEmailLower && userEmail === organizerEmailLower)
   );
 
   if (userData?.is_organiser && !isLoading) {
-    console.log(`[EventCard Debug] title: ${title}, isOwner: ${isOwner}, createdBy: ${createdBy}, sessionUserId: ${session?.user?.id}, organizerEmail: ${organizerEmail}, userEmail: ${userData?.email}`);
+    console.log(`[EventCard Debug] title: ${title}, isOwner: ${isOwner}, createdBy: ${JSON.stringify(createdBy)}, createdByEmail: ${createdByEmail}, sessionUserId: ${session?.user?.id}, organizerEmail: ${organizerEmail}, userEmail: ${userData?.email}`);
   }
 
   const canManage = !isLoading && (userData?.is_masteradmin || (userData?.is_organiser && isOwner));
@@ -255,6 +261,19 @@ export const EventCard = ({
             {reminderAuthToken && (
               <EventReminderButton eventId={eventSlug || ""} eventTitle={title} authToken={reminderAuthToken} />
             )}
+          </div>
+        ) : feedbackUrl ? (
+          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-1 rounded-full">Feedback needed</span>
+            <Link
+              href={feedbackUrl}
+              className="inline-flex items-center gap-1 text-sm text-violet-600 font-semibold hover:underline"
+            >
+              Give Feedback
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
           </div>
         ) : (
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">

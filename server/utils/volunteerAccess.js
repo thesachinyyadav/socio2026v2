@@ -1,5 +1,3 @@
-import { supabase } from "../config/database.js";
-
 export const normalizeRegisterNumber = (value) =>
   String(value ?? "").trim().toUpperCase();
 
@@ -84,30 +82,6 @@ export const buildVolunteerAssignments = async (
   const uniqueRegisterNumbers = Array.from(
     new Set(incomingVolunteers.map((volunteer) => volunteer.register_number))
   );
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("register_number")
-    .in("register_number", uniqueRegisterNumbers);
-
-  if (error) {
-    throw error;
-  }
-
-  const foundRegisterNumbers = new Set(
-    (data || []).map((user) => normalizeRegisterNumber(user.register_number))
-  );
-  const missingRegisterNumbers = uniqueRegisterNumbers.filter(
-    (registerNumber) => !foundRegisterNumbers.has(registerNumber)
-  );
-
-  if (missingRegisterNumbers.length > 0) {
-    const error = new Error(
-      `Unknown volunteer register number${missingRegisterNumbers.length > 1 ? "s" : ""}: ${missingRegisterNumbers.join(", ")}`
-    );
-    error.statusCode = 400;
-    throw error;
-  }
 
   const existingByRegisterNumber = getExistingVolunteerMap(existingVolunteers);
   const normalizedAssignedBy = String(assignedBy || "").trim();

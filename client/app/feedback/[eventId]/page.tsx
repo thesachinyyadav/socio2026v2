@@ -17,6 +17,7 @@ const QUESTIONS = [
 
 type PageStatus =
   | "loading"
+  | "not_authenticated"
   | "idle"
   | "submitting"
   | "submitted"
@@ -42,7 +43,11 @@ export default function FeedbackFormPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.access_token) setToken(data.session.access_token);
+      if (data.session?.access_token) {
+        setToken(data.session.access_token);
+      } else {
+        setStatus("not_authenticated");
+      }
     });
   }, []);
 
@@ -141,6 +146,30 @@ export default function FeedbackFormPage() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <p className="text-slate-400 text-sm animate-pulse">Loading feedback form…</p>
+      </div>
+    );
+  }
+
+  if (status === "not_authenticated") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">Sign in to continue</h2>
+          <p className="text-sm text-slate-500">
+            You need to be signed in to submit feedback for this event.
+          </p>
+          <a
+            href="/auth"
+            className="inline-block px-6 py-2.5 bg-[#154cb3] text-white text-sm font-semibold rounded-xl hover:bg-[#124099] transition-colors"
+          >
+            Sign in
+          </a>
+        </div>
       </div>
     );
   }

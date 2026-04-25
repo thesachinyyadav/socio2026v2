@@ -255,7 +255,7 @@ export default function EditEventPage() {
                 expires_at: String(item?.expires_at || "").trim(),
                 assigned_by: String(item?.assigned_by || "").trim(),
               }))
-              .filter((item: any) => item.register_number && item.expires_at && item.assigned_by);
+              .filter((item: any) => item.register_number);
           };
 
           const transformScheduleForForm = (

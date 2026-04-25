@@ -91,6 +91,7 @@ const StudentProfile = () => {
   const [activeQR, setActiveQR] = useState<ActiveQR | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [pendingFeedbackEventIds, setPendingFeedbackEventIds] = useState<Set<string>>(new Set());
 
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
@@ -121,6 +122,30 @@ const StudentProfile = () => {
       setCancellingId(null);
     }
   };
+
+  useEffect(() => {
+    if (!session?.access_token || registeredEventsList.length === 0) return;
+    const token = session.access_token;
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+
+    const completedEvents = registeredEventsList.filter((e) => e.status === "completed");
+    if (completedEvents.length === 0) return;
+
+    Promise.all(
+      completedEvents.map((e) =>
+        fetch(`${baseUrl}/api/feedbacks/${e.event_id}/check`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => (r.ok ? r.json() : { submitted: true, feedback_sent: false }))
+          .then((d) => ({ eventId: e.event_id, pending: !!d.feedback_sent && !d.submitted }))
+          .catch(() => ({ eventId: e.event_id, pending: false }))
+      )
+    ).then((results) => {
+      setPendingFeedbackEventIds(
+        new Set(results.filter((r) => r.pending).map((r) => r.eventId))
+      );
+    });
+  }, [session?.access_token, registeredEventsList]);
 
   useEffect(() => {
     if (userData) {
@@ -184,7 +209,7 @@ const StudentProfile = () => {
               eventDay.setHours(0, 0, 0, 0);
 
               let eventStatus: "upcoming" | "completed";
-              if (eventDay < today) {
+              if (eventDay <= today) {
                 eventStatus = "completed";
               } else {
                 eventStatus = "upcoming";
@@ -701,6 +726,14 @@ const StudentProfile = () => {
                             {event.status.charAt(0).toUpperCase() +
                               event.status.slice(1)}
                           </span>
+                          {event.status === "completed" && pendingFeedbackEventIds.has(event.event_id) && (
+                            <Link
+                              href={`/feedback/${event.event_id}`}
+                              className="text-xs font-semibold px-3 py-1 rounded-full bg-violet-600 text-white hover:bg-violet-700 transition-colors whitespace-nowrap"
+                            >
+                              Feedback
+                            </Link>
+                          )}
                           {event.status === "upcoming" && (
                             cancelConfirmId === event.registration_id ? (
                               <div className="flex items-center gap-1">

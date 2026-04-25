@@ -33,14 +33,14 @@ interface QueueItem {
 
 type HodView = "analytics" | "queue";
 
-const HodDataExplorer = dynamic(
-  () => import("../_components/Hod/HodDataExplorer"),
+const HodFestDashboard = dynamic(
+  () => import("../_components/Hod/HodFestDashboard"),
   {
     ssr: false,
     loading: () => (
       <div className="rounded-3xl border border-slate-200/80 bg-white p-14 text-center shadow-sm">
         <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-[#154CB3]" />
-        <p className="text-sm font-semibold text-slate-700">Loading department analytics...</p>
+        <p className="text-sm font-semibold text-slate-700">Loading fest dashboard...</p>
       </div>
     ),
   }
@@ -255,7 +255,7 @@ export default function HodDashboard() {
       {/* Analytics view — full width */}
       {activeView === "analytics" && (
         <div className="max-w-full xl:px-2">
-          <HodDataExplorer />
+          <HodFestDashboard />
         </div>
       )}
 

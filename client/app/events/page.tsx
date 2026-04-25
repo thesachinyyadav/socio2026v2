@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEvents } from "../../context/EventContext";
 import { useAuth } from "@/context/AuthContext";
 import { EventCard } from "../_components/Discover/EventCard";
+import { PendingFeedbackSection } from "../_components/Discover/PendingFeedbackSection";
 import Footer from "../_components/Home/Footer";
 import { toast } from "sonner";
 
@@ -59,9 +60,50 @@ const EventsPageContent = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
   const [localArchivedIds, setLocalArchivedIds] = useState<Set<string>>(new Set());
+  const [pendingFeedbackEventIds, setPendingFeedbackEventIds] = useState<Set<string>>(new Set());
 
   const { allEvents, isLoading, error } = useEvents();
   const { userData, session } = useAuth();
+
+  useEffect(() => {
+    if (!userData?.email || !session?.access_token) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
+    const token = session.access_token;
+
+    fetch(
+      `${apiUrl}/api/notifications?email=${encodeURIComponent(userData.email)}&limit=50`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then(async (data) => {
+        const notifs: any[] = Array.isArray(data?.notifications) ? data.notifications : [];
+        // Include all feedback_form notifications regardless of read status
+        const feedbackNotifs = notifs.filter((n) => n.type === "feedback_form" && n.eventId);
+
+        if (feedbackNotifs.length === 0) {
+          setPendingFeedbackEventIds(new Set());
+          return;
+        }
+
+        // Filter out events where feedback was already submitted
+        const checks = await Promise.all(
+          feedbackNotifs.map((n) =>
+            fetch(`${apiUrl}/api/feedbacks/${n.eventId}/check`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+              .then((r) => (r.ok ? r.json() : { submitted: true, feedback_sent: false }))
+              .then((d) => ({ eventId: n.eventId as string, pending: !!d.feedback_sent && !d.submitted }))
+              .catch(() => ({ eventId: n.eventId as string, pending: false }))
+          )
+        );
+
+        const ids = new Set<string>(
+          checks.filter((c) => c.pending).map((c) => c.eventId)
+        );
+        setPendingFeedbackEventIds(ids);
+      })
+      .catch(() => {});
+  }, [userData?.email, session?.access_token]);
 
   const [filterOptions, setFilterOptions] = useState<FilterOption[]>([
     { name: "All", active: true },
@@ -399,6 +441,8 @@ const EventsPageContent = () => {
             </form>
           </div>
 
+          <PendingFeedbackSection />
+
           <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3 sm:mb-4">
             {`${
               activeFilterName === "All" ? "All" : activeFilterName
@@ -428,6 +472,11 @@ const EventsPageContent = () => {
                         isArchiveLoading={archiveUpdatingIds.has(event.event_id)}
                         createdBy={event.created_by}
                         organizerEmail={event.organizer_email}
+                        feedbackUrl={
+                          pendingFeedbackEventIds.has(event.event_id)
+                            ? `/feedback/${event.event_id}`
+                            : undefined
+                        }
                       />
                     </div>
                   ))}

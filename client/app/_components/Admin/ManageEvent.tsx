@@ -141,11 +141,17 @@ function VolunteerAssignmentSection({
     [endDate, endTime]
   );
 
+  const onChangeRef = React.useRef(onChange);
+  onChangeRef.current = onChange;
+  const volunteersRef = React.useRef(volunteers);
+  volunteersRef.current = volunteers;
+
   useEffect(() => {
-    if (!expiresAt || volunteers.length === 0) return;
-    if (volunteers.every((volunteer) => volunteer.expires_at === expiresAt)) return;
-    onChange(volunteers.map((volunteer) => ({ ...volunteer, expires_at: expiresAt })));
-  }, [expiresAt, onChange, volunteers]);
+    const current = volunteersRef.current;
+    if (!expiresAt || current.length === 0) return;
+    if (current.every((volunteer) => volunteer.expires_at === expiresAt)) return;
+    onChangeRef.current(current.map((volunteer) => ({ ...volunteer, expires_at: expiresAt })));
+  }, [expiresAt]);
 
   useEffect(() => {
     if (expiresAt && error === "Select a valid event end date and end time first.") {

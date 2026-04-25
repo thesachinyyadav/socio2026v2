@@ -16,9 +16,6 @@ const QUESTIONS = [
   "Likelihood to attend or recommend future events",
 ];
 
-type SortKey = "reg_no" | "submitted_at";
-type SortDir = "asc" | "desc";
-
 interface FeedbackRow {
   reg_no: string;
   q1: number | null;
@@ -26,7 +23,6 @@ interface FeedbackRow {
   q3: number | null;
   q4: number | null;
   q5: number | null;
-  submitted_at: string;
 }
 
 interface Summary {
@@ -54,8 +50,7 @@ export default function FeedbacksPage() {
   const [data, setData] = useState<FeedbackData | null>(null);
   const [status, setStatus] = useState<PageStatus>("loading");
   const [errorMsg, setErrorMsg] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("submitted_at");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -101,42 +96,10 @@ export default function FeedbacksPage() {
   const sortedRows = useMemo(() => {
     if (!data) return [];
     return [...data.rows].sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "reg_no") {
-        cmp = a.reg_no.localeCompare(b.reg_no);
-      } else {
-        cmp = new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
-      }
+      const cmp = a.reg_no.localeCompare(b.reg_no);
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [data, sortKey, sortDir]);
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  };
-
-  const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <span className="ml-1 text-slate-300">↕</span>;
-    return <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>;
-  };
-
-  const formatDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString("en-IN", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
-    } catch {
-      return iso;
-    }
-  };
-
-  // ─── Render states ────────────────────────────────────────────────────────
+  }, [data, sortDir]);
 
   if (status === "loading") {
     return (
@@ -199,7 +162,6 @@ export default function FeedbacksPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
           <h2 className="text-base font-bold text-slate-800">Summary</h2>
 
-          {/* Response rate */}
           <div className="flex flex-wrap gap-6">
             <div className="space-y-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Response Rate</p>
@@ -215,7 +177,6 @@ export default function FeedbacksPage() {
             </div>
           </div>
 
-          {/* Per-question averages */}
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               Average per Question
@@ -229,9 +190,7 @@ export default function FeedbacksPage() {
                   const pct = (avg / 5) * 100;
                   return (
                     <div key={idx} className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-400 w-4 flex-shrink-0">
-                        Q{idx + 1}
-                      </span>
+                      <span className="text-xs font-bold text-slate-400 w-4 flex-shrink-0">Q{idx + 1}</span>
                       <span className="text-xs text-slate-600 flex-1 min-w-0 truncate">{q}</span>
                       <div className="w-28 flex-shrink-0 bg-slate-100 rounded-full h-2">
                         <div
@@ -252,28 +211,31 @@ export default function FeedbacksPage() {
 
         {/* Raw table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-800">
               All Submissions ({rows.length})
             </h2>
+            {rows.length > 0 && (
+              <button
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                className="text-xs text-slate-500 hover:text-slate-800 font-semibold select-none"
+              >
+                Reg No {sortDir === "asc" ? "↑" : "↓"}
+              </button>
+            )}
           </div>
 
           {rows.length === 0 ? (
             <div className="px-6 py-8 text-center text-slate-400 text-sm">
-              {event.feedback_sent_at
-                ? "No submissions yet."
-                : "Feedback form has not been sent yet."}
+              {event.feedback_sent_at ? "No submissions yet." : "Feedback form has not been sent yet."}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    <th
-                      className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-800 select-none whitespace-nowrap"
-                      onClick={() => toggleSort("reg_no")}
-                    >
-                      Reg No <SortIcon col="reg_no" />
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      Reg No
                     </th>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <th
@@ -283,12 +245,6 @@ export default function FeedbacksPage() {
                         Q{n}
                       </th>
                     ))}
-                    <th
-                      className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-800 select-none whitespace-nowrap"
-                      onClick={() => toggleSort("submitted_at")}
-                    >
-                      Submitted At <SortIcon col="submitted_at" />
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -314,9 +270,6 @@ export default function FeedbacksPage() {
                           </span>
                         </td>
                       ))}
-                      <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
-                        {formatDate(row.submitted_at)}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
