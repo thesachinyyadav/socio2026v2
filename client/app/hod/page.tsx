@@ -246,7 +246,7 @@ export default function HodDashboard() {
                   activeView === view ? "bg-[#154CB3] text-white" : "text-slate-600 hover:bg-white",
                 ].join(" ")}
               >
-                {view === "analytics" ? "Analytics" : "Approval Queue"}
+                {view === "analytics" ? "Dashboard" : "Approval Queue"}
               </button>
             ))}
           </div>

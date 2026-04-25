@@ -387,7 +387,7 @@ function InsiderDonut({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function HodFestDashboard() {
-  const { session } = useAuth();
+  const { session, isLoading } = useAuth();
 
   const [fests, setFests] = useState<HodFest[]>([]);
   const [selectedFestId, setSelectedFestId] = useState<string>("");
@@ -402,7 +402,7 @@ export default function HodFestDashboard() {
 
   // Fetch fests on mount
   useEffect(() => {
-    if (!session?.access_token) return;
+    if (isLoading || !session?.access_token) return;
     setLoadingFests(true);
     setError(null);
     fetchHodFests(session.access_token)
@@ -412,7 +412,7 @@ export default function HodFestDashboard() {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoadingFests(false));
-  }, [session?.access_token]);
+  }, [isLoading, session?.access_token]);
 
   // Fetch summary when fest changes
   useEffect(() => {
@@ -471,7 +471,17 @@ export default function HodFestDashboard() {
     return { avgs, overall, totalCount };
   }, [summary]);
 
+  const showInsights = !!summary && summary.events.length >= 2 && !!topEvent && !!worstEvent;
+
   // ── Loading / error states ─────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: PRIMARY }} />
+      </div>
+    );
+  }
 
   if (loadingFests) {
     return (
