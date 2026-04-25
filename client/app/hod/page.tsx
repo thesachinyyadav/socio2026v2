@@ -6,10 +6,14 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Loader2 } from "lucide-react";
 
 import { Pagination } from "../_components/UI/Pagination";
-import HodFestDashboard from "../_components/Hod/HodFestDashboard";
+
+const HodFestDashboard = dynamic(() => import("../_components/Hod/HodFestDashboard"), {
+  ssr: false,
+});
+
+type HodView = "analytics" | "queue";
 
 interface ApprovalStage {
   step: number;
