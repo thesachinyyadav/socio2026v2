@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import QrScanner from "qr-scanner";
 import { useAuth } from "@/context/AuthContext";
+import { AlertTriangle, Camera, CheckCircle2, QrCode, X } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
@@ -11,6 +12,8 @@ interface QRScannerProps {
   eventTitle: string;
   onScanSuccess?: (result: any) => void;
   onClose?: () => void;
+  embedded?: boolean;
+  disableClose?: boolean;
 }
 
 interface ScanResult {
@@ -26,6 +29,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   eventTitle,
   onScanSuccess,
   onClose,
+  embedded = false,
+  disableClose = false,
 }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -177,24 +182,32 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     setError(null);
   };
 
+  const containerClassName = embedded
+    ? "w-full flex justify-center"
+    : "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+  const panelClassName = embedded
+    ? "bg-white rounded-lg shadow-sm border border-slate-200 max-w-md w-full overflow-hidden"
+    : "bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden";
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+    <div className={containerClassName}>
+      <div className={panelClassName}>
         {/* Header */}
         <div className="bg-gradient-to-r from-[#154CB3] to-[#063168] text-white p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold">QR Scanner</h3>
-            <button
-              onClick={() => {
-                stopScanning();
-                onClose?.();
-              }}
-              className="text-white hover:text-gray-200 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {!disableClose && onClose && (
+              <button
+                onClick={() => {
+                  stopScanning();
+                  onClose?.();
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+                aria-label="Close scanner"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            )}
           </div>
           <p className="text-sm text-blue-100 mt-1">{eventTitle}</p>
         </div>
@@ -204,9 +217,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           {!isScanning ? (
             <div className="text-center">
               <div className="mb-4">
-                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4m-4-4h4m-4-4v1m0 0h-1m1-1V8a5 5 0 00-10 0v.01M8 7a3 3 0 016 0v.01M12 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                <QrCode className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h4 className="text-lg font-semibold text-gray-800 mb-2">QR Code Scanner</h4>
                 <p className="text-gray-600 mb-4">
                   Scan participant QR codes to mark attendance instantly
@@ -225,10 +236,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                 onClick={startScanning}
                 className="px-6 py-3 bg-[#154CB3] text-white rounded-lg hover:bg-[#063168] transition-colors flex items-center gap-2 mx-auto"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                <Camera className="w-5 h-5" />
                 Start Scanning
               </button>
             </div>
@@ -275,11 +283,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           {scanResult && (
             <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center mb-2">
-                <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <CheckCircle2 className="w-5 h-5 text-green-600 mr-2" />
                 <span className="font-semibold text-green-800">
-                  {scanResult.status === 'marked_present' ? 'Attendance Marked!' : 'Already Present'}
+                  {scanResult.status === 'marked_present' ? 'Attendance Marked!' : 'Already Scanned'}
                 </span>
               </div>
               <div className="text-sm text-green-700">
@@ -296,9 +302,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           {error && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center mb-2">
-                <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
                 <span className="font-semibold text-red-800">Scan Error</span>
               </div>
               <p className="text-sm text-red-700">{error}</p>

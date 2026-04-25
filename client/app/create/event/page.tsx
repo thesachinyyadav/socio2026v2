@@ -5,10 +5,12 @@ import { EventFormData } from "@/app/lib/eventFormSchema";
 import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const { isStudentOrganiser } = useAuth();
   const approvalConfigRef = useRef<{ enabled: boolean; stages: WorkflowStage[]; budgetItems: BudgetItem[] }>({
     enabled: true,
     stages: STANDALONE_EVENT_STAGES,
@@ -136,6 +138,7 @@ export default function CreateEventPage() {
     appendIfExists("event_date", dataFromHookForm.eventDate);
     appendIfExists("end_date", dataFromHookForm.endDate);
     appendIfExists("event_time", dataFromHookForm.eventTime);
+    appendIfExists("end_time", dataFromHookForm.endTime);
     appendIfExists("description", dataFromHookForm.detailedDescription);
     appendIfExists("organizing_school", dataFromHookForm.organizingSchool);
     appendIfExists("organizing_dept", dataFromHookForm.organizingDept);
@@ -169,6 +172,7 @@ export default function CreateEventPage() {
     appendJsonArrayOrObject("prizes", dataFromHookForm.prizes);
     appendJsonArrayOrObject("event_heads", dataFromHookForm.eventHeads);
     appendJsonArrayOrObject("custom_fields", dataFromHookForm.customFields);
+    appendJsonArrayOrObject("volunteers", dataFromHookForm.volunteers || []);
     appendIfExists("created_by", userEmail);
 
     const itConfig = operationalConfigRef.current.it;
@@ -190,19 +194,16 @@ export default function CreateEventPage() {
     appendFile("pdfFile", dataFromHookForm.pdfFile);
 
     try {
-      const response = await fetch(`${API_URL}/api/events`, {
+      const response = await fetch(`/api/events`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token!}` },
         body: formData,
       });
 
       if (!response.ok) {
-        let errorData: any;
-        try { errorData = await response.json(); } catch {
-          const responseText = await response.text();
-          errorData = { error: `Status: ${response.status}. ${responseText}` };
-        }
-        const message = errorData.error || errorData.message || `Server error: ${response.status}`;
+        let errorData: any = {};
+        try { errorData = await response.json(); } catch { /* non-JSON body */ }
+        const message = errorData.details || errorData.message || errorData.error || `Server error: ${response.status}`;
         throw new Error(message);
       }
 
@@ -248,6 +249,12 @@ export default function CreateEventPage() {
         } catch {
           // Non-critical
         }
+      }
+
+      // Student organisers publish directly under their fest — no approval redirect
+      if (isStudentOrganiser) {
+        router.push('/manage');
+        return;
       }
 
       // Redirect to approval status page (or manage if no approval)

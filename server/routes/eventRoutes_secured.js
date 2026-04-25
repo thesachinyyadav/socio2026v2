@@ -11,16 +11,22 @@ import { uploadFileToSupabase, getPathFromStorageUrl, deleteFileFromLocal } from
 import { parseOptionalFloat, parseOptionalInt, parseJsonField } from "../utils/parsers.js";
 import { v4 as uuidv4 } from "uuid";
 import { 
-  authenticateUser, 
-  getUserInfo, 
+  authenticateUser,
+  getUserInfo,
   checkRoleExpiration,
-  requireOrganiser, 
-  requireOwnership, 
-  optionalAuth 
+  requireOrganiser,
+  requireOrganiserOrSubHead,
+  requireOwnership,
+  optionalAuth
 } from "../middleware/authMiddleware.js";
 import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushEventToGated, shouldPushEventToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { supabase } from "../config/database.js";
+import {
+  buildVolunteerAssignments,
+  normalizeRegisterNumber,
+  normalizeVolunteerRecords,
+} from "../utils/volunteerAccess.js";
 
 const router = express.Router();
 const debugRoutesEnabled = process.env.NODE_ENV !== "production";
@@ -173,19 +179,12 @@ const getTodayStart = () => {
 };
 
 const shouldAutoArchiveEvent = (event) => {
-  const archivedBy = String(event?.archived_by || "").trim().toLowerCase();
-  if (archivedBy === MANUAL_UNARCHIVE_OVERRIDE) {
-    return false;
-  }
-
   const parsedEndDate = getValidDate(event?.end_date || event?.event_date);
   if (!parsedEndDate) return false;
 
   parsedEndDate.setHours(0, 0, 0, 0);
-  const archiveThreshold = new Date(parsedEndDate);
-  archiveThreshold.setDate(archiveThreshold.getDate() + 2);
 
-  return getTodayStart().getTime() >= archiveThreshold.getTime();
+  return getTodayStart().getTime() > parsedEndDate.getTime();
 };
 
 const asBoolean = (value) => {
@@ -245,7 +244,7 @@ const persistAutoArchivedEvents = async (events) => {
         {
           is_archived: true,
           archived_at: nowIso,
-          archived_by: event?.archived_by || "system:auto_end_date",
+          archived_by: "system:auto_end_date",
           updated_at: nowIso,
         },
         { event_id: eventId }
@@ -342,6 +341,7 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
         schedule: normalizeJsonField(event.schedule),
         prizes: normalizeJsonField(event.prizes),
         custom_fields: normalizeJsonField(event.custom_fields),
+        volunteers: normalizeVolunteerRecords(event.volunteers),
         campus_hosted_at: normalizeSingleStringField(event.campus_hosted_at),
         allowed_campuses: normalizeStringListField(event.allowed_campuses),
         registration_count: eventRegistrationCounts[event.event_id] || 0,
@@ -675,6 +675,7 @@ router.get("/:eventId", async (req, res) => {
       schedule: normalizeJsonField(event.schedule),
       prizes: normalizeJsonField(event.prizes),
       custom_fields: normalizeJsonField(event.custom_fields),
+      volunteers: normalizeVolunteerRecords(event.volunteers),
       campus_hosted_at: normalizeSingleStringField(event.campus_hosted_at),
       allowed_campuses: normalizeStringListField(event.allowed_campuses),
       ...archiveState,
@@ -687,7 +688,7 @@ router.get("/:eventId", async (req, res) => {
   }
 });
 
-// POST create new event - REQUIRES AUTHENTICATION + ORGANISER PRIVILEGES
+// POST create new event - REQUIRES AUTHENTICATION + ORGANISER OR SUB-HEAD PRIVILEGES
 router.post(
   "/",
   multerUpload.fields([
@@ -695,9 +696,9 @@ router.post(
     { name: "bannerImage", maxCount: 1 },
     { name: "pdfFile", maxCount: 1 },
   ]),
-  authenticateUser,           // Verify JWT token
-  getUserInfo(),           // Get user info from DB via helper
-  requireOrganiser,          // Check if user is organiser
+  authenticateUser,
+  getUserInfo(),
+  requireOrganiserOrSubHead,  // Full organiser OR active sub-head of a fest
   async (req, res) => {
     const uploadedFilePaths = {
       image: null,
@@ -722,6 +723,7 @@ router.post(
         description,
         event_date,
         event_time,
+        end_time,
         venue,
         category,
         claims_applicable,
@@ -863,6 +865,12 @@ router.post(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const parsedVolunteers = await buildVolunteerAssignments(req.body.volunteers, {
+        endDate: req.body.end_date,
+        eventDate: event_date,
+        endTime: end_time || req.body.endTime,
+        assignedBy: req.userInfo?.email,
+      });
       const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
       );
@@ -882,12 +890,29 @@ router.post(
         });
       }
 
+      // Sub-head restriction: must create event under one of their assigned fests
+      let matchedSubHeadFest = null;
+      if (req.isSubHead) {
+        const incomingFestId = normalizeFestReference(fest_id ?? fest);
+        matchedSubHeadFest = (req.subHeadFests || []).find((f) => f.fest_id === incomingFestId) || null;
+        if (!incomingFestId || !matchedSubHeadFest) {
+          const allowed = (req.subHeadFests || []).map((f) => f.fest_id).join(", ");
+          return res.status(403).json({
+            error: `Sub-heads can only create events under their assigned fest(s): ${allowed}.`,
+          });
+        }
+      }
+
+      const createdByValue = req.isSubHead
+        ? { event_creator: req.userInfo.email, fest_creator: matchedSubHeadFest.created_by, fest_id: matchedSubHeadFest.fest_id }
+        : { event_creator: req.userInfo?.email };
+
       console.log("✅ JSON fields parsed successfully");
       console.log("About to insert event into database with:", {
         event_id,
         title: title?.trim(),
         organizing_dept,
-        created_by: req.userInfo?.email,
+        created_by: createdByValue,
         fileUrls: uploadedFilePaths
       });
 
@@ -898,6 +923,7 @@ router.post(
         description: description || null,
         event_date: event_date || null,
         event_time: event_time || null,
+        end_time: end_time || req.body.endTime || null,
         end_date: req.body.end_date || null,
         venue: venue || null,
         category: category || null,
@@ -912,6 +938,7 @@ router.post(
         schedule: parsedSchedule,
         prizes: parsedPrizes,
         custom_fields: parsedCustomFields,
+        volunteers: parsedVolunteers,
         organizer_email: organizerEmail,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
@@ -919,7 +946,7 @@ router.post(
           normalizeSingleStringField(organizing_school || req.body.organizingSchool || "") || null,
         organizing_dept: organizing_dept || null,
         fest_id: normalizeFestReference(fest_id ?? fest),
-        created_by: req.userInfo?.email,
+        created_by: createdByValue,
         auth_uuid: req.userId,
         registration_deadline: req.body.registration_deadline || null,
         total_participants: 0,
@@ -1049,6 +1076,9 @@ router.post(
 
       // Return detailed error information
       let errorDetail = error.message || "Unknown error occurred";
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: errorDetail });
+      }
       
       // Truncate stack trace for response
       const stackLines = (error.stack || "").split("\n").slice(0, 3).join(" | ");
@@ -1250,6 +1280,7 @@ router.put(
         description,
         event_date,
         event_time,
+        end_time,
         venue,
         category,
         claims_applicable,
@@ -1373,6 +1404,16 @@ router.put(
       const parsedSchedule = parseJsonField(schedule, []);
       const parsedPrizes = parseJsonField(prizes, []);
       const parsedCustomFields = parseJsonField(req.body.custom_fields, []);
+      const hasVolunteerPayload = Object.prototype.hasOwnProperty.call(req.body, "volunteers");
+      const parsedVolunteers = hasVolunteerPayload
+        ? await buildVolunteerAssignments(req.body.volunteers, {
+            endDate: req.body.end_date,
+            eventDate: event_date,
+            endTime: end_time || req.body.endTime,
+            assignedBy: req.userInfo?.email,
+            existingVolunteers: event.volunteers,
+          })
+        : normalizeVolunteerRecords(event.volunteers);
       const campusHostedAt = normalizeSingleStringField(
         req.body.campus_hosted_at || req.body.campusHostedAt || ""
       );
@@ -1422,6 +1463,7 @@ router.put(
         description: description || null,
         event_date: event_date || null,
         event_time: event_time || null,
+        end_time: end_time || req.body.endTime || null,
         end_date: req.body.end_date || null,
         venue: venue || null,
         category: category || null,
@@ -1436,6 +1478,7 @@ router.put(
         schedule: parsedSchedule,
         prizes: parsedPrizes,
         custom_fields: parsedCustomFields,
+        volunteers: parsedVolunteers,
         organizer_email: resolvedOrganizerEmail,
         organizer_phone: req.body.organizer_phone || null,
         whatsapp_invite_link: req.body.whatsapp_invite_link || null,
@@ -1619,6 +1662,10 @@ router.put(
         supabaseError: error.status || error.statusCode || "N/A",
         errorType: error.constructor.name
       });
+
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
       
       // More detailed logging for debugging
       if (error.message && error.message.includes('Supabase')) {
@@ -1635,6 +1682,128 @@ router.put(
           timestamp: new Date().toISOString()
         }
       });
+    }
+  }
+);
+
+// POST add a single volunteer - REQUIRES AUTHENTICATION + OWNERSHIP OR MASTER ADMIN
+router.post(
+  "/:eventId/volunteers",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  (req, res, next) => {
+    if (req.userInfo?.is_masteradmin || req.userInfo?.is_organiser) return next();
+    return res.status(403).json({ error: "Access denied: Organiser privileges required." });
+  },
+  requireOwnership("events", "eventId", "auth_uuid"),
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const targetRegisterNumber = normalizeRegisterNumber(req.body.register_number);
+
+      if (!targetRegisterNumber) {
+        return res.status(400).json({ error: "Register number is required." });
+      }
+
+      const event = req.resource;
+      const existingVolunteers = normalizeVolunteerRecords(event.volunteers);
+
+      if (existingVolunteers.some((v) => v.register_number === targetRegisterNumber)) {
+        return res.status(409).json({ error: "Volunteer already assigned to this event." });
+      }
+
+      const parsedVolunteers = await buildVolunteerAssignments(
+        [
+          ...existingVolunteers.map((v) => ({ register_number: v.register_number })),
+          { register_number: targetRegisterNumber },
+        ],
+        {
+          endDate: event.end_date,
+          eventDate: event.event_date,
+          endTime: event.end_time,
+          assignedBy: req.userInfo?.email,
+          existingVolunteers: event.volunteers,
+        }
+      );
+
+      const updatedRows = await update(
+        "events",
+        { volunteers: parsedVolunteers, updated_at: new Date().toISOString() },
+        { event_id: eventId }
+      );
+
+      return res.status(200).json({
+        message: "Volunteer added successfully.",
+        event: updatedRows?.[0]
+          ? {
+              ...updatedRows[0],
+              volunteers: normalizeVolunteerRecords(updatedRows[0].volunteers),
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error("Server error POST /api/events/:eventId/volunteers:", error);
+      if (error.statusCode === 400) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({ error: "Internal server error while adding volunteer." });
+    }
+  }
+);
+
+// DELETE volunteer access - REQUIRES AUTHENTICATION + OWNERSHIP OR MASTER ADMIN
+router.delete(
+  "/:eventId/volunteers/:registerNumber",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  (req, res, next) => {
+    if (req.userInfo?.is_masteradmin || req.userInfo?.is_organiser) {
+      return next();
+    }
+    return res.status(403).json({ error: "Access denied: Organiser privileges required" });
+  },
+  requireOwnership("events", "eventId", "auth_uuid"),
+  async (req, res) => {
+    try {
+      const { eventId, registerNumber } = req.params;
+      const targetRegisterNumber = normalizeRegisterNumber(registerNumber);
+
+      if (!targetRegisterNumber) {
+        return res.status(400).json({ error: "Volunteer register number is required." });
+      }
+
+      const existingVolunteers = normalizeVolunteerRecords(req.resource?.volunteers);
+      const updatedVolunteers = existingVolunteers.filter(
+        (volunteer) => volunteer.register_number !== targetRegisterNumber
+      );
+
+      if (updatedVolunteers.length === existingVolunteers.length) {
+        return res.status(404).json({ error: "Volunteer assignment not found." });
+      }
+
+      const updatedRows = await update(
+        "events",
+        {
+          volunteers: updatedVolunteers,
+          updated_at: new Date().toISOString(),
+        },
+        { event_id: eventId }
+      );
+
+      return res.status(200).json({
+        message: "Volunteer access revoked successfully.",
+        event: updatedRows?.[0]
+          ? {
+              ...updatedRows[0],
+              volunteers: normalizeVolunteerRecords(updatedRows[0].volunteers),
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error("Server error DELETE /api/events/:eventId/volunteers/:registerNumber:", error);
+      return res.status(500).json({ error: "Internal server error while revoking volunteer access." });
     }
   }
 );

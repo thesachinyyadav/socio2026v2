@@ -59,6 +59,12 @@ export const scheduleItemSchema = z.object({
   activity: z.string().min(1, "Activity is required").max(200, "Max 200 chars"),
 });
 
+export const volunteerAssignmentSchema = z.object({
+  register_number: z.string().min(1, "Register number is required"),
+  expires_at: z.string().min(1, "Expiry is required"),
+  assigned_by: z.string().email("Invalid assigned-by email"),
+});
+
 // Custom field schema for event organizers
 export const customFieldSchema = z.object({
   id: z.string(),
@@ -304,6 +310,13 @@ export const eventFormSchema = z
         /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/,
         "Invalid time format (HH:MM)"
       ),
+    endTime: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(val),
+        "Invalid time format (HH:MM)"
+      ),
     endDate: z.string().min(1, "End date is required"),
     detailedDescription: z
       .string()
@@ -315,7 +328,7 @@ export const eventFormSchema = z
     organizingSchool: z.string().min(1, "Organizing school is required"),
     organizingDept: z.string().min(1, "Organizing department is required"),
     category: z.string().min(1, "Category is required"),
-    festEvent: z.string().optional(),
+    festEvent: z.string().min(1, "Please select an option"),
     registrationDeadline: z.string().min(1, "Deadline is required"),
     location: z
       .string()
@@ -357,6 +370,8 @@ export const eventFormSchema = z
     provideClaims: z.boolean().default(false),
     sendNotifications: z.boolean().default(false),
     onSpot: z.boolean().default(false),
+    needsVolunteers: z.boolean().default(false),
+    volunteers: z.array(volunteerAssignmentSchema).default([]),
     
     // Outsider registration fields
     allowOutsiders: z.boolean().default(false),
@@ -463,6 +478,27 @@ export const eventFormSchema = z
   )
   .refine(
     (data) => {
+      if (!data.needsVolunteers) return true;
+      return Boolean(data.endTime);
+    },
+    {
+      message: "End time is required when volunteer access is enabled",
+      path: ["endTime"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.eventDate || !data.endDate || data.eventDate !== data.endDate) return true;
+      if (!data.endTime) return true;
+      return data.endTime >= data.eventTime;
+    },
+    {
+      message: "End time cannot be before event time on the same day",
+      path: ["endTime"],
+    }
+  )
+  .refine(
+    (data) => {
       if (data.endDate && data.registrationDeadline) {
         // Registration deadline must be on or before the event end date
         return new Date(data.endDate) >= new Date(data.registrationDeadline);
@@ -497,6 +533,7 @@ export const eventFormSchema = z
 // TypeScript type inferred from schema
 // Note: imageFile, bannerFile, and pdfFile are FileList | null (browser native type)
 export type EventFormData = z.infer<typeof eventFormSchema>;
+export type VolunteerAssignment = z.infer<typeof volunteerAssignmentSchema>;
 export type ScheduleItem = z.infer<typeof scheduleItemSchema>;
 
 export const departments: DepartmentOption[] = [

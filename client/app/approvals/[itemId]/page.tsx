@@ -176,7 +176,7 @@ export default function ApprovalsPage() {
   const itemId = params?.itemId as string;
   const typeParam = searchParams.get("type") || undefined;
 
-  const { session, isLoading: authLoading } = useAuth();
+  const { session, isLoading } = useAuth();
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
   const [approval, setApproval] = useState<ApprovalRecord | null>(null);
@@ -214,10 +214,10 @@ export default function ApprovalsPage() {
   }, [venueForm.venue_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
     fetchApproval();
-  }, [authLoading, session, itemId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoading, session, itemId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchApproval() {
     setLoading(true);
@@ -304,7 +304,7 @@ export default function ApprovalsPage() {
     }
   }
 
-  if (authLoading || loading) {
+  if (isLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-500 text-sm">Loading approval status…</p>

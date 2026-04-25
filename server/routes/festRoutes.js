@@ -661,6 +661,14 @@ router.post(
         ? eventHeads.map(normalizeEventHead).filter((head) => head.email)
         : [];
 
+      const subHeadsInput = pickDefined(festData.subHeads, festData.sub_heads);
+      const subHeads = Array.isArray(subHeadsInput)
+        ? subHeadsInput
+        : parseJsonLikeField(subHeadsInput, []);
+      const normalizedSubHeads = Array.isArray(subHeads)
+        ? subHeads.map(normalizeEventHead).filter((head) => head.email)
+        : [];
+
       if (!title || !school || !dept) {
         console.log("Validation failed. Received:", JSON.stringify(festData));
         return res.status(400).json({
@@ -718,6 +726,16 @@ router.post(
         });
       }
 
+      const invalidSubHeadEmail = normalizedSubHeads.some((sh) => !isValidEmail(sh.email));
+      if (invalidSubHeadEmail) {
+        return res.status(400).json({ error: "Each sub-head must have a valid email address." });
+      }
+
+      const missingSubHeadExpiry = normalizedSubHeads.some((sh) => !sh.expiresAt);
+      if (missingSubHeadExpiry) {
+        return res.status(400).json({ error: "Each sub-head must have an expiry date and time." });
+      }
+
       // Generate slug-based ID from title
       const titleForSlug = title;
       let fest_id = titleForSlug
@@ -760,6 +778,7 @@ router.post(
         contact_email: contactEmail,
         contact_phone: contactPhone,
         event_heads: normalizedEventHeads,
+        sub_heads: normalizedSubHeads,
         created_by: req.userInfo?.email,
         auth_uuid: req.userId,
         // New enhanced fest fields
@@ -886,6 +905,7 @@ router.put(
 
       const departmentAccessInput = pickDefined(updateData.department_access, updateData.departmentAccess);
       const eventHeadsInput = pickDefined(updateData.event_heads, updateData.eventHeads);
+      const subHeadsInput = pickDefined(updateData.sub_heads, updateData.subHeads);
       const customFieldsInput = pickDefined(updateData.custom_fields, updateData.customFields);
       const organizingSchoolInput = pickDefined(updateData.organizing_school, updateData.organizingSchool);
       const organizingDeptInput = pickDefined(updateData.organizing_dept, updateData.organizingDept);
@@ -935,6 +955,15 @@ router.put(
         ? parsedEventHeadsInput.map(normalizeEventHead).filter((head) => head.email)
         : [];
       const hasEventHeadsUpdate = eventHeadsInput !== undefined;
+
+      const parsedSubHeadsInput =
+        subHeadsInput !== undefined
+          ? parseJsonLikeField(subHeadsInput, [])
+          : undefined;
+      const normalizedSubHeadsInput = Array.isArray(parsedSubHeadsInput)
+        ? parsedSubHeadsInput.map(normalizeEventHead).filter((sh) => sh.email)
+        : [];
+      const hasSubHeadsUpdate = subHeadsInput !== undefined;
 
       if (normalizedNewTitle !== undefined && !normalizedNewTitle) {
         return res.status(400).json({
@@ -1013,6 +1042,18 @@ router.put(
           });
         }
       }
+
+      if (hasSubHeadsUpdate) {
+        const invalidSubEmail = normalizedSubHeadsInput.some((sh) => !isValidEmail(sh.email));
+        if (invalidSubEmail) {
+          return res.status(400).json({ error: "Each sub-head must have a valid email address." });
+        }
+        const missingSubExpiry = normalizedSubHeadsInput.some((sh) => !sh.expiresAt);
+        if (missingSubExpiry) {
+          return res.status(400).json({ error: "Each sub-head must have an expiry date and time." });
+        }
+      }
+
       const incomingOpeningDate = pickDefined(updateData.opening_date, updateData.openingDate);
       const incomingClosingDate = pickDefined(updateData.closing_date, updateData.closingDate);
       const resolvedOpeningDate = incomingOpeningDate !== undefined ? incomingOpeningDate : existingFest.opening_date;
@@ -1048,6 +1089,7 @@ router.put(
         ["contact_phone", normalizedContactPhone],
         ["department_access", parseJsonLikeField(departmentAccessInput, [])],
         ["event_heads", hasEventHeadsUpdate ? normalizedEventHeadsInput : undefined],
+        ["sub_heads", hasSubHeadsUpdate ? normalizedSubHeadsInput : undefined],
         ["custom_fields", parseJsonLikeField(customFieldsInput, [])],
         // New enhanced fest fields - parse JSON safely
         ["venue", updateData.venue],

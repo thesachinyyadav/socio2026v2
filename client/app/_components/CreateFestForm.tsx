@@ -12,10 +12,6 @@ import {
   CLUBS_AND_CENTRES_SCHOOL,
   departments as allDepartments,
 } from "../lib/eventFormSchema";
-import {
-  buildFestPreviewData,
-  saveFestPreviewDraft,
-} from "../lib/festPreviewDraft";
 import toast from "react-hot-toast";
 import PublishingOverlay from "./UI/PublishingOverlay";
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
@@ -107,62 +103,7 @@ const parseFestCustomFields = (value: unknown): any[] => {
   return [];
 };
 
-const extractTeamSettingsFromCustomFields = (
-  customFields: unknown
-): FestTeamSettings | null => {
-  const parsedFields = parseFestCustomFields(customFields);
-  const settingsEntry = parsedFields.find(
-    (field) =>
-      field &&
-      typeof field === "object" &&
-      !Array.isArray(field) &&
-      field.key === FEST_TEAM_SETTINGS_KEY
-  );
 
-  if (!settingsEntry || typeof settingsEntry !== "object" || Array.isArray(settingsEntry)) {
-    return null;
-  }
-
-  const rawValue = (settingsEntry as { value?: unknown }).value;
-  if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
-    return null;
-  }
-
-  const value = rawValue as {
-    isTeamEvent?: unknown;
-    minParticipants?: unknown;
-    maxParticipants?: unknown;
-  };
-
-  const isTeamEvent =
-    value.isTeamEvent === true || value.isTeamEvent === "true";
-
-  const toClampedValue = (input: unknown, fallback: number) => {
-    const parsed = Number(input);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.max(1, Math.floor(parsed));
-  };
-
-  const rawMin = toClampedValue(value.minParticipants, isTeamEvent ? 2 : 1);
-  const rawMax = toClampedValue(value.maxParticipants, isTeamEvent ? 2 : 1);
-
-  if (!isTeamEvent) {
-    return {
-      isTeamEvent: false,
-      minParticipants: "1",
-      maxParticipants: "1",
-    };
-  }
-
-  const normalizedMax = Math.max(2, rawMax);
-  const normalizedMin = Math.min(Math.max(2, rawMin), normalizedMax);
-
-  return {
-    isTeamEvent: true,
-    minParticipants: String(normalizedMin),
-    maxParticipants: String(normalizedMax),
-  };
-};
 
 const upsertTeamSettingsInCustomFields = (
   customFields: unknown,
@@ -503,7 +444,7 @@ interface DepartmentAndCategoryInputsProps {
   setFormData: React.Dispatch<React.SetStateAction<CreateFestState>>;
   validateField: (
     name: string,
-    value: string | string[] | { index: number; eventHead: string }
+    value: string | string[]
   ) => void;
 }
 interface CreateFestState {
@@ -518,7 +459,7 @@ interface CreateFestState {
   category: string;
   contactEmail: string;
   contactPhone: string;
-  eventHeads: { email: string; expiresAt: string | null }[];
+  subHeads: { email: string; expiresAt: string | null }[];
   organizingSchool: string;
   organizingDept: string;
   venue: string;
@@ -801,7 +742,7 @@ interface CreateFestProps {
   category?: string;
   contactEmail?: string;
   contactPhone?: string;
-  eventHeads?: { email: string; expiresAt: string | null }[];
+  subHeads?: { email: string; expiresAt: string | null }[];
   scheduleItems?: { time: string; activity: string }[];
   rules?: string[];
   prizes?: string[];
@@ -944,6 +885,8 @@ function ApprovalsSetupView({
   const preLiveStages  = stages.filter(s => s.blocking);
   const postLiveStages = stages.filter(s => !s.blocking);
 
+  const isPreLiveOnly = (role: string) => role === 'hod' || role === 'dean';
+
   function handleDragStart(e: React.DragEvent, role: string) {
     setDraggedRole(role);
     e.dataTransfer.effectAllowed = 'move';
@@ -951,8 +894,9 @@ function ApprovalsSetupView({
   }
 
   function handleDragOverItem(e: React.DragEvent, role: string, section: 'pre' | 'post') {
-    e.preventDefault();
     e.stopPropagation();
+    if (draggedRole && isPreLiveOnly(draggedRole) && section === 'post') return;
+    e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const position: 'before' | 'after' = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
     setDropTarget({ role, position, section });
@@ -962,6 +906,7 @@ function ApprovalsSetupView({
     e.preventDefault();
     e.stopPropagation();
     if (!draggedRole || !dropTarget) return;
+    if (isPreLiveOnly(draggedRole) && targetSection === 'post') { setDraggedRole(null); setDropTarget(null); return; }
     const sourceStage = stages.find(s => s.role === draggedRole);
     if (!sourceStage || draggedRole === targetRole) { setDraggedRole(null); setDropTarget(null); return; }
     const targetBlocking = targetSection === 'pre';
@@ -980,6 +925,7 @@ function ApprovalsSetupView({
   }
 
   function handleDragOverEmpty(e: React.DragEvent, section: 'pre' | 'post') {
+    if (draggedRole && isPreLiveOnly(draggedRole) && section === 'post') return;
     e.preventDefault();
     setDropTarget({ role: null, position: 'after', section });
   }
@@ -987,6 +933,7 @@ function ApprovalsSetupView({
   function handleDropOnEmpty(e: React.DragEvent, section: 'pre' | 'post') {
     e.preventDefault();
     if (!draggedRole) return;
+    if (isPreLiveOnly(draggedRole) && section === 'post') return;
     const sourceStage = stages.find(s => s.role === draggedRole);
     if (!sourceStage) return;
     const targetBlocking = section === 'pre';
@@ -1280,7 +1227,7 @@ function ApprovalsSetupView({
           <button
             type="button"
             onClick={() => onSubmitForApproval(stages.filter(s => s.required || s.enabled !== false), budgetItems)}
-            disabled={isSubmitting || !festId}
+            disabled={isSubmitting}
             className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-semibold rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isSubmitting && (
@@ -1313,17 +1260,16 @@ function CreateFestForm(props?: CreateFestProps) {
   const organizingSchool =
     props?.organizingSchool || inferSchoolFromDepartment(props?.organizingDept || "");
   const organizingDept = props?.organizingDept || "";
-  const initialEventHeads: { email: string; expiresAt: string | null }[] =
-    (props?.eventHeads || []).map((head) => ({
-      email: normalizeEmail(head.email),
-      expiresAt: head.expiresAt || null,
+  const initialSubHeads: { email: string; expiresAt: string | null }[] =
+    (props?.subHeads || []).map((sh) => ({
+      email: normalizeEmail(sh.email),
+      expiresAt: sh.expiresAt || null,
     }));
   const customFields = parseFestCustomFields(props?.customFields);
   // New props for edit mode
   const isEditMode = props?.isEditMode || false;
   const existingImageFileUrl = props?.existingImageFileUrl || null;
-  const existingBannerFileUrl = props?.existingBannerFileUrl || null;
-  const existingPdfFileUrl = props?.existingPdfFileUrl || null;
+
   // New fest enhancement fields
   const venue = props?.venue || "";
   const status = deriveFestStatusFromDates(openingDate, closingDate);
@@ -1350,7 +1296,7 @@ function CreateFestForm(props?: CreateFestProps) {
     contactPhone,
     organizingSchool,
     organizingDept,
-    eventHeads: initialEventHeads,
+    subHeads: initialSubHeads,
     venue,
     status,
     registration_deadline,
@@ -1371,11 +1317,11 @@ function CreateFestForm(props?: CreateFestProps) {
   const [approvalPhase1Complete, setApprovalPhase1Complete] = useState(false);
   const [existingBudgetItems, setExistingBudgetItems] = useState<BudgetItem[]>([]);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
-  const [isOpeningPreview, setIsOpeningPreview] = useState(false);
   const [isLoadingFestData, setIsLoadingFestData] = useState(false);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const actionsDropdownRef = useRef<HTMLDivElement>(null);
-  const [submitIntent, setSubmitIntent] = useState<"publish" | "draft">("publish");
+  const isOpeningPreview = false;
+
   const [successAction, setSuccessAction] = useState<"publish" | "draft">("publish");
   const [wasDraftOnSubmit, setWasDraftOnSubmit] = useState(false);
   const [pendingFestSuccess, setPendingFestSuccess] = useState(false);
@@ -1383,11 +1329,7 @@ function CreateFestForm(props?: CreateFestProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false); // Used for delete operation
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionMode, setSubmissionMode] = useState<"publish" | "draft">(
-    "publish"
-  );
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [pendingSuccess, setPendingSuccess] = useState<"publish" | "draft" | null>(null);
+
 
   const { session } = useAuth();
   const currentDateRef = useRef(new Date());
@@ -1481,17 +1423,11 @@ function CreateFestForm(props?: CreateFestProps) {
 
           const data = responseBody;
           if (data?.fest) {
-            // Transform event_heads to new format
-            const eventHeadsData = data.fest.event_heads || [];
-            const transformedEventHeads = eventHeadsData.map((head: any) => {
-              if (typeof head === 'string') {
-                return { email: normalizeEmail(head), expiresAt: null };
-              }
-              return {
-                email: normalizeEmail(head.email || ""),
-                expiresAt: head.expiresAt || null,
-              };
-            });
+            const subHeadsData = data.fest.sub_heads || [];
+            const transformedSubHeads = subHeadsData.map((sh: any) => ({
+              email: normalizeEmail(sh.email || ""),
+              expiresAt: sh.expiresAt || null,
+            }));
 
             const parsedCustomFields = parseFestCustomFields(data.fest.custom_fields);
             const loadedOpeningDate = data.fest.opening_date
@@ -1513,7 +1449,7 @@ function CreateFestForm(props?: CreateFestProps) {
               category: data.fest.category || "",
               contactEmail: normalizeEmail(data.fest.contact_email || ""),
               contactPhone: normalizePhone(data.fest.contact_phone || ""),
-              eventHeads: transformedEventHeads,
+              subHeads: transformedSubHeads,
               organizingSchool:
                 data.fest.organizing_school ||
                 inferSchoolFromDepartment(data.fest.organizing_dept || ""),
@@ -1621,7 +1557,7 @@ function CreateFestForm(props?: CreateFestProps) {
     setErrors({});
     try {
       const response = await fetch(
-        `${API_URL}/api/fests/${festIdFromPath}`,
+        `/api/fests/${festIdFromPath}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -1644,38 +1580,12 @@ function CreateFestForm(props?: CreateFestProps) {
   const validateField = useCallback(
     (
       name: string,
-      value: string | string[] | { index: number; eventHead: string }
+      value: string | string[]
     ) => {
       const newErrors: Record<string, string | undefined> = { ...errors };
       const currentDate = new Date(currentDateRef.current);
 
-      if (
-        typeof value === "object" &&
-        !Array.isArray(value) &&
-        "index" in value &&
-        "eventHead" in value
-      ) {
-        const { index, eventHead } = value;
-        const normalizedHeadEmail = normalizeEmail(eventHead);
-        const expiryValue = formData.eventHeads[index]?.expiresAt || null;
-
-        if (normalizedHeadEmail === "") {
-          delete newErrors[`eventHead_${index}`];
-          delete newErrors[`eventHeadExpiry_${index}`];
-        } else if (!isValidEmail(normalizedHeadEmail))
-          newErrors[`eventHead_${index}`] = "Invalid email format.";
-        else if (normalizedHeadEmail.length > MAX_EMAIL_LENGTH)
-          newErrors[`eventHead_${index}`] = "Max 100 chars.";
-        else delete newErrors[`eventHead_${index}`];
-
-        if (normalizedHeadEmail !== "" && !expiryValue) {
-          newErrors[`eventHeadExpiry_${index}`] =
-            "Expiry date and time is required.";
-        } else {
-          delete newErrors[`eventHeadExpiry_${index}`];
-        }
-      } else {
-        switch (name) {
+      switch (name) {
           case "title":
             if (!(value as string).trim())
               newErrors.title = "Fest title is required";
@@ -1876,7 +1786,6 @@ function CreateFestForm(props?: CreateFestProps) {
             else delete newErrors.allowedCampuses;
             break;
         }
-      }
       setErrors(newErrors);
     },
     [
@@ -2065,21 +1974,6 @@ function CreateFestForm(props?: CreateFestProps) {
 
       fieldsToValidate.forEach((field) => validateSync(field, formData[field]));
 
-      formData.eventHeads.forEach((head, index) => {
-        const normalizedHeadEmail = normalizeEmail(head.email);
-
-        if (normalizedHeadEmail !== "" && !isValidEmail(normalizedHeadEmail)) {
-          currentValidationErrors[`eventHead_${index}`] = "Invalid email format.";
-        } else if (normalizedHeadEmail.length > MAX_EMAIL_LENGTH) {
-          currentValidationErrors[`eventHead_${index}`] = "Max 100 chars.";
-        }
-
-        if (normalizedHeadEmail !== "" && !head.expiresAt) {
-          currentValidationErrors[`eventHeadExpiry_${index}`] =
-            "Expiry date and time is required.";
-        }
-      });
-
       if (shouldValidateImage) {
         if (!imageFile && !isEditMode && !existingImageFileUrl) {
           currentValidationErrors.imageFile = "Fest image is required";
@@ -2134,16 +2028,6 @@ function CreateFestForm(props?: CreateFestProps) {
       if (firstKey === "organizingSchool") selector = "#organizingSchool";
       if (firstKey === "imageFile") selector = "#image-upload-input";
 
-      if (firstKey.startsWith("eventHead_")) {
-        const index = firstKey.replace("eventHead_", "");
-        selector = `#event-head-email-${index}`;
-      }
-
-      if (firstKey.startsWith("eventHeadExpiry_")) {
-        const index = firstKey.replace("eventHeadExpiry_", "");
-        selector = `#event-head-expiration-${index}`;
-      }
-
       const targetElement = document.querySelector<HTMLElement>(selector);
       if (!targetElement) return;
 
@@ -2167,10 +2051,8 @@ function CreateFestForm(props?: CreateFestProps) {
     []
   );
 
-  const submitFest = async (saveAsDraft: boolean): Promise<string | null> => {
+  const submitFest = async (saveAsDraft: boolean, quiet = false): Promise<string | null> => {
     setErrors((prev) => ({ ...prev, submit: undefined }));
-    setSubmitIntent(saveAsDraft ? "draft" : "publish");
-
     const currentValidationErrors = getValidationErrors({ validateImage: true });
 
     if (
@@ -2188,16 +2070,18 @@ function CreateFestForm(props?: CreateFestProps) {
       return null;
     }
 
-    setIsSubmitting(true);
-    setWasDraftOnSubmit(Boolean(!saveAsDraft && finalIsEditMode && isDraftFest));
+    if (!quiet) {
+      setIsSubmitting(true);
+      setWasDraftOnSubmit(Boolean(!saveAsDraft && finalIsEditMode && isDraftFest));
+    }
     let uploadedFestImageUrl: string | null = null;
 
     if (imageFile) {
-      setIsUploadingImage(true);
+      if (!quiet) setIsUploadingImage(true);
       try {
         const uploadFormData = new FormData();
         uploadFormData.append("file", imageFile);
-        
+
         // Use the server's file upload API instead of Supabase storage
         const uploadResponse = await fetch(`${API_URL}/api/upload/fest-image`, {
           method: 'POST',
@@ -2209,7 +2093,7 @@ function CreateFestForm(props?: CreateFestProps) {
         });
 
         const uploadData = await readApiBodySafely(uploadResponse);
-        
+
         if (!uploadResponse.ok) {
           throw new Error(
             extractApiErrorMessage(
@@ -2223,7 +2107,7 @@ function CreateFestForm(props?: CreateFestProps) {
         if (!uploadData || !uploadData.url) {
           throw new Error("Upload succeeded but no URL returned. Please contact support.");
         }
-        
+
         // Use the URL returned from our server API
         uploadedFestImageUrl = uploadData.url;
         console.log(`✅ Fest image uploaded successfully: ${uploadedFestImageUrl}`);
@@ -2233,17 +2117,19 @@ function CreateFestForm(props?: CreateFestProps) {
           ...prev,
           submit: `Image upload failed: ${errorMessage}`,
         }));
-        setIsSubmitting(false);
-        setIsUploadingImage(false);
+        if (!quiet) {
+          setIsSubmitting(false);
+          setIsUploadingImage(false);
+        }
         return null;
       }
-      setIsUploadingImage(false);
+      if (!quiet) setIsUploadingImage(false);
     } else if (!imageFile && !isEditMode && !existingImageFileUrl) {
       setErrors((prev) => ({
         ...prev,
         submit: "Fest image is required for new fests.",
       }));
-      setIsSubmitting(false);
+      if (!quiet) setIsSubmitting(false);
       return null;
     }
 
@@ -2277,12 +2163,12 @@ function CreateFestForm(props?: CreateFestProps) {
       const isPublishingDraft = !saveAsDraft && finalIsEditMode && isDraftFest;
       const normalizedContactEmail = normalizeEmail(formData.contactEmail);
       const normalizedContactPhone = normalizePhone(formData.contactPhone);
-      const sanitizedEventHeads = formData.eventHeads
-        .map((head) => ({
-          email: normalizeEmail(head.email),
-          expiresAt: head.expiresAt || null,
+      const sanitizedSubHeads = formData.subHeads
+        .map((sh) => ({
+          email: normalizeEmail(sh.email),
+          expiresAt: sh.expiresAt || null,
         }))
-        .filter((head) => head.email !== "");
+        .filter((sh) => sh.email !== "");
 
       console.log(`[Fest Submit] isEditMode=${isEditMode}, uploadedFestImageUrl=${uploadedFestImageUrl}, existingImageFileUrl=${existingImageFileUrl}, finalImageUrl=${finalImageUrl}`);
 
@@ -2300,7 +2186,7 @@ function CreateFestForm(props?: CreateFestProps) {
         category: formData.category,
         contactEmail: normalizedContactEmail,
         contactPhone: normalizedContactPhone,
-        eventHeads: sanitizedEventHeads,
+        subHeads: sanitizedSubHeads,
         organizingSchool: formData.organizingSchool,
         organizingDept: formData.organizingDept,
         createdBy: session.user.email,
@@ -2328,7 +2214,7 @@ function CreateFestForm(props?: CreateFestProps) {
       let response;
       if (finalIsEditMode && festIdFromPath) {
         response = await fetch(
-          `${API_URL}/api/fests/${festIdFromPath}`,
+          `/api/fests/${festIdFromPath}`,
           {
             method: "PUT",
             headers: {
@@ -2339,7 +2225,7 @@ function CreateFestForm(props?: CreateFestProps) {
           }
         );
       } else {
-        response = await fetch(`${API_URL}/api/fests`, {
+        response = await fetch(`/api/fests`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -2408,7 +2294,7 @@ function CreateFestForm(props?: CreateFestProps) {
         null;
 
       // Defer modal until overlay animation finishes (only for normal publish/edit flow)
-      if (!saveAsDraft || finalIsEditMode) {
+      if (!quiet && (!saveAsDraft || finalIsEditMode)) {
         setSuccessAction(saveAsDraft ? "draft" : "publish");
         setPendingFestSuccess(true);
       }
@@ -2421,8 +2307,9 @@ function CreateFestForm(props?: CreateFestProps) {
       }));
       return null;
     } finally {
-      setIsSubmitting(false);
-      setSubmitIntent("publish");
+      if (!quiet) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -2431,19 +2318,28 @@ function CreateFestForm(props?: CreateFestProps) {
     await submitFest(false);
   };
 
-  const handleGoAheadForApprovals = async () => {
-    if (isSubmitting || isNavigating || isUploadingImage) return;
-    const festId = await submitFest(true);
-    if (!festId) return;
-    setSavedFestId(festId);
+  const handleGoAheadForApprovals = () => {
+    const currentValidationErrors = getValidationErrors({ validateImage: true });
+    if (Object.keys(currentValidationErrors).some((k) => currentValidationErrors[k] !== undefined)) {
+      setErrors({ ...currentValidationErrors, submit: "Please correct the errors in the form." });
+      requestAnimationFrame(() => scrollToFirstFestError(currentValidationErrors));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, submit: undefined }));
     setActiveView('approvals');
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
   };
 
   const handleSubmitForApproval = async (customStages: WorkflowStage[], budgetItems: BudgetItem[]) => {
-    const festId = savedFestId || festIdFromPath;
-    if (!festId || !session?.access_token) return;
+    if (!session?.access_token) return;
     setIsSubmittingApproval(true);
     try {
+      let festId = savedFestId || festIdFromPath;
+      if (!festId) {
+        festId = await submitFest(true, true);
+        if (!festId) return;
+        setSavedFestId(festId);
+      }
       const res = await fetch(`${API_URL}/api/approvals`, {
         method: 'POST',
         headers: {
@@ -2483,77 +2379,6 @@ function CreateFestForm(props?: CreateFestProps) {
       toast.error(err.message || 'Failed to update workflow');
     } finally {
       setIsSubmittingApproval(false);
-    }
-  };
-
-  const handlePreview = async () => {
-    if (isSubmitting || isNavigating || isUploadingImage || isOpeningPreview) {
-      return;
-    }
-
-    setErrors((prev) => ({ ...prev, submit: undefined }));
-    setIsOpeningPreview(true);
-
-    try {
-      const currentValidationErrors = getValidationErrors({ validateImage: true });
-      if (
-        Object.keys(currentValidationErrors).some(
-          (key) => currentValidationErrors[key] !== undefined
-        )
-      ) {
-        setErrors({
-          ...currentValidationErrors,
-          submit: "Please correct the errors in the form.",
-        });
-        requestAnimationFrame(() => {
-          scrollToFirstFestError(currentValidationErrors);
-        });
-        return;
-      }
-
-      const previewData = buildFestPreviewData({
-        formData: {
-          title: formData.title,
-          openingDate: formData.openingDate,
-          closingDate: formData.closingDate,
-          detailedDescription: formData.detailedDescription,
-          organizingDept: formData.organizingDept,
-          category: formData.category,
-          contactEmail: formData.contactEmail,
-          contactPhone: formData.contactPhone,
-          eventHeads: formData.eventHeads,
-          venue: formData.venue,
-          timeline: formData.timeline,
-          sponsors: formData.sponsors,
-          social_links: formData.social_links,
-          faqs: formData.faqs,
-          isTeamEvent: formData.isTeamEvent,
-          minParticipants: formData.minParticipants,
-          maxParticipants: formData.maxParticipants,
-          campusHostedAt: formData.campusHostedAt,
-          allowedCampuses: formData.allowedCampuses,
-          allowOutsiders: formData.allowOutsiders,
-          imageFile,
-        },
-        sourcePath: pathname || "/create/fest",
-        existingImageFileUrl,
-      });
-
-      const previewDraftKey = saveFestPreviewDraft(previewData);
-      const previewUrl = `/fest/preview?draft=${encodeURIComponent(previewDraftKey)}`;
-      const previewTab = window.open("", "_blank");
-
-      if (!previewTab) {
-        window.alert("Preview was blocked. Please allow pop-ups and try again.");
-        return;
-      }
-
-      previewTab.opener = null;
-      previewTab.location.href = previewUrl;
-    } catch (previewError) {
-      console.error("CreateFestForm: Failed to open preview", previewError);
-    } finally {
-      setIsOpeningPreview(false);
     }
   };
 
@@ -2674,87 +2499,66 @@ function CreateFestForm(props?: CreateFestProps) {
   };
   const handleDateBlur = (name: "openingDate" | "closingDate") =>
     validateField(name, formData[name]);
-  const handleEventHeadChange = (index: number, value: string) => {
-    const newEventHeads = [...formData.eventHeads];
-    newEventHeads[index] = { ...newEventHeads[index], email: value };
-    setFormData((prev) => ({ ...prev, eventHeads: newEventHeads }));
+  const handleSubHeadChange = (index: number, value: string) => {
+    const updated = [...formData.subHeads];
+    updated[index] = { ...updated[index], email: value };
+    setFormData((prev) => ({ ...prev, subHeads: updated }));
   };
-  const handleEventHeadExpirationChange = (index: number, value: string | null) => {
-    const newEventHeads = [...formData.eventHeads];
-    newEventHeads[index] = { ...newEventHeads[index], expiresAt: value };
-    setFormData((prev) => ({ ...prev, eventHeads: newEventHeads }));
-
+  const handleSubHeadExpirationChange = (index: number, value: string | null) => {
+    const updated = [...formData.subHeads];
+    updated[index] = { ...updated[index], expiresAt: value };
+    setFormData((prev) => ({ ...prev, subHeads: updated }));
     setErrors((prev) => {
       const next = { ...prev };
-      const hasEmail = normalizeEmail(newEventHeads[index].email) !== "";
+      const hasEmail = normalizeEmail(updated[index].email) !== "";
       if (hasEmail && !value) {
-        next[`eventHeadExpiry_${index}`] = "Expiry date and time is required.";
+        next[`subHeadExpiry_${index}`] = "Expiry date and time is required.";
       } else {
-        delete next[`eventHeadExpiry_${index}`];
+        delete next[`subHeadExpiry_${index}`];
       }
       return next;
     });
   };
-  const handleEventHeadBlur = (index: number) => {
-    const normalizedHeadEmail = normalizeEmail(formData.eventHeads[index].email);
-
+  const handleSubHeadBlur = (index: number) => {
+    const normalized = normalizeEmail(formData.subHeads[index].email);
     setFormData((prev) => {
-      const updatedHeads = [...prev.eventHeads];
-      updatedHeads[index] = {
-        ...updatedHeads[index],
-        email: normalizedHeadEmail,
-      };
-      return { ...prev, eventHeads: updatedHeads };
-    });
-
-    validateField(`eventHead_${index}`, {
-      index,
-      eventHead: normalizedHeadEmail,
+      const updated = [...prev.subHeads];
+      updated[index] = { ...updated[index], email: normalized };
+      return { ...prev, subHeads: updated };
     });
   };
-  const addEventHead = () => {
-    if (formData.eventHeads.length < 5)
+  const addSubHead = () => {
+    if (formData.subHeads.length < 5)
       setFormData((prev) => ({
         ...prev,
-        eventHeads: [...prev.eventHeads, { email: "", expiresAt: null }],
+        subHeads: [...prev.subHeads, { email: "", expiresAt: null }],
       }));
   };
-  const removeEventHead = (index: number) => {
+  const removeSubHead = (index: number) => {
     setFormData((prev) => ({
       ...prev,
-      eventHeads: prev.eventHeads.filter((_, i) => i !== index),
+      subHeads: prev.subHeads.filter((_, i) => i !== index),
     }));
     setErrors((prev) => {
       const nextErrors: Record<string, string | undefined> = {};
-
       Object.entries(prev).forEach(([key, message]) => {
         if (!message) return;
-
-        const eventHeadMatch = key.match(/^eventHead_(\d+)$/);
-        if (eventHeadMatch) {
-          const currentIndex = Number(eventHeadMatch[1]);
-          if (currentIndex === index) return;
-          const nextKey =
-            currentIndex > index ? `eventHead_${currentIndex - 1}` : key;
-          nextErrors[nextKey] = message;
+        const emailMatch = key.match(/^subHead_(\d+)$/);
+        if (emailMatch) {
+          const ci = Number(emailMatch[1]);
+          if (ci === index) return;
+          nextErrors[ci > index ? `subHead_${ci - 1}` : key] = message;
           return;
         }
-
-        const expiryMatch = key.match(/^eventHeadExpiry_(\d+)$/);
+        const expiryMatch = key.match(/^subHeadExpiry_(\d+)$/);
         if (expiryMatch) {
-          const currentIndex = Number(expiryMatch[1]);
-          if (currentIndex === index) return;
-          const nextKey =
-            currentIndex > index
-              ? `eventHeadExpiry_${currentIndex - 1}`
-              : key;
-          nextErrors[nextKey] = message;
+          const ci = Number(expiryMatch[1]);
+          if (ci === index) return;
+          nextErrors[ci > index ? `subHeadExpiry_${ci - 1}` : key] = message;
           return;
         }
-
         nextErrors[key] = message;
       });
-
       return nextErrors;
     });
   };
@@ -2934,20 +2738,14 @@ function CreateFestForm(props?: CreateFestProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (savedFestId || finalIsEditMode) setActiveView('approvals');
-                  }}
-                  disabled={!savedFestId && !finalIsEditMode}
-                  className={`flex-1 py-4 px-6 text-sm font-semibold transition-colors focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${
+                  onClick={() => setActiveView('approvals')}
+                  className={`flex-1 py-4 px-6 text-sm font-semibold transition-colors focus:outline-none ${
                     activeView === 'approvals'
                       ? 'text-[#154CB3] border-b-2 border-[#154CB3] bg-blue-50/40'
                       : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   Approvals
-                  {!savedFestId && !finalIsEditMode && (
-                    <span className="ml-2 text-xs text-gray-400 font-normal">(save draft first)</span>
-                  )}
                 </button>
               </div>
 
@@ -3470,126 +3268,110 @@ function CreateFestForm(props?: CreateFestProps) {
                     )}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-[#FFCC00] rounded-full w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 16 16"
-                          fill="currentColor"
-                          className="size-4 text-[#063168]"
-                        >
+                {/* Sub Heads Section */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[#e8eef8]">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-4 text-[#063168]">
                           <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z" />
                         </svg>
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-bold text-[#063168]">
-                          Event heads (optional, max 5)
+                          Sub heads (optional, max 5)
                         </h3>
                         <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                          Assign organizer access with mandatory expiry.
+                          Sub heads can create events under this fest only.
                         </p>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={addEventHead}
-                      disabled={formData.eventHeads.length >= 5}
-                      aria-label="Add event head"
-                      title="Add event head"
+                      onClick={addSubHead}
+                      disabled={formData.subHeads.length >= 5}
+                      aria-label="Add sub head"
+                      title="Add sub head"
                       className="bg-[#063168] px-4 py-2.5 rounded-full text-white cursor-pointer text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      + Add Head
+                      + Add Sub Head
                     </button>
                   </div>
 
-                  {formData.eventHeads.length === 0 && (
+                  {formData.subHeads.length === 0 && (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
-                      No event heads added yet.
+                      No sub heads added yet.
                     </div>
                   )}
 
                   <div className="space-y-4">
-                    {formData.eventHeads.map((eventHead, index) => (
+                    {formData.subHeads.map((subHead, index) => (
                       <div key={index} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Head {index + 1}
+                            Sub Head {index + 1}
                           </p>
                           <button
                             type="button"
-                            onClick={() => removeEventHead(index)}
+                            onClick={() => removeSubHead(index)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                            aria-label={`Remove event head ${index + 1}`}
+                            aria-label={`Remove sub head ${index + 1}`}
                           >
                             Remove
                           </button>
                         </div>
 
                         <label
-                          htmlFor={`event-head-email-${index}`}
+                          htmlFor={`sub-head-email-${index}`}
                           className="block text-xs font-semibold text-gray-600 mb-1.5"
                         >
-                          Event head email
+                          Sub head email
                         </label>
                         <input
-                          id={`event-head-email-${index}`}
+                          id={`sub-head-email-${index}`}
                           type="email"
                           placeholder="name@christuniversity.in"
-                          value={eventHead.email}
-                          onChange={(e) => handleEventHeadChange(index, e.target.value)}
-                          onBlur={() => handleEventHeadBlur(index)}
-                          aria-describedby={
-                            errors[`eventHead_${index}`]
-                              ? `eventHead-error-${index}`
-                              : undefined
-                          }
+                          value={subHead.email}
+                          onChange={(e) => handleSubHeadChange(index, e.target.value)}
+                          onBlur={() => handleSubHeadBlur(index)}
                           className={`w-full px-4 py-2.5 rounded-lg border ${
-                            errors[`eventHead_${index}`] ? "border-red-500" : "border-gray-300"
+                            errors[`subHead_${index}`] ? "border-red-500" : "border-gray-300"
                           } focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent transition-all text-sm bg-white`}
                         />
-                        {errors[`eventHead_${index}`] && (
-                          <p id={`eventHead-error-${index}`} className="text-red-500 text-xs mt-1">
-                            {errors[`eventHead_${index}`]}
-                          </p>
+                        {errors[`subHead_${index}`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`subHead_${index}`]}</p>
                         )}
 
                         <div className="mt-3 pt-3 border-t border-slate-200">
                           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
                             <div>
                               <label
-                                htmlFor={`event-head-expiration-${index}`}
+                                htmlFor={`sub-head-expiration-${index}`}
                                 className="block text-xs font-semibold text-gray-600 mb-1.5"
                               >
-                                Organizer access expiry <span className="text-red-500">*</span>
+                                Access expiry <span className="text-red-500">*</span>
                               </label>
                               <input
-                                id={`event-head-expiration-${index}`}
+                                id={`sub-head-expiration-${index}`}
                                 type="datetime-local"
-                                value={toDateTimeLocalInputValue(eventHead.expiresAt)}
+                                value={toDateTimeLocalInputValue(subHead.expiresAt)}
                                 onChange={(e) => {
                                   if (!e.target.value) {
-                                    handleEventHeadExpirationChange(index, null);
+                                    handleSubHeadExpirationChange(index, null);
                                     return;
                                   }
-
-                                  const parsedExpiry = new Date(e.target.value);
-                                  handleEventHeadExpirationChange(
+                                  const parsed = new Date(e.target.value);
+                                  handleSubHeadExpirationChange(
                                     index,
-                                    Number.isNaN(parsedExpiry.getTime())
-                                      ? null
-                                      : parsedExpiry.toISOString()
+                                    Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
                                   );
                                 }}
-                                onBlur={() => handleEventHeadBlur(index)}
-                                aria-label={`Event head ${index + 1} expiration date and time`}
+                                onBlur={() => handleSubHeadBlur(index)}
+                                aria-label={`Sub head ${index + 1} expiration date and time`}
                                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
                               />
-                              {errors[`eventHeadExpiry_${index}`] && (
-                                <p className="text-red-500 text-xs mt-1">
-                                  {errors[`eventHeadExpiry_${index}`]}
-                                </p>
+                              {errors[`subHeadExpiry_${index}`] && (
+                                <p className="text-red-500 text-xs mt-1">{errors[`subHeadExpiry_${index}`]}</p>
                               )}
                             </div>
                             <div className="flex flex-wrap gap-1.5 lg:justify-end">
@@ -3602,17 +3384,17 @@ function CreateFestForm(props?: CreateFestProps) {
                                     if (preset === "1 week") date.setDate(date.getDate() + 7);
                                     else if (preset === "1 month") date.setMonth(date.getMonth() + 1);
                                     else if (preset === "3 months") date.setMonth(date.getMonth() + 3);
-                                    handleEventHeadExpirationChange(index, date.toISOString());
+                                    handleSubHeadExpirationChange(index, date.toISOString());
                                   }}
                                   className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-gray-600"
                                 >
                                   {preset}
                                 </button>
                               ))}
-                              {eventHead.expiresAt && (
+                              {subHead.expiresAt && (
                                 <button
                                   type="button"
-                                  onClick={() => handleEventHeadExpirationChange(index, null)}
+                                  onClick={() => handleSubHeadExpirationChange(index, null)}
                                   className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-red-300 hover:bg-red-50 transition-colors text-red-600"
                                 >
                                   Clear
@@ -3620,15 +3402,13 @@ function CreateFestForm(props?: CreateFestProps) {
                               )}
                             </div>
                           </div>
-
-                          {eventHead.expiresAt &&
-                          !Number.isNaN(new Date(eventHead.expiresAt).getTime()) ? (
+                          {subHead.expiresAt && !Number.isNaN(new Date(subHead.expiresAt).getTime()) ? (
                             <p className="text-xs text-green-600 mt-2">
-                              Access expires: {new Date(eventHead.expiresAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              Access expires: {new Date(subHead.expiresAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           ) : (
                             <p className="text-xs text-red-600 mt-2">
-                              Expiry is required for each event head.
+                              Expiry is required for each sub head.
                             </p>
                           )}
                         </div>
@@ -3980,9 +3760,7 @@ function CreateFestForm(props?: CreateFestProps) {
                           disabled={isSubmitting || isNavigating || isOpeningPreview}
                           className="w-full sm:w-auto px-5 py-2.5 border border-amber-400 text-amber-800 bg-amber-50 text-sm font-medium rounded-md hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                         >
-                          {isSubmitting && submissionMode === "draft"
-                            ? "Saving Draft..."
-                            : "Save as Draft"}
+                          {isSubmitting ? "Saving Draft..." : "Save as Draft"}
                         </button>
                       </>
                     )}
@@ -4043,25 +3821,17 @@ function CreateFestForm(props?: CreateFestProps) {
                         </svg>
                       )}
                       <span>
-                        {isUploadingImage ? "Uploading image..." : isSubmitting ? (submissionMode === "draft" ? "Saving Draft..." : isDraftFest ? "Publishing..." : "Updating...") : isDraftFest ? "Publish Fest" : "Update Fest"}
+                        {isUploadingImage ? "Uploading image..." : isSubmitting ? (isDraftFest ? "Publishing..." : "Updating...") : isDraftFest ? "Publish Fest" : "Update Fest"}
                       </span>
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={handleGoAheadForApprovals}
-                      disabled={isSubmitting || isNavigating || isUploadingImage}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-semibold rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                      disabled={isNavigating}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-semibold rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                     >
-                      {(isSubmitting || isUploadingImage) && (
-                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      )}
-                      <span>
-                        {isUploadingImage ? "Uploading image..." : isSubmitting ? "Saving..." : "Go ahead for Approvals →"}
-                      </span>
+                      Go ahead for Approvals →
                     </button>
                   )}
                 </div>

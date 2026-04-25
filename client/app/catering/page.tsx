@@ -78,7 +78,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function CateringDashboard() {
-  const { session, userData, isLoading: authLoading } = useAuth();
+  const { session, userData, isLoading } = useAuth();
   const router = useRouter();
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
@@ -89,7 +89,7 @@ export default function CateringDashboard() {
   const [actionBookingId, setActionBookingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
     const c = (userData as any)?.caters;
     const list = Array.isArray(c) ? c : c ? [c] : [];
@@ -99,7 +99,7 @@ export default function CateringDashboard() {
       return;
     }
     fetchBookings();
-  }, [authLoading, session, userData]);
+  }, [isLoading, session, userData]);
 
   async function fetchBookings() {
     setLoading(true);

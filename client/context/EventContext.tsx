@@ -52,6 +52,7 @@ export interface FetchedEvent {
   description: string | null;
   event_date: string | null;
   event_time: string | null;
+  end_time?: string | null;
   end_date: string | null;
   venue: string | null;
   category: string | null;
@@ -66,6 +67,11 @@ export interface FetchedEvent {
   schedule: string | Array<{ time: string; activity: string }> | null;
   prizes: string | string[] | null;
   custom_fields: any[] | null;
+  volunteers?: Array<{
+    register_number: string;
+    expires_at: string;
+    assigned_by: string;
+  }> | null;
   organizer_email: string | null;
   organizer_phone: number | string | null;
   whatsapp_invite_link: string | null;

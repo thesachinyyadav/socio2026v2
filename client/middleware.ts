@@ -142,8 +142,23 @@ export async function middleware(req: NextRequest) {
     }
 
     const canManage = Boolean(userData?.is_organiser) || Boolean(userData?.is_masteradmin);
+
     if (isManagementRoute && !canManage) {
-      return redirect("/error");
+      // Check if user is an active sub-head of any fest
+      const { data: subHeadFests } = await supabase
+        .from("fests")
+        .select("fest_id, sub_heads")
+        .filter("sub_heads", "cs", JSON.stringify([{ email: user.email }]));
+
+      const now = new Date();
+      const isSubHead = subHeadFests?.some((fest) => {
+        if (!Array.isArray(fest.sub_heads)) return false;
+        return fest.sub_heads.some(
+          (sh: any) => sh.email === user.email && sh.expiresAt && new Date(sh.expiresAt) > now
+        );
+      }) ?? false;
+
+      if (!isSubHead) return redirect("/error");
     }
 
     if (isHodRoute && !userData?.is_hod && !userData?.is_masteradmin) {

@@ -901,6 +901,55 @@ function normalizeData(users, events, registrations, attendanceRows) {
   };
 }
 
+function getTeacherAnalytics(teacherNormalized, deptEvents, currentRows) {
+  const eventsByOrganiser = new Map();
+  deptEvents.forEach((event) => {
+    if (!event.organizerEmail) return;
+    const key = event.organizerEmail.toLowerCase();
+    const existing = eventsByOrganiser.get(key) ?? [];
+    existing.push(event);
+    eventsByOrganiser.set(key, existing);
+  });
+
+  const byTeacher = teacherNormalized
+    .map((teacher) => {
+      const email = (teacher.email || "").toLowerCase();
+      const myEvents = eventsByOrganiser.get(email) ?? [];
+      const myEventIds = new Set(myEvents.map((e) => e.eventId));
+
+      const myRows = currentRows.filter((r) => myEventIds.has(r.eventId));
+      const totalRegistrations = myRows.length;
+      const totalAttended = myRows.filter((r) => r.attended).length;
+      const avgAttendanceRate = round(percent(totalAttended, totalRegistrations), 1);
+
+      const lastActiveEvent = myEvents
+        .filter((e) => e.eventDate)
+        .sort((a, b) => b.eventDate - a.eventDate)[0];
+
+      return {
+        teacherId: teacher.studentId,
+        name: teacher.name,
+        email: teacher.email,
+        eventsOrganized: myEvents.length,
+        totalRegistrations,
+        totalAttended,
+        avgAttendanceRate,
+        lastActiveAt: lastActiveEvent?.eventDate?.toISOString() ?? null,
+      };
+    })
+    .sort((a, b) => b.eventsOrganized - a.eventsOrganized || b.avgAttendanceRate - a.avgAttendanceRate);
+
+  const activeTeachers = byTeacher.filter((t) => t.eventsOrganized > 0).length;
+  const avgRate = byTeacher.length
+    ? round(byTeacher.reduce((s, t) => s + t.avgAttendanceRate, 0) / byTeacher.length, 1)
+    : 0;
+
+  return {
+    summary: { totalTeachers: byTeacher.length, activeTeachers, avgAttendanceRate: avgRate },
+    byTeacher,
+  };
+}
+
 export async function buildAnalyticsSnapshot(query = {}) {
   const range = parseRange(query);
   const cacheKey = getCacheKey(range);
@@ -972,4 +1021,112 @@ export async function buildAnalyticsSnapshot(query = {}) {
 
 export function clearAnalyticsCache() {
   analyticsCache.clear();
+}
+
+export async function buildHodAnalyticsSnapshot(query = {}, department) {
+  const range = parseRange(query);
+  const hodCacheKey = `hod::${department.toLowerCase()}::${getCacheKey(range)}`;
+  const cached = getCachedPayload(hodCacheKey);
+  if (cached) return cached;
+
+  const [users, events, fests, registrations, attendanceRows] = await Promise.all([
+    queryAll("users"),
+    queryAll("events"),
+    queryAll("fests"),
+    queryAll("registrations"),
+    queryAll("attendance_status"),
+  ]);
+
+  // Normalize fests as event-like rows so they appear alongside events.
+  // Fests have fest_id / fest_title / organizing_dept instead of event_id / title / department.
+  const festsAsEvents = fests.map((f) => ({
+    event_id: f.fest_id,
+    title: f.fest_title,
+    category: f.category || "Fest",
+    department: f.organizing_dept,
+    organizing_dept: f.organizing_dept,
+    event_date: f.opening_date,
+    created_by: f.created_by,
+  }));
+
+  const normalized = normalizeData(users, [...events, ...festsAsEvents], registrations, attendanceRows);
+
+  const dept = department.toLowerCase();
+  const deptEvents   = normalized.events.filter((e) => e.department.toLowerCase() === dept);
+  const deptStudents = normalized.students.filter((s) => s.department.toLowerCase() === dept);
+  const deptEventIds   = new Set(deptEvents.map((e) => e.eventId));
+  const deptStudentIds = new Set(deptStudents.map((s) => s.studentId));
+
+  // TWO SCOPES:
+  // studentScopeRegs — registrations by dept students (any event).
+  //   Used for student analytics so only dept students appear in lists.
+  const studentScopeRegs = normalized.registrations.filter(
+    (r) => deptStudentIds.has(r.studentId)
+  );
+  // eventScopeRegs — all registrations for dept events/fests (any student).
+  //   Used for event & teacher analytics so full attendance counts are reported.
+  const eventScopeRegs = normalized.registrations.filter(
+    (r) => deptEventIds.has(r.eventId)
+  );
+
+  const teacherEmails = new Set(
+    users
+      .filter(
+        (u) =>
+          u.is_organiser === true &&
+          typeof u.department === "string" &&
+          u.department.toLowerCase() === dept
+      )
+      .map((u) => (u.email || "").toLowerCase())
+      .filter(Boolean)
+  );
+  const teacherNormalized = deptStudents.filter((s) =>
+    teacherEmails.has((s.email || "").toLowerCase())
+  );
+
+  const currentStudentRows = studentScopeRegs.filter((r) => inRange(r.registeredAt, range.current));
+  const previousStudentRows = studentScopeRegs.filter((r) => inRange(r.registeredAt, range.previous));
+  const currentEventRows   = eventScopeRegs.filter((r) => inRange(r.registeredAt, range.current));
+  const currentEvents = deptEvents.filter((e) => inRange(e.eventDate, range.current));
+  const effectiveEvents = currentEvents.length > 0 ? currentEvents : deptEvents;
+
+  const totalStudents = deptStudents.length || deptStudentIds.size;
+
+  // KPIs & student analytics use student-scoped rows so only dept students appear.
+  const overview         = getKpiBundle(currentStudentRows, previousStudentRows, studentScopeRegs, totalStudents);
+  const studentAnalytics = getStudentAnalytics(deptStudents, currentStudentRows, previousStudentRows, effectiveEvents, range.current.end);
+  // Event & teacher analytics use event-scoped rows so full registration counts are shown.
+  const eventAnalytics   = getEventAnalytics(effectiveEvents, currentEventRows, studentAnalytics);
+  const timeAnalytics    = getTimeAnalytics(eventScopeRegs);
+  const teacherAnalytics = getTeacherAnalytics(teacherNormalized, effectiveEvents, currentEventRows);
+  const insights = buildInsights({
+    overview,
+    studentAnalytics,
+    eventAnalytics,
+    departmentAnalytics: [],
+    timeAnalytics,
+  });
+
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    department,
+    range: {
+      current: { start: range.current.start.toISOString(), end: range.current.end.toISOString() },
+      previous: { start: range.previous.start.toISOString(), end: range.previous.end.toISOString() },
+    },
+    dataQuality: {
+      students: deptStudents.length,
+      events: deptEvents.length,
+      registrations: eventScopeRegs.length,
+      currentPeriodRegistrations: currentEventRows.length,
+    },
+    overview: { ...overview, insights },
+    students: studentAnalytics,
+    events: eventAnalytics,
+    teachers: teacherAnalytics,
+    time: timeAnalytics,
+  };
+
+  setCachedPayload(hodCacheKey, payload);
+  return payload;
 }

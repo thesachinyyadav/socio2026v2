@@ -166,13 +166,13 @@ export default function StallsDashboardPage() {
 
   // ─── Auth Guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!authLoading && !session) router.replace("/auth");
-    if (!authLoading && session && userData) {
+    if (!isLoading && !session) router.replace("/auth");
+    if (!isLoading && session && userData) {
       const isStalls = Boolean((userData as any)?.is_stalls);
       const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
       if (!isStalls && !isMasterAdmin) router.replace("/error");
     }
-  }, [authLoading, session, userData, router]);
+  }, [isLoading, session, userData, router]);
 
   // ─── Fetch Queue ─────────────────────────────────────────────────────────────
   const fetchQueue = useCallback(async () => {
@@ -225,7 +225,7 @@ export default function StallsDashboardPage() {
   };
 
   // ─── Loading State ───────────────────────────────────────────────────────────
-  if (authLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-[#154CB3] border-t-transparent rounded-full animate-spin" />

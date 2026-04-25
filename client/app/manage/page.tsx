@@ -20,6 +20,7 @@ import {
 } from "@/lib/xlsxTheme";
 import AnimatedListDropdown from "@/app/_components/UI/AnimatedListDropdown";
 import EventReminderButton from "@/app/_components/EventReminderButton";
+import SendFeedbackButton from "@/app/_components/SendFeedbackButton";
 import BookVenueModal from "@/app/_components/BookVenueModal";
 import {
   Search,
@@ -36,6 +37,10 @@ import {
   MapPin,
   ChefHat,
   Store,
+  Trash2,
+  UserPlus,
+  UsersRound,
+  X,
 } from "lucide-react";
 
 // ─── TYPES & CONSTANTS ──────────────────────────────────────────────────────
@@ -173,15 +178,36 @@ const ACCREDITATION_BODIES = [
 
 
 // ─── UI COMPONENTS ────────────────────────────────────────────────────────
+type VolunteerRecord = {
+  register_number: string;
+  expires_at: string;
+  assigned_by: string;
+};
+
+const normalizeRegisterNumber = (value: unknown): string =>
+  String(value ?? "").trim().toUpperCase();
+
+const normalizeVolunteerRecords = (value: unknown): VolunteerRecord[] => {
+  const rawItems = Array.isArray(value) ? value : [];
+  return rawItems
+    .map((item: any) => ({
+      register_number: normalizeRegisterNumber(item?.register_number),
+      expires_at: String(item?.expires_at || "").trim(),
+      assigned_by: String(item?.assigned_by || "").trim(),
+    }))
+    .filter((item) => item.register_number && item.expires_at && item.assigned_by);
+};
+
 interface MappedFestCardProps {
   fest: Fest;
   baseUrl: string;
   isArchiveUpdating?: boolean;
   onArchiveToggle?: (festId: string, shouldArchive: boolean) => void;
   isPendingApproval?: boolean;
+  readOnly?: boolean;
 }
 
-const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveToggle, isPendingApproval = false }: MappedFestCardProps) => {
+const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveToggle, isPendingApproval = false, readOnly = false }: MappedFestCardProps) => {
   const isPast = fest.closing_date ? new Date(fest.closing_date) < new Date() : false;
   const isArchived = fest.is_archived ?? false;
   const isDraft =
@@ -239,7 +265,7 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
           <Calendar className="w-4 h-4 text-slate-400" />
           {formatDateFull(fest.opening_date, "TBD")}
         </div>
-        {isDraft ? (
+        {!readOnly && (isDraft ? (
           <div className="flex items-center gap-2">
             <Link
               href={`/approvals/${fest.fest_id}?type=fest`}
@@ -298,13 +324,169 @@ const MappedFestCard = ({ fest, baseUrl, isArchiveUpdating = false, onArchiveTog
               Edit <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
 };
 
 type EventArchiveSource = "manual" | "auto" | null;
+
+const VolunteerManagerModal = ({
+  event,
+  authToken,
+  onClose,
+  onVolunteersChanged,
+}: {
+  event: ContextEvent;
+  authToken: string | null;
+  onClose: () => void;
+  onVolunteersChanged: () => void;
+}) => {
+  const [input, setInput] = React.useState("");
+  const [isAdding, setIsAdding] = React.useState(false);
+  const [revokingIds, setRevokingIds] = React.useState<Set<string>>(new Set());
+  const [volunteers, setVolunteers] = React.useState<VolunteerRecord[]>(
+    normalizeVolunteerRecords((event as any).volunteers)
+  );
+
+  const handleAdd = async () => {
+    const reg = normalizeRegisterNumber(input);
+    if (!reg) return;
+    if (!authToken) { toast.error("Please sign in again."); return; }
+
+    setIsAdding(true);
+    try {
+      const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(event.event_id)}/volunteers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ register_number: reg }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || "Failed to add volunteer.");
+      const updated = normalizeVolunteerRecords(payload?.event?.volunteers);
+      setVolunteers(updated);
+      setInput("");
+      toast.success("Volunteer added.");
+      onVolunteersChanged();
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to add volunteer.");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRevoke = async (registerNumber: string) => {
+    if (!authToken) { toast.error("Please sign in again."); return; }
+    setRevokingIds((prev) => new Set(prev).add(registerNumber));
+    try {
+      const res = await fetch(
+        `${API_URL}/api/events/${encodeURIComponent(event.event_id)}/volunteers/${encodeURIComponent(registerNumber)}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || "Failed to revoke volunteer.");
+      const updated = normalizeVolunteerRecords(payload?.event?.volunteers);
+      setVolunteers(updated);
+      toast.success("Volunteer access revoked.");
+      onVolunteersChanged();
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to revoke volunteer.");
+    } finally {
+      setRevokingIds((prev) => { const next = new Set(prev); next.delete(registerNumber); return next; });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Manage Volunteers</h2>
+            <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{event.title}</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 border-b border-slate-100">
+          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Add Volunteer</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              placeholder="Register number (e.g. 2541608)"
+              maxLength={20}
+              disabled={isAdding}
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#154CB3]/30 focus:border-[#154CB3] disabled:opacity-50"
+            />
+            <button
+              type="button"
+              disabled={isAdding || !input.trim()}
+              onClick={handleAdd}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#154CB3] text-white text-sm font-semibold rounded-lg hover:bg-[#0f3782] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <UserPlus className="w-4 h-4" />
+              {isAdding ? "Adding…" : "Add"}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {volunteers.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <UsersRound className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No volunteers assigned yet.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-50 sticky top-0">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Register #</th>
+                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Status</th>
+                  <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {volunteers.map((v) => {
+                  const expiresAt = new Date(v.expires_at);
+                  const isActive = !Number.isNaN(expiresAt.getTime()) && new Date() < expiresAt;
+                  const isRevoking = revokingIds.has(v.register_number);
+                  return (
+                    <tr key={v.register_number} className="hover:bg-slate-50/70">
+                      <td className="px-5 py-3">
+                        <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-800">{v.register_number}</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                          {isActive ? "Active" : "Expired"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          type="button"
+                          disabled={isRevoking}
+                          onClick={() => handleRevoke(v.register_number)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {isRevoking ? "Revoking…" : "Revoke"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MappedEventCard = ({
   event,
@@ -316,6 +498,7 @@ const MappedEventCard = ({
   isArchiveActionLoading,
   authToken,
   isPendingApproval,
+  onManageVolunteers,
 }: {
   event: ContextEvent;
   baseUrl: string;
@@ -326,7 +509,11 @@ const MappedEventCard = ({
   isArchiveActionLoading: boolean;
   authToken?: string | null;
   isPendingApproval?: boolean;
+  onManageVolunteers?: (event: ContextEvent) => void;
 }) => {
+  const [feedbackSentAt, setFeedbackSentAt] = React.useState<string | null>(
+    (event as any).feedback_sent_at ?? null
+  );
   const isPast = event.event_date ? new Date(event.event_date) < new Date() : false;
   const statusLabel = isDraft
     ? (isPendingApproval ? "PENDING APPROVALS" : "DRAFT")
@@ -427,6 +614,34 @@ const MappedEventCard = ({
               authToken={authToken || ""}
             />
           )}
+          {!isDraft && (
+            <SendFeedbackButton
+              eventId={event.event_id}
+              eventTitle={event.title}
+              endDate={(event as any).end_date ?? event.event_date ?? null}
+              feedbackSentAt={feedbackSentAt}
+              authToken={authToken || ""}
+              onSent={(sentAt) => setFeedbackSentAt(sentAt)}
+            />
+          )}
+          {!isDraft && (
+            <Link
+              href={`/feedbacks/${event.event_id}`}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 font-semibold hover:text-slate-800 transition-colors"
+            >
+              Feedback
+            </Link>
+          )}
+          {onManageVolunteers && (
+            <button
+              type="button"
+              onClick={() => onManageVolunteers(event)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-100 text-violet-700 font-semibold text-xs hover:bg-violet-200 transition-colors"
+            >
+              <UsersRound className="w-3.5 h-3.5" />
+              Volunteers
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -435,6 +650,96 @@ const MappedEventCard = ({
 
 
 // ─── MAIN DASHBOARD COMPONENT ───────────────────────────────────────────────
+const ActiveVolunteersTable = ({
+  event,
+  onRevoke,
+  isRevoking,
+}: {
+  event: ContextEvent;
+  onRevoke: (eventId: string, registerNumber: string) => void;
+  isRevoking: (eventId: string, registerNumber: string) => boolean;
+}) => {
+  const volunteers = normalizeVolunteerRecords((event as any).volunteers);
+  if (volunteers.length === 0) return null;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <UsersRound className="w-4 h-4 text-[#154cb3]" />
+          <h3 className="text-sm font-bold text-slate-900">Active Volunteers</h3>
+        </div>
+        <p className="text-xs font-medium text-slate-500">{event.title}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[680px]">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                Register Number
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                Status
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                Audit Trail
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {volunteers.map((volunteer) => {
+              const expiresAt = new Date(volunteer.expires_at);
+              const isActive = !Number.isNaN(expiresAt.getTime()) && new Date() < expiresAt;
+              const revokeKeyActive = isRevoking(event.event_id, volunteer.register_number);
+
+              return (
+                <tr key={`${event.event_id}-${volunteer.register_number}`} className="hover:bg-slate-50/70">
+                  <td className="px-5 py-3">
+                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-800">
+                      {volunteer.register_number}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                        isActive
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {isActive ? "Active" : "Expired"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <UserPlus className="w-4 h-4 text-slate-400" />
+                      Assigned by: {volunteer.assigned_by}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <button
+                      type="button"
+                      disabled={revokeKeyActive}
+                      onClick={() => onRevoke(event.event_id, volunteer.register_number)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {revokeKeyActive ? "Revoking" : "Revoke"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 export default function ManageDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -454,10 +759,12 @@ export default function ManageDashboard() {
   const statusFilterRef = useRef<HTMLDivElement>(null);
   const topOfPageRef = useRef<HTMLDivElement>(null);
   const previousPagesRef = useRef({ eventsPage: 1, festsPage: 1 });
+  const [volunteerRevokingIds, setVolunteerRevokingIds] = useState<Set<string>>(new Set());
+  const [volunteerModalEvent, setVolunteerModalEvent] = useState<ContextEvent | null>(null);
   
   // Auth Context & Session
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const { userData, isMasterAdmin } = useAuth();
+  const { userData, isMasterAdmin, isStudentOrganiser, subHeadFestIds } = useAuth();
   
   // Fests Data
   const [fests, setFests] = useState<Fest[]>([]);
@@ -587,11 +894,13 @@ export default function ManageDashboard() {
         archived_at: fest.archived_at || null,
       }));
 
-      const userSpecificFests = mappedFests.filter(
-        (fest) =>
-          isOwnedByCurrentUser(fest.created_by, fest.contact_email) ||
-          isCurrentUserFestHead(fest)
-      );
+      const userSpecificFests = isStudentOrganiser
+        ? mappedFests.filter((fest) => subHeadFestIds.includes(fest.fest_id))
+        : mappedFests.filter(
+            (fest) =>
+              isOwnedByCurrentUser(fest.created_by, fest.contact_email) ||
+              isCurrentUserFestHead(fest)
+          );
 
       setFests(userSpecificFests);
 
@@ -725,25 +1034,16 @@ export default function ManageDashboard() {
   };
 
   const isAutoArchivedEvent = (event: ContextEvent) => {
-    const archivedBy = String((event as any).archived_by || "").trim().toLowerCase();
-    if (!toBoolean((event as any).is_archived) && archivedBy === MANUAL_UNARCHIVE_OVERRIDE) {
-      return false;
-    }
+    const endDateStr = (event as any).end_date || event.event_date;
+    if (!endDateStr) return false;
 
-    // Match backend auto-archive logic: archive when event_date is in the past
-    // (not after 15 days). If event is manually archived, this won't be called
-    // due to getEffectiveArchiveState logic ordering.
-    const eventDate = getValidDate(event.event_date);
-    if (!eventDate) return false;
-    
-    // Set to midnight to match backend comparison
-    const eventDateMidnight = new Date(eventDate);
-    eventDateMidnight.setHours(0, 0, 0, 0);
-    
+    const endMidnight = new Date(endDateStr);
+    endMidnight.setHours(0, 0, 0, 0);
+
     const todayMidnight = new Date();
     todayMidnight.setHours(0, 0, 0, 0);
-    
-    return eventDateMidnight.getTime() < todayMidnight.getTime();
+
+    return todayMidnight.getTime() > endMidnight.getTime();
   };
 
   const toBoolean = (value: unknown) =>
@@ -1341,6 +1641,45 @@ export default function ManageDashboard() {
     }
   };
 
+  const handleRevokeVolunteer = async (eventId: string, registerNumber: string) => {
+    if (!authToken) {
+      toast.error("Please sign in again to revoke volunteer access.");
+      return;
+    }
+
+    const normalizedRegisterNumber = normalizeRegisterNumber(registerNumber);
+    const revokeKey = `${eventId}:${normalizedRegisterNumber}`;
+    setVolunteerRevokingIds((prev) => new Set(prev).add(revokeKey));
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/events/${encodeURIComponent(eventId)}/volunteers/${encodeURIComponent(normalizedRegisterNumber)}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to revoke volunteer access.");
+      }
+
+      toast.success("Volunteer access revoked.");
+      await refreshLiveEvents();
+    } catch (error: any) {
+      toast.error(error?.message || "Unable to revoke volunteer access.");
+    } finally {
+      setVolunteerRevokingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(revokeKey);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       <div ref={topOfPageRef} />
@@ -1352,26 +1691,30 @@ export default function ManageDashboard() {
           </h1>
 
            <div className="flex items-center gap-3">
-            <Link href="/bookvenue">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
-                <MapPin className="w-4 h-4" /> Book Venue
-              </button>
-            </Link>
-            <Link href="/bookcatering">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
-                <ChefHat className="w-4 h-4" /> Book Catering
-              </button>
-            </Link>
-            <Link href="/bookstall">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold border-2 border-[#154cb3] rounded-full hover:bg-[#1240a0] transition-colors shadow-sm text-sm">
-                <Store className="w-4 h-4" /> Book Stalls
-              </button>
-            </Link>
-            <Link href="/create/fest">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
-                <Plus className="w-4 h-4" /> Fest
-              </button>
-            </Link>
+            {!isStudentOrganiser && (
+              <>
+                <Link href="/bookvenue">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
+                    <MapPin className="w-4 h-4" /> Book Venue
+                  </button>
+                </Link>
+                <Link href="/bookcatering">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                    <ChefHat className="w-4 h-4" /> Book Catering
+                  </button>
+                </Link>
+                <Link href="/bookstall">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold border-2 border-[#154cb3] rounded-full hover:bg-[#1240a0] transition-colors shadow-sm text-sm">
+                    <Store className="w-4 h-4" /> Book Stalls
+                  </button>
+                </Link>
+                <Link href="/create/fest">
+                  <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                    <Plus className="w-4 h-4" /> Fest
+                  </button>
+                </Link>
+              </>
+            )}
             <Link href="/create/event">
               <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                 <Plus className="w-4 h-4" /> Event
@@ -1501,6 +1844,7 @@ export default function ManageDashboard() {
                           isArchiveUpdating={festArchiveUpdatingIds.has(fest.fest_id)}
                           onArchiveToggle={handleToggleArchiveFest}
                           isPendingApproval={approvalStatuses[fest.fest_id] === "pending_approvals"}
+                          readOnly={isStudentOrganiser}
                         />
                       );
                     })}
@@ -1520,6 +1864,7 @@ export default function ManageDashboard() {
                     : "No results found."}
                 </div>
               ) : (
+                <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {paginatedEvents.items.map((event) => {
                         const archiveState = getEffectiveArchiveState(event);
@@ -1540,10 +1885,26 @@ export default function ManageDashboard() {
                             isArchiveActionLoading={archiveUpdatingIds.has(event.event_id)}
                             authToken={authToken}
                             isPendingApproval={approvalStatuses[event.event_id] === "pending_approvals"}
+                            onManageVolunteers={setVolunteerModalEvent}
                           />
                         );
                     })}
                 </div>
+                {paginatedEvents.items.some((event) => normalizeVolunteerRecords((event as any).volunteers).length > 0) && (
+                  <div className="mt-8 space-y-5">
+                    {paginatedEvents.items.map((event) => (
+                      <ActiveVolunteersTable
+                        key={`volunteers-${event.event_id}`}
+                        event={event}
+                        onRevoke={handleRevokeVolunteer}
+                        isRevoking={(eventId, registerNumber) =>
+                          volunteerRevokingIds.has(`${eventId}:${normalizeRegisterNumber(registerNumber)}`)
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                </>
               )}
             </>
         )}
@@ -1780,6 +2141,15 @@ export default function ManageDashboard() {
         )}
 
       </main>
+
+      {volunteerModalEvent && (
+        <VolunteerManagerModal
+          event={volunteerModalEvent}
+          authToken={authToken}
+          onClose={() => setVolunteerModalEvent(null)}
+          onVolunteersChanged={refreshLiveEvents}
+        />
+      )}
     </div>
   );
 }

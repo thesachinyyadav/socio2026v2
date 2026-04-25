@@ -45,6 +45,8 @@ type AuthContextType = {
   isLoading: boolean;
   isSupport: boolean;
   isMasterAdmin: boolean;
+  isStudentOrganiser: boolean;
+  subHeadFestIds: string[];
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -55,6 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStudentOrganiser, setIsStudentOrganiser] = useState(false);
+  const [subHeadFestIds, setSubHeadFestIds] = useState<string[]>([]);
   const [showOutsiderWarning, setShowOutsiderWarning] = useState(false);
   const [outsiderVisitorId, setOutsiderVisitorId] = useState<string | null>(null);
   const [outsiderNameInput, setOutsiderNameInput] = useState("");
@@ -450,9 +454,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isSupport = Boolean(userData?.is_support);
   const isMasterAdmin = Boolean(userData?.is_masteradmin);
 
+  useEffect(() => {
+    if (!userData?.email || userData.is_organiser || !supabase) {
+      if (!userData?.email || userData?.is_organiser) {
+        setIsStudentOrganiser(false);
+        setSubHeadFestIds([]);
+      }
+      return;
+    }
+    const email = userData.email;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("fests")
+          .select("fest_id, sub_heads")
+          .filter("sub_heads", "cs", JSON.stringify([{ email }]));
+        const now = new Date();
+        const activeFestIds = (data || [])
+          .filter((fest: any) => {
+            if (!Array.isArray(fest.sub_heads)) return false;
+            return fest.sub_heads.some(
+              (sh: any) => sh.email === email && sh.expiresAt && new Date(sh.expiresAt) > now
+            );
+          })
+          .map((fest: any) => fest.fest_id as string);
+        setIsStudentOrganiser(activeFestIds.length > 0);
+        setSubHeadFestIds(activeFestIds);
+      } catch {
+        setIsStudentOrganiser(false);
+        setSubHeadFestIds([]);
+      }
+    })();
+  }, [userData?.email, userData?.is_organiser]);
+
   return (
     <AuthContext.Provider
-      value={{ session, userData, isLoading, isSupport, isMasterAdmin, signInWithGoogle, signOut }}
+      value={{ session, userData, isLoading, isSupport, isMasterAdmin, isStudentOrganiser, subHeadFestIds, signInWithGoogle, signOut }}
     >
       {children}
 

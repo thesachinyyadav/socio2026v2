@@ -234,7 +234,7 @@ const ACCREDITATION_BODIES = [
 ];
 
 function MasterAdminPageInner() {
-  const { userData, isMasterAdmin, isLoading: authLoading, session } = useAuth();
+  const { userData, isMasterAdmin, isLoading: authIsLoading, session } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   type AdminTab = "dashboard" | "insights" | "dataExplorer" | "users" | "events" | "fests" | "clubs" | "approvals" | "notifications" | "report" | "settings" | "roles" | "venues" | "caterers";
@@ -641,10 +641,10 @@ function MasterAdminPageInner() {
 
   useEffect(() => {
     const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-    if (!authLoading && !isMasterAdmin && !isLocalhost) {
+    if (!authIsLoading && !isMasterAdmin && !isLocalhost) {
       router.push("/");
     }
-  }, [authLoading, isMasterAdmin, router]);
+  }, [authIsLoading, isMasterAdmin, router]);
 
   // Check if user is on localhost for dev access
   const [isLocalhostDev, setIsLocalhostDev] = useState(false);
@@ -1381,7 +1381,7 @@ function MasterAdminPageInner() {
   const deleteEvent = async (eventId: string) => {
     try {
       const token = await getFreshToken();
-      const response = await fetch(`${API_URL}/api/events/${eventId}`, {
+      const response = await fetch(`/api/events/${eventId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1405,7 +1405,7 @@ function MasterAdminPageInner() {
   const deleteFest = async (festId: string) => {
     try {
       const token = await getFreshToken();
-      const response = await fetch(`${API_URL}/api/fests/${festId}`, {
+      const response = await fetch(`/api/fests/${festId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1477,7 +1477,7 @@ function MasterAdminPageInner() {
     </div>
   );
 
-  if (authLoading || !authToken) {
+  if (isLoading || !authToken) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">

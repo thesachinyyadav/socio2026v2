@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 
 import {
   EventFormData,
+  VolunteerAssignment,
   eventFormSchema,
   departments as departmentOptions,
   organizingSchools,
@@ -47,6 +48,7 @@ import {
   buildEventPreviewData,
   saveEventPreviewDraft,
 } from "@/app/lib/eventPreviewDraft";
+import { Info, Plus, UsersRound, X } from "lucide-react";
 
 export const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -93,6 +95,184 @@ const formatHHMMTo12Hour = (timeString?: string): string => {
   const hour12 = parsed.hours % 12 === 0 ? 12 : parsed.hours % 12;
   return `${hour12}:${parsed.minutes.toString().padStart(2, "0")} ${period}`;
 };
+
+const normalizeRegisterNumber = (value: unknown): string =>
+  String(value ?? "").trim().toUpperCase();
+
+const computeVolunteerExpiresAt = (
+  endDate?: string,
+  endTime?: string
+): string | null => {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(endDate || "").trim());
+  const timeMatch = /^([0-1]?[0-9]|2[0-3]):([0-5]\d)(:\d{2})?$/.exec(String(endTime || "").trim());
+  if (!dateMatch || !timeMatch) return null;
+
+  const [, year, month, day] = dateMatch.map(Number);
+  const [, hour, minute] = timeMatch;
+  const expiry = new Date(
+    Date.UTC(year, month - 1, day, Number(hour), Number(minute), 0)
+  );
+  if (Number.isNaN(expiry.getTime())) return null;
+
+  expiry.setUTCHours(expiry.getUTCHours() + 12);
+  return expiry.toISOString();
+};
+
+function VolunteerAssignmentSection({
+  value,
+  onChange,
+  endDate,
+  endTime,
+  assignedByEmail,
+  disabled,
+}: {
+  value: VolunteerAssignment[];
+  onChange: (next: VolunteerAssignment[]) => void;
+  endDate?: string;
+  endTime?: string;
+  assignedByEmail?: string | null;
+  disabled?: boolean;
+}) {
+  const [draftRegisterNumber, setDraftRegisterNumber] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const volunteers = Array.isArray(value) ? value : [];
+  const expiresAt = React.useMemo(
+    () => computeVolunteerExpiresAt(endDate, endTime),
+    [endDate, endTime]
+  );
+
+  const onChangeRef = React.useRef(onChange);
+  onChangeRef.current = onChange;
+  const volunteersRef = React.useRef(volunteers);
+  volunteersRef.current = volunteers;
+
+  useEffect(() => {
+    const current = volunteersRef.current;
+    if (!expiresAt || current.length === 0) return;
+    if (current.every((volunteer) => volunteer.expires_at === expiresAt)) return;
+    onChangeRef.current(current.map((volunteer) => ({ ...volunteer, expires_at: expiresAt })));
+  }, [expiresAt]);
+
+  useEffect(() => {
+    if (expiresAt && error === "Select a valid event end date and end time first.") {
+      setError(null);
+    }
+  }, [expiresAt, error]);
+
+  const addVolunteer = () => {
+    const registerNumber = normalizeRegisterNumber(draftRegisterNumber);
+    const assignedBy = String(assignedByEmail || "").trim();
+
+    if (!registerNumber) {
+      setError("Enter a volunteer register number.");
+      return;
+    }
+
+    if (!/^\d{7}$/.test(registerNumber)) {
+      setError("Register number must be exactly 7 digits.");
+      return;
+    }
+
+    if (!expiresAt) {
+      setError("Select a valid event end date and end time first.");
+      return;
+    }
+
+    if (!assignedBy) {
+      setError("Organizer email is unavailable. Please refresh and sign in again.");
+      return;
+    }
+
+    if (volunteers.some((volunteer) => volunteer.register_number === registerNumber)) {
+      setError("This volunteer is already assigned.");
+      return;
+    }
+
+    onChange([
+      ...volunteers,
+      {
+        register_number: registerNumber,
+        expires_at: expiresAt,
+        assigned_by: assignedBy,
+      },
+    ]);
+    setDraftRegisterNumber("");
+    setError(null);
+  };
+
+  const removeVolunteer = (registerNumber: string) => {
+    onChange(
+      volunteers.filter((volunteer) => volunteer.register_number !== registerNumber)
+    );
+  };
+
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <label
+            htmlFor="volunteer-register-number"
+            className="block text-xs font-semibold text-slate-700 mb-2"
+          >
+            Enter Volunteer Register Number
+          </label>
+          <input
+            id="volunteer-register-number"
+            type="text"
+            value={draftRegisterNumber}
+            disabled={disabled}
+            onChange={(event) => {
+              setDraftRegisterNumber(event.target.value.toUpperCase());
+              if (error) setError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addVolunteer();
+              }
+            }}
+            placeholder="e.g., 2540123"
+            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#154CB3]/20 focus:border-[#154CB3] disabled:bg-slate-100 disabled:cursor-not-allowed"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={addVolunteer}
+          disabled={disabled}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 mt-0 sm:mt-7 rounded-lg bg-[#154CB3] text-white text-sm font-semibold hover:bg-[#063168] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Plus className="w-4 h-4" />
+          Add Volunteer
+        </button>
+      </div>
+
+      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+
+      {volunteers.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-4">
+          {volunteers.map((volunteer) => (
+            <span
+              key={volunteer.register_number}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm"
+            >
+              <span className="font-mono" title={`Added by: ${volunteer.assigned_by}`}>
+                {volunteer.register_number}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeVolunteer(volunteer.register_number)}
+                className="text-slate-400 hover:text-red-600 transition-colors"
+                aria-label={`Remove volunteer ${volunteer.register_number}`}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface MultiSelectDropdownProps {
   name: keyof EventFormData;
@@ -1319,7 +1499,10 @@ const EVENT_ERROR_SCROLL_ORDER: string[] = [
   "endDate",
   "registrationDeadline",
   "eventTime",
+  "endTime",
   "festEvent",
+  "needsVolunteers",
+  "volunteers",
   "isTeamEvent",
   "minParticipants",
   "maxParticipants",
@@ -1353,7 +1536,10 @@ const EVENT_ERROR_SELECTOR_MAP: Record<string, string> = {
   endDate: "#endDate",
   registrationDeadline: "#registrationDeadline",
   eventTime: "#eventTime",
+  endTime: "#endTime",
   festEvent: "#festEvent",
+  needsVolunteers: "#needsVolunteers",
+  volunteers: "#volunteer-register-number",
   isTeamEvent: "#isTeamEvent",
   minParticipants: "#minParticipants",
   maxParticipants: "#maxParticipants",
@@ -1433,6 +1619,7 @@ export default function EventForm({
   const [festApprovalStages, setFestApprovalStages] = useState<any[]>([]);
   const [operationalConfig, setOperationalConfig] = useState<OperationalConfig>(DEFAULT_OPERATIONAL_CONFIG);
   const [fetchedFests, setFetchedFests] = useState<FestOption[]>([]);
+  const { session, userData, isStudentOrganiser, subHeadFestIds } = useAuth();
 
   useEffect(() => {
     async function fetchFests() {
@@ -1458,6 +1645,10 @@ export default function EventForm({
               allowedCampuses: normalizeAllowedCampuses(f.allowed_campuses),
               allowOutsiders: normalizeBoolean(f.allow_outsiders ?? f.allowOutsiders),
             }));
+          const filteredOptions = isStudentOrganiser && subHeadFestIds.length > 0
+            ? options.filter((o) => subHeadFestIds.includes(o.value))
+            : options;
+
           setFetchedFests([
             {
               value: "none",
@@ -1470,7 +1661,7 @@ export default function EventForm({
               allowedCampuses: [],
               allowOutsiders: false,
             },
-            ...options,
+            ...filteredOptions,
           ]);
         }
       } catch (error) {
@@ -1478,7 +1669,7 @@ export default function EventForm({
       }
     }
     fetchFests();
-  }, []);
+  }, [isStudentOrganiser, subHeadFestIds]);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -1491,7 +1682,7 @@ export default function EventForm({
 
   useEffect(() => {
     if (activeTab === 'approvals') {
-      setTimeout(() => window.scrollTo(0, 0), 0);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
     }
   }, [activeTab]);
   const {
@@ -1513,12 +1704,13 @@ export default function EventForm({
       eventDate: "",
       endDate: "",
       eventTime: "",
+      endTime: "",
       detailedDescription: "",
       department: [],
       category: "",
       organizingSchool: "",
       organizingDept: "",
-      festEvent: "none",
+      festEvent: "",
       registrationDeadline: "",
       location: "",
       registrationFee: "",
@@ -1533,6 +1725,8 @@ export default function EventForm({
       prizes: [],
       provideClaims: false,
       onSpot: false,
+      needsVolunteers: false,
+      volunteers: [],
       allowOutsiders: false,
       outsiderRegistrationFee: "",
       outsiderMaxParticipants: "",
@@ -1680,7 +1874,6 @@ export default function EventForm({
     []
   );
 
-  const { session } = useAuth();
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] =
     React.useState(false);
@@ -1717,6 +1910,13 @@ export default function EventForm({
         scheduleItems: Array.isArray(defaultValues.scheduleItems)
           ? defaultValues.scheduleItems
           : [],
+        needsVolunteers:
+          typeof defaultValues.needsVolunteers === "boolean"
+            ? defaultValues.needsVolunteers
+            : Array.isArray(defaultValues.volunteers) && defaultValues.volunteers.length > 0,
+        volunteers: Array.isArray(defaultValues.volunteers)
+          ? defaultValues.volunteers
+          : [],
         organizingSchool:
           typeof defaultValues.organizingSchool === "string" &&
           defaultValues.organizingSchool.trim().length > 0
@@ -1735,6 +1935,8 @@ export default function EventForm({
 
   const watchedEventDate = useWatch({ control, name: "eventDate" });
   const watchedEndDate = useWatch({ control, name: "endDate" });
+  const watchedEndTime = useWatch({ control, name: "endTime" });
+  const watchedNeedsVolunteers = useWatch({ control, name: "needsVolunteers" });
   const watchedIsTeamEvent = useWatch({ control, name: "isTeamEvent" });
   const watchedMaxParticipants = useWatch({ control, name: "maxParticipants" });
   const watchedMinParticipants = useWatch({ control, name: "minParticipants" });
@@ -1744,6 +1946,14 @@ export default function EventForm({
     name: "organizingSchool",
   });
   const lastAutoFilledFestRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (watchedNeedsVolunteers) return;
+    const currentVolunteers = getValues("volunteers");
+    if (Array.isArray(currentVolunteers) && currentVolunteers.length > 0) {
+      setValue("volunteers", [], { shouldDirty: true, shouldValidate: true });
+    }
+  }, [watchedNeedsVolunteers, getValues, setValue]);
 
   const departmentOptionsForSelectedSchool = React.useMemo(() => {
     const selectedSchool = String(watchedOrganizingSchool || "").trim();
@@ -1912,8 +2122,12 @@ export default function EventForm({
 
   const processSubmit: SubmitHandler<EventFormData> = async (data) => {
     try {
+      const sanitizedData = {
+        ...data,
+        volunteers: data.needsVolunteers ? data.volunteers || [] : [],
+      };
       setWasDraftOnSubmit(Boolean(isDraft));
-      await onSubmit(data);
+      await onSubmit(sanitizedData);
       setSuccessAction("publish");
       // Don't show modal yet — let the overlay finish its animation first
       setPendingSuccess("publish");
@@ -1930,7 +2144,11 @@ export default function EventForm({
     if (!onSubmitDraft) return;
 
     try {
-      await onSubmitDraft(data);
+      const sanitizedData = {
+        ...data,
+        volunteers: data.needsVolunteers ? data.volunteers || [] : [],
+      };
+      await onSubmitDraft(sanitizedData);
       setSuccessAction("draft");
       setPendingSuccess("draft");
     } catch (error: any) {
@@ -2482,7 +2700,7 @@ export default function EventForm({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Controller
                     name="eventTime"
                     control={control}
@@ -2497,14 +2715,95 @@ export default function EventForm({
                       />
                     )}
                   />
+                  <Controller
+                    name="endTime"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <CustomTimePicker
+                        id="endTime"
+                        field={field}
+                        label="End time:"
+                        error={fieldState.error}
+                        required={watchedNeedsVolunteers}
+                        placeholder="HH:MM"
+                      />
+                    )}
+                  />
                   <CustomDropdown
                     name="festEvent"
                     control={control}
                     options={fetchedFests.length > 0 ? fetchedFests : [{ value: "none", label: "None" }]}
-                    placeholder="Select fest event (if any)"
-                    label="Is this event under any fest? (optional)"
+                    placeholder="Select fest"
+                    label="Is this event under any fest?"
                     error={errors.festEvent}
+                    required
                   />
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[#154CB3]">
+                        <UsersRound className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-[#154CB3]">
+                          Volunteer Access
+                        </p>
+                        <label
+                          htmlFor="needsVolunteers"
+                          className="block text-sm font-semibold text-slate-900 cursor-pointer mt-0.5"
+                        >
+                          Need volunteers
+                        </label>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Assign trusted students who can scan QR codes for this event.
+                        </p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <Controller
+                        name="needsVolunteers"
+                        control={control}
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            id="needsVolunteers"
+                            checked={!!field.value}
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              field.onChange(checked);
+                              if (!checked) {
+                                setValue("volunteers", [], {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                              }
+                            }}
+                            className="sr-only peer"
+                          />
+                        )}
+                      />
+                      <div className={toggleTrackClass}></div>
+                    </label>
+                  </div>
+
+                  {watchedNeedsVolunteers && (
+                    <Controller
+                      name="volunteers"
+                      control={control}
+                      render={({ field }) => (
+                        <VolunteerAssignmentSection
+                          value={Array.isArray(field.value) ? field.value : []}
+                          onChange={field.onChange}
+                          endDate={watchedEndDate}
+                          endTime={watchedEndTime}
+                          assignedByEmail={userData?.email || session?.user?.email || ""}
+                          disabled={isSubmittingProp || rhfIsSubmitting}
+                        />
+                      )}
+                    />
+                  )}
                 </div>
 
                 <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 sm:py-3.5">
@@ -3322,7 +3621,9 @@ export default function EventForm({
                   {activeTab === 'details' ? (
                     <button
                       type="button"
-                      onClick={() => setActiveTab('approvals')}
+                      onClick={() => {
+                        setActiveTab('approvals');
+                      }}
                       disabled={
                         isSubmittingProp ||
                         rhfIsSubmitting ||
@@ -3331,7 +3632,7 @@ export default function EventForm({
                       }
                       className="w-full sm:w-auto px-6 py-2.5 bg-[#154CB3] text-white text-sm font-medium rounded-md hover:bg-[#0f3a7a] focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Go ahead for Approvals Tab
+                      {isSubmittingProp || rhfIsSubmitting ? "Saving..." : "Go ahead for Approvals Tab"}
                     </button>
                   ) : (
                     <button

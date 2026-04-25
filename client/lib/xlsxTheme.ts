@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import type { HodAnalyticsBundle } from "./hodAnalyticsApi";
 
 const PRIMARY_ARGB = "FF0F4C81";
 const SECTION_ARGB = "FF0C3D67";
@@ -579,4 +580,134 @@ export async function downloadWorkbook(workbook: ExcelJS.Workbook, fileName: str
   anchor.download = fileName.toLowerCase().endsWith(".xlsx") ? fileName : `${fileName}.xlsx`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+export async function exportHodReport(bundle: HodAnalyticsBundle, department: string): Promise<void> {
+  const workbook = createThemedWorkbook("SOCIO HOD Analytics");
+  const dateStr = new Date(bundle.overview.generatedAt).toLocaleString();
+  const periodStart = bundle.overview.range.current.start.slice(0, 10);
+  const periodEnd = bundle.overview.range.current.end.slice(0, 10);
+
+  addStructuredSummarySheet(workbook, {
+    title: `${department} Department Analytics`,
+    subtitle: `Generated ${dateStr} · Period: ${periodStart} to ${periodEnd}`,
+    sections: [
+      {
+        title: "Overview KPIs",
+        rows: bundle.overview.kpis.map((kpi) => ({
+          label: kpi.label,
+          value: `${kpi.value}${kpi.unit} (${kpi.changePct >= 0 ? "+" : ""}${kpi.changePct.toFixed(1)}% vs prev)`,
+        })),
+      },
+      {
+        title: "Data Quality",
+        rows: [
+          { label: "Dept Students", value: bundle.overview.dataQuality.students },
+          { label: "Dept Events", value: bundle.overview.dataQuality.events },
+          { label: "Dept Registrations", value: bundle.overview.dataQuality.registrations },
+          { label: "Period Registrations", value: bundle.overview.dataQuality.currentPeriodRegistrations },
+          { label: "Active Organisers", value: bundle.overview.activeTeachers },
+        ],
+      },
+      {
+        title: "Teacher Summary",
+        rows: [
+          { label: "Total Organisers", value: bundle.teachers.teachers.summary.totalTeachers },
+          { label: "Active Organisers (period)", value: bundle.teachers.teachers.summary.activeTeachers },
+          { label: "Avg Attendance Rate", value: `${bundle.teachers.teachers.summary.avgAttendanceRate}%` },
+        ],
+      },
+    ],
+  });
+
+  addStructuredTableSheet(workbook, {
+    sheetName: "Teacher Performance",
+    columns: [
+      { header: "Name", key: "name", width: 28 },
+      { header: "Email", key: "email", width: 34, kind: "email" },
+      { header: "Events Organized", key: "eventsOrganized", width: 18, kind: "number", horizontal: "right" },
+      { header: "Total Registrations", key: "totalRegistrations", width: 20, kind: "number", horizontal: "right" },
+      { header: "Attended", key: "totalAttended", width: 14, kind: "number", horizontal: "right" },
+      { header: "Avg Attendance %", key: "avgAttendanceRate", width: 18, kind: "number", horizontal: "right" },
+      { header: "Last Active", key: "lastActiveAt", width: 22 },
+    ],
+    rows: bundle.teachers.teachers.byTeacher.map((t) => ({
+      name: t.name,
+      email: t.email ?? "",
+      eventsOrganized: t.eventsOrganized,
+      totalRegistrations: t.totalRegistrations,
+      totalAttended: t.totalAttended,
+      avgAttendanceRate: t.avgAttendanceRate,
+      lastActiveAt: t.lastActiveAt ? new Date(t.lastActiveAt).toLocaleDateString() : "—",
+    })),
+  });
+
+  addStructuredTableSheet(workbook, {
+    sheetName: "At-Risk Students",
+    columns: [
+      { header: "Name", key: "name", width: 28 },
+      { header: "Department", key: "department", width: 22 },
+      { header: "Year", key: "year", width: 10 },
+      { header: "Engagement Score", key: "engagementScore", width: 20, kind: "number", horizontal: "right" },
+      { header: "Attended", key: "attendedCount", width: 12, kind: "number", horizontal: "right" },
+      { header: "No-shows", key: "noShows", width: 12, kind: "number", horizontal: "right" },
+      { header: "Risk Reason", key: "atRiskReason", width: 40 },
+      { header: "Last Activity", key: "lastActivityAt", width: 22 },
+    ],
+    rows: bundle.students.atRisk.map((s) => ({
+      name: s.name,
+      department: s.department,
+      year: s.year,
+      engagementScore: s.engagementScore,
+      attendedCount: s.attendedCount,
+      noShows: s.noShows,
+      atRiskReason: s.atRiskReason ?? "",
+      lastActivityAt: s.lastActivityAt ? new Date(s.lastActivityAt).toLocaleDateString() : "—",
+    })),
+  });
+
+  addStructuredTableSheet(workbook, {
+    sheetName: "Event Performance",
+    columns: [
+      { header: "Event Title", key: "title", width: 34 },
+      { header: "Category", key: "category", width: 20 },
+      { header: "Registrations", key: "registrations", width: 16, kind: "number", horizontal: "right" },
+      { header: "Attended", key: "attended", width: 14, kind: "number", horizontal: "right" },
+      { header: "Attendance %", key: "attendanceRate", width: 16, kind: "number", horizontal: "right" },
+      { header: "Avg Feedback", key: "avgFeedback", width: 16, kind: "number", horizontal: "right" },
+      { header: "Success Score", key: "successScore", width: 16, kind: "number", horizontal: "right" },
+    ],
+    rows: bundle.events.attendanceByEvent.map((e) => ({
+      title: e.title,
+      category: e.category,
+      registrations: e.registrations,
+      attended: e.attended,
+      attendanceRate: e.attendanceRate,
+      avgFeedback: e.avgFeedback,
+      successScore: e.successScore,
+    })),
+  });
+
+  addThemedChartsSheet(workbook, {
+    title: `${department} Monthly Engagement Trend`,
+    subtitle: "Registrations over time",
+    sheetName: "Charts",
+    primaryChart: {
+      title: "Monthly Registrations",
+      type: "bar",
+      data: bundle.overview.monthlyTrend.map((m) => ({ label: m.month, value: m.registrations })),
+    },
+    secondaryChart: {
+      title: "Student Segmentation (Active vs Inactive)",
+      type: "donut",
+      data: [
+        { label: "Active", value: bundle.students.segmentation.active, color: "#154CB3" },
+        { label: "Inactive", value: bundle.students.segmentation.inactive, color: "#E2E8F0" },
+      ],
+    },
+  });
+
+  const safeDept = department.replace(/\s+/g, "_");
+  const today = new Date().toISOString().slice(0, 10);
+  await downloadWorkbook(workbook, `HOD_Analytics_${safeDept}_${today}.xlsx`);
 }

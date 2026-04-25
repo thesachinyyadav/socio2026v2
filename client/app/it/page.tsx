@@ -115,7 +115,7 @@ function MonitorIcon() {
 }
 
 export default function ItDashboard() {
-  const { session, userData, isLoading: authLoading } = useAuth();
+  const { session, userData, isLoading } = useAuth();
   const router = useRouter();
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
@@ -131,13 +131,13 @@ export default function ItDashboard() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
     const isIt = (userData as any)?.is_it_support;
     const isAdmin = (userData as any)?.is_masteradmin;
     if (userData && !isIt && !isAdmin) { router.replace("/error"); return; }
     if (userData) fetchRequests();
-  }, [authLoading, session, userData]);
+  }, [isLoading, session, userData]);
 
   async function fetchRequests() {
     setLoading(true);

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
+
+const DeanAnalyticsDashboard = lazy(() => import("@/app/_components/Dean/DeanAnalyticsDashboard"));
 
 interface ApprovalStage {
   step: number;
@@ -49,10 +51,11 @@ function deanStatus(item: QueueItem) {
 }
 
 export default function DeanDashboard() {
-  const { session, userData, isLoading: authLoading } = useAuth();
+  const { session, userData, isLoading } = useAuth();
   const router = useRouter();
   const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
+  const [activeTab, setActiveTab] = useState<"approvals" | "analytics">("approvals");
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionItemId, setActionItemId] = useState<string | null>(null);
@@ -60,13 +63,13 @@ export default function DeanDashboard() {
   const [rejectNote, setRejectNote] = useState("");
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
     if (!session) { router.replace("/auth"); return; }
     if (userData && !(userData as any).is_dean && !(userData as any).is_masteradmin) {
       router.replace("/error"); return;
     }
     fetchQueue();
-  }, [authLoading, session, userData]);
+  }, [isLoading, session, userData]);
 
   async function fetchQueue() {
     setLoading(true);
@@ -218,8 +221,56 @@ export default function DeanDashboard() {
     );
   }
 
+  if (activeTab === "analytics") {
+    return (
+      <>
+        {/* Tab bar */}
+        <div className="bg-white border-b border-gray-200 px-4">
+          <div className="max-w-5xl mx-auto flex">
+            {(["approvals", "analytics"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors capitalize ${
+                  activeTab === tab
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tab === "approvals" ? "Approval Queue" : "Analytics"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><p className="text-gray-400 text-sm">Loading analytics…</p></div>}>
+          <DeanAnalyticsDashboard />
+        </Suspense>
+      </>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50">
+      {/* Tab bar */}
+      <div className="bg-white border-b border-gray-200 px-4">
+        <div className="max-w-3xl mx-auto flex">
+          {(["approvals", "analytics"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors capitalize ${
+                activeTab === tab
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab === "approvals" ? "Approval Queue" : "Analytics"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dean Approval Queue</h1>
@@ -263,6 +314,7 @@ export default function DeanDashboard() {
             )}
           </>
         )}
+      </div>
       </div>
 
       {rejectModal && (

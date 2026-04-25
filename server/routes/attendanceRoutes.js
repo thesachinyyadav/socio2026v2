@@ -6,6 +6,12 @@ import {
   insert,
 } from "../config/database.js";
 import { verifyQRCodeData, parseQRCodeData } from "../utils/qrCodeUtils.js";
+import {
+  authenticateUser,
+  checkRoleExpiration,
+  getUserInfo,
+} from "../middleware/authMiddleware.js";
+import { hasActiveVolunteerAccess } from "../utils/volunteerAccess.js";
 
 const router = express.Router();
 
@@ -131,7 +137,12 @@ router.post("/events/:eventId/attendance", async (req, res) => {
 });
 
 // QR Code scan for attendance
-router.post("/events/:eventId/scan-qr", async (req, res) => {
+router.post(
+  "/events/:eventId/scan-qr",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
   try {
     const { eventId } = req.params;
     const { qrCodeData, scannedBy, scannerInfo } = req.body;
@@ -140,11 +151,28 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
       return res.status(400).json({ error: "QR code data is required" });
     }
 
+    const event = await queryOne("events", {
+      where: { event_id: eventId },
+      select: "event_id, volunteers",
+    });
+
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    if (!hasActiveVolunteerAccess(event.volunteers, req.userInfo?.register_number)) {
+      return res.status(403).json({
+        error: "Access denied: active volunteer access is required for this event.",
+      });
+    }
+
+    const scannedByIdentity = req.userInfo?.email || scannedBy || "qr_scanner";
+
     const qrData = parseQRCodeData(qrCodeData);
     if (!qrData) {
       await insert("qr_scan_logs", [{
         event_id: eventId,
-        scanned_by: scannedBy || "unknown",
+        scanned_by: scannedByIdentity,
         scan_result: "invalid",
         scanner_info: scannerInfo || {},
       }]);
@@ -156,7 +184,7 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
       await insert("qr_scan_logs", [{
         registration_id: qrData.registrationId || null,
         event_id: eventId,
-        scanned_by: scannedBy || "unknown",
+        scanned_by: scannedByIdentity,
         scan_result: "invalid",
         scanner_info: scannerInfo || {},
       }]);
@@ -167,7 +195,7 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
       await insert("qr_scan_logs", [{
         registration_id: qrData.registrationId,
         event_id: eventId,
-        scanned_by: scannedBy || "unknown",
+        scanned_by: scannedByIdentity,
         scan_result: "invalid",
         scanner_info: scannerInfo || {},
       }]);
@@ -179,7 +207,7 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
       await insert("qr_scan_logs", [{
         registration_id: qrData.registrationId,
         event_id: eventId,
-        scanned_by: scannedBy || "unknown",
+        scanned_by: scannedByIdentity,
         scan_result: "invalid",
         scanner_info: scannerInfo || {},
       }]);
@@ -191,12 +219,12 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
       await insert("qr_scan_logs", [{
         registration_id: qrData.registrationId,
         event_id: eventId,
-        scanned_by: scannedBy || "unknown",
+        scanned_by: scannedByIdentity,
         scan_result: "duplicate",
         scanner_info: scannerInfo || {},
       }]);
       return res.status(200).json({
-        message: "Attendance already marked",
+        message: "Already scanned",
         participant: {
           name: registration.individual_name || registration.team_leader_name,
           email: registration.individual_email || registration.team_leader_email,
@@ -215,7 +243,7 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
         event_id: eventId,
         status: "attended",
         marked_at: now,
-        marked_by: scannedBy || "qr_scanner",
+        marked_by: scannedByIdentity,
       },
       "registration_id"
     );
@@ -223,7 +251,7 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
     await insert("qr_scan_logs", [{
       registration_id: qrData.registrationId,
       event_id: eventId,
-      scanned_by: scannedBy || "qr_scanner",
+      scanned_by: scannedByIdentity,
       scan_result: "success",
       scanner_info: scannerInfo || {},
     }]);

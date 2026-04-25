@@ -150,6 +150,17 @@ export default function EditEventPage() {
             }
           }
 
+          let formEndTimeString: string = "";
+          if (data.end_time) {
+            const timeParts = String(data.end_time).split(":");
+            if (timeParts.length >= 2) {
+              formEndTimeString = `${timeParts[0].padStart(
+                2,
+                "0"
+              )}:${timeParts[1].padStart(2, "0")}`;
+            }
+          }
+
           const transformSimpleListForForm = (
             items: any
           ): { value: string }[] => {
@@ -236,6 +247,17 @@ export default function EditEventPage() {
             return [];
           };
 
+          const normalizeVolunteers = (items: any) => {
+            const rawItems = Array.isArray(items) ? items : [];
+            return rawItems
+              .map((item: any) => ({
+                register_number: String(item?.register_number || "").trim().toUpperCase(),
+                expires_at: String(item?.expires_at || "").trim(),
+                assigned_by: String(item?.assigned_by || "").trim(),
+              }))
+              .filter((item: any) => item.register_number);
+          };
+
           const transformScheduleForForm = (
             schedule: any
           ): ScheduleItemType[] => {
@@ -273,6 +295,7 @@ export default function EditEventPage() {
               ? dayjs(data.end_date).format("YYYY-MM-DD")
               : "",
             eventTime: formEventTimeString,
+            endTime: formEndTimeString,
             detailedDescription: data.description || "",
             department: parsedDepartments,
             category: data.category || "",
@@ -297,6 +320,8 @@ export default function EditEventPage() {
             whatsappLink: data.whatsapp_invite_link || "",
             provideClaims: data.claims_applicable || false,
             onSpot: data.on_spot === true || data.on_spot === 1 || data.on_spot === "1" || data.on_spot === "true",
+            needsVolunteers: normalizeVolunteers(data.volunteers).length > 0,
+            volunteers: normalizeVolunteers(data.volunteers),
             allowOutsiders: data.allow_outsiders || false,
             outsiderRegistrationFee: data.outsider_registration_fee?.toString() ?? "",
             outsiderMaxParticipants: data.outsider_max_participants?.toString() ?? "",
@@ -368,7 +393,7 @@ export default function EditEventPage() {
 
     setIsArchiveUpdating(true);
     try {
-      const response = await fetch(`${API_URL}/api/events/${eventIdSlug}/archive`, {
+      const response = await fetch(`/api/events/${eventIdSlug}/archive`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -484,6 +509,7 @@ export default function EditEventPage() {
     payload.append("event_date", formData.eventDate || "");
     payload.append("end_date", formData.endDate || "");
     payload.append("event_time", formData.eventTime || "");
+    payload.append("end_time", formData.endTime || "");
     payload.append("description", formData.detailedDescription);
     payload.append("category", formData.category);
     payload.append("organizing_school", formData.organizingSchool || "");
@@ -549,6 +575,7 @@ export default function EditEventPage() {
 
     // Custom fields
     payload.append("custom_fields", JSON.stringify(formData.customFields || []));
+    payload.append("volunteers", JSON.stringify(formData.volunteers || []));
 
     const appendFile = (key: string, file: any) => {
       if (!file) return false;
@@ -618,7 +645,7 @@ export default function EditEventPage() {
       }
 
       response = await fetch(
-        `${API_URL}/api/events/${eventIdSlug}`,
+        `/api/events/${eventIdSlug}`,
         {
           method: "PUT",
           body: payload,

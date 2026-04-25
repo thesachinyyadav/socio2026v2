@@ -162,9 +162,13 @@ router.post(
       }
 
       // Ownership check (creator or masteradmin)
+      const createdByEmail =
+        typeof item.created_by === "string"
+          ? item.created_by
+          : item.created_by?.event_creator ?? null;
       const isCreator =
         (item.auth_uuid && item.auth_uuid === req.userId) ||
-        (item.created_by && item.created_by === req.userInfo.email);
+        (createdByEmail && createdByEmail === req.userInfo.email);
       if (!isCreator && !req.userInfo.is_masteradmin) {
         return res.status(403).json({ error: "Only the creator can submit this item for approval" });
       }

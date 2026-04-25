@@ -453,7 +453,7 @@ function collectIssues(runResult: RunResponse | null): IssueItem[] {
 
 export default function StatusCheckPage() {
   const router = useRouter();
-  const { isLoading: authLoading, isMasterAdmin, session, userData } = useAuth();
+  const { isLoading, isMasterAdmin, session, userData } = useAuth();
   const verifyInProgressRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -511,7 +511,7 @@ export default function StatusCheckPage() {
   }, [history]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLoading) return;
 
     if (!session) {
       router.replace("/auth");
@@ -628,7 +628,7 @@ export default function StatusCheckPage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, session, userData, authToken, isMasterAdmin, router, verificationPhase]);
+  }, [isLoading, session, userData, authToken, isMasterAdmin, router, verificationPhase]);
 
   const headers = useMemo(() => {
     if (!authToken) return null;
@@ -1160,7 +1160,7 @@ export default function StatusCheckPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [verificationPhase, fetchSummary, runFullCheck, runLoadCheck, exportSnapshot]);
 
-  if (authLoading || !authToken || verificationPhase === "checking" || verificationPhase === "welcome") {
+  if (isLoading || !authToken || verificationPhase === "checking" || verificationPhase === "welcome") {
     return (
       <div className={cn("statuscheck-dark min-h-screen p-8", headingFont.className)}>
         <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_10%_5%,_#0f172a_0%,_#020617_50%,_#000000_100%)]" />
