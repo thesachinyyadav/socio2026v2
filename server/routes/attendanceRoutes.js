@@ -160,17 +160,39 @@ router.post("/events/:eventId/scan-qr", async (req, res) => {
       const parsed = parseQRCodeData(qrCodeData);
       // Ensure it's an object and not a number/string/array
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        qrData = parsed;
+        // If it's an object, check if it has the SOCIO signature fields
+        if (parsed.registrationId && parsed.hash) {
+          qrData = parsed;
+        } else {
+          // If it's an object but not a signed one, try to extract a possible identifier
+          const possibleId = parsed.registrationId || parsed.id || parsed.identifier || parsed.registerNumber;
+          if (possibleId) {
+            isSimpleQR = true;
+            qrData = {
+              identifier: String(possibleId).trim(),
+              eventId: parsed.eventId || eventId
+            };
+          }
+        }
       }
     }
 
     // 3. FALLBACK: Treat the whole string as a raw identifier (e.g., register number)
-    if (!qrData && typeof qrCodeData === "string" && qrCodeData.trim().length > 0) {
-      isSimpleQR = true;
-      qrData = {
-        identifier: qrCodeData.trim(),
-        eventId: eventId
-      };
+    if (!qrData) {
+      if (typeof qrCodeData === "string" && qrCodeData.trim().length > 0) {
+        isSimpleQR = true;
+        qrData = {
+          identifier: qrCodeData.trim(),
+          eventId: eventId
+        };
+      } else if (typeof qrCodeData === "object" && qrCodeData !== null) {
+        // Final fallback for random objects: stringify and use as identifier
+        isSimpleQR = true;
+        qrData = {
+          identifier: JSON.stringify(qrCodeData),
+          eventId: eventId
+        };
+      }
     }
 
     if (!qrData) {

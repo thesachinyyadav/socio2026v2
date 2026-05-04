@@ -88,7 +88,7 @@ export function verifyQRCodeData(qrData) {
     
     // Verify hash
     const dataToHash = `${registrationId}:${eventId}:${participantEmail}:${timestamp}`;
-    const expectedHash = crypto.createHash('sha256').update(dataToHash + process.env.QR_SECRET || 'default-secret').digest('hex');
+    const expectedHash = crypto.createHash('sha256').update(dataToHash + (process.env.QR_SECRET || 'default-secret')).digest('hex');
     
     if (hash !== expectedHash) {
       return { valid: false, message: 'Invalid QR code: security verification failed' };
@@ -102,10 +102,14 @@ export function verifyQRCodeData(qrData) {
 
 /**
  * Parse QR code string data
- * @param {string} qrString - The QR code string
+ * @param {string|Object} qrString - The QR code string or already parsed object
  * @returns {Object} Parsed QR data or null if invalid
  */
 export function parseQRCodeData(qrString) {
+  if (typeof qrString === 'object' && qrString !== null) {
+    return qrString;
+  }
+  
   try {
     return JSON.parse(qrString);
   } catch (error) {

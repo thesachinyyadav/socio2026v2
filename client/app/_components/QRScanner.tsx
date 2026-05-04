@@ -73,8 +73,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       scannerRef.current = new QrScanner(
         videoRef.current,
         async (result) => {
-          if (result?.data) {
-            await handleQRScan(result.data);
+          // Robustly extract data from scanner result (handles v1.x and v2.x)
+          const data = typeof result === "string" ? result : result?.data;
+          if (data) {
+            await handleQRScan(data);
           }
         },
         {
