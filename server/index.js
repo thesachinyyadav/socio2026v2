@@ -31,7 +31,6 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
-import { csrfProtection, csrfTokenProvider } from "./middleware/csrfMiddleware.js";
 import statuscheckRoutes from "./routes/statuscheckRoutes.js";
 import approvalRoutes from "./routes/approvalRoutes.js";
 import serviceRequestRoutes from "./routes/serviceRequestRoutes.js";
@@ -206,10 +205,6 @@ const generalLimiter = rateLimit({
 });
 
 app.use(generalLimiter);
-// Apply CSRF token provider first to add tokens to responses
-app.use(csrfTokenProvider);
-// Apply CSRF protection to validate tokens on state-changing requests
-app.use(csrfProtection);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -236,10 +231,9 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/csrf-token', (req, res) => {
-  const csrfToken = res.locals.csrfToken || '';
   res.json({
-    message: 'CSRF token provided in headers',
-    token: csrfToken
+    message: 'CSRF not implemented',
+    token: ''
   });
 });
 
