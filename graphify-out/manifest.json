@@ -4,7 +4,7 @@
     "hash": "d13e300f34f5c3dc322b502903ca5fef"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\middleware.ts": {
-    "mtime": 1777826463.156383,
+    "mtime": 1778175276.5513682,
     "hash": "898a20345fcc68d304b4474cfe1de85c"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\next-env.d.ts": {
@@ -44,7 +44,7 @@
     "hash": "70318379445ddebe4fe9bc7e5589a28c"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\about\\page.tsx": {
-    "mtime": 1777636870.269542,
+    "mtime": 1778175276.5306873,
     "hash": "5469a64291c0c03ccf6e582bf369f16c"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\about\\mission\\layout.tsx": {
@@ -68,7 +68,7 @@
     "hash": "e8f2a1c56cb54b2c73412ca9c4384aca"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\about\\team\\page.tsx": {
-    "mtime": 1777901413.914101,
+    "mtime": 1778175276.5306873,
     "hash": "40f66c55bcdbe69b4df814b9f9593a95"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\accounts\\page.tsx": {
@@ -172,7 +172,7 @@
     "hash": "0bc046e938b1dd0d3f9fcbe8db39771f"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\club\\[id]\\page.tsx": {
-    "mtime": 1778000488.8076842,
+    "mtime": 1778174084.690792,
     "hash": "030177b748a1a61a86ad67888cdb43f0"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\clubeditor\\[id]\\page.tsx": {
@@ -208,7 +208,7 @@
     "hash": "6d3c8efc87b9080cb4c4bab4a439c228"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\create\\event\\page.tsx": {
-    "mtime": 1777627131.8444967,
+    "mtime": 1778175276.5306873,
     "hash": "49615eac8119c8c46886bb7a134dd6b9"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\create\\fest\\page.tsx": {
@@ -248,7 +248,7 @@
     "hash": "ed930e932e927355bc0dab12bf7526ab"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\event\\[id]\\layout.tsx": {
-    "mtime": 1776614301.942062,
+    "mtime": 1778175276.5306873,
     "hash": "1b8ed836614f8978fd1f4b039a706d2a"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\event\\[id]\\loading.tsx": {
@@ -260,7 +260,7 @@
     "hash": "bec01707a9a098e661a296ab00cd0481"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\event\\[id]\\participants\\page.tsx": {
-    "mtime": 1777712152.3907752,
+    "mtime": 1778175276.5306873,
     "hash": "de4a9949d2947d6392d87042a4a0da7f"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\event\\[id]\\register\\page.tsx": {
@@ -288,7 +288,7 @@
     "hash": "84cb7b8d03725a0b0bc5c2f3eeaa3e0c"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\faq\\page.tsx": {
-    "mtime": 1777287813.2169397,
+    "mtime": 1778175276.5306873,
     "hash": "347a440f42d3e6a7105a2f8841a41361"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\feedback\\[eventId]\\page.tsx": {
@@ -372,7 +372,7 @@
     "hash": "c9b1884ffd5813e32a40547a6ddb065e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\masteradmin\\page.tsx": {
-    "mtime": 1777826463.156383,
+    "mtime": 1778175276.5306873,
     "hash": "fb4d516109b9f27e218488c39d2016d0"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\pricing\\layout.tsx": {
@@ -408,7 +408,7 @@
     "hash": "34114edf940de29044736bdc70ff7526"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\solutions\\page.tsx": {
-    "mtime": 1770782334.759015,
+    "mtime": 1778175276.5306873,
     "hash": "34de691a44532bbf7cff6c61db9b40f5"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\stalls\\page.tsx": {
@@ -424,11 +424,11 @@
     "hash": "aaac8bd082fde80d14671b49403b9d9d"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\support\\page.tsx": {
-    "mtime": 1777287813.2548711,
+    "mtime": 1778175276.5306873,
     "hash": "38d77980383479c77e95a8d358772ed3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\support\\careers\\page.tsx": {
-    "mtime": 1777293063.233704,
+    "mtime": 1778175276.5306873,
     "hash": "0cf32b1b77f29fab32e7f867fc1e1ed8"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\support\\inbox\\page.tsx": {
@@ -456,7 +456,7 @@
     "hash": "390caaaef5d068d514efe29fe93e5599"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\AttendanceManager.tsx": {
-    "mtime": 1777977461.3523476,
+    "mtime": 1778175276.5172505,
     "hash": "0b5488e12aefb89016edaa2860185d10"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\BookVenueModal.tsx": {
@@ -500,12 +500,12 @@
     "hash": "b582cd4265b8fa0fc4fc4d35a8cd6f77"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\NavigationBar.tsx": {
-    "mtime": 1777826463.156383,
+    "mtime": 1778175276.5306873,
     "hash": "0d4554b47c73580d0c04ee52ba27e0da"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\NotificationSystem.tsx": {
-    "mtime": 1777788108.6415522,
-    "hash": "b2e0dfa28e9774c71080a8dad73fe65b"
+    "mtime": 1778175276.5306873,
+    "hash": "1bd728d04596d57f7824dad5749d670a"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\OperationalRequestsWizard.tsx": {
     "mtime": 1776864139.0759697,
@@ -596,7 +596,7 @@
     "hash": "5dd25533b68070371c6fa63b65671940"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\Discover\\PendingFeedbackSection.tsx": {
-    "mtime": 1777287813.1409883,
+    "mtime": 1778175276.5172505,
     "hash": "b59f670bd89b70174154ef657735083b"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\Discover\\SectionHeader.tsx": {
@@ -628,11 +628,11 @@
     "hash": "71806fecb2a1c68d8d241d8c8c0f8ef0"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\Home\\Features.tsx": {
-    "mtime": 1777287813.1581347,
+    "mtime": 1778175276.5172505,
     "hash": "d2db848577d3ebebaaa2252efc98762e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\Home\\Footer.tsx": {
-    "mtime": 1777635857.7501473,
+    "mtime": 1778175276.5306873,
     "hash": "bfe0092450d8aeea5674e661834b4e7e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\Home\\FunkyButton.tsx": {
@@ -668,7 +668,7 @@
     "hash": "43f1f19d017aaf4f61520330fbb869a9"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\UI\\FormElements.tsx": {
-    "mtime": 1777972024.5629942,
+    "mtime": 1778175276.5306873,
     "hash": "960c75554c03e4619838521089d47aca"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\UI\\LoadingIndicator.tsx": {
@@ -692,7 +692,7 @@
     "hash": "1d2cac54b0585465047d78465c96b2fa"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\context\\AuthContext.tsx": {
-    "mtime": 1777826492.963864,
+    "mtime": 1778175276.5306873,
     "hash": "261c886fa1d6cf729487cf886a9a9ba9"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\context\\EventContext.tsx": {
@@ -704,11 +704,11 @@
     "hash": "e5b56992f2451bc46f021e43826eba45"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\adminAnalyticsQueries.ts": {
-    "mtime": 1775329941.499186,
+    "mtime": 1778175276.5468268,
     "hash": "8673b7a2b96eaeb579b5f1a964c807be"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\api.ts": {
-    "mtime": 1775329941.4999075,
+    "mtime": 1778175276.5480938,
     "hash": "1b3e8b65386824a27e7477b56cf4b182"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\dateUtils.ts": {
@@ -716,15 +716,15 @@
     "hash": "82bb43c917d345a9ba547dd8f5c2fe0e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\deanAnalyticsApi.ts": {
-    "mtime": 1777287813.2701893,
+    "mtime": 1778175276.5492737,
     "hash": "1283c3e60d0e3cd4bb3c267f1226b3e0"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\hodAnalyticsApi.ts": {
-    "mtime": 1777287813.2714293,
+    "mtime": 1778175276.5492737,
     "hash": "3aca44a4c994d336567599b8e064a13e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\masterAdminAnalyticsApi.ts": {
-    "mtime": 1777287813.2714293,
+    "mtime": 1778175276.5503068,
     "hash": "111015fed9a4aa2f779f0dc235f271de"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\siteConfig.ts": {
@@ -748,8 +748,8 @@
     "hash": "c0737ad634173d2cfc826248e1e720cc"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\index.js": {
-    "mtime": 1778084295.4077497,
-    "hash": "2380dd0286c711e1a501f1239169e740"
+    "mtime": 1778175276.5534134,
+    "hash": "0b043f5154bf2fa7f2bbfd48d5870789"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\config\\database.js": {
     "mtime": 1777786288.4563951,
@@ -788,11 +788,15 @@
     "hash": "aa272442478e00608fe92d5d0b95d86d"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\attendanceRoutes.js": {
-    "mtime": 1778084295.4112244,
+    "mtime": 1778175276.5544279,
     "hash": "b42a64c173589b56863819547a0cfe64"
   },
+  "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\authRoutes.js": {
+    "mtime": 1778175276.5544279,
+    "hash": "aa4e5f5722a8b23a58c1b5b30a513eaf"
+  },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\cateringRoutes.js": {
-    "mtime": 1778084295.4122217,
+    "mtime": 1778175276.5554667,
     "hash": "81e522312f40d18641740e3236cbebb6"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\chatRoutes.js": {
@@ -804,15 +808,15 @@
     "hash": "0cc3587f18e399a66802a1b943f33e27"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\contactRoutes.js": {
-    "mtime": 1770782338.3633566,
+    "mtime": 1778175276.5565624,
     "hash": "e23eadc429b04f3fa02d09e19d734093"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\deanAnalyticsRoutes.js": {
-    "mtime": 1777555507.4785838,
+    "mtime": 1778175276.5576103,
     "hash": "954994daf389681cb0cdfb26705fe8b8"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\eventRoutes_secured.js": {
-    "mtime": 1777788084.8121064,
+    "mtime": 1778175276.5586073,
     "hash": "3a383f8579777154c76a2d3179ed8bfd"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\feedbackRoutes.js": {
@@ -820,11 +824,11 @@
     "hash": "a2d4352b8d5eaee3568fb819484f6d92"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\festRoutes.js": {
-    "mtime": 1777627131.8743658,
+    "mtime": 1778175276.5596051,
     "hash": "5675a0c66aa363b03f7aaee40f21e955"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\hodAnalyticsRoutes.js": {
-    "mtime": 1777555507.488446,
+    "mtime": 1778175276.5606022,
     "hash": "1161487aa6937dc365b18432cd4aa580"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\notificationRoutes.js": {
@@ -832,8 +836,8 @@
     "hash": "a4dd5d7f5e4d59a40de3b6942f837148"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\registrationRoutes.js": {
-    "mtime": 1778084295.4142163,
-    "hash": "c3b85c6c10eb9721e406c3a7d2822dd9"
+    "mtime": 1778181941.2242708,
+    "hash": "62b0195e6fa79d62d0aec9e16fd378a7"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\reportRoutes.js": {
     "mtime": 1775329941.5805166,
@@ -868,7 +872,7 @@
     "hash": "8e593d212ad83260d65440c5741e83f0"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\volunteerRoutes.js": {
-    "mtime": 1777287813.332466,
+    "mtime": 1778175276.5615995,
     "hash": "f260455eed9e20cb01a619a364828d3f"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\scripts\\migrate.js": {
@@ -903,6 +907,10 @@
     "mtime": 1770782338.381169,
     "hash": "d553bb20f65718be3d28a87444f65c0c"
   },
+  "D:\\CODES\\SOCIO\\socioweb\\server\\utils\\oneSignalService.js": {
+    "mtime": 1778084295.4152133,
+    "hash": "27cf4e49d27dd3c353dddb29ece06a64"
+  },
   "D:\\CODES\\SOCIO\\socioweb\\server\\utils\\parsers.js": {
     "mtime": 1770782338.3831751,
     "hash": "28469d9d9b02927c9fb1d7a6c90f54eb"
@@ -936,8 +944,8 @@
     "hash": "9223ee876f6ae1ccccab4444eab0ac55"
   },
   "D:\\CODES\\SOCIO\\socioweb\\README.md": {
-    "mtime": 1776575432.4051127,
-    "hash": "0ff02444aa7f592d8448446c67271c4d"
+    "mtime": 1778154788.0671911,
+    "hash": "07c0845a89c6d4f20174f067796c8137"
   },
   "D:\\CODES\\SOCIO\\socioweb\\SECURITY.md": {
     "mtime": 1777793904.7938087,
@@ -970,6 +978,10 @@
   "D:\\CODES\\SOCIO\\socioweb\\docs\\SOCIO_FONTS.md": {
     "mtime": 1777287813.1034875,
     "hash": "097789bc487625bdea0cb9bc09826e2a"
+  },
+  "D:\\CODES\\SOCIO\\socioweb\\pitchdeck\\executive-presentation.html": {
+    "mtime": 1778170656.0327904,
+    "hash": "1f6ef61ba18f463b989718ffa582a5da"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\MIGRATIONS.md": {
     "mtime": 1771428555.827449,

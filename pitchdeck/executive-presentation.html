@@ -3,521 +3,551 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SOCIO Executive Presentation</title>
+  <title>SOCIO — Executive Presentation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --primary: #154CB3;
+      --primary:      #154CB3;
       --primary-deep: #063168;
-      --accent: #FFCC00;
-      --sky: #30A4EF;
-      --ink: #0f1f3a;
-      --muted: #5f6c86;
-      --surface: #f6f9ff;
-      --card: #ffffff;
-      --ok: #0f8e5f;
-      --warn: #b88200;
-      --border: #d8e2f5;
-      --shadow: 0 14px 34px rgba(21, 76, 179, 0.12);
-      --radius-xl: 26px;
-      --radius-lg: 18px;
+      --primary-mid:  #1a5ec9;
+      --sky:          #2e8fd4;
+      --ink:          #0c1929;
+      --muted:        #4d5e7a;
+      --subtle:       #6b7a96;
+      --surface:      #f2f6fc;
+      --card:         #ffffff;
+      --border:       #dce7f5;
+      --border-mid:   #c8d9ef;
+      --shadow-xs:    0 2px 8px rgba(15, 40, 90, 0.06);
+      --shadow-sm:    0 4px 16px rgba(15, 40, 90, 0.08);
+      --shadow:       0 10px 30px rgba(15, 40, 90, 0.11);
+      --shadow-lg:    0 20px 50px rgba(6, 49, 104, 0.16);
+      --radius-xl:    26px;
+      --radius-lg:    18px;
+      --radius:       12px;
     }
 
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     html {
       scroll-behavior: smooth;
-      background: radial-gradient(circle at 10% 0%, #dcebff 0%, #f7f9ff 35%, #ffffff 100%);
+      background: #edf3fc;
     }
 
     body {
-      margin: 0;
       font-family: "DM Sans", system-ui, sans-serif;
       color: var(--ink);
-      line-height: 1.6;
+      line-height: 1.65;
       background: transparent;
     }
 
-    .bg-shape {
-      position: fixed;
-      inset: auto auto -120px -120px;
-      width: 380px;
-      height: 380px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(21, 76, 179, 0.22), rgba(21, 76, 179, 0));
-      pointer-events: none;
-      z-index: -1;
-      animation: floaty 9s ease-in-out infinite;
-    }
+    /* ── layout ── */
+    .container { width: min(1160px, 92vw); margin: 0 auto; }
+    section { padding: 60px 0; }
 
-    .bg-shape.right {
-      inset: 80px -120px auto auto;
-      background: radial-gradient(circle, rgba(255, 204, 0, 0.28), rgba(255, 204, 0, 0));
-      animation-delay: -3s;
-    }
-
-    @keyframes floaty {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-18px); }
-    }
-
-    .container {
-      width: min(1160px, 92vw);
-      margin: 0 auto;
-    }
-
+    /* ── nav ── */
     .nav {
       position: sticky;
       top: 0;
-      z-index: 40;
-      backdrop-filter: blur(10px);
-      background: rgba(255, 255, 255, 0.8);
+      z-index: 50;
+      backdrop-filter: blur(12px) saturate(1.3);
+      background: rgba(255,255,255,0.86);
       border-bottom: 1px solid var(--border);
     }
-
     .nav-inner {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 14px 0;
-      gap: 14px;
+      padding: 13px 0;
+      gap: 12px;
     }
-
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-weight: 800;
-      color: var(--primary-deep);
-    }
-
-    .brand img, .brand svg { width: 118px; height: auto; }
-
-    .nav-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-
-    .nav-links a {
-      text-decoration: none;
-      font-size: 13px;
+      gap: 10px;
+      font-size: 12px;
       font-weight: 700;
       color: var(--primary-deep);
-      padding: 7px 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .brand svg { width: 100px; height: auto; }
+    .nav-links { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .nav-links a {
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary-deep);
+      padding: 6px 12px;
       border-radius: 999px;
-      background: #eef4ff;
-      border: 1px solid #d5e3ff;
+      background: #eaf2ff;
+      border: 1px solid var(--border-mid);
+      transition: background .15s, color .15s;
+    }
+    .nav-links a:hover { background: var(--primary); color: #fff; }
+
+    /* ── type ── */
+    h1 {
+      font-size: clamp(30px, 4.8vw, 52px);
+      line-height: 1.06;
+      letter-spacing: -0.025em;
+      font-weight: 900;
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: clamp(22px, 3.6vw, 36px);
+      line-height: 1.1;
+      color: var(--primary-deep);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    h3 { font-size: 16px; font-weight: 800; line-height: 1.3; margin-bottom: 6px; }
+
+    .label {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: #e6efff;
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 10px;
     }
 
-    section { padding: 56px 0; }
+    .section-head { margin-bottom: 28px; }
+    .section-head p { max-width: 800px; color: var(--muted); font-size: 16px; margin-top: 6px; }
 
-    .hero {
-      padding-top: 70px;
-    }
-
+    /* ── hero ── */
+    .hero { padding-top: 68px; }
     .hero-card {
-      background: linear-gradient(128deg, #08357c 0%, #154CB3 46%, #30A4EF 100%);
+      background: linear-gradient(128deg, #04245a 0%, #154CB3 52%, #1e7fc4 100%);
       color: #fff;
-      border-radius: 34px;
-      padding: 46px;
-      box-shadow: 0 24px 50px rgba(6, 49, 104, 0.36);
-      overflow: hidden;
+      border-radius: 32px;
+      padding: 50px 52px 44px;
+      box-shadow: 0 24px 56px rgba(4, 36, 90, 0.36);
       position: relative;
+      overflow: hidden;
     }
-
-    .hero-card::after {
+    .hero-card::before {
       content: "";
       position: absolute;
-      width: 380px;
-      height: 380px;
-      right: -130px;
-      top: -160px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.14);
+      inset: 0;
+      background: radial-gradient(ellipse 640px 420px at 110% -10%, rgba(255,255,255,0.08) 0%, transparent 70%);
+      pointer-events: none;
     }
-
-    h1 {
-      margin: 10px 0 16px;
-      font-size: clamp(34px, 5vw, 58px);
-      line-height: 1.05;
-      letter-spacing: -0.02em;
-    }
-
-    h2 {
-      margin: 0 0 14px;
-      font-size: clamp(26px, 4vw, 40px);
-      line-height: 1.12;
-      color: var(--primary-deep);
-    }
-
-    h3 {
-      margin: 0 0 8px;
-      font-size: 20px;
-      line-height: 1.2;
-    }
-
     .eyebrow {
       display: inline-block;
-      font-size: 12px;
+      font-size: 10.5px;
       font-weight: 800;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--accent);
-      background: rgba(255, 255, 255, 0.12);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f0c54a;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.18);
       border-radius: 999px;
-      padding: 7px 12px;
+      padding: 6px 14px;
+      margin-bottom: 16px;
     }
-
     .hero p {
-      width: min(760px, 100%);
-      font-size: clamp(16px, 2.4vw, 21px);
-      opacity: 0.94;
-      margin: 0;
+      width: min(720px, 100%);
+      font-size: clamp(15px, 2vw, 18px);
+      opacity: 0.9;
+      margin-bottom: 30px;
     }
-
     .hero-metrics {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-top: 30px;
+      gap: 12px;
     }
-
     .metric {
-      background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255,255,255,0.11);
+      border: 1px solid rgba(255,255,255,0.18);
       border-radius: 14px;
-      padding: 14px;
+      padding: 14px 16px;
     }
+    .metric b { display: block; font-size: 18px; font-weight: 900; margin-bottom: 4px; }
+    .metric span { font-size: 12px; opacity: 0.82; }
 
-    .metric b { display: block; font-size: 22px; }
-
-    .section-head {
-      margin-bottom: 26px;
-    }
-
-    .section-head p {
-      max-width: 840px;
-      margin: 0;
-      color: var(--muted);
-      font-size: 17px;
-    }
-
-    .grid {
-      display: grid;
-      gap: 16px;
-    }
-
-    .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    /* ── grid / card ── */
+    .grid { display: grid; gap: 14px; }
+    .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
 
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 18px;
-      box-shadow: var(--shadow);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+    /* ── problem ── */
+    .problem .card { border-top: 3px solid #c4a812; }
+
+    /* ── USP ── */
+    .usp-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .usp-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--primary);
+      border-radius: var(--radius-lg);
+      padding: 22px 22px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .usp-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: #e6efff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .usp-icon svg { width: 20px; height: 20px; stroke: var(--primary); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .usp-card p { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+    .usp-badge {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--primary);
+      background: #e6efff;
+      border: 1px solid var(--border-mid);
+      border-radius: 999px;
+      padding: 3px 9px;
+      margin-top: 10px;
     }
 
-    .card p { margin: 0; color: var(--muted); }
-
-    .problem .card {
-      border-top: 4px solid #f1bf00;
-    }
-
+    /* ── timeline ── */
     .timeline {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      position: relative;
     }
-
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 22px;
+      left: calc(10% + 4px);
+      right: calc(10% + 4px);
+      height: 2px;
+      background: linear-gradient(90deg, var(--primary), var(--sky));
+      z-index: 0;
+    }
     .step {
       background: #fff;
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      text-align: center;
       position: relative;
+      z-index: 1;
+      box-shadow: var(--shadow-xs);
     }
-
     .step .num {
-      width: 30px;
-      height: 30px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(130deg, var(--primary), var(--sky));
+      color: #fff;
+      font-weight: 900;
+      font-size: 13px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      border-radius: 50%;
-      font-weight: 800;
-      background: linear-gradient(120deg, var(--primary), var(--sky));
-      color: #fff;
       margin-bottom: 8px;
     }
+    .step b { display: block; font-size: 13.5px; font-weight: 800; color: var(--primary-deep); }
+    .step p { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
+    /* ── features ── */
     .feature {
-      padding: 28px;
-      margin-bottom: 48px;
-      border-radius: var(--radius-xl);
+      background: #fff;
       border: 1px solid var(--border);
-      background: linear-gradient(160deg, #ffffff 0%, #f3f8ff 100%);
+      border-radius: var(--radius-xl);
+      padding: 30px;
       box-shadow: var(--shadow);
-      position: relative;
-      min-height: 220px;
+      margin-bottom: 16px;
     }
-
-    .feature + .feature { margin-top: 28px; }
-
+    .feature-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 18px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .feature-num {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(130deg, var(--primary), var(--sky));
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .feature-header div p { color: var(--muted); font-size: 14px; margin-top: 2px; }
     .feature .columns {
       display: grid;
       grid-template-columns: 1.1fr 1fr;
-      gap: 20px;
-      margin-top: 16px;
+      gap: 24px;
     }
-
     .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
+      display: inline-block;
+      font-size: 11px;
       font-weight: 700;
       color: var(--primary-deep);
       background: #eaf2ff;
-      border: 1px solid #d4e2ff;
+      border: 1px solid var(--border-mid);
       border-radius: 999px;
-      padding: 6px 10px;
-      margin-right: 7px;
+      padding: 4px 10px;
+      margin-right: 6px;
       margin-bottom: 8px;
     }
-
     .before-after {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-top: 18px;
+      gap: 10px;
+      margin-top: 12px;
     }
-
     .before, .after {
-      border-radius: 12px;
-      padding: 12px;
-      min-height: 130px;
+      border-radius: 10px;
+      padding: 12px 14px;
     }
+    .before { background: #fdf6e8; border: 1px solid #e8d08a; }
+    .after  { background: #eaf6f1; border: 1px solid #8dd4b4; }
+    .before b { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #7a5500; }
+    .after b  { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #0a5c38; }
+    .before p, .after p { font-size: 12.5px; margin-top: 4px; color: var(--muted); }
+    .workflow-label { font-size: 12px; font-weight: 800; color: var(--primary-deep); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+    .feature ol { padding-left: 16px; }
+    .feature ol li { font-size: 13.5px; color: var(--muted); margin-bottom: 5px; }
 
-    .before { background: #fff7e8; border: 1px solid #ffe1ad; }
-    .after { background: #e9f8f1; border: 1px solid #bdebd7; }
-
-    .role-track {
-      display: grid;
-      gap: 14px;
-    }
-
-    .role-item {
-      display: grid;
-      grid-template-columns: 200px 1fr;
-      gap: 12px;
-      align-items: start;
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 12px;
-      box-shadow: var(--shadow);
-    }
-
-    .role-item b { color: var(--primary-deep); }
-
-    .role-steps {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .role-steps span {
-      background: #eef4ff;
-      border: 1px solid #d5e3ff;
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #244177;
-    }
-
-    .insight-board {
-      border-radius: 26px;
-      background: linear-gradient(130deg, #052d61 0%, #0d3f90 45%, #1c5fca 100%);
+    /* ── visitor management ── */
+    .visitor-banner {
+      background: linear-gradient(128deg, #04245a 0%, #0e3f8c 52%, #1560b8 100%);
+      border-radius: var(--radius-xl);
       color: #fff;
-      padding: 24px;
-      box-shadow: 0 24px 44px rgba(5, 45, 97, 0.34);
+      padding: 34px 36px;
+      box-shadow: var(--shadow-lg);
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
     }
+    .visitor-banner::after {
+      content: "";
+      position: absolute;
+      width: 400px; height: 400px;
+      right: -130px; top: -180px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      pointer-events: none;
+    }
+    .visitor-banner h3 { font-size: 20px; margin-bottom: 8px; }
+    .visitor-banner > p { max-width: 680px; opacity: 0.87; font-size: 14.5px; margin-bottom: 28px; }
 
-    .insight-board h3 { margin-bottom: 12px; }
-
-    .insight-grid {
+    .gate-flow {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0;
+      position: relative;
     }
-
-    .insight {
-      background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      border-radius: 12px;
-      padding: 12px;
-      min-height: 110px;
+    .gate-flow::before {
+      content: "";
+      position: absolute;
+      top: 28px;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: rgba(255,255,255,0.25);
     }
-
-    .insight strong {
-      display: block;
-      font-size: 22px;
-      margin-bottom: 6px;
-      color: #ffde5d;
-    }
-
-    .final {
-      background: linear-gradient(145deg, #ffffff 0%, #eff6ff 100%);
-      border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 36px;
-      box-shadow: var(--shadow);
+    .gate-step {
       text-align: center;
+      padding: 10px 8px 0;
+      position: relative;
+      z-index: 1;
     }
-
-    .final h2 { margin-bottom: 10px; }
-
-    .cta-list {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 20px;
-      text-align: left;
-    }
-
-    .cta-list .card {
-      border-top: 3px solid var(--primary);
-      box-shadow: none;
-    }
-
-    .thanks {
-      margin-top: 24px;
-      font-size: clamp(32px, 5vw, 54px);
-      color: var(--primary-deep);
-      font-weight: 900;
-      letter-spacing: -0.03em;
-    }
-
-    .reveal {
-      opacity: 0;
-      transform: translateY(18px);
-      transition: opacity .7s ease, transform .7s ease;
-    }
-
-    .reveal.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .logo-row {
+    .gate-step .gicon {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.13);
+      border: 1.5px solid rgba(255,255,255,0.28);
       display: flex;
       align-items: center;
-      gap: 14px;
-      margin-top: 16px;
+      justify-content: center;
+      margin: 0 auto 10px;
     }
+    .gate-step .gicon svg { width: 20px; height: 20px; stroke: #fff; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .gate-step b { display: block; font-size: 12.5px; font-weight: 800; }
+    .gate-step span { font-size: 11px; opacity: 0.74; display: block; margin-top: 3px; line-height: 1.4; }
 
-    .logo-row img, .logo-row svg {
-      height: 50px;
-      width: auto;
-      filter: drop-shadow(0 8px 16px rgba(8, 53, 124, 0.2));
-      background: #fff;
-      padding: 8px 10px;
-      border-radius: 14px;
-    }
-
-    .mockup {
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      overflow: hidden;
-      background: #fff;
-      box-shadow: var(--shadow);
-    }
-
-    .mockup-head {
-      background: #e7efff;
-      color: #244177;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      padding: 8px 12px;
-      border-bottom: 1px solid #d4e2ff;
-    }
-
-    .mockup-body {
-      padding: 12px;
+    .v-cards {
       display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .v-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--primary-mid);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .v-card-icon {
+      width: 34px;
+      height: 34px;
+      background: #e6efff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .v-card-icon svg { width: 18px; height: 18px; stroke: var(--primary); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .v-card p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    /* ── roles ── */
+    .role-track { display: grid; gap: 10px; }
+    .role-item {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 14px;
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      box-shadow: var(--shadow-xs);
+    }
+    .role-label {
+      display: flex;
+      align-items: center;
       gap: 8px;
-      min-height: 130px;
     }
-
-    .bar {
-      height: 10px;
+    .role-label svg { width: 16px; height: 16px; stroke: var(--primary); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .role-label b { color: var(--primary-deep); font-size: 13.5px; }
+    .role-steps { display: flex; flex-wrap: wrap; gap: 7px; }
+    .role-steps span {
+      background: #eaf2ff;
+      border: 1px solid var(--border-mid);
       border-radius: 999px;
-      background: linear-gradient(90deg, #d5e3ff, #f0f6ff);
+      padding: 4px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #1a3a6e;
     }
 
-    .bar.active {
-      background: linear-gradient(90deg, var(--primary), var(--sky));
+    /* ── insight board ── */
+    .insight-board {
+      border-radius: var(--radius-xl);
+      background: linear-gradient(128deg, #04245a 0%, #0d3f90 52%, #1560b8 100%);
+      color: #fff;
+      padding: 28px;
+      box-shadow: var(--shadow-lg);
     }
+    .insight-board > h3 { font-size: 16px; margin-bottom: 14px; opacity: 0.7; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .insight-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .insight {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .insight-ico { margin-bottom: 8px; }
+    .insight-ico svg { width: 22px; height: 22px; stroke: #fde68a; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .insight strong { display: block; font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+    .insight p { font-size: 12.5px; opacity: 0.8; }
+
+    /* ── automation ── */
+    .automation .card { border-left: 3px solid var(--primary); }
+
+    /* ── closing ── */
+    .final {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 44px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .final > p { max-width: 680px; margin: 8px auto 24px; color: var(--muted); font-size: 15.5px; }
+    .cta-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: left; }
+    .cta-list .card { border-top: 3px solid var(--primary); box-shadow: none; }
+    .cta-ico { width: 32px; height: 32px; background: #e6efff; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .cta-ico svg { width: 17px; height: 17px; stroke: var(--primary); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    .thanks { margin-top: 32px; font-size: clamp(28px, 4.5vw, 48px); color: var(--primary-deep); font-weight: 900; letter-spacing: -0.03em; }
+
+    /* ── reveal ── */
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .65s ease, transform .65s ease; }
+    .reveal.show { opacity: 1; transform: translateY(0); }
 
     footer {
-      padding: 36px 0 50px;
-      color: #4d648f;
+      padding: 36px 0 52px;
+      color: var(--subtle);
       text-align: center;
+      font-size: 12.5px;
       font-weight: 600;
     }
 
+    /* ── responsive ── */
     @media (max-width: 1024px) {
-      .hero-metrics, .grid.cols-4, .insight-grid, .cta-list { grid-template-columns: repeat(2, 1fr); }
+      .hero-metrics, .grid.cols-4, .insight-grid { grid-template-columns: repeat(2, 1fr); }
       .feature .columns { grid-template-columns: 1fr; }
-      .timeline { grid-template-columns: 1fr 1fr; }
+      .timeline, .gate-flow { grid-template-columns: 1fr 1fr; }
+      .timeline::before, .gate-flow::before { display: none; }
       .role-item { grid-template-columns: 1fr; }
+      .usp-grid, .v-cards { grid-template-columns: repeat(2, 1fr); }
     }
-
     @media (max-width: 700px) {
-      .hero-card { padding: 24px; border-radius: 24px; }
-      .grid.cols-3, .grid.cols-2, .hero-metrics, .insight-grid, .cta-list, .timeline, .before-after { grid-template-columns: 1fr; }
+      .hero-card { padding: 28px 22px 24px; border-radius: 24px; }
+      .grid.cols-3, .grid.cols-2, .hero-metrics, .insight-grid,
+      .cta-list, .timeline, .gate-flow, .before-after, .usp-grid, .v-cards { grid-template-columns: 1fr; }
       .nav-links { display: none; }
-      section { padding: 44px 0; }
+      section { padding: 48px 0; }
     }
   </style>
 </head>
 <body>
-  <div class="bg-shape"></div>
-  <div class="bg-shape right"></div>
 
   <nav class="nav">
     <div class="container nav-inner">
       <div class="brand">
-        <svg width="118" height="35" viewBox="0 0 319 94" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M32.6035 80.4229C23.5462 80.4229 16.1087 78.2719 10.291 73.9646C4.4681 69.6625 1.3431 63.4959 0.916016 55.4646H23.9785C24.1973 58.1886 25.0098 60.1834 26.416 61.4438C27.8171 62.6938 29.6243 63.3188 31.8327 63.3188C33.8171 63.3188 35.4473 62.8188 36.7285 61.8188C38.0202 60.8188 38.666 59.4386 38.666 57.6729C38.666 55.3969 37.5931 53.6313 35.4577 52.3813C33.3327 51.1313 29.8743 49.7302 25.0827 48.1729C20.0098 46.4959 15.9056 44.8604 12.7702 43.2771C9.64518 41.6938 6.92122 39.3761 4.60352 36.3188C2.2806 33.2667 1.12435 29.2719 1.12435 24.3396C1.12435 19.3292 2.37435 15.0375 4.87435 11.4646C7.38477 7.89689 10.8535 5.19377 15.2702 3.36043C19.6868 1.51668 24.6868 0.5896 30.2702 0.5896C39.3223 0.5896 46.5514 2.70939 51.9577 6.94377C57.3744 11.1834 60.2702 17.1261 60.6452 24.7771H37.1244C37.0514 22.4177 36.3379 20.6521 34.9785 19.4854C33.6139 18.3084 31.8639 17.7146 29.7285 17.7146C28.1035 17.7146 26.7754 18.1938 25.7493 19.1521C24.7181 20.1 24.2077 21.4594 24.2077 23.2354C24.2077 24.7094 24.7754 25.9802 25.916 27.0479C27.0514 28.1052 28.4681 29.0219 30.166 29.7979C31.8587 30.5792 34.3587 31.5479 37.666 32.7146C42.6087 34.4125 46.6764 36.0896 49.8744 37.7563C53.0827 39.4125 55.8431 41.7302 58.166 44.7146C60.4837 47.6886 61.6452 51.4594 61.6452 56.0271C61.6452 60.6677 60.4837 64.8292 58.166 68.5063C55.8431 72.1886 52.4889 75.1 48.1035 77.2354C43.7285 79.3604 38.5619 80.4229 32.6035 80.4229Z" fill="#154CB3"/>
-<path d="M100.38 80.4229C93.099 80.4229 86.4063 78.7146 80.2969 75.2979C74.1823 71.8709 69.3437 67.1209 65.776 61.0479C62.2031 54.9802 60.4219 48.1104 60.4219 40.4438C60.4219 32.7927 62.2031 25.9334 65.776 19.8604C69.3437 13.7927 74.1823 9.06356 80.2969 5.67293C86.4063 2.28752 93.099 0.5896 100.38 0.5896C107.74 0.5896 114.453 2.28752 120.526 5.67293C126.609 9.06356 131.411 13.7927 134.943 19.8604C138.484 25.9334 140.255 32.7927 140.255 40.4438C140.255 48.1104 138.484 54.9802 134.943 61.0479C131.411 67.1209 126.594 71.8709 120.484 75.2979C114.37 78.7146 107.672 80.4229 100.38 80.4229ZM100.38 60.3188C105.906 60.3188 110.266 58.5219 113.464 54.9229C116.672 51.3136 118.276 46.4854 118.276 40.4438C118.276 34.2667 116.672 29.3917 113.464 25.8188C110.266 22.2511 105.906 20.4646 100.38 20.4646C94.7813 20.4646 90.401 22.2511 87.2344 25.8188C84.0781 29.3917 82.5052 34.2667 82.5052 40.4438C82.5052 46.5584 84.0781 51.3969 87.2344 54.9646C90.401 58.5375 94.7813 60.3188 100.38 60.3188Z" fill="#154CB3"/>
-<path d="M138.699 40.5688C138.699 32.9177 140.293 26.0896 143.491 20.0896C146.699 14.0896 151.246 9.41773 157.137 6.06877C163.022 2.70939 169.793 1.0271 177.449 1.0271C187.168 1.0271 195.345 3.62606 201.97 8.81877C208.595 14.0167 212.855 21.0636 214.762 29.9646H191.47C190.064 27.0219 188.126 24.7771 185.658 23.2354C183.199 21.6834 180.35 20.9021 177.116 20.9021C172.116 20.9021 168.121 22.6886 165.137 26.2563C162.147 29.8292 160.658 34.6 160.658 40.5688C160.658 46.6 162.147 51.3969 165.137 54.9646C168.121 58.5375 172.116 60.3188 177.116 60.3188C180.35 60.3188 183.199 59.5479 185.658 58.0063C188.126 56.4646 190.064 54.225 191.47 51.2771H214.762C212.855 60.1834 208.595 67.2302 201.97 72.4229C195.345 77.6209 187.168 80.2146 177.449 80.2146C169.793 80.2146 163.022 78.5427 157.137 75.1938C151.246 71.8344 146.699 67.1521 143.491 61.1521C140.293 55.1521 138.699 48.2927 138.699 40.5688Z" fill="#154CB3"/>
-<path d="M238 5V76H216V5H238Z" fill="#154CB3"/>
-<path d="M279.124 80.4229C271.843 80.4229 265.15 78.7146 259.041 75.2979C252.926 71.8709 248.088 67.1209 244.52 61.0479C240.947 54.9802 239.166 48.1104 239.166 40.4438C239.166 32.7927 240.947 25.9334 244.52 19.8604C248.088 13.7927 252.926 9.06356 259.041 5.67293C265.15 2.28752 271.843 0.5896 279.124 0.5896C286.484 0.5896 293.197 2.28752 299.27 5.67293C305.354 9.06356 310.156 13.7927 313.687 19.8604C317.229 25.9334 318.999 32.7927 318.999 40.4438C318.999 48.1104 317.229 54.9802 313.687 61.0479C310.156 67.1209 305.338 71.8709 299.229 75.2979C293.114 78.7146 286.416 80.4229 279.124 80.4229ZM279.124 60.3188C284.65 60.3188 289.01 58.5219 292.208 54.9229C295.416 51.3136 297.02 46.4854 297.02 40.4438C297.02 34.2667 295.416 29.3917 292.208 25.8188C289.01 22.2511 284.65 20.4646 279.124 20.4646C273.525 20.4646 269.145 22.2511 265.979 25.8188C262.822 29.3917 261.249 34.2667 261.249 40.4438C261.249 46.5584 262.822 51.3969 265.979 54.9646C269.145 58.5375 273.525 60.3188 279.124 60.3188Z" fill="#154CB3"/>
-<mask id="mask0_482_185" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="104" y="18" width="74" height="76">
-<path d="M104.381 18.1562H177.381V93.1563H104.381V18.1562Z" fill="white"/>
-</mask>
-<g mask="url(#mask0_482_185)">
-<path d="M177.385 55.0625H166.62C148.188 51.0729 144.089 46.9583 140.099 28.5V18.1562H138.74V28.6094C134.76 46.9792 130.641 51.0833 112.245 55.0625H104.391V56.4219H112.245C130.641 60.4063 134.76 64.5104 138.74 82.875V93.1354H140.099V82.9844C144.089 64.526 148.188 60.4115 166.62 56.4219H177.385V55.0625Z" fill="white"/>
-</g>
-</svg>
+        <svg width="100" height="30" viewBox="0 0 319 94" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32.6035 80.4229C23.5462 80.4229 16.1087 78.2719 10.291 73.9646C4.4681 69.6625 1.3431 63.4959 0.916016 55.4646H23.9785C24.1973 58.1886 25.0098 60.1834 26.416 61.4438C27.8171 62.6938 29.6243 63.3188 31.8327 63.3188C33.8171 63.3188 35.4473 62.8188 36.7285 61.8188C38.0202 60.8188 38.666 59.4386 38.666 57.6729C38.666 55.3969 37.5931 53.6313 35.4577 52.3813C33.3327 51.1313 29.8743 49.7302 25.0827 48.1729C20.0098 46.4959 15.9056 44.8604 12.7702 43.2771C9.64518 41.6938 6.92122 39.3761 4.60352 36.3188C2.2806 33.2667 1.12435 29.2719 1.12435 24.3396C1.12435 19.3292 2.37435 15.0375 4.87435 11.4646C7.38477 7.89689 10.8535 5.19377 15.2702 3.36043C19.6868 1.51668 24.6868 0.5896 30.2702 0.5896C39.3223 0.5896 46.5514 2.70939 51.9577 6.94377C57.3744 11.1834 60.2702 17.1261 60.6452 24.7771H37.1244C37.0514 22.4177 36.3379 20.6521 34.9785 19.4854C33.6139 18.3084 31.8639 17.7146 29.7285 17.7146C28.1035 17.7146 26.7754 18.1938 25.7493 19.1521C24.7181 20.1 24.2077 21.4594 24.2077 23.2354C24.2077 24.7094 24.7754 25.9802 25.916 27.0479C27.0514 28.1052 28.4681 29.0219 30.166 29.7979C31.8587 30.5792 34.3587 31.5479 37.666 32.7146C42.6087 34.4125 46.6764 36.0896 49.8744 37.7563C53.0827 39.4125 55.8431 41.7302 58.166 44.7146C60.4837 47.6886 61.6452 51.4594 61.6452 56.0271C61.6452 60.6677 60.4837 64.8292 58.166 68.5063C55.8431 72.1886 52.4889 75.1 48.1035 77.2354C43.7285 79.3604 38.5619 80.4229 32.6035 80.4229Z" fill="#154CB3"/>
+          <path d="M100.38 80.4229C93.099 80.4229 86.4063 78.7146 80.2969 75.2979C74.1823 71.8709 69.3437 67.1209 65.776 61.0479C62.2031 54.9802 60.4219 48.1104 60.4219 40.4438C60.4219 32.7927 62.2031 25.9334 65.776 19.8604C69.3437 13.7927 74.1823 9.06356 80.2969 5.67293C86.4063 2.28752 93.099 0.5896 100.38 0.5896C107.74 0.5896 114.453 2.28752 120.526 5.67293C126.609 9.06356 131.411 13.7927 134.943 19.8604C138.484 25.9334 140.255 32.7927 140.255 40.4438C140.255 48.1104 138.484 54.9802 134.943 61.0479C131.411 67.1209 126.594 71.8709 120.484 75.2979C114.37 78.7146 107.672 80.4229 100.38 80.4229ZM100.38 60.3188C105.906 60.3188 110.266 58.5219 113.464 54.9229C116.672 51.3136 118.276 46.4854 118.276 40.4438C118.276 34.2667 116.672 29.3917 113.464 25.8188C110.266 22.2511 105.906 20.4646 100.38 20.4646C94.7813 20.4646 90.401 22.2511 87.2344 25.8188C84.0781 29.3917 82.5052 34.2667 82.5052 40.4438C82.5052 46.5584 84.0781 51.3969 87.2344 54.9646C90.401 58.5375 94.7813 60.3188 100.38 60.3188Z" fill="#154CB3"/>
+          <path d="M138.699 40.5688C138.699 32.9177 140.293 26.0896 143.491 20.0896C146.699 14.0896 151.246 9.41773 157.137 6.06877C163.022 2.70939 169.793 1.0271 177.449 1.0271C187.168 1.0271 195.345 3.62606 201.97 8.81877C208.595 14.0167 212.855 21.0636 214.762 29.9646H191.47C190.064 27.0219 188.126 24.7771 185.658 23.2354C183.199 21.6834 180.35 20.9021 177.116 20.9021C172.116 20.9021 168.121 22.6886 165.137 26.2563C162.147 29.8292 160.658 34.6 160.658 40.5688C160.658 46.6 162.147 51.3969 165.137 54.9646C168.121 58.5375 172.116 60.3188 177.116 60.3188C180.35 60.3188 183.199 59.5479 185.658 58.0063C188.126 56.4646 190.064 54.225 191.47 51.2771H214.762C212.855 60.1834 208.595 67.2302 201.97 72.4229C195.345 77.6209 187.168 80.2146 177.449 80.2146C169.793 80.2146 163.022 78.5427 157.137 75.1938C151.246 71.8344 146.699 67.1521 143.491 61.1521C140.293 55.1521 138.699 48.2927 138.699 40.5688Z" fill="#154CB3"/>
+          <path d="M238 5V76H216V5H238Z" fill="#154CB3"/>
+          <path d="M279.124 80.4229C271.843 80.4229 265.15 78.7146 259.041 75.2979C252.926 71.8709 248.088 67.1209 244.52 61.0479C240.947 54.9802 239.166 48.1104 239.166 40.4438C239.166 32.7927 240.947 25.9334 244.52 19.8604C248.088 13.7927 252.926 9.06356 259.041 5.67293C265.15 2.28752 271.843 0.5896 279.124 0.5896C286.484 0.5896 293.197 2.28752 299.27 5.67293C305.354 9.06356 310.156 13.7927 313.687 19.8604C317.229 25.9334 318.999 32.7927 318.999 40.4438C318.999 48.1104 317.229 54.9802 313.687 61.0479C310.156 67.1209 305.338 71.8709 299.229 75.2979C293.114 78.7146 286.416 80.4229 279.124 80.4229ZM279.124 60.3188C284.65 60.3188 289.01 58.5219 292.208 54.9229C295.416 51.3136 297.02 46.4854 297.02 40.4438C297.02 34.2667 295.416 29.3917 292.208 25.8188C289.01 22.2511 284.65 20.4646 279.124 20.4646C273.525 20.4646 269.145 22.2511 265.979 25.8188C262.822 29.3917 261.249 34.2667 261.249 40.4438C261.249 46.5584 262.822 51.3969 265.979 54.9646C269.145 58.5375 273.525 60.3188 279.124 60.3188Z" fill="#154CB3"/>
+          <mask id="m" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="104" y="18" width="74" height="76"><path d="M104.381 18.1562H177.381V93.1563H104.381V18.1562Z" fill="white"/></mask>
+          <g mask="url(#m)"><path d="M177.385 55.0625H166.62C148.188 51.0729 144.089 46.9583 140.099 28.5V18.1562H138.74V28.6094C134.76 46.9792 130.641 51.0833 112.245 55.0625H104.391V56.4219H112.245C130.641 60.4063 134.76 64.5104 138.74 82.875V93.1354H140.099V82.9844C144.089 64.526 148.188 60.4115 166.62 56.4219H177.385V55.0625Z" fill="white"/></g>
+        </svg>
         <span>Executive Presentation</span>
       </div>
       <div class="nav-links">
         <a href="#problem">Challenges</a>
-        <a href="#solution">Solution</a>
+        <a href="#usps">Why SOCIO</a>
+        <a href="#solution">Lifecycle</a>
         <a href="#features">Features</a>
-        <a href="#roles">Role Flows</a>
+        <a href="#visitors">Visitor Gate</a>
+        <a href="#roles">Roles</a>
         <a href="#dashboards">Insights</a>
         <a href="#closing">Closing</a>
       </div>
@@ -525,325 +555,540 @@
   </nav>
 
   <main>
+
+    <!-- HERO -->
     <section class="hero container reveal" id="landing">
       <div class="hero-card">
-        <span class="eyebrow">Institutional Operations Platform</span>
-        <h1>SOCIO<br/>One Unified System for Campus Events, Approvals, and Operations</h1>
-        <p>
-          SOCIO brings event planning, approvals, student participation, operational bookings, and leadership dashboards into one coordinated workflow for Christ University.
-        </p>
+        <span class="eyebrow">Campus Operations Intelligence Platform</span>
+        <h1>SOCIO — The Complete Campus OS<br/>for Events, People &amp; Access Control</h1>
+        <p>From the moment an event is conceived to the final attendance export, SOCIO owns every step: structured approvals, registrations, operations, gated visitor management, and live institutional analytics.</p>
         <div class="hero-metrics">
-          <div class="metric"><b>1 Platform</b>from discovery to reporting</div>
-          <div class="metric"><b>Role-Based</b>controlled access for each office</div>
-          <div class="metric"><b>Live Visibility</b>approval and attendance tracking</div>
-          <div class="metric"><b>Multi-Campus</b>campus-aware operations</div>
+          <div class="metric"><b>1 Platform</b><span>Replaces 6+ disconnected tools</span></div>
+          <div class="metric"><b>Zero Paperwork</b><span>Fully digital approval trails</span></div>
+          <div class="metric"><b>Gated Access</b><span>Controlled entry for all visitors</span></div>
+          <div class="metric"><b>Live Intelligence</b><span>Real-time dashboards for leadership</span></div>
         </div>
       </div>
     </section>
 
+    <!-- PROBLEM -->
     <section id="problem" class="problem container reveal">
       <div class="section-head">
-        <h2>Current Institutional Challenges</h2>
-        <p>When activities run through separate chats, spreadsheets, and manual follow-ups, institutions lose speed, visibility, and accountability.</p>
+        <div class="label">The Problem</div>
+        <h2>What Breaks Without a Unified System</h2>
+        <p>Institutions running events across WhatsApp groups, spreadsheets, and paper sign-ins lose speed, accountability, and campus security simultaneously.</p>
       </div>
       <div class="grid cols-3">
-        <div class="card"><h3>Approval Bottlenecks</h3><p>Event go-live often depends on scattered communication across departments, creating delays and uncertainty.</p></div>
-        <div class="card"><h3>Fragmented Communication</h3><p>Students, organisers, and offices receive updates through different channels, causing confusion and missed actions.</p></div>
-        <div class="card"><h3>Operational Disconnect</h3><p>Venue, catering, stalls, and volunteer coordination are often disconnected from event planning timelines.</p></div>
-        <div class="card"><h3>Manual Attendance Burden</h3><p>Physical or ad-hoc attendance handling increases errors and reduces trust in post-event reporting.</p></div>
-        <div class="card"><h3>Limited Leadership Visibility</h3><p>Senior decision makers struggle to get one real-time picture of participation, outcomes, and trends.</p></div>
-        <div class="card"><h3>Poor Audit Readiness</h3><p>Without centralized records, proving compliance and governance quality becomes difficult during reviews.</p></div>
+        <div class="card"><h3>Approval Delays</h3><p>Go/no-go decisions stall in fragmented threads with no attributed ownership or timeline.</p></div>
+        <div class="card"><h3>Fragmented Communication</h3><p>Students, organisers, and offices each receive updates on different channels — critical actions fall through.</p></div>
+        <div class="card"><h3>Disconnected Operations</h3><p>Venue, catering, and stalls are booked separately, creating conflicts and last-minute gaps.</p></div>
+        <div class="card"><h3>Manual Attendance Risk</h3><p>Paper registers introduce errors, are open to manipulation, and offer no live visibility to leadership.</p></div>
+        <div class="card"><h3>Uncontrolled External Access</h3><p>External visitors arrive unchecked — no prior registration, no security roster, no emergency head-count.</p></div>
+        <div class="card"><h3>No Institutional Intelligence</h3><p>Leadership cannot see participation trends, approval bottlenecks, or department performance in real time.</p></div>
       </div>
     </section>
 
+    <!-- USPs -->
+    <section id="usps" class="container reveal">
+      <div class="section-head">
+        <div class="label">Why SOCIO</div>
+        <h2>Six Strengths Built for Institutional Operations</h2>
+        <p>Designed ground-up for campus governance — not adapted from a generic event tool.</p>
+      </div>
+      <div class="usp-grid">
+
+        <div class="usp-card">
+          <div class="usp-icon">
+            <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </div>
+          <h3>End-to-End Event Lifecycle</h3>
+          <p>Creation, multi-stage approval, publication, operations booking, QR attendance, and analytics — one uninterrupted, auditable flow.</p>
+          <span class="usp-badge">Replaces 6+ tools</span>
+        </div>
+
+        <div class="usp-card">
+          <div class="usp-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3>Gated Visitor Management</h3>
+          <p>Outsiders pre-register via invite-only link, get admin-vetted, receive a time-bound digital pass, and are scanned at a dedicated gate — complete audit trail, zero paper.</p>
+          <span class="usp-badge">Security-first design</span>
+        </div>
+
+        <div class="usp-card">
+          <div class="usp-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3>Precision Role-Based Access</h3>
+          <p>Students, organisers, HODs, Deans, Finance, Operations, and Security each see exactly their scope — no information overload, no privilege creep.</p>
+          <span class="usp-badge">Zero over-exposure</span>
+        </div>
+
+        <div class="usp-card">
+          <div class="usp-icon">
+            <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <h3>Stage-Locked Approval Engine</h3>
+          <p>Sequential sign-offs ensure every decision is logged, attributed, and time-stamped. Next stage unlocks only when the prior stage is resolved.</p>
+          <span class="usp-badge">Audit-ready by default</span>
+        </div>
+
+        <div class="usp-card">
+          <div class="usp-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3>QR-Powered Smart Attendance</h3>
+          <p>Unique QR tickets, scan-based check-in, live count, and one-click exportable reports replace manual attendance sheets permanently.</p>
+          <span class="usp-badge">Real-time accuracy</span>
+        </div>
+
+        <div class="usp-card">
+          <div class="usp-icon">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3>Live Leadership Dashboard</h3>
+          <p>Participation rates, approval cycles, no-show analysis, visitor counts, and cross-department trends — visible to decision-makers as they happen.</p>
+          <span class="usp-badge">Evidence-based decisions</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- LIFECYCLE -->
     <section id="solution" class="container reveal">
       <div class="section-head">
-        <h2>SOCIO Solution Overview</h2>
-        <p>SOCIO centralizes campus event life cycles: discovery, registration, approvals, operational requests, attendance, and analytics in one platform experience.</p>
+        <div class="label">How It Works</div>
+        <h2>Five-Stage Institutional Lifecycle</h2>
+        <p>Every event — internal or open to the public — follows the same traceable journey from intent to institutional insight.</p>
       </div>
       <div class="timeline">
-        <div class="step"><div class="num">1</div><b>Plan</b><p>Organisers prepare event or fest details in guided forms.</p></div>
-        <div class="step"><div class="num">2</div><b>Approve</b><p>Role-based review paths route requests to the right decision makers.</p></div>
-        <div class="step"><div class="num">3</div><b>Publish</b><p>Approved activities appear for student discovery and registrations.</p></div>
-        <div class="step"><div class="num">4</div><b>Execute</b><p>Venue, catering, stalls, volunteer, and attendance workflows run from the same system.</p></div>
-        <div class="step"><div class="num">5</div><b>Measure</b><p>Leadership dashboards provide institutional insights and trend tracking.</p></div>
+        <div class="step"><div class="num">1</div><b>Plan</b><p>Organiser fills a guided form covering rules, fees, and operational needs.</p></div>
+        <div class="step"><div class="num">2</div><b>Approve</b><p>HOD, Dean, CFO, and Accounts sign off sequentially with notes and history.</p></div>
+        <div class="step"><div class="num">3</div><b>Publish</b><p>Approved event goes live for student discovery, registration, and team formation.</p></div>
+        <div class="step"><div class="num">4</div><b>Execute</b><p>Venue, catering, volunteer, and gate flows run from the same dashboard.</p></div>
+        <div class="step"><div class="num">5</div><b>Measure</b><p>Leadership sees participation, attendance, visitor counts, and outcomes live.</p></div>
       </div>
     </section>
 
+    <!-- FEATURES -->
     <section id="features" class="container reveal">
       <div class="section-head">
-        <h2>Feature by Feature Breakdown</h2>
-        <p>Each module is designed around practical campus workflows and measurable institutional value.</p>
+        <div class="label">Feature Breakdown</div>
+        <h2>Core Modules in Detail</h2>
+        <p>Each module targets a specific institutional pain point with a measurable workflow improvement.</p>
       </div>
 
       <article class="feature">
-        <h3>1. Event Discovery and Smart Registration</h3>
-        <p>Students explore upcoming events and fests, then register individually or in teams with event-specific forms.</p>
+        <div class="feature-header">
+          <div class="feature-num">1</div>
+          <div>
+            <h3>Event Discovery &amp; Smart Registration</h3>
+            <p>Students find, filter, and register for events in under 60 seconds — individually or as a team.</p>
+          </div>
+        </div>
         <div class="columns">
           <div>
-            <div class="pill">Problem solved: low participation visibility</div>
-            <div class="pill">Who benefits: students, organisers</div>
-            <div class="mockup">
-              <div class="mockup-head">Discover Experience</div>
-              <div class="mockup-body"><div class="bar active"></div><div class="bar"></div><div class="bar"></div><div class="bar active" style="width:70%"></div></div>
-            </div>
+            <div class="pill">Solves: low participation visibility</div>
+            <div class="pill">Benefits: students, organisers</div>
             <div class="before-after">
-              <div class="before"><b>Before</b><p>Students search across scattered notices and miss deadlines.</p></div>
-              <div class="after"><b>After</b><p>One discovery hub with direct registration and confirmation flow.</p></div>
+              <div class="before"><b>Before</b><p>Missed deadlines, scattered notices, no registration confirmation.</p></div>
+              <div class="after"><b>After</b><p>One discovery hub, instant QR ticket, automated reminders.</p></div>
             </div>
           </div>
           <div>
-            <b>Workflow</b>
+            <div class="workflow-label">Workflow</div>
             <ol>
-              <li>Student opens Discover and filters events/fests.</li>
-              <li>Student reviews event details, rules, timing, and eligibility.</li>
-              <li>Student submits individual or team registration.</li>
-              <li>SOCIO creates digital ticket with QR access.</li>
-              <li>Student receives centralized confirmation and reminders.</li>
+              <li>Student opens Discover and filters events or fests.</li>
+              <li>Reviews eligibility, rules, and deadline in one view.</li>
+              <li>Submits individual or team registration.</li>
+              <li>SOCIO issues a digital QR ticket instantly.</li>
+              <li>Reminders push automatically before event day.</li>
             </ol>
           </div>
         </div>
       </article>
 
       <article class="feature">
-        <h3>2. Guided Event and Fest Creation</h3>
-        <p>Organisers can create complete event plans with custom participant fields, fees, deadlines, and operational details.</p>
+        <div class="feature-header">
+          <div class="feature-num">2</div>
+          <div>
+            <h3>Guided Event &amp; Fest Creation</h3>
+            <p>Structured forms enforce completeness before an event ever reaches the approval queue.</p>
+          </div>
+        </div>
         <div class="columns">
           <div>
-            <div class="pill">Problem solved: inconsistent planning quality</div>
-            <div class="pill">Who benefits: organisers, review offices</div>
+            <div class="pill">Solves: inconsistent planning quality</div>
+            <div class="pill">Benefits: organisers, review offices</div>
             <div class="before-after">
-              <div class="before"><b>Before</b><p>Important details are missed and clarified repeatedly.</p></div>
-              <div class="after"><b>After</b><p>Standardized capture improves readiness and reduces rework.</p></div>
+              <div class="before"><b>Before</b><p>Critical details missed, rework cycles delay go-live.</p></div>
+              <div class="after"><b>After</b><p>Standardised capture reduces clarification rounds significantly.</p></div>
             </div>
           </div>
           <div>
-            <b>Workflow</b>
+            <div class="workflow-label">Workflow</div>
             <ol>
               <li>Organiser fills a structured event or fest form.</li>
-              <li>Uploads banners/brochures and sets registration rules.</li>
+              <li>Uploads banners, brochures, and sets registration rules.</li>
               <li>Saves as draft or submits for institutional review.</li>
-              <li>Approval status is tracked in one place.</li>
-              <li>After clearance, event becomes available publicly.</li>
+              <li>Approval status is tracked in a single visible queue.</li>
+              <li>After clearance, the event publishes automatically.</li>
             </ol>
           </div>
         </div>
       </article>
 
       <article class="feature">
-        <h3>3. Stage-Based Approval Workflow</h3>
-        <p>SOCIO supports sequential institutional approvals and stage tracking with accountability history.</p>
+        <div class="feature-header">
+          <div class="feature-num">3</div>
+          <div>
+            <h3>Stage-Based Approval Workflow</h3>
+            <p>Sequential sign-offs with a full action history make every approval attributable and auditable.</p>
+          </div>
+        </div>
         <div class="columns">
           <div>
-            <div class="pill">Problem solved: approval ambiguity</div>
-            <div class="pill">Who benefits: HOD, Dean, CFO, Accounts, organisers</div>
+            <div class="pill">Solves: approval ambiguity and blame gaps</div>
+            <div class="pill">Benefits: HOD, Dean, CFO, Accounts</div>
             <div class="before-after">
               <div class="before"><b>Before</b><p>No single source of truth for who approved what and when.</p></div>
-              <div class="after"><b>After</b><p>Clear queue, action trail, and stage-wise accountability.</p></div>
+              <div class="after"><b>After</b><p>Clear queue, attribution trail, and stage-wise accountability.</p></div>
             </div>
           </div>
           <div>
-            <b>Workflow</b>
+            <div class="workflow-label">Workflow</div>
             <ol>
-              <li>Organiser submits event/fest for approval.</li>
-              <li>System queues item for the relevant role.</li>
+              <li>Organiser submits event or fest for approval.</li>
+              <li>System routes the item to the first required role.</li>
               <li>Approver reviews, approves, or returns with notes.</li>
-              <li>Next role receives item after prior stage completion.</li>
-              <li>Go-live status updates when required stages are complete.</li>
+              <li>Next stage unlocks only after prior stage closes.</li>
+              <li>Go-live status updates when all stages complete.</li>
             </ol>
           </div>
         </div>
       </article>
 
       <article class="feature">
-        <h3>4. QR-Based Attendance and Participant Control</h3>
-        <p>Attendance can be marked via QR scanning and participant-level tracking, improving post-event reporting accuracy.</p>
+        <div class="feature-header">
+          <div class="feature-num">4</div>
+          <div>
+            <h3>QR-Based Attendance &amp; Participant Control</h3>
+            <p>Scan-based entry replaces paper sheets and gives live count visibility to organisers and leadership simultaneously.</p>
+          </div>
+        </div>
         <div class="columns">
           <div>
-            <div class="pill">Problem solved: attendance disputes</div>
-            <div class="pill">Who benefits: organisers, academic reviewers</div>
+            <div class="pill">Solves: attendance disputes and manual errors</div>
+            <div class="pill">Benefits: organisers, academic reviewers</div>
             <div class="before-after">
-              <div class="before"><b>Before</b><p>Manual sheets and post-event reconciliation delays.</p></div>
-              <div class="after"><b>After</b><p>Faster scan-based tracking with event-level participant records.</p></div>
+              <div class="before"><b>Before</b><p>Manual sheets, reconciliation delays, disputed counts.</p></div>
+              <div class="after"><b>After</b><p>Sub-second scan, live count, one-click exportable report.</p></div>
             </div>
           </div>
           <div>
-            <b>Workflow</b>
+            <div class="workflow-label">Workflow</div>
             <ol>
-              <li>Participant presents digital QR ticket.</li>
-              <li>Volunteer/organiser scans ticket at entry.</li>
-              <li>Status is updated in the attendance record.</li>
-              <li>Dashboard reflects attendance progress live.</li>
-              <li>Exportable reports support institutional documentation.</li>
+              <li>Registered participant presents digital QR ticket.</li>
+              <li>Volunteer scans ticket at the entry checkpoint.</li>
+              <li>Attendance record updates in under a second.</li>
+              <li>Dashboard reflects live attendance progress.</li>
+              <li>Exportable report supports NAAC and audit documentation.</li>
             </ol>
           </div>
         </div>
       </article>
 
       <article class="feature">
-        <h3>5. Operations Booking: Venue, Catering, Stalls</h3>
-        <p>Execution support is connected directly to event workflows, reducing follow-up effort across offices.</p>
-        <div class="columns">
+        <div class="feature-header">
+          <div class="feature-num">5</div>
           <div>
-            <div class="pill">Problem solved: disconnected operations</div>
-            <div class="pill">Who benefits: organisers, operations teams</div>
-            <div class="before-after">
-              <div class="before"><b>Before</b><p>Separate requests lead to delays and overlap conflicts.</p></div>
-              <div class="after"><b>After</b><p>Single booking queue with role-based action and status visibility.</p></div>
-            </div>
-          </div>
-          <div>
-            <b>Workflow</b>
-            <ol>
-              <li>Organiser submits venue/catering/stall request.</li>
-              <li>Relevant operational manager receives queue entry.</li>
-              <li>Request is approved, declined, or sent for revision.</li>
-              <li>Status syncs back to organiser workflow view.</li>
-              <li>Execution readiness improves before event day.</li>
-            </ol>
+            <h3>Operations Booking — Venue, Catering &amp; Stalls</h3>
+            <p>All execution requests are tied directly to the event record — no separate emails, no coordination lag.</p>
           </div>
         </div>
-      </article>
-
-      <article class="feature">
-        <h3>6. Notifications and Student Communication</h3>
-        <p>The platform provides centralized updates for registrations, reminders, approvals, and announcements.</p>
         <div class="columns">
           <div>
-            <div class="pill">Problem solved: missed updates</div>
-            <div class="pill">Who benefits: all stakeholders</div>
+            <div class="pill">Solves: disconnected execution</div>
+            <div class="pill">Benefits: organisers, operations teams</div>
             <div class="before-after">
-              <div class="before"><b>Before</b><p>Users miss critical updates across fragmented channels.</p></div>
-              <div class="after"><b>After</b><p>Action-focused notification feed with read-state management.</p></div>
+              <div class="before"><b>Before</b><p>Separate requests cause double-bookings and last-minute gaps.</p></div>
+              <div class="after"><b>After</b><p>Single queue, role-based action, conflict-free scheduling.</p></div>
             </div>
           </div>
           <div>
-            <b>Workflow</b>
+            <div class="workflow-label">Workflow</div>
             <ol>
-              <li>System triggers update based on workflow events.</li>
-              <li>User sees personal or institutional notification.</li>
-              <li>User opens destination page from notification link.</li>
-              <li>Notification status is updated as read/completed.</li>
-              <li>Broadcasts keep campus community aligned.</li>
+              <li>Organiser submits venue, catering, or stall request.</li>
+              <li>Relevant operations manager receives the queue entry.</li>
+              <li>Manager approves, declines, or requests revision.</li>
+              <li>Status syncs back to the organiser's event view.</li>
+              <li>Day-of readiness is confirmed before the event starts.</li>
             </ol>
           </div>
         </div>
       </article>
     </section>
 
+    <!-- VISITOR MANAGEMENT -->
+    <section id="visitors" class="container reveal">
+      <div class="section-head">
+        <div class="label">Gated Access Control</div>
+        <h2>Visitor Management — Controlled Entry for External Guests</h2>
+        <p>External guests and industry visitors do not bypass the system — they flow through it with pre-approval, digital passes, and a live security roster that is always current.</p>
+      </div>
+
+      <div class="visitor-banner">
+        <h3>The Gated Connection Principle</h3>
+        <p>Every external person who enters campus for an event is a registered, pre-vetted, time-bound participant — not a walk-in. SOCIO's gated connection layer gives Security a live head-count, gives Admins a complete visitor log, and gives visitors a frictionless, phone-first experience.</p>
+        <div class="gate-flow">
+          <div class="gate-step">
+            <div class="gicon">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <b>Invite Issued</b>
+            <span>Organiser generates a unique, event-specific invite link</span>
+          </div>
+          <div class="gate-step">
+            <div class="gicon">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
+            <b>Visitor Pre-Registers</b>
+            <span>Name, institution, and ID submitted before arrival</span>
+          </div>
+          <div class="gate-step">
+            <div class="gicon">
+              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <b>Admin Vets &amp; Approves</b>
+            <span>Request reviewed; approved or declined with reason</span>
+          </div>
+          <div class="gate-step">
+            <div class="gicon">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
+            <b>Digital Pass Issued</b>
+            <span>Time-bound QR pass delivered to guest's phone or email</span>
+          </div>
+          <div class="gate-step">
+            <div class="gicon">
+              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <b>Gate Scan &amp; Entry</b>
+            <span>Security scans pass; entry logged with timestamp</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="v-cards">
+        <div class="v-card">
+          <div class="v-card-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3>Pre-Approval Gate</h3>
+          <p>No visitor enters without an approved digital pass. The invite link is event-specific and time-locked, preventing misuse after the event window closes.</p>
+        </div>
+        <div class="v-card">
+          <div class="v-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          </div>
+          <h3>Live Security Roster</h3>
+          <p>Security personnel see a real-time list of expected versus checked-in visitors. Any gap is immediately visible, enabling instant escalation without paperwork.</p>
+        </div>
+        <div class="v-card">
+          <div class="v-card-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h3>Time-Bound Passes</h3>
+          <p>Visitor QR passes auto-expire after the event window. Re-entry after expiry is blocked at the gate with no manual revocation required.</p>
+        </div>
+        <div class="v-card">
+          <div class="v-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3>Compliance Audit Log</h3>
+          <p>Every visitor interaction — registration, approval, scan, exit — is time-stamped and logged, creating a complete record available to Admin and leadership on demand.</p>
+        </div>
+        <div class="v-card">
+          <div class="v-card-icon">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3>Visitor Count Dashboard</h3>
+          <p>Leaders and security see live breakdowns — total invited, approved, checked-in, and on-campus — with export for incident reporting or NAAC documentation.</p>
+        </div>
+        <div class="v-card">
+          <div class="v-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Emergency Readiness</h3>
+          <p>In an emergency, the complete on-campus visitor roster — name, organisation, last-scan point — is available in seconds, enabling a structured evacuation response.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROLES -->
     <section id="roles" class="container reveal">
       <div class="section-head">
-        <h2>Role-Based Workflows</h2>
-        <p>Each role sees only what they need, while leadership keeps full visibility across the system.</p>
+        <div class="label">Role Workflows</div>
+        <h2>Every Role Has a Precise, Minimal Surface</h2>
+        <p>No stakeholder sees more than their scope requires. Leadership retains full cross-system visibility. External visitors are channelled through a controlled, auditable path.</p>
       </div>
       <div class="role-track">
         <div class="role-item">
-          <b>Student</b>
-          <div class="role-steps"><span>Discover events</span><span>Register</span><span>Receive QR ticket</span><span>Attend</span><span>Give feedback</span></div>
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <b>Student</b>
+          </div>
+          <div class="role-steps"><span>Discover events</span><span>Register</span><span>Receive QR ticket</span><span>Attend and scan in</span><span>Submit feedback</span></div>
         </div>
         <div class="role-item">
-          <b>Faculty / Organiser</b>
-          <div class="role-steps"><span>Create event/fest</span><span>Submit for review</span><span>Track approvals</span><span>Book operations</span><span>Manage participants</span></div>
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <b>Faculty / Organiser</b>
+          </div>
+          <div class="role-steps"><span>Create event or fest</span><span>Submit for review</span><span>Track approvals</span><span>Book operations</span><span>Issue visitor invites</span><span>Manage participants</span></div>
         </div>
         <div class="role-item">
-          <b>HOD</b>
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            <b>HOD</b>
+          </div>
           <div class="role-steps"><span>Receive department queue</span><span>Review request</span><span>Approve or return</span><span>Monitor department analytics</span></div>
         </div>
         <div class="role-item">
-          <b>Dean</b>
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <b>Dean</b>
+          </div>
           <div class="role-steps"><span>Review school-level items</span><span>Act on approvals</span><span>Track school performance</span></div>
         </div>
         <div class="role-item">
-          <b>Admin and Director Leadership</b>
-          <div class="role-steps"><span>Oversee institutional queue</span><span>Manage role permissions</span><span>Monitor outcomes</span><span>Take evidence-based decisions</span></div>
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <b>Security</b>
+          </div>
+          <div class="role-steps"><span>View expected visitor list</span><span>Scan QR passes at gate</span><span>Monitor live on-campus count</span><span>Flag incidents</span></div>
+        </div>
+        <div class="role-item">
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <b>External Visitor</b>
+          </div>
+          <div class="role-steps"><span>Receive invite link</span><span>Pre-register with ID</span><span>Await admin approval</span><span>Receive time-bound pass</span><span>Scan in at gate</span></div>
+        </div>
+        <div class="role-item">
+          <div class="role-label">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+            <b>Admin &amp; Director</b>
+          </div>
+          <div class="role-steps"><span>Oversee institutional queue</span><span>Vet visitor approvals</span><span>Manage role permissions</span><span>Monitor outcomes</span><span>Evidence-based decisions</span></div>
         </div>
       </div>
     </section>
 
+    <!-- DASHBOARDS -->
     <section id="dashboards" class="container reveal">
       <div class="section-head">
-        <h2>Dashboard and Insights for Decision Makers</h2>
-        <p>SOCIO turns event operations into measurable institutional intelligence across participation, attendance, and departmental performance.</p>
+        <div class="label">Leadership Intelligence</div>
+        <h2>Institutional Insights in Real Time</h2>
+        <p>SOCIO converts campus operations data into structured intelligence — available when decisions need to be made, not days later.</p>
       </div>
       <div class="insight-board">
-        <h3>Leadership Visibility Areas</h3>
+        <h3>What Leadership Sees Live</h3>
         <div class="insight-grid">
-          <div class="insight"><strong>Participation</strong>Student registration trends across events and periods.</div>
-          <div class="insight"><strong>Attendance</strong>Attendance rates, no-show analysis, and engagement quality.</div>
-          <div class="insight"><strong>Department View</strong>Department-wise contribution and activity outcomes.</div>
-          <div class="insight"><strong>Actionable Insights</strong>At-risk groups, top-performing categories, and planning direction.</div>
+          <div class="insight">
+            <div class="insight-ico">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <strong>Participation</strong>
+            <p>Registration trends across events, departments, and periods — segmented by role and campus.</p>
+          </div>
+          <div class="insight">
+            <div class="insight-ico">
+              <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <strong>Attendance</strong>
+            <p>Real-time check-in count, no-show rate, and event-level engagement quality across the institution.</p>
+          </div>
+          <div class="insight">
+            <div class="insight-ico">
+              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <strong>Visitor Gate</strong>
+            <p>Pre-registered, approved, on-campus, and exited visitor counts per event — always live and exportable.</p>
+          </div>
+          <div class="insight">
+            <div class="insight-ico">
+              <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <strong>Dept Performance</strong>
+            <p>Department-wise event frequency, approval cycle times, and student engagement outcomes in one view.</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="container reveal" id="automation">
+    <!-- AUTOMATION -->
+    <section class="container automation reveal" id="automation">
       <div class="section-head">
-        <h2>Automation and Efficiency Gains</h2>
+        <div class="label">Efficiency Gains</div>
+        <h2>What Gets Eliminated</h2>
       </div>
       <div class="grid cols-4">
-        <div class="card"><h3>Less Manual Follow-Up</h3><p>Automated queues and statuses reduce repetitive cross-team chasing.</p></div>
-        <div class="card"><h3>Faster Turnaround</h3><p>Stage-based approvals reduce uncertainty and improve scheduling confidence.</p></div>
-        <div class="card"><h3>Real-Time Transparency</h3><p>Everyone sees current status, pending actions, and resolved decisions.</p></div>
-        <div class="card"><h3>Accountability by Design</h3><p>Action history creates traceability for governance and audit readiness.</p></div>
+        <div class="card"><h3>Zero Manual Follow-Up</h3><p>Automated queues and status updates replace repetitive cross-team chasing entirely.</p></div>
+        <div class="card"><h3>Faster Approval Cycles</h3><p>Stage-based routing removes ambiguity and tightens scheduling confidence across all departments.</p></div>
+        <div class="card"><h3>Full Operational Transparency</h3><p>Every stakeholder sees current status, pending actions, and resolved decisions in one unified view.</p></div>
+        <div class="card"><h3>Audit-Ready by Default</h3><p>A complete action history — who acted, when, with what outcome — is available on demand at any time.</p></div>
       </div>
     </section>
 
-    <section class="container reveal" id="security">
-      <div class="section-head">
-        <h2>Security and Reliability</h2>
-        <p>Security is implemented in practical institutional terms: trusted sign-in, role-based access, controlled actions, and protected records.</p>
-      </div>
-      <div class="grid cols-3">
-        <div class="card"><h3>Secure Login</h3><p>Users access the platform through authenticated accounts only.</p></div>
-        <div class="card"><h3>Role-Controlled Access</h3><p>Students, organisers, support teams, and leadership see only relevant modules.</p></div>
-        <div class="card"><h3>Protected Data Handling</h3><p>Participant records, approvals, and attendance are managed centrally with controlled update rights.</p></div>
-      </div>
-    </section>
-
-    <section class="container reveal" id="scale">
-      <div class="section-head">
-        <h2>Future Scalability</h2>
-        <p>SOCIO is structured to expand institution-wide with minimal disruption to users or process owners.</p>
-      </div>
-      <div class="grid cols-2">
-        <div class="card"><h3>Department Expansion</h3><p>Standardized workflows can be adopted by new departments rapidly.</p></div>
-        <div class="card"><h3>Campus Expansion</h3><p>Campus-aware controls support multi-campus governance at scale.</p></div>
-        <div class="card"><h3>Operational Maturity</h3><p>Additional service lanes can be integrated without redesigning the full platform.</p></div>
-        <div class="card"><h3>Long-Term Institutional Value</h3><p>Creates a durable digital foundation for student engagement and administrative excellence.</p></div>
-      </div>
-    </section>
-
+    <!-- CLOSING -->
     <section id="closing" class="container reveal">
       <div class="final">
+        <div class="label">Strategic Decision</div>
         <h2>Why the Institution Should Adopt SOCIO</h2>
-        <p>
-          SOCIO directly addresses operational inefficiencies in campus event management by unifying approvals, student participation, execution workflows, and leadership reporting in one platform.
-        </p>
+        <p>SOCIO directly eliminates the operational gaps that cost institutions speed, accountability, and campus security — replacing disconnected tools with one intelligent, auditable platform.</p>
         <div class="cta-list">
-          <div class="card"><h3>Operational Benefit</h3><p>Clearer coordination across departments and service teams.</p></div>
-          <div class="card"><h3>Experience Benefit</h3><p>Smoother, more transparent journeys for students and faculty.</p></div>
-          <div class="card"><h3>Strategic Benefit</h3><p>Leadership gets stronger visibility for policy and planning decisions.</p></div>
+          <div class="card">
+            <div class="cta-ico">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            </div>
+            <h3>Operational Benefit</h3>
+            <p>Unified workflows across departments, operations, and security — no more coordination by exception.</p>
+          </div>
+          <div class="card">
+            <div class="cta-ico">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <h3>Experience Benefit</h3>
+            <p>Students and guests move through discovery, registration, and gate entry with zero friction from any device.</p>
+          </div>
+          <div class="card">
+            <div class="cta-ico">
+              <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <h3>Strategic Benefit</h3>
+            <p>Leadership gets live, structured intelligence to drive policy, resource allocation, and planning decisions with confidence.</p>
+          </div>
         </div>
         <p class="thanks">Thank You</p>
       </div>
     </section>
+
   </main>
 
   <footer>
-    SOCIO | Christ University | Executive Leadership Presentation
+    SOCIO &nbsp;&middot;&nbsp; Christ University &nbsp;&middot;&nbsp; Executive Leadership Presentation
   </footer>
 
   <script>
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("show");
-        }
+        if (entry.isIntersecting) entry.target.classList.add("show");
       });
-    }, { threshold: 0.16 });
+    }, { threshold: 0.1 });
 
     document.querySelectorAll('.reveal').forEach((el, idx) => {
-      el.style.transitionDelay = (idx % 4) * 90 + 'ms';
+      el.style.transitionDelay = (idx % 5) * 60 + 'ms';
       observer.observe(el);
     });
   </script>
