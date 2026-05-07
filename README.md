@@ -1,318 +1,299 @@
-# Socio -- Universities One Stop Event Platform
+# Socio
 
-A full-featured platform for managing university events, fests, and registrations at Christ University. Built for students, organisers, and administrators.
+Socio is a university event and operations platform for Christ University. It covers the public event discovery experience, event and fest management, registrations, QR tickets, attendance, approvals, support workflows, and several role-gated operational portals.
 
-**Live at** [socio.christuniversity.in](https://socio.christuniversity.in)
+The repo is a two-app monorepo:
 
----
-## Tech Stack
+- [client](client) is the Next.js 15 front end.
+- [server](server) is the Express 5 API.
 
-| Layer | Technology |
-|-------|------------|
+Live deployment: [socio.christuniversity.in](https://socio.christuniversity.in)
+
+## What This Repo Contains
+
+The old README only described the public event platform. The current codebase is broader:
+
+- Public site, event discovery, fest pages, clubs, policies, support, and marketing pages.
+- Protected organiser workflows for creating and editing events and fests.
+- Attendance, QR scanning, registration lookup, notifications, and feedback.
+- Approval and operations portals for HOD, Dean, CFO, Accounts, Venue, Catering, IT, Stalls, and Volunteer workflows.
+- Admin tools for users, roles, analytics, and broadcasts.
+
+## Architecture
+
+| Layer | Stack |
+|---|---|
 | Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
-| Backend | Express 5, Node.js (ES Modules) |
-| Database | Supabase (PostgreSQL) |
-| Auth | Supabase Auth (Google OAuth), JWT verification |
-| Email | Resend (`hello@withsocio.com`) |
-| Charts | Recharts (Bar, Pie, Area) |
-| QR | `qrcode` (server-side generation), `qr-scanner` (client scanning) |
-| Forms | React Hook Form + Zod validation |
-| Animations | GSAP + ScrollTrigger, PublishingOverlay (custom) |
-| Export | ExcelJS (XLSX), CSV |
-| Deployment | Vercel (client + server), Supabase (database) |
-
----
-
-## User Roles
-
-| Role | Access |
-|------|--------|
-| **Student** | Browse events, register, view QR tickets, receive notifications |
-| **Organiser** | Create/edit/delete own events and fests, manage attendance, send reminders |
-| **Support** | Access support inbox, manage contact submissions |
-| **Master Admin** | Full platform control -- all users, events, fests, analytics, notifications, role management |
-
-All roles support **expiration dates** with automatic revocation. Last Master Admin protection prevents platform lockout.
-
----
-
-## Features
-
-### Event Management
-- Full CRUD with rich form validation (Zod schema)
-- Image (3MB), banner (2MB), and PDF brochure (5MB) uploads
-- Custom registration fields -- text, URL, email, number, dropdown, textarea (up to 10)
-- Schedule items, rules, prizes, event heads
-- Registration fee (separate pricing for outsiders)
-- Max participants limit (separate for outsiders)
-- Registration deadline enforcement
-- WhatsApp group link, claims toggle
-- Campus hosted at + allowed campuses (multi-select, 6 campuses)
-- Allow outsiders toggle
-- Categories: Academic, Cultural, Sports, Arts, Literary, Innovation
-- 30+ departments
-
-### Fest Management
-- Full CRUD -- name, dates, description, department, venue, fees, banner
-- Sponsor management (name + logo URL)
-- FAQ section, social links (Instagram, website, etc.)
-- Fest timeline with milestones
-- Events linked to fest via dropdown
-
-### Registration System
-- Individual and team registration (team name, leader info, teammates)
-- QR code generated per registration (server-side)
-- Registration confirmation email via Resend
-- Registration cancellation
-- View all user registrations by register ID
-
-### Attendance System
-- QR code scanning via device camera (prefers back camera on mobile)
-- Camera permission handling with scan result display
-- Manual attendance toggle per participant
-- Search/filter participants by name or email
-- Filter by status (all / registered / attended / absent)
-- CSV export of full attendance sheet
-
-### Notification System
-- Bell icon with unread count badge in navigation bar
-- Types: info, success, warning, error
-- 30-second polling for new notifications
-- Paginated list (20 per page, load more)
-- Mark individual or all as read, clear all
-- Admin: broadcast to all users, event-targeted, or individual notifications
-- Notification history with stats (total, broadcasts, individual, today)
-
-### Email System
-- Welcome email (branded HTML, visitor ID for outsiders, confirmation for members)
-- Registration confirmation email (event details, registration ID)
-- Plain text fallback for deliverability
-
-### Campus Detection
-- Geolocation API with Haversine distance calculation
-- 6 campuses: Central (Main), Bannerghatta Road, Yeshwanthpur, Kengeri, Delhi NCR, Pune Lavasa
-- 15 km maximum distance threshold
-- Confirm flow: detecting -> confirm -> save
-- 12-hour dismiss cooldown via localStorage
-- Auto-triggered for Christ members without campus set
-
-### Admin Panel (Master Admin)
-- **Dashboard**: analytics with Recharts (user distribution pie, event stats, registration trends area chart, recent activity feed, quick actions), date range filter (7d/30d/90d/1y/all), CSV export
-- **Users**: search, role filter, sort by name/email, pagination (20/page), edit roles with expiry date picker, delete users
-- **Events**: search, status filter (Live/This Week/Upcoming/Past), sort by title/date/registrations/dept, edit/delete any event
-- **Fests**: search, sort, filter, edit/delete any fest
-- **Notifications**: compose and send broadcasts, individual, or event-targeted notifications; history with search/filter
-- Debounced search inputs for performance
-
-### Discovery Hub
-- Full-width image carousel from event banners
-- Trending events, upcoming events, fests sections
-- Category browsing (Academic, Cultural, Sports, Arts, Literary, Innovation)
-- Clubs/Centres directory (15+ centres, 8 categories)
-- Campus filter dropdown and other features
-
-### Identity System
-- Christ members: auto-extracts registration number and course code from email domain
-- Staff detection: `@christuniversity.in` (bare domain) shows "Staff" for course/department
-- Outsiders: assigned visitor ID, welcome modal, one-time name edit
-- Terms consent modal before sign-up
-
-### Interactive Guides
-- Organiser Guide (`/guide/organiser`) -- 6 collapsible sections covering event/fest creation, management, attendance, notifications, tips
-- Master Admin Guide (`/guide/masteradmin`) -- 7 collapsible sections covering dashboard, users, roles, events/fests, notifications, tips
-- Accessible from profile page based on role
-
----
-
-## Pages
-
-| Route | Description |
-|-------|-------------|
-| `/` | Landing page with hero, features, upcoming events, FAQs |
-| `/auth` | Google OAuth sign-in |
-| `/Discover` | Discovery hub with carousel, trending, categories, campus filter |
-| `/events` | All events listing with search |
-| `/event/[id]` | Event detail, registration form |
-| `/fests` | All fests listing |
-| `/fest/[id]` | Fest detail page |
-| `/clubs` | Centres and cells directory |
-| `/club/[id]` | Individual centre/cell page |
-| `/profile` | User profile, registered events, guide buttons |
-| `/manage` | Organiser dashboard (own events, admin sees all) |
-| `/create/event` | Event creation form |
-| `/create/fest` | Fest creation form |
-| `/edit/event/[id]` | Edit event |
-| `/edit/fest/[id]` | Edit fest |
-| `/attendance` | Attendance manager with QR scanner |
-| `/masteradmin` | Admin panel (dashboard, users, events, fests, notifications) |
-| `/guide/organiser` | Organiser feature guide |
-| `/guide/masteradmin` | Master Admin feature guide |
-| `/about` | About, `/about/story`, `/about/team`, `/about/mission` |
-| `/contact` | Contact form |
-| `/support` | Knowledge base, `/support/inbox` (support role), `/support/careers` |
-| `/faq` | Frequently asked questions |
-| `/pricing` | Pricing tiers (Free, Basic, Pro, Enterprise) |
-| `/solutions` | Use-case solutions (college fests, department events, sports) |
-| `/app-download` | Mobile app coming soon page |
-| `/privacy`, `/terms`, `/cookies` | Legal pages |
-
----
-
-## API Endpoints
-
-### Users (`/api/users`)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | List all users (admin) |
-| GET | `/:email` | Get user by email |
-| POST | `/` | Create/update user (upsert) |
-| PUT | `/:email/name` | Update display name |
-| PUT | `/:email/campus` | Update campus |
-| PUT | `/:email/roles` | Grant/revoke roles with expiry (admin) |
-| DELETE | `/:email` | Delete user (admin) |
-
-### Events (`/api/events`)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | List all events |
-| GET | `/:eventId` | Get event by ID |
-| POST | `/` | Create event (with file uploads) |
-| PUT | `/:eventId` | Update event |
-| DELETE | `/:eventId` | Delete event |
-
-### Fests (`/api/fests`)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | List all fests |
-| GET | `/:festId` | Get fest by ID |
-| POST | `/` | Create fest |
-| PUT | `/:festId` | Update fest |
-| DELETE | `/:festId` | Delete fest |
-
-### Registrations (`/api`)
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/register` | Register for event (individual or team) |
-| GET | `/registrations` | List registrations (filterable) |
-| GET | `/registrations/:id` | Get single registration |
-| GET | `/registrations/:id/qr-code` | Get QR code image |
-| DELETE | `/registrations/:id` | Cancel registration |
-| GET | `/registrations/user/:registerId/events` | User's registered events |
-
-### Attendance (`/api`)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/events/:eventId/participants` | List event participants |
-| POST | `/events/:eventId/attendance` | Mark attendance (manual) |
-| POST | `/events/:eventId/scan-qr` | Mark attendance via QR scan |
-
-### Notifications (`/api`)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/notifications` | Get user notifications (paginated) |
-| POST | `/notifications` | Create notification |
-| POST | `/notifications/broadcast` | Broadcast to all users |
-| PATCH | `/notifications/:id/read` | Mark as read |
-| PATCH | `/notifications/mark-read` | Mark multiple as read |
-| DELETE | `/notifications/:id` | Delete notification |
-| DELETE | `/notifications/clear-all` | Clear all notifications |
-| GET | `/notifications/admin/history` | Admin notification history |
-
-### Other
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/upload/fest-image` | Upload fest image |
-| POST | `/api/contact` | Submit contact form |
-| GET | `/api/support/messages` | Get support messages |
-| PATCH | `/api/support/messages/:id` | Update message status |
-
----
-
-## Setup
-
-### Prerequisites
-- Node.js v18+
-- Supabase project (for auth and database)
-- Resend API key (for emails)
-
-### Server
-```bash
-cd server
-npm install
-npm run dev
-# Runs on http://localhost:8000
-```
+| Backend | Express 5, Node.js ES modules |
+| Database | Supabase PostgreSQL |
+| Auth | Supabase Auth with JWT verification |
+| Email | Resend |
+| Charts | Recharts |
+| QR | `qrcode` on the server, `qr-scanner` on the client |
+| Forms | React Hook Form + Zod |
+| Motion | GSAP, ScrollTrigger, and custom animated UI blocks |
+| Deployment | Vercel for app delivery, Supabase for auth/database |
 
 ### Client
+
+The client is a Next.js App Router application. It uses Supabase browser access for read-heavy product features and calls the Express API for privileged actions such as uploads, attendance, notifications, chat, and operational workflows.
+
+Important client-side pieces:
+
+- `client/app` contains the routes and page-level layouts.
+- `client/context` holds the main React contexts for auth, events, and consent.
+- `client/lib` contains Supabase helpers, analytics adapters, and shared utilities.
+- `client/middleware.ts` protects authenticated and role-gated routes before they render.
+
+### Server
+
+The server is a single Express entry point in [server/index.js](server/index.js) that mounts all route modules, configures CORS, serves uploads, and applies Sentry when configured.
+
+Notable server responsibilities:
+
+- Supabase JWT verification and user hydration.
+- Role expiry checks and access control.
+- CRUD APIs for users, events, fests, clubs, and registrations.
+- Attendance scanning and manual attendance updates.
+- Notifications, contact forms, reports, approvals, service requests, venue bookings, catering, stalls, volunteer flows, and analytics.
+- File uploads and static file serving.
+
+### Database
+
+The app uses Supabase PostgreSQL. Database migrations live in [server/migrations](server/migrations), and migration utilities live in [server/scripts](server/scripts).
+
+## Main Product Areas
+
+### Public Experience
+
+- Landing page with hero content, animated sections, featured events, and FAQs.
+- Discovery hub for events and fests.
+- Event, fest, and club detail pages.
+- Support, FAQ, pricing, solutions, about, privacy, terms, cookies, and app download pages.
+
+### Event and Fest Management
+
+- Create and edit events and fests.
+- Upload images, banners, brochures, and other assets with size limits enforced server-side.
+- Configure custom registration fields, fees, participant limits, outsider rules, deadlines, and scheduling details.
+- Manage sub-heads, sponsor blocks, timelines, FAQs, and related metadata.
+
+### Registration and Tickets
+
+- Individual and team registrations.
+- QR code generation for registrations.
+- Registration lookup and cancellation.
+- Ticket and participant views for event owners and attendees.
+
+### Attendance and Operations
+
+- QR scanning with camera support and mobile-friendly flows.
+- Manual attendance marking and participant filtering.
+- Approvals and service-request style portals for internal operations.
+- Booking flows for venues, catering, and stalls.
+
+### Admin and Analytics
+
+- User management, role grants, and expiry handling.
+- Event, fest, and notification administration.
+- HOD and Dean analytics routes.
+- Master admin dashboards backed by Supabase data and Recharts visualizations.
+
+## Important Routes
+
+This is not a complete route inventory, but it covers the parts that matter most.
+
+### Public and Discovery
+
+- `/` landing page
+- `/auth` sign-in
+- `/Discover` discovery hub
+- `/events`, `/event/[id]`
+- `/fests`, `/fest/[id]`
+- `/clubs`, `/club/[id]`
+- `/about`, `/about/story`, `/about/team`, `/about/mission`
+- `/contact`, `/faq`, `/pricing`, `/solutions`, `/app-download`
+- `/privacy`, `/terms`, `/cookies`
+
+### Protected User and Organiser Flows
+
+- `/profile`
+- `/manage`
+- `/create/event`, `/create/fest`
+- `/edit/event/[id]`, `/edit/fest/[id]`
+- `/attendance`
+- `/event/[id]/register`
+- `/event/[id]/participants`
+- `/event/[id]/ticket/[registrationId]`
+- `/feedback/[eventId]`, `/feedbacks/[eventId]`
+
+### Operations and Admin
+
+- `/masteradmin`
+- `/hod`, `/dean`, `/cfo`, `/accounts`
+- `/venue`, `/catering`, `/it`, `/stalls`
+- `/volunteer`, `/volunteer/scanner/[eventId]`
+- `/bookvenue`, `/bookcatering`, `/bookstall`
+- `/clubeditor/[id]`, `/edit/clubs/[id]`
+- `/approvals/[itemId]`
+- `/support`, `/support/inbox`, `/support/careers`
+- `/statuscheck`
+
+## API Surface
+
+The Express server mounts route modules under `/api`.
+
+| Area | Mounted path | Purpose |
+|---|---|---|
+| Auth | `/api/auth` | Session and auth helpers |
+| Users | `/api/users` | User CRUD and role management |
+| Events | `/api/events` | Event CRUD and protected event operations |
+| Fests | `/api/fests` | Fest CRUD |
+| Registrations | `/api/register`, `/api/registrations` | Register, cancel, lookup, and QR ticket flow |
+| Attendance | `/api/attendance` and event-scoped attendance routes | Manual attendance and QR scan flows |
+| Notifications | `/api/notifications` | User notifications and broadcasts |
+| Uploads | `/api/upload` | File upload handling |
+| Contact and reports | `/api/contact`, `/api/report` | Contact submissions and reporting |
+| Chat | `/api/chat` | Chatbot / assistant flows |
+| Approvals and services | `/api/approval`, `/api/service-request` | Operational approvals and requests |
+| Venue and catering | `/api/venue`, `/api/venue-booking`, `/api/catering` | Venue and dining workflows |
+| Stalls and volunteering | `/api/stall-booking`, `/api/volunteer` | Stall and volunteer operations |
+| Clubs | `/api/clubs` | Clubs, cells, and related management |
+| Analytics | `/api/analytics`, `/api/hod-analytics`, `/api/dean-analytics` | Dashboard and role-specific reporting |
+| Utilities | `/api/statuscheck`, `/api/feedback` | Health and feedback flows |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18 or newer
+- A Supabase project
+- Resend API key if you want email delivery enabled
+
+### Install
+
+From the repo root:
+
+```bash
+npm run install-all
+```
+
+This installs the root, client, and server dependencies.
+
+### Run Locally
+
+Start both apps from the root:
+
+```bash
+npm run dev
+```
+
+That runs the server and client together.
+
+Or run them individually:
+
+```bash
+cd server
+npm run dev
+```
+
 ```bash
 cd client
-npm install
 npm run dev
-# Runs on http://localhost:3000
 ```
 
-### Environment Variables
+Default ports:
 
-**Server** -- create `.env` in `/server`:
-```
-SUPABASE_URL=<your-supabase-url>
-SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
-SUPABASE_DB_URL=postgresql://postgres:<password>@<host>:5432/postgres?sslmode=require
-DB_SSL=true
-RESEND_API_KEY=<your-resend-key>
-ALLOWED_ORIGINS=https://socio.christuniversity.in,http://localhost:3000
-ALLOWED_ORIGIN_PATTERNS=^https://.*\.vercel\.app$,^https://.*\.christuniversity\.in$
-APP_URL=http://localhost:3000
+- Client: `http://localhost:3000`
+- Server: `http://localhost:8000`
+
+### Build and Lint
+
+Client scripts:
+
+```bash
+cd client
+npm run build
+npm run lint
 ```
 
-**Client** -- create `.env.local` in `/client`:
+Server scripts:
+
+```bash
+cd server
+npm run start
 ```
+
+### Migrations
+
+```bash
+cd server
+npm run migration:status
+npm run migration:up
+npm run migration:create
+```
+
+See [server/MIGRATIONS.md](server/MIGRATIONS.md) for the migration workflow.
+
+## Environment Variables
+
+### Client
+
+Create `client/.env.local`:
+
+```bash
 NEXT_PUBLIC_SUPABASE_URL=<your-supabase-url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-supabase-anon-key>
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
-NEXT_PUBLIC_PWA_URL=<your-pwa-url>
-NEXT_PUBLIC_EVENT_IMAGE_PLACEHOLDER_URL=https://placehold.co/400x250/e2e8f0/64748b?text=Event+Image
-NEXT_PUBLIC_EVENT_BANNER_PLACEHOLDER_URL=https://placehold.co/1200x400/e2e8f0/64748b?text=Event+Banner
-NEXT_PUBLIC_GOOGLE_CALENDAR_BASE_URL=https://calendar.google.com/calendar/render?action=TEMPLATE
-NEXT_PUBLIC_REMOTE_IMAGE_HOSTS=lh3.googleusercontent.com,*.googleusercontent.com,img.recraft.ai,placehold.co,vkappuaapscvteexogtp.supabase.co,*.supabase.co,christuniversity.in,*.christuniversity.in
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
----
+`NEXT_PUBLIC_APP_URL` is used as a redirect fallback in middleware.
 
-## Security
+### Server
 
-- Supabase JWT token validation on all protected routes
-- Role-based access control (organiser, support, master admin)
-- Client-side middleware + server-side auth middleware
-- Role expiration with automatic revocation
-- Last Master Admin lockout protection
-- File size limits enforced (image 3MB, banner 2MB, PDF 5MB)
-- CORS restricted to allowed origins
+Create `server/.env` or `server/.env.local`:
 
----
-
-## Deployment
-
-Both client and server deploy to **Vercel** with their respective `vercel.json` configs. Database and auth are hosted on **Supabase**.
-
-### DB Migration Pipeline
-
-Migrations are SQL files in `server/migrations` and are tracked in `public.schema_migrations`.
-
-Run from `server`:
 ```bash
-npm run migration:create -- add_new_column
-npm run migration:status
-npm run migration:up
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+RESEND_API_KEY=<your-resend-key>
+ALLOWED_ORIGINS=https://socio.christuniversity.in,http://localhost:3000
+ALLOWED_ORIGIN_PATTERNS=^https://.*\.vercel\.app$,^https://.*\.christuniversity\.in$
+SENTRY_DSN=<optional-sentry-dsn>
+PORT=8000
 ```
 
-Full guide: `server/MIGRATIONS.md`
+Depending on your deployment and database setup, you may also need:
 
----
+- `SUPABASE_DB_URL`
+- `DB_SSL`
+- `GEMINI_API_KEY`
+- `OPENAI_API_KEY`
+
+## Security and Access Control
+
+- Supabase JWT verification on protected API routes.
+- Route guarding in the client middleware.
+- Role expiry for organiser, support, master admin, and operational roles.
+- CORS allowlist plus regex-based origin patterns.
+- Upload limits enforced on the server.
+- The middleware blocks management, operational, and club-editor routes unless the user has the right access.
+
+## Deployment Notes
+
+Both apps are configured for Vercel. The server is written so it can run locally or in a serverless runtime, and the database/auth layer is provided by Supabase.
+
+Useful files when you are changing deployment or infra behavior:
+
+- [client/middleware.ts](client/middleware.ts)
+- [server/index.js](server/index.js)
+- [server/config/database.js](server/config/database.js)
+- [server/middleware/authMiddleware.js](server/middleware/authMiddleware.js)
 
 ## Contributing
 
-1. Follow existing code structure and patterns
-2. Use TypeScript with proper type definitions
-3. Test features before submitting
-4. Follow the established UI guidelines (brand colors: `#154CB3`, `#063168`, `#FFCC00`)
+- Keep changes consistent with the existing client/server split.
+- Prefer updating the feature area you are touching rather than broad refactors.
+- Keep route and env documentation in sync when you add a new portal or API module.
+- Follow the existing brand system already used in the client.
