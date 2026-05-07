@@ -138,7 +138,7 @@ router.get("/summary", async (req, res) => {
     });
   } catch (err) {
     console.error("[Dean Analytics /summary]", err);
-    return res.status(500).json({ error: "Failed to fetch summary", details: err.message });
+    return res.status(500).json({ error: "Failed to fetch summary. Please try again later." });
   }
 });
 
@@ -192,7 +192,7 @@ router.get("/departments", async (req, res) => {
     return res.json({ departments });
   } catch (err) {
     console.error("[Dean Analytics /departments]", err);
-    return res.status(500).json({ error: "Failed to fetch departments", details: err.message });
+    return res.status(500).json({ error: "Failed to fetch departments. Please try again later." });
   }
 });
 
@@ -281,7 +281,7 @@ router.get("/fests", async (req, res) => {
     return res.json({ fests, highlights: { bestAttendance, bestFeedback, worstTurnout, lowestAttendance } });
   } catch (err) {
     console.error("[Dean Analytics /fests]", err);
-    return res.status(500).json({ error: "Failed to fetch fests", details: err.message });
+    return res.status(500).json({ error: "Failed to fetch fests. Please try again later." });
   }
 });
 

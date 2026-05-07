@@ -37,7 +37,7 @@ async function getSnapshot(req, res) {
   } catch (err) {
     console.error("[HOD Analytics] Snapshot error:", err);
     res.status(500).json({
-      error: "Failed to generate HOD analytics",
+      error: "Failed to generate analytics. Please try again later.",
       details: err.message,
     });
     return null;
@@ -144,7 +144,7 @@ router.get("/fests", async (req, res) => {
     return res.status(200).json({ fests: result, department: dept });
   } catch (err) {
     console.error("[HOD Fests] Error:", err);
-    return res.status(500).json({ error: "Failed to fetch fests", details: err.message });
+    return res.status(500).json({ error: "Failed to fetch fests. Please try again later." });
   }
 });
 
@@ -373,7 +373,7 @@ router.get("/fest-summary", async (req, res) => {
     });
   } catch (err) {
     console.error("[HOD Fest Summary] Error:", err);
-    return res.status(500).json({ error: "Failed to fetch fest summary", details: err.message });
+    return res.status(500).json({ error: "Failed to fetch fest summary. Please try again later." });
   }
 });
 

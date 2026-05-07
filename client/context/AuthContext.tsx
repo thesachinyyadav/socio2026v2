@@ -4,8 +4,6 @@ import { createContext, useContext, useEffect, useLayoutEffect, useState, useMem
 import { createBrowserClient } from "@supabase/ssr";
 import { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import CampusDetectionModal, { isCampusDismissedRecently } from "../app/_components/CampusDetectionModal";
-
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -220,7 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const orgType = getOrganizationType(newSession.user?.email);
 
         void (async () => {
-          await createOrUpdateUser(newSession.user);
+          await createOrUpdateUser(newSession.user, newSession.access_token);
 
           let fetchedUser = await fetchUserData(newSession.user.email!);
           if (!fetchedUser) {
@@ -272,7 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
-  const createOrUpdateUser = async (user: User) => {
+  const createOrUpdateUser = async (user: User, accessToken?: string) => {
     if (!user?.email) return;
 
     try {
@@ -329,11 +327,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log("Creating/updating user with payload:", payload);
 
-      const response = await fetch(`${API_URL}/api/users`, {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
+      const response = await fetch(`/api/users`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ user: payload }),
       });
 
@@ -355,7 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
-      const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`, {
+      const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -676,7 +679,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       const token = (session as any)?.access_token;
                       if (token) headers['Authorization'] = `Bearer ${token}`;
                       const bodyPayload: any = { name: currentName.trim(), visitor_id: outsiderVisitorId };
-                      const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
+                      const resp = await fetch(`/api/users/${encodeURIComponent(userData!.email)}/name`, {
                         method: 'PUT', headers, body: JSON.stringify(bodyPayload)
                       });
                       if (!resp.ok) {
@@ -719,7 +722,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const token = (session as any)?.access_token;
                         if (token) headers['Authorization'] = `Bearer ${token}`;
                         const bodyPayload: any = { name: outsiderNameInput.trim(), visitor_id: outsiderVisitorId };
-                        const resp = await fetch(`${API_URL}/api/users/${encodeURIComponent(userData!.email)}/name`, {
+                        const resp = await fetch(`/api/users/${encodeURIComponent(userData!.email)}/name`, {
                           method: 'PUT', headers, body: JSON.stringify(bodyPayload)
                         });
                         if (!resp.ok) {

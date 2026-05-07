@@ -11,6 +11,7 @@ import socioTeam2Img from '@/public/socioteam2.jpeg';
 import advaithImg from '@/public/advaithsocio.jpeg';
 import altonImg from '@/public/altonsocio.jpeg';
 import suryachalamImg from '@/public/suryachalamsocio.jpeg';
+import hatimImg from '@/public/hatim.jpeg';
 
 export default function TeamPage() {
   const founders = [
@@ -143,6 +144,15 @@ export default function TeamPage() {
       email: "suryachalam18@gmail.com",
       linkedin: "https://www.linkedin.com/in/suryachalam/",
       github: "https://github.com/sgk18",
+    },
+    {
+      name: "Hatim Abizer",
+      role: "Fullstack & Cybersecurity Engineer",
+      image: hatimImg,
+      skills: ["Full Stack", "Cybersecurity", "APIs"],
+      email: "hatim.work07@gmail.com",
+      linkedin: "https://www.linkedin.com/in/hatim-abizer-361031371/",
+      github: "https://github.com/hatimAbizer",
     },
   ];
 
@@ -515,17 +525,27 @@ export default function TeamPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {growingTeam.map((member) => (
-                  <div key={member.name} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div key={member.name} className={`bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden ${member.name === "Hatim Abizer" ? "md:col-start-2" : ""}`}>
                     <div className="relative bg-gradient-to-br from-[#154CB3] to-[#063168] p-5 flex items-center justify-center">
                       <div className="relative aspect-[3/4] w-36 overflow-hidden rounded-2xl border-4 border-white shadow-lg bg-white">
-                        <Image
-                          src={member.image}
-                          alt={member.name}
-                          placeholder="blur"
-                          fill
-                          sizes="144px"
-                          className="object-cover object-top"
-                        />
+                        {typeof member.image === "string" ? (
+                          <Image
+                            src={member.image}
+                            alt={member.name}
+                            fill
+                            sizes="144px"
+                            className="object-cover object-top"
+                          />
+                        ) : (
+                          <Image
+                            src={member.image}
+                            alt={member.name}
+                            placeholder="blur"
+                            fill
+                            sizes="144px"
+                            className="object-cover object-top"
+                          />
+                        )}
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
                     </div>

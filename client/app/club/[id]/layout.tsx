@@ -17,40 +17,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     );
     
     const { data } = await supabase
-      .from("events")
-      .select("title, description")
+      .from("clubs")
+      .select("name, description")
       .eq("id", id)
       .single();
 
-    if (data?.title) {
+    if (data?.name) {
       return {
-        title: data.title,
-        description: data.description || "Event details on SOCIO",
+        title: data.name,
+        description: data.description || "Club details on SOCIO",
         openGraph: {
-          title: `${data.title} | SOCIO`,
-          description: data.description || "Event details on SOCIO",
-          url: `${SITE_URL}/event/${id}`,
+          title: `${data.name} | SOCIO`,
+          description: data.description || "Club details on SOCIO",
+          url: `${SITE_URL}/club/${id}`,
         },
         alternates: {
-          canonical: `${SITE_URL}/event/${id}`,
+          canonical: `${SITE_URL}/club/${id}`,
         },
       };
     }
   } catch (error) {
-    console.error("Error fetching event metadata:", error);
+    console.error("Error fetching club metadata:", error);
   }
 
   return {
-    title: "Event Details",
-    description: "View event details on SOCIO",
+    title: "Club Details",
+    description: "View club details on SOCIO",
     openGraph: {
-      title: "Event Details | SOCIO",
-      description: "View event details on SOCIO",
-      url: `${SITE_URL}/event/${id}`,
+      title: "Club Details | SOCIO",
+      description: "View club details on SOCIO",
+      url: `${SITE_URL}/club/${id}`,
     },
   };
 }
 
-export default async function EventLayout({ children }: Props) {
+export default async function ClubLayout({ children }: Props) {
   return <>{children}</>;
 }

@@ -94,6 +94,10 @@ function NavigationBar() {
   const [clubEditorClubs, setClubEditorClubs] = useState<Array<{club_id: string; club_name: string}>>([]);
   const [showClubSelectionModal, setShowClubSelectionModal] = useState(false);
   const [selectedClubId, setSelectedClubId] = useState<string>("");
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
   const navContainerRef = useRef<HTMLElement | null>(null);
   const logoRef = useRef<HTMLDivElement | null>(null);
   const rightControlsRef = useRef<HTMLDivElement | null>(null);
@@ -109,7 +113,9 @@ function NavigationBar() {
   const displayName = userData?.name || sessionDisplayName;
   const displayAvatar = userData?.avatar_url || session?.user?.user_metadata?.avatar_url || null;
   const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
+  const isLocalhost = hasMounted && typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
   const isMasterAdmin = Boolean((userData as any)?.is_masteradmin);
+  const canAccessAdmin = isMasterAdmin || isLocalhost;
   const isAccountsOffice = Boolean((userData as any)?.is_accounts_office);
   const isCfo = Boolean((userData as any)?.is_cfo);
   const isDean = Boolean((userData as any)?.is_dean);
@@ -181,7 +187,7 @@ function NavigationBar() {
   };
 
   const roleActions: RoleAction[] = [];
-  if (isMasterAdmin) roleActions.push({ key: "admin", label: "Admin", href: "/masteradmin", variant: "admin" });
+  if (canAccessAdmin) roleActions.push({ key: "admin", label: "Admin", href: "/masteradmin", variant: "admin" });
   if (isAccountsOffice) roleActions.push({ key: "accounts", label: "Accounts", href: "/accounts", variant: "accounts" });
   if (isCfo) roleActions.push({ key: "cfo", label: "CFO", href: "/cfo", variant: "cfo" });
   if (isDean) roleActions.push({ key: "dean", label: "Dean", href: "/dean", variant: "dean" });
@@ -565,9 +571,9 @@ function NavigationBar() {
                 <div className="h-9 w-24 rounded-full bg-gray-200 animate-pulse" />
               </div>
             ) : session ? (
-              userData && hasRoleActions ? (
+              hasRoleActions ? (
                 <div className="flex gap-2 sm:gap-4 items-center md:flex-nowrap justify-end">
-                  <NotificationSystem />
+                  {userData && <NotificationSystem />}
                   {!isDesktopCompact && (
                     <div className="flex items-center gap-2">
                       {visibleRoleActions.map((roleAction) => (

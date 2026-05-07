@@ -28,6 +28,89 @@ const normalizeJsonField = (value) => {
       return [];
     }
   }
+
+  // PATCH - Update a single sub-head expiration date
+  router.patch(
+    "/:festId/subheads/:email",
+    authenticateUser,
+    getUserInfo(),
+    checkRoleExpiration,
+    requireOrganiser,
+    requireOwnership("fest", "festId", "auth_uuid"),
+    async (req, res) => {
+      try {
+        const festTable = await getFestTableForDatabase(queryAll);
+        const { festId, email } = req.params;
+        const targetEmail = normalizeEmail(email);
+        const expiresOn = String(req.body?.expires_on || req.body?.expires_at || "").trim();
+
+        if (!targetEmail) {
+          return res.status(400).json({ error: "Sub-head email is required." });
+        }
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) {
+          return res.status(400).json({ error: "A valid expiration date is required." });
+        }
+
+        const parsedDate = parseComparableDate(expiresOn);
+        if (!parsedDate) {
+          return res.status(400).json({ error: "A valid expiration date is required." });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        parsedDate.setHours(0, 0, 0, 0);
+        if (parsedDate.getTime() < today.getTime()) {
+          return res.status(400).json({ error: "Please choose today or a future date." });
+        }
+
+        const fest = req.resource || await getFestByIdFromCandidates(festId, festTable);
+        if (!fest) {
+          return res.status(404).json({ error: "Fest not found." });
+        }
+
+        const existingSubHeadsInput = fest.sub_heads ?? fest.subHeads ?? [];
+        const existingSubHeads = Array.isArray(existingSubHeadsInput)
+          ? existingSubHeadsInput
+          : parseJsonLikeField(existingSubHeadsInput, []);
+        const normalizedSubHeads = Array.isArray(existingSubHeads)
+          ? existingSubHeads.map(normalizeEventHead).filter((head) => head.email)
+          : [];
+
+        let found = false;
+        const updatedSubHeads = normalizedSubHeads.map((subHead) => {
+          if (subHead.email !== targetEmail) return subHead;
+          found = true;
+          const expiry = new Date(`${expiresOn}T23:59:59.999`);
+          return {
+            ...subHead,
+            expiresAt: Number.isNaN(expiry.getTime()) ? subHead.expiresAt : expiry.toISOString(),
+          };
+        });
+
+        if (!found) {
+          return res.status(404).json({ error: "Sub-head assignment not found." });
+        }
+
+        const updatedRows = await update(
+          festTable,
+          {
+            sub_heads: updatedSubHeads,
+            updated_at: new Date().toISOString(),
+          },
+          { fest_id: festId }
+        );
+
+        return res.status(200).json({
+          message: "Sub-head expiration updated successfully.",
+          fest: updatedRows?.[0] ? mapFestResponse(updatedRows[0]) : null,
+        });
+      } catch (error) {
+        console.error("Server error PATCH /api/fests/:festId/subheads/:email:", error);
+        return res.status(500).json({ error: "Internal server error while updating sub-head expiration." });
+      }
+    }
+  );
   if (typeof value === "object" && value !== null) {
     return Array.isArray(value) ? value : [];
   }

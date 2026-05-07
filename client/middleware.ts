@@ -6,6 +6,7 @@ const publicPaths = ["/", "/auth/callback", "/error", "/about", "/auth", "/event
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isLocalhostRequest = req.nextUrl.hostname === "localhost" || req.nextUrl.hostname === "127.0.0.1";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -231,7 +232,7 @@ export async function middleware(req: NextRequest) {
       return redirect("/error?error=not_authorized");
     }
 
-    if (isMasterAdminRoute && !userData?.is_masteradmin) {
+    if (isMasterAdminRoute && !userData?.is_masteradmin && !isLocalhostRequest) {
       return redirect("/error?error=not_authorized");
     }
 

@@ -119,7 +119,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       try {
         const email = userData.email;
         const response = await fetch(
-          `${API_URL}/api/notifications?email=${encodeURIComponent(email)}&page=${page}&limit=20`,
+          `/api/notifications?email=${encodeURIComponent(email)}&page=${page}&limit=20`,
           { headers: { Authorization: `Bearer ${session.access_token}` } }
         );
 
@@ -241,7 +241,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     const hasIndividual = notifications.some((n) => !n.isBroadcast);
     if (session?.access_token && userData?.email && hasIndividual) {
       fetch(
-        `${API_URL}/api/notifications/clear-all?email=${encodeURIComponent(userData.email)}`,
+        `/api/notifications/clear-all?email=${encodeURIComponent(userData.email)}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -269,7 +269,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
         const emailParam = userData?.email
           ? `?email=${encodeURIComponent(userData.email)}`
           : "";
-        await fetch(`${API_URL}/api/notifications/${notificationId}${emailParam}`, {
+        await fetch(`/api/notifications/${notificationId}${emailParam}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${session.access_token}` },
         });

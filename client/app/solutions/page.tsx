@@ -35,7 +35,6 @@ const SolutionsPage = () => {
       features: [
         "Department-specific access control",
         "Workshop capacity management",
-        "Certificate generation",
         "Feedback collection",
         "Resource material sharing"
       ],
@@ -51,11 +50,8 @@ const SolutionsPage = () => {
       title: "Sports Events",
       description: "Organize sports tournaments, inter-college competitions, and athletic meets with bracket management and live scoring.",
       features: [
-        "Tournament brackets",
         "Team registration",
-        "Match scheduling",
-        "Live score updates",
-        "Medal tally tracking"
+        "Match scheduling"
       ],
       cta: "Built for competitions",
       color: "orange"
@@ -70,7 +66,6 @@ const SolutionsPage = () => {
       description: "Manage club memberships, regular meetups, and club-specific events. Keep your community engaged year-round.",
       features: [
         "Member management",
-        "Regular meetup scheduling",
         "Attendance history",
         "Club announcements",
         "Activity reports"

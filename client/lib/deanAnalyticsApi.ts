@@ -1,11 +1,12 @@
 import { supabase } from "@/lib/supabaseClient";
+import { getUserFriendlyErrorMessage } from "@/lib/userFacingErrors";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
 async function getAuthToken(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session?.access_token) {
-    throw new Error("Dean authentication token not available.");
+    throw new Error("Please sign in again.");
   }
   return data.session.access_token;
 }
@@ -17,7 +18,7 @@ async function getJson<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: string; details?: string };
-    throw new Error(body.details || body.error || `Request failed: ${res.status}`);
+    throw new Error(getUserFriendlyErrorMessage(body));
   }
   return res.json() as Promise<T>;
 }

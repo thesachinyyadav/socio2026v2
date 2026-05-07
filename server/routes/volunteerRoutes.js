@@ -25,7 +25,7 @@ router.get("/events", authenticateUser, getUserInfo(), checkRoleExpiration, asyn
     const { data: events, error } = await supabase
       .from("events")
       .select("event_id, title, event_date, end_date, venue, campus_hosted_at, volunteers, is_archived")
-      .not("volunteers", "eq", "[]");
+      .not("volunteers", "is", null);
 
     if (error) {
       console.error("Error fetching events for volunteer dashboard:", error);

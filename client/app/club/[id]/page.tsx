@@ -465,6 +465,7 @@ const ClubDetailsPage = () => {
                 <button
                   type="button"
                   onClick={handleJoinClick}
+                  className="block w-full rounded-[10px] bg-[#154CB3] px-4 py-3 text-center text-[17px] font-semibold text-white transition-colors duration-200 hover:bg-[#1b4699]"
                   className={`block w-full rounded-[10px] border-2 px-4 py-3 text-center text-[17px] font-medium transition-colors duration-200 ${isAlreadyApplicant
                     ? "border-[#16a34a] text-[#16a34a] hover:bg-[#ecfdf3]"
                     : "border-[#133f86] text-[#133f86] hover:bg-[#edf2fb]"

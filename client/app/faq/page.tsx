@@ -76,7 +76,7 @@ export default function FAQPage() {
       id: 6,
       category: "account",
       question: "Can I change my profile information?",
-      answer: "Yes! Go to your profile page to update your name, course details, and other information. Some details like your email are synced with your Google account and cannot be changed directly in SOCIO."
+      answer: "No, you cannot change your profile information in SOCIO. Your account details are automatically fetched and synced from your email account. Any profile updates must be made through your email account settings first, and the changes will automatically reflect in SOCIO."
     },
 
     // Events FAQs
@@ -287,15 +287,6 @@ export default function FAQPage() {
                       <p className="text-gray-700 leading-relaxed">
                         {faq.answer}
                       </p>
-                      <div className="mt-4 flex items-center text-sm text-gray-500">
-                        <span>Was this helpful?</span>
-                        <button className="ml-3 text-green-600 hover:text-green-700">
-                          👍 Yes
-                        </button>
-                        <button className="ml-2 text-red-600 hover:text-red-700">
-                          👎 No
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>

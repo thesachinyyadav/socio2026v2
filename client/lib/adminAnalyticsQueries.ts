@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { getUserFriendlyErrorMessage } from "@/lib/userFacingErrors";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const TABLE_MAX_ROWS = {
@@ -467,7 +468,7 @@ async function ensureMasterAdminSession(client: SupabaseClient): Promise<void> {
   } = await client.auth.getSession();
 
   if (sessionError) {
-    throw new Error(`Session validation failed: ${sessionError.message}`);
+    throw new Error(getUserFriendlyErrorMessage(sessionError, "Please sign in again."));
   }
 
   if (!session?.user?.email) {
@@ -482,11 +483,11 @@ async function ensureMasterAdminSession(client: SupabaseClient): Promise<void> {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Admin permission check failed: ${error.message}`);
+    throw new Error(getUserFriendlyErrorMessage(error, "You do not have permission to view analytics."));
   }
 
   if (!data?.is_masteradmin) {
-    throw new Error("Master admin privileges are required to access Data Explorer.");
+    throw new Error("You do not have permission to view analytics.");
   }
 }
 

@@ -1,104 +1,68 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Footer from "../_components/Home/Footer";
 import { useAuth } from "../../context/AuthContext";
+import LoadingIndicator from "../_components/UI/LoadingIndicator";
+import { getSupportArticles, type SupportArticleSummary } from "../../lib/api";
 
 const safeLower = (value: unknown): string => String(value ?? "").toLowerCase();
+
+const baseSupportCategories = [
+  { id: "account", name: "Account & Login" },
+  { id: "events", name: "Events & Registration" },
+  { id: "technical", name: "Technical Issues" },
+  { id: "mobile", name: "Mobile App" },
+  { id: "organizer", name: "Event Organizers" }
+];
 
 const SupportPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [supportArticles, setSupportArticles] = useState<SupportArticleSummary[]>([]);
+  const [isLoadingArticles, setIsLoadingArticles] = useState(true);
+  const [articlesError, setArticlesError] = useState<string | null>(null);
 
-  const supportCategories = [
-    { id: "all", name: "All Topics", count: 24 },
-    { id: "account", name: "Account & Login", count: 6 },
-    { id: "events", name: "Events & Registration", count: 8 },
-    { id: "technical", name: "Technical Issues", count: 5 },
-    { id: "mobile", name: "Mobile App", count: 3 },
-    { id: "organizer", name: "Event Organizers", count: 2 }
-  ];
-
-  const supportArticles = [
-    {
-      id: 1,
-      category: "account",
-      title: "How to create a SOCIO account",
-      description: "Step-by-step guide to setting up your student account",
-      readTime: "3 min read",
-      helpful: 89
-    },
-    {
-      id: 2,
-      category: "account",
-      title: "Forgot password? Reset it here",
-      description: "Quick steps to recover your account access",
-      readTime: "2 min read",
-      helpful: 156
-    },
-    {
-      id: 3,
-      category: "events",
-      title: "How to register for events",
-      description: "Complete guide to event registration and payment",
-      readTime: "4 min read",
-      helpful: 234
-    },
-    {
-      id: 4,
-      category: "events",
-      title: "Managing your event registrations",
-      description: "View, modify, or cancel your event bookings",
-      readTime: "3 min read",
-      helpful: 142
-    },
-    {
-      id: 5,
-      category: "events",
-      title: "QR code attendance system",
-      description: "How the QR attendance tracking works",
-      readTime: "2 min read",
-      helpful: 98
-    },
-    {
-      id: 6,
-      category: "technical",
-      title: "App not loading properly",
-      description: "Troubleshoot common loading issues",
-      readTime: "3 min read",
-      helpful: 67
-    },
-    {
-      id: 7,
-      category: "technical",
-      title: "Notification settings",
-      description: "Customize your event notifications",
-      readTime: "2 min read",
-      helpful: 45
-    },
-    {
-      id: 8,
-      category: "organizer",
-      title: "How to create and manage events",
-      description: "Complete guide for event organizers",
-      readTime: "8 min read",
-      helpful: 78
-    },
-    {
-      id: 9,
-      category: "mobile",
-      title: "Download the SOCIO mobile app",
-      description: "Get the app for iOS and Android",
-      readTime: "1 min read",
-      helpful: 234
+  const loadSupportArticles = useCallback(async () => {
+    try {
+      setIsLoadingArticles(true);
+      setArticlesError(null);
+      const data = await getSupportArticles();
+      setSupportArticles(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to load support articles right now.";
+      setArticlesError(message);
+      setSupportArticles([]);
+    } finally {
+      setIsLoadingArticles(false);
     }
-  ];
+  }, []);
 
-  const filteredArticles = supportArticles.filter(article => {
+  useEffect(() => {
+    loadSupportArticles();
+  }, [loadSupportArticles]);
+
+  const supportCategories = useMemo(() => {
+    const countsByCategory = supportArticles.reduce<Record<string, number>>((acc, article) => {
+      const key = safeLower(article.category);
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return [
+      { id: "all", name: "All Topics", count: supportArticles.length },
+      ...baseSupportCategories.map((category) => ({
+        ...category,
+        count: countsByCategory[category.id] ?? 0
+      }))
+    ];
+  }, [supportArticles]);
+
+  const filteredArticles = supportArticles.filter((article) => {
     const matchesCategory = selectedCategory === "all" || article.category === selectedCategory;
     const query = safeLower(searchQuery);
-    const matchesSearch = query === "" || 
+    const matchesSearch = query === "" ||
       safeLower(article.title).includes(query) ||
       safeLower(article.description).includes(query);
     return matchesCategory && matchesSearch;
@@ -317,36 +281,55 @@ const SupportPage = () => {
               </span>
             </div>
 
-            <div className="space-y-4">
-              {filteredArticles.map((article) => (
-                <div key={article.id} className="bg-gray-50 border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-lg font-bold text-gray-800 hover:text-[#154CB3] cursor-pointer">
-                      {article.title}
-                    </h4>
-                    <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
-                      {article.readTime}
-                    </span>
-                  </div>
-                  <p className="text-gray-600 mb-4 text-sm">
-                    {article.description}
-                  </p>
-                  <div className="flex justify-between items-center">
-                    <button className="text-[#154CB3] hover:underline font-medium text-sm">
-                      Read Article →
-                    </button>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
-                      {article.helpful} found this helpful
+            {articlesError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {articlesError}
+                <button
+                  type="button"
+                  onClick={loadSupportArticles}
+                  className="ml-3 font-medium underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {isLoadingArticles ? (
+              <div className="py-10 flex justify-center">
+                <LoadingIndicator label="Loading support articles" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredArticles.map((article) => (
+                  <div key={article.id} className="bg-gray-50 border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all">
+                    <div className="flex justify-between items-start mb-2">
+                      <Link href={`/support/${article.id}`} className="text-lg font-bold text-gray-800 hover:text-[#154CB3]">
+                        {article.title}
+                      </Link>
+                      <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
+                        {article.read_time_minutes} min read
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mb-4 text-sm">
+                      {article.description}
+                    </p>
+                    <div className="flex justify-between items-center">
+                      <Link href={`/support/${article.id}`} className="text-[#154CB3] hover:underline font-medium text-sm">
+                        Read Article →
+                      </Link>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                        {article.helpful_count} found this helpful
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
-            {filteredArticles.length === 0 && (
+            {!isLoadingArticles && filteredArticles.length === 0 && (
               <div className="text-center py-12">
                 <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

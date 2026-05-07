@@ -20,6 +20,12 @@ interface CustomField {
   required?: boolean;
 }
 
+interface Teammate {
+  name?: string;
+  registerNumber?: string;
+  email?: string;
+}
+
 interface Student {
   id: number;
   registration_id?: string;
@@ -28,9 +34,12 @@ interface Student {
   course?: string;
   department?: string;
   email: string;
+  team_name?: string;
   created_at?: string;
   custom_field_responses?: Record<string, string | number>;
   attendance_status?: string;
+  registration_type?: string;
+  teammates?: Teammate[];
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -55,6 +64,17 @@ export default function StudentsPage() {
   const [onSpotSuccess, setOnSpotSuccess] = useState<string | null>(null);
   const [isOnSpotSubmitting, setIsOnSpotSubmitting] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [isTeamEvent, setIsTeamEvent] = useState(false);
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
+
+  const toggleTeam = (id: string) => {
+    setExpandedTeams((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const params = useParams();
   const event_id = params?.id as string;
@@ -101,6 +121,7 @@ export default function StudentsPage() {
               event.on_spot === "1" ||
               event.on_spot === "true"
           );
+          setIsTeamEvent(Number(event.participants_per_team || 1) > 1);
           const rawCb = event.created_by;
           const creatorEmails: string[] = Array.isArray(rawCb)
             ? rawCb.filter((e: unknown) => typeof e === "string" && e)
@@ -138,13 +159,13 @@ export default function StudentsPage() {
 
         if (!registrationsResponse.ok) {
           let errorMessage = `Error: ${registrationsResponse.status} ${registrationsResponse.statusText}`;
+          const errorText = await registrationsResponse.text();
           try {
-            const errorData = await registrationsResponse.json();
+            const errorData = JSON.parse(errorText);
             errorMessage = `Server Error: ${
               errorData.details || errorData.error || "Unknown error"
             }`;
           } catch {
-            const errorText = await registrationsResponse.text();
             errorMessage = `Error ${
               registrationsResponse.status
             }: Failed to retrieve data. ${errorText.substring(0, 150)}`;
@@ -160,9 +181,12 @@ export default function StudentsPage() {
           course: reg.course || "",
           department: reg.department || "",
           email: reg.registration_type === 'individual' ? reg.individual_email : reg.team_leader_email || "",
+          team_name: reg.team_name || "",
           created_at: reg.created_at || "",
           custom_field_responses: reg.custom_field_responses || {},
           attendance_status: reg.attendance_status || "",
+          registration_type: reg.registration_type || "",
+          teammates: Array.isArray(reg.teammates) ? reg.teammates : [],
         }));
         setStudents(mappedStudents);
       } catch (err) {
@@ -505,56 +529,120 @@ export default function StudentsPage() {
         <div className="hidden md:block overflow-x-auto">
           {/* Table Header */}
           <div className={`grid gap-4 px-4 py-4 text-gray-500 font-medium border-b border-gray-200`}
-               style={{ gridTemplateColumns: `200px 120px 150px 150px 250px ${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}>
-            <div>Name</div>
+               style={{ gridTemplateColumns: `32px 200px 120px 150px 150px 250px ${isTeamEvent ? '180px ' : ''}${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}>
+            <div></div>
+            <div>{isTeamEvent ? 'Team leader name' : 'Name'}</div>
             <div>Register No.</div>
             <div>Course</div>
             <div>Department</div>
             <div>E-mail</div>
+            {isTeamEvent && <div>Team Name</div>}
             {customFields.map(field => (
               <div key={field.id} className="text-[#154CB3] font-semibold">
                 {field.label}
               </div>
             ))}
           </div>
-          
+
           {/* Table Body */}
-          {!isDataLoading && !error && paginatedStudents.length > 0 && paginatedStudents.map((student: Student) => (
-            <div 
-              key={student.id}
-              className="grid gap-4 px-4 py-4 items-center border-b border-gray-200 hover:bg-gray-50 transition-colors"
-              style={{ gridTemplateColumns: `200px 120px 150px 150px 250px ${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}
-            >
-              <div className="font-medium truncate">
-                {student.name || "N/A"}
-              </div>
-              <div>{student.register_number || "N/A"}</div>
-              <div>{student.course || "N/A"}</div>
-              <div>{student.department || "N/A"}</div>
-              <div className="text-[#154CB3] truncate">
-                {student.email || "N/A"}
-              </div>
-              {customFields.map(field => {
-                const value = student.custom_field_responses?.[field.id];
-                return (
-                  <div key={field.id} className="truncate">
-                    {field.type === 'url' && value ? (
-                      <a 
-                        href={String(value)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-[#154CB3] hover:underline"
+          {!isDataLoading && !error && paginatedStudents.length > 0 && paginatedStudents.map((student: Student) => {
+            const rowKey = String(student.registration_id || student.id);
+            const leaderReg = String(student.register_number || "").trim();
+            const otherTeammates = (student.teammates ?? []).filter(
+              (tm) => String(tm.registerNumber || "").trim() !== leaderReg
+            );
+            const isTeam = student.registration_type === 'team' && otherTeammates.length > 0;
+            const isExpanded = isTeam && expandedTeams.has(rowKey);
+            return (
+              <div key={student.id}>
+                <div
+                  onClick={isTeam ? () => toggleTeam(rowKey) : undefined}
+                  role={isTeam ? "button" : undefined}
+                  tabIndex={isTeam ? 0 : undefined}
+                  aria-expanded={isTeam ? isExpanded : undefined}
+                  onKeyDown={isTeam ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleTeam(rowKey);
+                    }
+                  } : undefined}
+                  className={`grid gap-4 px-4 py-4 items-center border-b border-gray-200 hover:bg-gray-50 transition-colors ${isTeam ? "cursor-pointer" : ""}`}
+                  style={{ gridTemplateColumns: `32px 200px 120px 150px 150px 250px ${isTeamEvent ? '180px ' : ''}${customFields.map(() => '180px').join(' ')}`.trim(), minWidth: 'max-content' }}
+                >
+                  <div>
+                    {isTeam ? (
+                      <span
+                        aria-hidden="true"
+                        className="flex items-center justify-center w-6 h-6 rounded text-gray-600"
                       >
-                        {String(value)}
-                      </a>
-                    ) : (
-                      <span>{value !== undefined && value !== null ? String(value) : "N/A"}</span>
-                    )}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                      </span>
+                    ) : null}
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                  <div className="font-medium truncate">
+                    {student.name || "N/A"}
+                  </div>
+                  <div>{student.register_number || "N/A"}</div>
+                  <div>{student.course || "N/A"}</div>
+                  <div>{student.department || "N/A"}</div>
+                  <div className="text-[#154CB3] truncate">
+                    {student.email || "N/A"}
+                  </div>
+                  {isTeamEvent && (
+                    <div className="truncate">
+                      {student.team_name || "N/A"}
+                    </div>
+                  )}
+                  {customFields.map(field => {
+                    const value = student.custom_field_responses?.[field.id];
+                    return (
+                      <div key={field.id} className="truncate">
+                        {field.type === 'url' && value ? (
+                          <a
+                            href={String(value)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[#154CB3] hover:underline"
+                          >
+                            {String(value)}
+                          </a>
+                        ) : (
+                          <span>{value !== undefined && value !== null ? String(value) : "N/A"}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {isExpanded && (
+                  <div className="bg-gray-50 border-b border-gray-200 px-4 py-5" style={{ minWidth: 'max-content' }}>
+                    <div className="pl-10">
+                      <div className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3">
+                        Teammates ({otherTeammates.length})
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {otherTeammates.map((tm, idx) => (
+                          <div key={idx} className="text-base text-gray-800">
+                            <span className="text-gray-500 mr-3">{idx + 1}.</span>
+                            {tm.registerNumber || "N/A"}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {isDataLoading ? (
@@ -585,14 +673,51 @@ export default function StudentsPage() {
             {/* Mobile Card Views */}
             <div className="md:hidden">
               {paginatedStudents.length > 0 ? (
-                paginatedStudents.map((student: Student) => (
+                paginatedStudents.map((student: Student) => {
+                  const rowKey = String(student.registration_id || student.id);
+                  const leaderReg = String(student.register_number || "").trim();
+                  const otherTeammates = (student.teammates ?? []).filter(
+                    (tm) => String(tm.registerNumber || "").trim() !== leaderReg
+                  );
+                  const isTeam = student.registration_type === 'team' && otherTeammates.length > 0;
+                  const isExpanded = isTeam && expandedTeams.has(rowKey);
+                  return (
                   <div
                     key={student.id}
-                    className="mb-4 border rounded-lg shadow-sm border-gray-200"
+                    onClick={isTeam ? () => toggleTeam(rowKey) : undefined}
+                    role={isTeam ? "button" : undefined}
+                    tabIndex={isTeam ? 0 : undefined}
+                    aria-expanded={isTeam ? isExpanded : undefined}
+                    onKeyDown={isTeam ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleTeam(rowKey);
+                      }
+                    } : undefined}
+                    className={`mb-4 border rounded-lg shadow-sm border-gray-200 ${isTeam ? "cursor-pointer" : ""}`}
                   >
                     <div className="p-4">
-                      <div className="font-medium text-lg mb-2">
-                        {student.name || "N/A"}
+                      <div className="flex items-center gap-2 mb-2">
+                        {isTeam && (
+                          <span
+                            aria-hidden="true"
+                            className="flex items-center justify-center w-6 h-6 rounded text-gray-600"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={2}
+                              stroke="currentColor"
+                              className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                            </svg>
+                          </span>
+                        )}
+                        <div className="font-medium text-lg">
+                          {student.name || "N/A"}
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 gap-2">
                         <div className="flex">
@@ -621,6 +746,14 @@ export default function StudentsPage() {
                             {student.email || "N/A"}
                           </span>
                         </div>
+                        {isTeamEvent && (
+                          <div className="flex">
+                            <span className="text-gray-500 w-28 flex-shrink-0">
+                              Team Name
+                            </span>
+                            <span>{student.team_name || "N/A"}</span>
+                          </div>
+                        )}
                         {/* Custom Fields in Mobile View */}
                         {customFields.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-200">
@@ -631,10 +764,11 @@ export default function StudentsPage() {
                                 <div key={field.id} className="flex flex-col mb-2">
                                   <span className="text-gray-500 text-xs">{field.label}</span>
                                   {field.type === 'url' && value ? (
-                                    <a 
-                                      href={String(value)} 
-                                      target="_blank" 
+                                    <a
+                                      href={String(value)}
+                                      target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
                                       className="text-[#154CB3] text-sm break-all hover:underline"
                                     >
                                       {String(value)}
@@ -648,9 +782,25 @@ export default function StudentsPage() {
                           </div>
                         )}
                       </div>
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3">
+                            Teammates ({otherTeammates.length})
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {otherTeammates.map((tm, idx) => (
+                              <div key={idx} className="text-base text-gray-800">
+                                <span className="text-gray-500 mr-3">{idx + 1}.</span>
+                                {tm.registerNumber || "N/A"}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="flex justify-center items-center h-32 text-gray-500">
                   {searchQuery

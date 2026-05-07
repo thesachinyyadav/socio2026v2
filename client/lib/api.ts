@@ -3,6 +3,187 @@ import { supabase } from './supabaseClient';
 // API Base URL
 export const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
+export type SupportArticleSummary = {
+  id: number;
+  category: string;
+  title: string;
+  description: string;
+  read_time_minutes: number;
+  helpful_count: number;
+  created_at?: string;
+};
+
+export type SupportArticleDetail = SupportArticleSummary & {
+  content: string;
+  updated_at?: string;
+};
+
+const SUPPORT_ARTICLES_FALLBACK: SupportArticleDetail[] = [
+  {
+    id: 1,
+    category: 'account',
+    title: 'How to create a SOCIO account',
+    description: 'Sign in with your Christ University Google account, review your profile details, and complete any required fields to activate your SOCIO account.',
+    content: 'Sign in using your Christ University Google account from the SOCIO auth page. If you are a student or staff member, your profile will be created automatically after first login. Review your profile details and complete any missing fields before registering for events.',
+    read_time_minutes: 3,
+    helpful_count: 89,
+  },
+  {
+    id: 2,
+    category: 'account',
+    title: 'Forgot password? Reset it here',
+    description: 'Use Google account recovery, then sign out and sign back in with your campus account if access is not restored immediately.',
+    content: 'SOCIO uses Google authentication, so password resets are managed in your Google account settings. If login still fails, clear browser cache, sign out of all Google accounts, and sign in again with your campus account.',
+    read_time_minutes: 2,
+    helpful_count: 156,
+  },
+  {
+    id: 3,
+    category: 'events',
+    title: 'How to register for events',
+    description: 'Open the event page, review the eligibility and deadline details, complete registration, and confirm payment if required.',
+    content: 'Open the event page, review eligibility and deadline details, then click Register. For paid events, complete payment if required and verify your registration confirmation. Your QR code will be available in your account once registration is successful.',
+    read_time_minutes: 4,
+    helpful_count: 234,
+  },
+  {
+    id: 4,
+    category: 'events',
+    title: 'Managing your event registrations',
+    description: 'Go to your registrations section, review upcoming bookings, and cancel only where the event policy allows it before the deadline.',
+    content: 'Go to your profile and open the registrations area to view upcoming and past registrations. You can cancel registrations where cancellation is allowed before the deadline. Always check event-specific rules before modifying submissions.',
+    read_time_minutes: 3,
+    helpful_count: 142,
+  },
+  {
+    id: 5,
+    category: 'events',
+    title: 'QR code attendance system',
+    description: 'After registration, present your unique QR code at the venue so organizers can verify and record your attendance.',
+    content: 'After successful registration, SOCIO generates a unique QR code tied to your registration record. Show this QR code at the venue for attendance scanning by organizers. If scanning fails, present your registration details for manual verification.',
+    read_time_minutes: 2,
+    helpful_count: 98,
+  },
+  {
+    id: 6,
+    category: 'technical',
+    title: 'App not loading properly',
+    description: 'Refresh the page, check your internet connection, and clear cache or cookies before trying again in an updated browser.',
+    content: 'Start by refreshing the page and checking your internet connection. If issues continue, clear cache and cookies for the site, then try again in an updated browser. If the problem persists, contact support with screenshots and device details.',
+    read_time_minutes: 3,
+    helpful_count: 67,
+  },
+  {
+    id: 7,
+    category: 'technical',
+    title: 'Notification settings',
+    description: 'Review profile notification preferences, enable browser permissions, and check email spam folders to ensure updates are delivered.',
+    content: 'Review your notification preferences in profile settings and ensure browser notification permissions are enabled for SOCIO. Also check email spam folders for missed updates. Disable and re-enable notifications if delivery appears inconsistent.',
+    read_time_minutes: 2,
+    helpful_count: 45,
+  },
+  {
+    id: 8,
+    category: 'organizer',
+    title: 'How to create and manage events',
+    description: 'Create the event from your dashboard, publish it with complete details, and monitor registrations and attendance from the organizer tools.',
+    content: 'Organizers can create events from the management dashboard by filling title, schedule, venue, and participant settings. After publishing, monitor registrations, communicate updates, and track attendance from organizer tools. Keep deadlines and event details current.',
+    read_time_minutes: 8,
+    helpful_count: 78,
+  },
+  {
+    id: 9,
+    category: 'mobile',
+    title: 'Download the SOCIO mobile app',
+    description: 'Select your platform, install the app, sign in with your SOCIO account, and enable notifications for timely event updates.',
+    content: 'Visit the app download section and select your platform. Install the app, sign in with your SOCIO account, and enable notifications for real-time event alerts. Use the latest app version for best reliability and performance.',
+    read_time_minutes: 1,
+    helpful_count: 234,
+  },
+];
+
+function getFallbackSupportArticles(filters?: { category?: string; search?: string }): SupportArticleSummary[] {
+  const category = (filters?.category || '').trim().toLowerCase();
+  const search = (filters?.search || '').trim().toLowerCase();
+
+  return SUPPORT_ARTICLES_FALLBACK.filter((article) => {
+    const matchesCategory = !category || category === 'all' || article.category === category;
+    const matchesSearch =
+      !search ||
+      article.title.toLowerCase().includes(search) ||
+      article.description.toLowerCase().includes(search);
+    return matchesCategory && matchesSearch;
+  }).map(({ content, ...summary }) => summary);
+}
+
+async function getApiErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  try {
+    const body = await response.json();
+    if (typeof body?.message === 'string' && body.message.trim()) {
+      return body.message;
+    }
+  } catch {
+    // Ignore JSON parse errors and return fallback.
+  }
+  return fallbackMessage;
+}
+
+export async function getSupportArticles(filters?: {
+  category?: string;
+  search?: string;
+}): Promise<SupportArticleSummary[]> {
+  const params = new URLSearchParams();
+
+  if (filters?.category && filters.category !== 'all') {
+    params.set('category', filters.category);
+  }
+
+  if (filters?.search?.trim()) {
+    params.set('search', filters.search.trim());
+  }
+
+  const query = params.toString();
+  const url = `${API_URL}/api/support/articles${query ? `?${query}` : ''}`;
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response, 'Unable to load support articles right now.'));
+    }
+
+    const body = await response.json();
+    return Array.isArray(body?.articles) ? body.articles : [];
+  } catch {
+    return getFallbackSupportArticles(filters);
+  }
+}
+
+export async function getSupportArticleById(id: number | string): Promise<SupportArticleDetail | null> {
+  const articleId = Number.parseInt(String(id), 10);
+  if (!Number.isFinite(articleId) || articleId <= 0) {
+    throw new Error('Invalid article id.');
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/support/articles/${articleId}`, {
+      cache: 'no-store'
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response, 'Unable to load support article right now.'));
+    }
+
+    const body = await response.json();
+    return body?.article ?? null;
+  } catch {
+    return SUPPORT_ARTICLES_FALLBACK.find((article) => article.id === articleId) || null;
+  }
+}
+
 // ============ EVENTS ============
 
 export async function getEvents() {

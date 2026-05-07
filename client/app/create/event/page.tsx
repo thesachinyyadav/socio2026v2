@@ -6,6 +6,7 @@ import { SubmitHandler } from "react-hook-form";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { fetchWithTimeout } from "@/app/lib/fetchWithTimeout";
 
 export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -194,11 +195,11 @@ export default function CreateEventPage() {
     appendFile("pdfFile", dataFromHookForm.pdfFile);
 
     try {
-      const response = await fetch(`/api/events`, {
+      const response = await fetchWithTimeout(`/api/events`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token!}` },
         body: formData,
-      });
+      }, 30000);
 
       if (!response.ok) {
         let errorData: any = {};
@@ -222,7 +223,7 @@ export default function CreateEventPage() {
       // For standalone events: submit blocking approval record first
       if (!isFestEvent && approvalEnabled) {
         try {
-          await fetch(`${API_URL}/api/approvals`, {
+          await fetchWithTimeout(`${API_URL}/api/approvals`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token!}`, "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -231,7 +232,7 @@ export default function CreateEventPage() {
               customStages: approvalStages.filter(s => s.blocking),
               budgetItems: approvalConfigRef.current.budgetItems,
             }),
-          });
+          }, 30000);
         } catch {
           // Non-critical
         }

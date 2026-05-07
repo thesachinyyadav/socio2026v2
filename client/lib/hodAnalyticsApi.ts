@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { AnalyticsKpi, AnalyticsQuery } from "./masterAdminAnalyticsApi";
+import { getUserFriendlyErrorMessage } from "@/lib/userFacingErrors";
 
 export type { AnalyticsKpi, AnalyticsQuery };
 
@@ -217,7 +218,7 @@ function buildQueryString(query: AnalyticsQuery): string {
 async function getAuthToken(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session?.access_token) {
-    throw new Error("HOD authentication token not available.");
+    throw new Error("Please sign in again.");
   }
   return data.session.access_token;
 }
@@ -232,10 +233,10 @@ async function getJson<T>(path: string, query: AnalyticsQuery = {}): Promise<T> 
   });
 
   if (!response.ok) {
-    let message = `Failed request: ${response.status}`;
+    let message = "Something went wrong. Please try again.";
     try {
       const payload = (await response.json()) as { error?: string; details?: string };
-      message = payload.details || payload.error || message;
+      message = getUserFriendlyErrorMessage(payload, message);
     } catch {
       // Ignore JSON parse failure
     }

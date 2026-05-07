@@ -1,5 +1,5 @@
 import express from "express";
-import { queryOne, queryAll, upsert, insert } from "../config/database.js";
+import { queryOne, queryAll, upsert, insert, supabase } from "../config/database.js";
 import { verifyQRCodeData, parseQRCodeData } from "../utils/qrCodeUtils.js";
 import {
   authenticateUser,
@@ -36,11 +36,47 @@ router.get("/events/:eventId/participants", async (req, res) => {
       (attendanceRows || []).map((row) => [row.registration_id, row]),
     );
 
+    // Collect teammate register numbers across team registrations, then bulk-fetch user data
+    const teammateRegNums = new Set();
+    for (const reg of registrations || []) {
+      if (reg.registration_type !== "team") continue;
+      let tms = [];
+      try {
+        tms = Array.isArray(reg.teammates) ? reg.teammates : (reg.teammates ? JSON.parse(reg.teammates) : []);
+      } catch (_) { tms = []; }
+      for (const tm of tms) {
+        const rn = String(tm?.registerNumber || "").trim();
+        if (rn) teammateRegNums.add(rn);
+      }
+    }
+    const userLookup = {};
+    if (teammateRegNums.size > 0) {
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("register_number, name, email")
+        .in("register_number", Array.from(teammateRegNums));
+      if (usersData) {
+        for (const u of usersData) {
+          userLookup[String(u.register_number)] = { name: u.name || "", email: u.email || "" };
+        }
+      }
+    }
+
     const participants = (registrations || []).map((reg) => {
       const attendance =
         attendanceMap.get(reg.id) ||
         attendanceMap.get(reg.registration_id) ||
         {};
+
+      let teammateStatuses = {};
+      if (attendance.teammate_statuses) {
+        if (typeof attendance.teammate_statuses === "object" && !Array.isArray(attendance.teammate_statuses)) {
+          teammateStatuses = attendance.teammate_statuses;
+        } else if (typeof attendance.teammate_statuses === "string") {
+          try { teammateStatuses = JSON.parse(attendance.teammate_statuses) || {}; } catch (_) { teammateStatuses = {}; }
+        }
+      }
+
       const base = {
         id: reg.id,
         registration_id: reg.registration_id,
@@ -50,6 +86,7 @@ router.get("/events/:eventId/participants", async (req, res) => {
         attendance_status: attendance.status || "absent",
         marked_at: attendance.marked_at || null,
         marked_by: attendance.marked_by || null,
+        teammate_statuses: teammateStatuses,
       };
 
       if (reg.registration_type === "individual") {
@@ -63,10 +100,22 @@ router.get("/events/:eventId/participants", async (req, res) => {
 
       let teammates = [];
       try {
-        teammates = reg.teammates ? JSON.parse(reg.teammates) : [];
+        teammates = Array.isArray(reg.teammates)
+          ? reg.teammates
+          : (reg.teammates ? JSON.parse(reg.teammates) : []);
       } catch (_) {
         teammates = [];
       }
+      teammates = teammates.map((tm) => {
+        const rn = String(tm?.registerNumber || "").trim();
+        const lookup = rn ? userLookup[rn] : null;
+        return {
+          ...tm,
+          name: tm?.name || lookup?.name || "",
+          email: tm?.email || lookup?.email || "",
+          registerNumber: rn,
+        };
+      });
 
       return {
         ...base,
@@ -136,6 +185,69 @@ router.post("/events/:eventId/attendance", async (req, res) => {
     });
   } catch (error) {
     console.error("Error marking attendance:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Mark attendance for a single teammate (stored in attendance_status.teammate_statuses jsonb)
+router.post("/events/:eventId/teammate-attendance", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { registrationId, teammateRegisterNumber, status, markedBy = "admin" } = req.body;
+
+    if (!registrationId || !teammateRegisterNumber) {
+      return res.status(400).json({
+        error: "registrationId and teammateRegisterNumber are required",
+      });
+    }
+    if (!["attended", "absent"].includes(status)) {
+      return res.status(400).json({ error: "Status must be 'attended' or 'absent'" });
+    }
+
+    const event = await queryOne("events", { where: { event_id: eventId } });
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const existing = await queryOne("attendance_status", {
+      where: { registration_id: registrationId },
+    });
+
+    let teammateStatuses = {};
+    if (existing && existing.teammate_statuses) {
+      if (typeof existing.teammate_statuses === "object" && !Array.isArray(existing.teammate_statuses)) {
+        teammateStatuses = { ...existing.teammate_statuses };
+      } else if (typeof existing.teammate_statuses === "string") {
+        try { teammateStatuses = JSON.parse(existing.teammate_statuses) || {}; } catch (_) { teammateStatuses = {}; }
+      }
+    }
+
+    const now = new Date().toISOString();
+    teammateStatuses[String(teammateRegisterNumber)] = {
+      status,
+      marked_at: now,
+      marked_by: markedBy,
+    };
+
+    await upsert(
+      "attendance_status",
+      {
+        registration_id: registrationId,
+        event_id: eventId,
+        status: existing?.status || "absent",
+        marked_at: existing?.marked_at || now,
+        marked_by: existing?.marked_by || markedBy,
+        teammate_statuses: teammateStatuses,
+      },
+      "registration_id",
+    );
+
+    return res.json({
+      message: "Teammate attendance updated",
+      teammate_statuses: teammateStatuses,
+    });
+  } catch (error) {
+    console.error("Error marking teammate attendance:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

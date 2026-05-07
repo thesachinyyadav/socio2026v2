@@ -209,85 +209,139 @@ router.get(
           .json({ error: "Invalid event_id parameter" });
       }
 
-      registrations = await queryAll("registrations", {
-        where: { event_id },
-        order: { column: "created_at", ascending: false },
-      });
-    }
+      // If not master admin, verify they are only requesting their own data
+      if (!isMasterAdmin && !event_id) {
+        const userRegNum = String(req.userInfo.register_number || req.userInfo.visitor_id || "").trim().toUpperCase();
+        const userEmail = String(req.userInfo.email || "").trim().toLowerCase();
 
-    // Collect all unique register numbers to look up user data
-    const registerNumbers = new Set();
-    registrations.forEach(reg => {
-      if (reg.individual_register_number) {
-        registerNumbers.add(String(reg.individual_register_number));
+        if (registerNumber && String(registerNumber).trim().toUpperCase() !== userRegNum) {
+          return res.status(403).json({ error: "Unauthorized: You can only fetch your own registrations" });
+        }
+        if (email && String(email).trim().toLowerCase() !== userEmail) {
+          return res.status(403).json({ error: "Unauthorized: You can only fetch your own registrations" });
+        }
       }
-      if (reg.team_leader_register_number) {
-        registerNumbers.add(String(reg.team_leader_register_number));
-      }
-    });
 
-    // Fetch user data for all register numbers in one query
-    let userDataMap = {};
-    if (registerNumbers.size > 0) {
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('register_number, course, department')
-        .in('register_number', Array.from(registerNumbers));
-      
-      if (usersData) {
-        usersData.forEach(user => {
-          userDataMap[String(user.register_number)] = {
-            course: user.course || '',
-            department: user.department || ''
-          };
+      let registrations = [];
+
+      if (event_id) {
+        // Fetch for a specific event
+        registrations = await queryAll("registrations", {
+          where: { event_id },
+          order: { column: "created_at", ascending: false },
+        });
+      } else if (registerNumber || email) {
+        // Fetch for a specific user (self-lookup or master admin lookup)
+        const id = (registerNumber || email).trim();
+        const { data, error } = await supabase
+          .from("registrations")
+          .select("*")
+          .or(`individual_register_number.eq."${id}",team_leader_register_number.eq."${id}",individual_email.eq."${id}",team_leader_email.eq."${id}",user_email.eq."${id}"`)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        registrations = data || [];
+
+        // Check teammates too (JSONB search fallback)
+        try {
+          const { data: teammateRegs } = await supabase
+            .from("registrations")
+            .select("*")
+            .not("teammates", "is", null)
+            .order("created_at", { ascending: false });
+
+          if (teammateRegs) {
+            const matchingTeammateRegs = teammateRegs.filter(reg => {
+              if (!reg.teammates) return false;
+              const teammates = Array.isArray(reg.teammates) ? reg.teammates : JSON.parse(reg.teammates || '[]');
+              const normalizedId = id.toUpperCase();
+              return teammates.some(tm => 
+                String(tm.registerNumber || "").toUpperCase() === normalizedId || 
+                String(tm.email || "").toLowerCase() === id.toLowerCase()
+              );
+            });
+            
+            // Merge and deduplicate
+            const seenIds = new Set(registrations.map(r => r.registration_id));
+            matchingTeammateRegs.forEach(reg => {
+              if (!seenIds.has(reg.registration_id)) {
+                registrations.push(reg);
+                seenIds.add(reg.registration_id);
+              }
+            });
+          }
+        } catch (tmErr) {
+          console.warn("Teammate search failed:", tmErr.message);
+        }
+      } else if (isMasterAdmin) {
+        // Master admin fetching everything (limit to 500 for safety)
+        registrations = await queryAll("registrations", {
+          order: { column: "created_at", ascending: false },
+          limit: 500
         });
       }
+
+      // Collect all unique register numbers to look up user data for enrichment
+      const registerNumbers = new Set();
+      registrations.forEach(reg => {
+        if (reg.individual_register_number) registerNumbers.add(String(reg.individual_register_number));
+        if (reg.team_leader_register_number) registerNumbers.add(String(reg.team_leader_register_number));
+      });
+
+      // Fetch user data for enrichment
+      let userDataMap = {};
+      if (registerNumbers.size > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('register_number, course, department')
+          .in('register_number', Array.from(registerNumbers));
+        
+        if (usersData) {
+          usersData.forEach(user => {
+            userDataMap[String(user.register_number)] = {
+              course: user.course || '',
+              department: user.department || ''
+            };
+          });
+        }
+      }
+
+      const formattedRegistrations = registrations.map((reg) => {
+        const regNum = reg.registration_type === 'individual' 
+          ? reg.individual_register_number 
+          : reg.team_leader_register_number;
+        const userData = userDataMap[String(regNum)] || { course: '', department: '' };
+        
+        return {
+          ...reg,
+          course: userData.course,
+          department: userData.department,
+          teammates: Array.isArray(reg.teammates)
+            ? reg.teammates
+            : (() => {
+                try { return reg.teammates ? JSON.parse(reg.teammates) : []; } catch (e) { return []; }
+              })(),
+          custom_field_responses: (() => {
+            if (!reg.custom_field_responses) return null;
+            if (typeof reg.custom_field_responses === 'object') return reg.custom_field_responses;
+            try { return JSON.parse(reg.custom_field_responses); } catch (e) { return null; }
+          })(),
+        };
+      });
+
+      return res.status(200).json({
+        registrations: formattedRegistrations,
+        count: formattedRegistrations.length,
+      });
     }
-
-    const formattedRegistrations = registrations.map((reg) => {
-      // Get user data based on register number
-      const regNum = reg.registration_type === 'individual' 
-        ? reg.individual_register_number 
-        : reg.team_leader_register_number;
-      const userData = userDataMap[String(regNum)] || { course: '', department: '' };
-      
-      return {
-        ...reg,
-        // Add course and department from user lookup
-        course: userData.course,
-        department: userData.department,
-        teammates: Array.isArray(reg.teammates)
-          ? reg.teammates
-          : (() => {
-              try {
-                return reg.teammates ? JSON.parse(reg.teammates) : [];
-              } catch (e) {
-                return [];
-              }
-            })(),
-        custom_field_responses: (() => {
-          if (!reg.custom_field_responses) return null;
-          if (typeof reg.custom_field_responses === 'object') return reg.custom_field_responses;
-          try {
-            return JSON.parse(reg.custom_field_responses);
-          } catch (e) {
-            return null;
-          }
-        })(),
-      };
-    });
-
-    return res.status(200).json({
-      registrations: formattedRegistrations,
-      count: formattedRegistrations.length,
-    });
-  } catch (error) {
-    console.error("Error fetching registrations:", error);
-    return res.status(500).json({
-      error: "Could not load registrations. Please try again.",
-    });
+    } catch (error) {
+      console.error("Error fetching registrations:", error);
+      return res.status(500).json({
+        error: "Could not load registrations. Please try again.",
+      });
+    }
   }
-});
+);
 
 // Register for an event
 router.post("/register", async (req, res) => {
@@ -683,6 +737,24 @@ router.post("/register", async (req, res) => {
     console.log('🎟️  Registration ID:', registration_id);
     console.log('🎪 Event ID:', normalizedEventId);
     console.log('👥 Registration Type:', normalizedRegistrationType);
+
+    // DUPLICATE REGISTRATION CHECK
+    if (processedData.user_email && processedData.user_email !== 'unknown@example.com') {
+      const existingUserRegistration = await queryOne("registrations", {
+        where: {
+          event_id: normalizedEventId,
+          user_email: processedData.user_email
+        }
+      });
+
+      if (existingUserRegistration) {
+        return res.status(409).json({
+          error: "Already registered",
+          details: "You are already registered for this event.",
+          code: "DUPLICATE_REGISTRATION"
+        });
+      }
+    }
 
     // For Christ members, add a simple QR string: "registerNumber/eventId"
     if (participantOrganization === 'christ_member') {

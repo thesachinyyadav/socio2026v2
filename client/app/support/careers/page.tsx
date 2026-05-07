@@ -141,13 +141,18 @@ const CareersPage = () => {
           </div>
           <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
             <h3 className="text-xl font-bold text-[#063168] mb-4">How the process works</h3>
-            <ol className="space-y-4">
+            <ol className="space-y-0">
               {applicationSteps.map((step, index) => (
                 <li key={step.title} className="flex gap-4">
-                  <span className="h-10 w-10 flex items-center justify-center rounded-full bg-[#FFCC00] text-[#063168] font-bold">
-                    {index + 1}
-                  </span>
-                  <div>
+                  <div className="flex flex-col items-center">
+                    <span className="h-10 w-10 flex items-center justify-center rounded-full bg-[#FFCC00] text-[#063168] font-bold flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    {index < applicationSteps.length - 1 && (
+                      <div className="w-1 bg-[#FFCC00] flex-grow" style={{ minHeight: "60px" }}></div>
+                    )}
+                  </div>
+                  <div className="pb-8 pt-1">
                     <h4 className="text-base font-semibold text-[#154CB3]">
                       {step.title}
                     </h4>

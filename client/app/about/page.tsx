@@ -483,7 +483,7 @@ const AboutPage = () => {
             Ready to get started with SOCIO?
           </h2>
           <p className="text-lg md:text-xl opacity-90 mb-8 max-w-3xl mx-auto text-gray-300">
-            Join thousands of students already using SOCIO to Discover evens,
+            Join thousands of students already using SOCIO to Discover events,
             connect with clubs, and enhance their campus experience.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -495,7 +495,7 @@ const AboutPage = () => {
               Explore events
             </Link>
             <Link
-              href="/register"
+              href="/auth"
               className="w-full sm:w-auto justify-center cursor-pointer font-semibold px-4 py-2 border-2 border-[#fff] hover:bg-[#ffffff1a] transition-all ease-in-out text-sm rounded-full text-white flex items-center"
             >
               Create account

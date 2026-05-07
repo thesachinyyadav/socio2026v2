@@ -2,18 +2,38 @@ import express from "express";
 import { insert, queryAll, queryOne } from "../config/database.js";
 import { authenticateUser } from "../middleware/authMiddleware.js";
 import supabase from "../config/supabaseClient.js";
+import { body, validationResult } from "express-validator";
+import rateLimit from "express-rate-limit";
 
 const router = express.Router();
 
-router.post("/contact", async (req, res) => {
-  const { name, email, subject, message, source } = req.body || {};
+// Rate limiting for contact form (5 submissions per 15 minutes per IP)
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many contact submissions. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-  if (!name || !email || !subject || !message) {
-    return res.status(400).json({
-      success: false,
-      message: "Name, email, subject, and message are required."
-    });
+// Validation rules for contact form
+const contactValidationRules = () => [
+  body('name').trim().isLength({ min: 1, max: 100 }).withMessage('Name is required (max 100 chars)').escape(),
+  body('email').isEmail().withMessage('Invalid email address'),
+  body('subject').trim().isLength({ min: 1, max: 200 }).withMessage('Subject is required (max 200 chars)').escape(),
+  body('message').trim().isLength({ min: 1, max: 5000 }).withMessage('Message is required (max 5000 chars)').escape(),
+];
+
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
   }
+  next();
+};
+
+router.post("/contact", contactLimiter, contactValidationRules(), handleValidationErrors, async (req, res) => {
+  const { name, email, subject, message, source } = req.body || {};
 
   const payload = {
     name: String(name).trim(),
@@ -22,17 +42,18 @@ router.post("/contact", async (req, res) => {
     message: String(message).trim(),
     source: source ? String(source).trim() : "contact",
     status: "new",
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    ip_address: req.ip || req.connection.remoteAddress
   };
 
   try {
     await insert("contact_messages", [payload]);
-    return res.status(201).json({ success: true });
+    return res.status(201).json({ success: true, message: "Message received. We'll get back to you soon." });
   } catch (error) {
-    console.error("Error saving contact message:", error);
+    console.error("[ContactForm] Error saving message:", error.message);
     return res.status(500).json({
       success: false,
-      message: "Unable to send message right now."
+      message: "Unable to send message right now. Please try again later."
     });
   }
 });

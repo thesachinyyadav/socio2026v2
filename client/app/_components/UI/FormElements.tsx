@@ -497,21 +497,48 @@ export function FileInput<T extends FieldValues>({
     rhfOnChange(fakeEvent);
   };
 
+  const dragCounterRef = React.useRef<number>(0);
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
     setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(false);
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (accept) {
+        const acceptedTypes = accept.split(",").map(type => type.trim());
+        const isAccepted = acceptedTypes.some(type => {
+          if (type.endsWith("/*")) {
+            const baseType = type.split("/")[0];
+            return file.type.startsWith(baseType);
+          }
+          return file.type === type;
+        });
+        if (isAccepted) {
+          processFile(file);
+        }
+      } else {
+        processFile(file);
+      }
+    }
   };
 
   const displayFileName =

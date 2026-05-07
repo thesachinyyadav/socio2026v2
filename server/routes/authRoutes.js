@@ -32,7 +32,7 @@ router.get("/callback", async (req, res) => {
 
     // Redirect to the Capacitor deep link
     // Scheme: socio://auth/callback
-    const deepLinkUrl = `socio://auth/callback?token=${encodeURIComponent(session.access_token)}&access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}&next=${encodeURIComponent(String(next))}`;
+    const deepLinkUrl = `socio://auth/callback?token=${session.access_token}&refresh_token=${session.refresh_token}&next=${next}`;
     
     console.log(`[Auth] Redirecting to deep link: ${deepLinkUrl.substring(0, 50)}...`);
     

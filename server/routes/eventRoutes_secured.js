@@ -32,24 +32,26 @@ const router = express.Router();
 const debugRoutesEnabled = process.env.NODE_ENV !== "production";
 const MANUAL_UNARCHIVE_OVERRIDE = "system:manual_unarchive_override";
 
-// HEALTH CHECK - Verify Supabase connection
-router.get("/debug/health", async (req, res) => {
-  try {
-    const result = await queryOne("events", { where: { event_id: "test" } });
-    return res.json({
-      status: "ok",
-      supabase: "connected",
-      message: "✅ Supabase connection is working"
-    });
-  } catch (error) {
-    return res.status(500).json({
-      status: "error",
-      supabase: "disconnected",
-      message: "❌ Supabase connection failed",
-      error: error.message
-    });
-  }
-});
+// HEALTH CHECK - Verify Supabase connection (dev only)
+if (debugRoutesEnabled) {
+  router.get("/debug/health", authenticateUser, requireOrganiser, async (req, res) => {
+    try {
+      const result = await queryOne("events", { where: { event_id: "test" } });
+      return res.json({
+        status: "ok",
+        supabase: "connected",
+        message: "✅ Supabase connection is working"
+      });
+    } catch (error) {
+      console.error("[Health Check] Database error:", error.message);
+      return res.status(500).json({
+        status: "error",
+        supabase: "disconnected",
+        message: "Database connection failed. Check server logs."
+      });
+    }
+  });
+}
 
 // DIAGNOSTIC ENDPOINT - Check authentication and organiser status
 if (debugRoutesEnabled) {
@@ -302,6 +304,15 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
   try {
     const { page, pageSize, search, status, sortBy, sortOrder, archive, include_drafts } = req.query;
     const today = new Date().toISOString().split('T')[0];
+    // Validate pagination parameters to prevent abuse
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 20;
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > 1000) {
+      return res.status(400).json({ error: "Page must be a positive integer between 1 and 1000." });
+    }
+    if (isNaN(pageSizeNum) || pageSizeNum < 1 || pageSizeNum > 100) {
+      return res.status(400).json({ error: "Page size must be between 1 and 100." });
+    }
     const includeDraftsRequested =
       typeof include_drafts === "string" && include_drafts.toLowerCase() === "true";
     const canViewDrafts = Boolean(req.userInfo?.is_masteradmin || req.userInfo?.is_organiser);
@@ -422,8 +433,8 @@ router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
       return res.status(200).json({ events: processedEvents });
     }
 
-    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
-    const parsedPageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
+    const parsedPage = pageNum;
+    const parsedPageSize = pageSizeNum;
     const totalItems = processedEvents.length;
     const totalPages = Math.max(Math.ceil(totalItems / parsedPageSize), 1);
     const safePage = Math.min(parsedPage, totalPages);
@@ -777,6 +788,36 @@ router.post(
         return res.status(400).json({
           error: "Please provide a valid organizer contact email.",
         });
+      }
+
+      // Numeric field validation
+      const maxParticipants = req.body.max_participants ? parseOptionalInt(req.body.max_participants) : null;
+      if (maxParticipants !== null && (isNaN(maxParticipants) || maxParticipants <= 0 || maxParticipants > 50000)) {
+        return res.status(400).json({ error: "Max participants must be a positive number between 1 and 50000." });
+      }
+
+      const minParticipants = req.body.min_participants ? parseOptionalInt(req.body.min_participants) : null;
+      if (minParticipants !== null && (isNaN(minParticipants) || minParticipants <= 0 || minParticipants > 50000)) {
+        return res.status(400).json({ error: "Min participants must be a positive number between 1 and 50000." });
+      }
+
+      if (maxParticipants && minParticipants && minParticipants > maxParticipants) {
+        return res.status(400).json({ error: "Min participants cannot exceed max participants." });
+      }
+
+      const regFee = req.body.registration_fee ? parseOptionalFloat(req.body.registration_fee) : null;
+      if (regFee !== null && (isNaN(regFee) || regFee < 0 || regFee > 999999)) {
+        return res.status(400).json({ error: "Registration fee must be between 0 and 999999." });
+      }
+
+      const outsiderMaxParticipants = req.body.outsider_max_participants ? parseOptionalInt(req.body.outsider_max_participants) : null;
+      if (outsiderMaxParticipants !== null && (isNaN(outsiderMaxParticipants) || outsiderMaxParticipants <= 0 || outsiderMaxParticipants > 50000)) {
+        return res.status(400).json({ error: "Outsider max participants must be a positive number between 1 and 50000." });
+      }
+
+      const outsiderRegFee = req.body.outsider_registration_fee ? parseOptionalFloat(req.body.outsider_registration_fee) : null;
+      if (outsiderRegFee !== null && (isNaN(outsiderRegFee) || outsiderRegFee < 0 || outsiderRegFee > 999999)) {
+        return res.status(400).json({ error: "Outsider registration fee must be between 0 and 999999." });
       }
 
       // Validation
@@ -1748,6 +1789,81 @@ router.post(
         return res.status(400).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error while adding volunteer." });
+    }
+  }
+);
+
+// PATCH update a volunteer expiration date - REQUIRES AUTHENTICATION + OWNERSHIP OR MASTER ADMIN
+router.patch(
+  "/:eventId/volunteers/:registerNumber",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireOrganiserOrSubHead,
+  requireOwnership("events", "eventId", "auth_uuid"),
+  async (req, res) => {
+    try {
+      const { eventId, registerNumber } = req.params;
+      const targetRegisterNumber = normalizeRegisterNumber(registerNumber);
+      const expiresOn = String(req.body.expires_on || req.body.expires_at || "").trim();
+
+      if (!targetRegisterNumber) {
+        return res.status(400).json({ error: "Volunteer register number is required." });
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) {
+        return res.status(400).json({ error: "A valid expiration date is required." });
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const selectedDate = new Date(`${expiresOn}T00:00:00`);
+      if (Number.isNaN(selectedDate.getTime())) {
+        return res.status(400).json({ error: "A valid expiration date is required." });
+      }
+
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate.getTime() < today.getTime()) {
+        return res.status(400).json({ error: "Past dates are not allowed." });
+      }
+
+      const existingVolunteers = normalizeVolunteerRecords(req.resource?.volunteers);
+      let found = false;
+      const updatedVolunteers = existingVolunteers.map((volunteer) => {
+        if (volunteer.register_number !== targetRegisterNumber) return volunteer;
+        found = true;
+        return {
+          ...volunteer,
+          expires_at: new Date(`${expiresOn}T23:59:59.999`).toISOString(),
+        };
+      });
+
+      if (!found) {
+        return res.status(404).json({ error: "Volunteer assignment not found." });
+      }
+
+      const updatedRows = await update(
+        "events",
+        {
+          volunteers: updatedVolunteers,
+          updated_at: new Date().toISOString(),
+        },
+        { event_id: eventId }
+      );
+
+      return res.status(200).json({
+        message: "Volunteer expiration updated successfully.",
+        event: updatedRows?.[0]
+          ? {
+              ...updatedRows[0],
+              volunteers: normalizeVolunteerRecords(updatedRows[0].volunteers),
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error("Server error PATCH /api/events/:eventId/volunteers/:registerNumber:", error);
+      return res.status(500).json({ error: "Internal server error while updating volunteer expiration." });
     }
   }
 );

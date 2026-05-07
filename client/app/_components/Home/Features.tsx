@@ -85,14 +85,14 @@ const Features = () => {
         {features.map((f) => (
           <div
             key={f.label}
-            className="feature-item bg-white rounded-2xl border border-gray-200 p-6 flex flex-col gap-5 h-full"
+            className="feature-item bg-white rounded-2xl border border-gray-300 p-6 flex flex-col gap-5 h-full"
           >
             <div className="bg-[#DBEAFE] w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
               {f.icon}
             </div>
             <div>
               <p className="font-bold text-[#0f2557] text-base mb-2">{f.label}</p>
-              <p className="text-sm text-gray-500 leading-relaxed">{f.description}</p>
+              <p className="text-sm text-gray-800 leading-relaxed">{f.description}</p>
             </div>
           </div>
         ))}
