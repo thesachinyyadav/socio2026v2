@@ -67,6 +67,7 @@ app.use('/api', (req, res, next) => {
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://socio.christuniversity.in',
+  'https://app.withsocio.com',
   'https://sociov2.vercel.app',
   'https://sociodev.vercel.app',
   'https://live.withsocio.com',
