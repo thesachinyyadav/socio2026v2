@@ -283,9 +283,15 @@ router.get(
     });
   } catch (error) {
     console.error("Error fetching registrations:", error);
-    return res.status(500).json({
-      error: "Could not load registrations. Please try again.",
-    });
+    try {
+      return res.status(500).json({
+        error: "Could not load registrations. Please try again.",
+        _debug: error?.message,
+      });
+    } catch (_) {
+      // secondary error (e.g. headers already sent) — rethrow for Express
+      throw error;
+    }
   }
 });
 
