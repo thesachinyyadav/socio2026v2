@@ -380,8 +380,6 @@ export default async function RootLayout({
         {process.env.NEXT_PUBLIC_API_URL && (
           <link rel="preconnect" href={(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "")} />
         )}
-        {/* Preload the above-the-fold hero image */}
-        <link rel="preload" as="image" href="/images/christuniversity.jpg" />
       </head>
       <body
         className={`${dmSans.className} font-sans antialiased bg-[#FFFFFF] text-[#101010] overflow-x-hidden`}

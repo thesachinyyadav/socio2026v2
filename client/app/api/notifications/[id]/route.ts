@@ -5,14 +5,15 @@ const getBackendUrl = () =>
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     const authHeader = request.headers.get("authorization");
 
     const qs = searchParams.toString();
-    const url = `${getBackendUrl()}/api/notifications/${params.id}${qs ? `?${qs}` : ""}`;
+    const url = `${getBackendUrl()}/api/notifications/${id}${qs ? `?${qs}` : ""}`;
 
     const response = await fetch(url, {
       method: "DELETE",
