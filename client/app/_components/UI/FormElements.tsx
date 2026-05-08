@@ -480,6 +480,7 @@ export function FileInput<T extends FieldValues>({
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const dragCounterRef = React.useRef(0);
 
   const { onChange: rhfOnChange, ...restRegisterProps } = register(name, {
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -499,19 +500,36 @@ export function FileInput<T extends FieldValues>({
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (!isDragging) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(false);
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    dragCounterRef.current = 0;
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
+    if (!file) return;
+    if (accept) {
+      const accepted = accept.split(',').map((t) => t.trim());
+      const valid = accepted.some((type) => {
+        if (type.startsWith('.')) return file.name.toLowerCase().endsWith(type.toLowerCase());
+        if (type.endsWith('/*')) return file.type.startsWith(type.replace('/*', '/'));
+        return file.type === type;
+      });
+      if (!valid) return;
+    }
+    processFile(file);
   };
 
   const displayFileName =
@@ -532,6 +550,7 @@ export function FileInput<T extends FieldValues>({
       </label>
       <div
         onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`border border-dashed rounded-lg p-6 sm:p-8 py-10 sm:py-14 text-center transition-colors ${

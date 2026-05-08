@@ -4,8 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
-
 interface FeedbackItem {
   id: string;
   eventId: string;
@@ -24,7 +22,7 @@ export function PendingFeedbackSection() {
     const token = session.access_token;
 
     fetch(
-      `${API_URL}/api/notifications?email=${encodeURIComponent(userData.email)}&limit=50`,
+      `/api/notifications?email=${encodeURIComponent(userData.email)}&limit=50`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
       .then((r) => (r.ok ? r.json() : null))
@@ -41,7 +39,7 @@ export function PendingFeedbackSection() {
         // Filter out events where feedback was already submitted
         const checks = await Promise.all(
           feedbackNotifs.map((n) =>
-            fetch(`${API_URL}/api/feedbacks/${n.eventId}/check`, {
+            fetch(`/api/feedbacks/${n.eventId}/check`, {
               headers: { Authorization: `Bearer ${token}` },
             })
               .then((r) => (r.ok ? r.json() : { submitted: true, feedback_sent: false }))
