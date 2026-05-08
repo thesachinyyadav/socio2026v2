@@ -404,7 +404,7 @@ const VolunteerManagerModal = ({
 
     setIsAdding(true);
     try {
-      const payload = { register_number: reg };
+      const payload: { register_number: string; expires_on?: string } = { register_number: reg };
       
       // Include custom expiry if provided
       if (expiryDate.trim()) {
