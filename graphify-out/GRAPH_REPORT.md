@@ -1,11 +1,11 @@
 # Graph Report - socioweb  (2026-05-08)
 
 ## Corpus Check
-- 233 files · ~635,028 words
+- 234 files · ~638,675 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1643 nodes · 3498 edges · 114 communities detected
+- 1647 nodes · 3507 edges · 114 communities detected
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 204 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -152,76 +152,76 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.04
-Nodes (119): executeQuery(), initializeDatabase(), insert(), queryAll(), queryOne(), remove(), update(), upsert() (+111 more)
+Cohesion: 0.03
+Nodes (137): executeQuery(), insert(), queryAll(), queryOne(), remove(), update(), upsert(), authenticateUser() (+129 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.04
-Nodes (78): getBackendBaseUrl(), normalizeBackendBase(), POST(), formatDate(), handleSubmit(), StatusBadge(), switchTab(), timeAgo() (+70 more)
+Nodes (79): fetchApprovals(), handleOverride(), pendingDuration(), StatusDot(), getBackendBaseUrl(), normalizeBackendBase(), POST(), formatDate() (+71 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.06
-Nodes (77): Card(), downloadCSV(), extractCreatorEmails(), formatTimeAgo(), getDateCutoff(), GrowthBadge(), classNames(), confidencePill() (+69 more)
+Nodes (72): Card(), downloadCSV(), extractCreatorEmails(), formatTimeAgo(), getDateCutoff(), GrowthBadge(), classNames(), confidencePill() (+64 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.05
-Nodes (69): createClub(), deleteClub(), getSupabase(), normalizeAndValidateBannerUrl(), normalizeRoles(), normalizeUrl(), removeClubApplicant(), setClubRegistrations() (+61 more)
+Cohesion: 0.06
+Nodes (60): createClub(), deleteClub(), getSupabase(), normalizeAndValidateBannerUrl(), normalizeRoles(), normalizeUrl(), removeClubApplicant(), setClubRegistrations() (+52 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.06
-Nodes (58): formatDateShort(), formatDateTime(), formatMobiles(), IconChefHat(), IconMail(), IconMapPin(), IconPhone(), isPastDate() (+50 more)
+Nodes (50): formatDateShort(), formatDateTime(), formatMobiles(), IconChefHat(), IconMail(), IconMapPin(), IconPhone(), isPastDate() (+42 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.12
-Nodes (39): daysInMonth(), deriveFestStatusFromDates(), extractApiErrorMessage(), fetchFestData(), firstDayOfMonth(), formatDateToYYYYMMDD(), handleCategorySelect(), handleClickOutside() (+31 more)
+Cohesion: 0.1
+Nodes (34): toLowerSafe(), toStringArray(), buildFestsUrl(), handleCampusSelect(), handleClickOutside(), handleFilterClick(), handlePageSearchSubmit(), safeLower() (+26 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.11
-Nodes (40): closeExpiryEdit(), fetchLiveEvents(), getDefaultSubHeadExpiry(), getEffectiveArchiveState(), getEffectiveFestArchiveState(), getTodayDateInputValue(), getToken(), getValidDate() (+32 more)
+Cohesion: 0.12
+Nodes (43): createDefaultPagination(), deleteEvent(), deleteFest(), deleteUser(), exportRolesToCSV(), fetchAllCaterers(), fetchAllVenues(), fetchClubs() (+35 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.12
-Nodes (31): asBoolean(), buildArchivePayload(), deriveArchiveState(), getTodayStart(), getValidDate(), isMissingArchiveColumnsError(), isValidEmailAddress(), normalizeEmailAddress() (+23 more)
+Nodes (39): daysInMonth(), deriveFestStatusFromDates(), extractApiErrorMessage(), fetchFestData(), firstDayOfMonth(), formatDateToYYYYMMDD(), handleCategorySelect(), handleClickOutside() (+31 more)
 
 ### Community 8 - "Community 8"
+Cohesion: 0.14
+Nodes (39): requireHOD(), festFmt(), fmt(), getSnapshot(), resolveDepartment(), buildAnalyticsSnapshot(), buildHodAnalyticsSnapshot(), buildInsights() (+31 more)
+
+### Community 9 - "Community 9"
 Cohesion: 0.1
 Nodes (35): loadArticle(), safeText(), createEvent(), createFest(), createNotification(), createOrUpdateUser(), createRegistration(), deleteEvent() (+27 more)
 
-### Community 9 - "Community 9"
-Cohesion: 0.12
-Nodes (33): classNames(), confidencePill(), formatMonth(), InsightCard(), toPercent(), asAttendanceStatus(), asOrganizationType(), asParticipantOrganization() (+25 more)
-
 ### Community 10 - "Community 10"
-Cohesion: 0.13
-Nodes (26): toLowerSafe(), toStringArray(), buildTeamSizeTag(), formatPlatformLabel(), formatStatusLabel(), generateGoogleCalendarUrl(), getButtonTextAndProps(), handleCancelRegistration() (+18 more)
+Cohesion: 0.11
+Nodes (28): fbColor(), formatMonth(), pct(), pickFest(), rateColor(), rateLabel(), reset(), toggle() (+20 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.1
 Nodes (28): addVolunteer(), computeVolunteerExpiresAt(), fetchFests(), formatDateToYYYYMMDD(), formatHHMMTo12Hour(), formatTimeToHHMM(), handleClickOutside(), handleSetTime() (+20 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.17
-Nodes (27): gatedInsert(), gatedQueryAll(), gatedQueryOne(), gatedUpdate(), gatedUpsert(), isGatedEnabled(), asBoolean(), countParticipantsInRegistration() (+19 more)
+Cohesion: 0.15
+Nodes (28): buildFullSystemPrompt(), buildGeminiHistory(), buildOpenAIHistory(), commitDailyUsage(), findClosestIntentToken(), getDailyUsage(), getDailyUsageKey(), getFriendlyError() (+20 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.18
-Nodes (33): buildAnalyticsSnapshot(), buildHodAnalyticsSnapshot(), buildInsights(), buildPredictions(), calculateEngagementScore(), chooseAttendance(), chooseFeedback(), chooseRegistrationDate() (+25 more)
-
-### Community 14 - "Community 14"
 Cohesion: 0.13
 Nodes (24): findNearestCampus(), handleDismiss(), haversineDistance(), isCampusDismissedRecently(), markDismissed(), pasteConfirmWord(), saveCampus(), async() (+16 more)
 
-### Community 15 - "Community 15"
+### Community 14 - "Community 14"
 Cohesion: 0.17
-Nodes (21): fbColor(), formatMonth(), pct(), pickFest(), rateColor(), rateLabel(), reset(), toggle() (+13 more)
+Nodes (23): fbColor(), fmtINR(), pct(), pickDept(), pickFest(), rateColor(), rateLabel(), reset() (+15 more)
 
-### Community 16 - "Community 16"
+### Community 15 - "Community 15"
 Cohesion: 0.16
 Nodes (24): addDays(), bookingBarColor(), formatTime12(), getApprovalRedirectPath(), IconBuilding(), IconCalendar(), IconChevronLeft(), IconChevronRight() (+16 more)
 
-### Community 17 - "Community 17"
+### Community 16 - "Community 16"
 Cohesion: 0.13
 Nodes (15): clamp(), closeClaimsModal(), exportAttendance(), fetchParticipants(), formatDDMMYYYY(), generateClaimsXlsx(), handleHourChange(), handleMinuteChange() (+7 more)
+
+### Community 17 - "Community 17"
+Cohesion: 0.22
+Nodes (22): asAttendanceStatus(), asOrganizationType(), asParticipantOrganization(), asRecordArray(), asRegistrationType(), asStringOrNull(), buildDataset(), ensureMasterAdminSession() (+14 more)
 
 ### Community 18 - "Community 18"
 Cohesion: 0.17
@@ -232,16 +232,16 @@ Cohesion: 0.23
 Nodes (17): generateGoogleCalendarUrl(), handleAddTeammate(), handleLoginClick(), handleRemoveTeammate(), handleSubmit(), handleTeammateChange(), handleTeamNameChange(), isCampusAllowed() (+9 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.26
-Nodes (17): fbColor(), fmtINR(), pct(), pickDept(), pickFest(), rateColor(), rateLabel(), reset() (+9 more)
+Cohesion: 0.27
+Nodes (15): extractCreatorEmails(), formatDate(), formatFee(), formatTime(), getEventStatus(), getOrganiserTagClassName(), getOrganiserTagMeta(), getOrganiserTagText() (+7 more)
 
 ### Community 21 - "Community 21"
 Cohesion: 0.35
 Nodes (15): checksum(), ensureMigrationsDir(), ensureMigrationsTable(), getAppliedMigrations(), getConnectionString(), getDbClient(), getMigrationFiles(), lock() (+7 more)
 
 ### Community 22 - "Community 22"
-Cohesion: 0.27
-Nodes (15): extractCreatorEmails(), formatDate(), formatFee(), formatTime(), getEventStatus(), getOrganiserTagClassName(), getOrganiserTagMeta(), getOrganiserTagText() (+7 more)
+Cohesion: 0.42
+Nodes (12): gatedInsert(), gatedQueryAll(), gatedQueryOne(), gatedUpdate(), gatedUpsert(), isGatedEnabled(), createGatedVisitor(), ensureGatedOrganiser() (+4 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.41
@@ -252,20 +252,20 @@ Cohesion: 0.26
 Nodes (12): BellIcon(), CalendarIcon(), CheckIcon(), ClipboardIcon(), ClockIcon(), close(), handleSend(), HeartIcon() (+4 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.28
-Nodes (11): goNext(), handleSubmit(), loadBookings(), minutes(), nextMonth(), pad2(), prevMonth(), setCatering() (+3 more)
+Cohesion: 0.26
+Nodes (9): initializeDatabase(), compileOriginPatterns(), isOriginAllowed(), parseCsvEnv(), setCorsHeaders(), extractErrorText(), getFriendlyErrorMessage(), getStatusFriendlyMessage() (+1 more)
 
 ### Community 26 - "Community 26"
+Cohesion: 0.36
+Nodes (9): buildCentresUrl(), canEditOrganization(), fetchOrganizations(), handleCategoryFilterClick(), handlePageSearchSubmit(), handleTypeFilterChange(), normalizeCategory(), normalizeTypeFilter() (+1 more)
+
+### Community 27 - "Community 27"
 Cohesion: 0.32
 Nodes (8): addDismissedNotification(), addReadNotification(), formatRelativeTime(), getDismissedNotificationsFromStorage(), getReadNotificationsFromStorage(), handleInsert(), mapRawToNotification(), NotificationSystemComponent()
 
-### Community 27 - "Community 27"
+### Community 28 - "Community 28"
 Cohesion: 0.24
 Nodes (6): AnimatedItem(), handleKeyDown(), cn(), handleClickOutside(), handleEscape(), updatePlacement()
-
-### Community 28 - "Community 28"
-Cohesion: 0.27
-Nodes (8): compileOriginPatterns(), isOriginAllowed(), parseCsvEnv(), setCorsHeaders(), extractErrorText(), getFriendlyErrorMessage(), getStatusFriendlyMessage(), sanitizeErrorPayload()
 
 ### Community 29 - "Community 29"
 Cohesion: 0.42
@@ -284,32 +284,32 @@ Cohesion: 0.4
 Nodes (9): closeDatabase(), createMySQLTables(), createSQLiteTables(), executeQuery(), initializeDatabase(), initializeMySQL(), initializeSQLite(), queryAll() (+1 more)
 
 ### Community 33 - "Community 33"
+Cohesion: 0.47
+Nodes (9): assignCateringRole(), catersToArray(), escapeLike(), extractCateringIds(), extractEmails(), normalizeEmails(), requireCatering(), revokeCateringRole() (+1 more)
+
+### Community 34 - "Community 34"
 Cohesion: 0.31
 Nodes (7): getRolePillClasses(), getRoleQuickActionClasses(), isNavLinkActive(), onKeyDown(), onMouseDown(), onResize(), resolveClubEditorDashboard()
 
-### Community 34 - "Community 34"
+### Community 35 - "Community 35"
 Cohesion: 0.36
 Nodes (8): calcGrowth(), ChartCard(), downloadCSV(), EmptyState(), getDateCutoff(), GrowthBadge(), isAfterCutoff(), StatCard()
 
-### Community 35 - "Community 35"
+### Community 36 - "Community 36"
 Cohesion: 0.4
 Nodes (8): getFieldTypeLabel(), handleAddField(), handleAddOption(), handleEditClick(), handleRemoveField(), handleRemoveOption(), handleUpdateField(), resetForm()
 
-### Community 36 - "Community 36"
+### Community 37 - "Community 37"
 Cohesion: 0.47
 Nodes (7): budgetTotal(), confirmReject(), fetchQueue(), handleAction(), pendingDuration(), safeLower(), safeText()
 
-### Community 37 - "Community 37"
+### Community 38 - "Community 38"
 Cohesion: 0.47
 Nodes (7): confirmNotes(), fetchQueue(), formatDate(), formatTime12(), handleAction(), matchFilter(), pad2()
 
-### Community 38 - "Community 38"
+### Community 39 - "Community 39"
 Cohesion: 0.44
 Nodes (7): goToSlide(), handleResize(), handleTouchEnd(), handleTouchStart(), handleTransitionEnd(), nextSlide(), prevSlide()
-
-### Community 39 - "Community 39"
-Cohesion: 0.57
-Nodes (6): DELETE(), GET(), getBackendBaseUrl(), PATCH(), proxyRequest(), PUT()
 
 ### Community 40 - "Community 40"
 Cohesion: 0.32
@@ -320,12 +320,12 @@ Cohesion: 0.43
 Nodes (6): cleanupAnimations(), createWordAnimation(), initCharacterAnimations(), scrambleText(), setupLightSweepEffect(), setupWordCycleAnimations()
 
 ### Community 42 - "Community 42"
-Cohesion: 0.81
-Nodes (5): buildProxyHeaders(), GET(), getAuthorizationHeader(), getBackendBaseUrl(), POST()
+Cohesion: 0.57
+Nodes (6): DELETE(), GET(), getBackendBaseUrl(), PATCH(), proxyRequest(), PUT()
 
 ### Community 43 - "Community 43"
-Cohesion: 0.48
-Nodes (5): formatDate(), ItDashboard(), safeText(), StatusBadge(), timeAgo()
+Cohesion: 0.81
+Nodes (5): buildProxyHeaders(), GET(), getAuthorizationHeader(), getBackendBaseUrl(), POST()
 
 ### Community 44 - "Community 44"
 Cohesion: 0.57
@@ -353,35 +353,35 @@ Nodes (4): clearRuntimeCaches(), ClientInit(), getCurrentBuildFingerprint(), unr
 
 ### Community 50 - "Community 50"
 Cohesion: 0.6
-Nodes (4): fetchApprovals(), handleOverride(), pendingDuration(), StatusDot()
-
-### Community 51 - "Community 51"
-Cohesion: 0.6
 Nodes (4): createDirectories(), deleteFileFromLocal(), getPathFromStorageUrl(), uploadFileToLocal()
 
-### Community 52 - "Community 52"
+### Community 51 - "Community 51"
 Cohesion: 0.8
 Nodes (3): DELETE(), getBackendUrl(), PUT()
 
-### Community 53 - "Community 53"
+### Community 52 - "Community 52"
 Cohesion: 0.4
 Nodes (1): PATCH()
 
-### Community 54 - "Community 54"
+### Community 53 - "Community 53"
 Cohesion: 0.8
 Nodes (3): DELETE(), getBackendUrl(), PUT()
 
-### Community 55 - "Community 55"
+### Community 54 - "Community 54"
 Cohesion: 0.8
 Nodes (3): createUserInDatabase(), GET(), getOrganizationType()
 
-### Community 56 - "Community 56"
+### Community 55 - "Community 55"
 Cohesion: 0.6
 Nodes (3): handleRating(), handleSubmit(), init()
 
-### Community 57 - "Community 57"
+### Community 56 - "Community 56"
 Cohesion: 0.6
 Nodes (3): ClipboardIcon(), handleSend(), WarningIcon()
+
+### Community 57 - "Community 57"
+Cohesion: 0.8
+Nodes (3): appLink(), sendRegistrationEmail(), sendWelcomeEmail()
 
 ### Community 58 - "Community 58"
 Cohesion: 0.7
@@ -401,39 +401,39 @@ Nodes (2): getBackendUrl(), POST()
 
 ### Community 62 - "Community 62"
 Cohesion: 0.67
-Nodes (2): getCentreBySlug(), getCentresByCategory()
+Nodes (2): handleInputChange(), handleSubmit()
 
 ### Community 63 - "Community 63"
 Cohesion: 0.67
-Nodes (2): handleFormSubmit(), handleInputChange()
+Nodes (2): renderCategoryIcon(), toggleFaq()
 
 ### Community 64 - "Community 64"
 Cohesion: 0.67
-Nodes (2): downloadQRCode(), fetchQRCode()
+Nodes (2): getCentreBySlug(), getCentresByCategory()
 
 ### Community 65 - "Community 65"
-Cohesion: 0.83
-Nodes (2): handleExploreClick(), handleSignInWithGoogle()
+Cohesion: 0.67
+Nodes (2): buildFestPreviewData(), saveFestPreviewDraft()
 
 ### Community 66 - "Community 66"
 Cohesion: 0.67
-Nodes (2): TermsConsentProvider(), useTermsConsent()
+Nodes (2): handleFormSubmit(), handleInputChange()
 
 ### Community 67 - "Community 67"
 Cohesion: 0.67
-Nodes (2): handleInputChange(), handleSubmit()
+Nodes (2): downloadQRCode(), fetchQRCode()
 
 ### Community 68 - "Community 68"
-Cohesion: 0.67
-Nodes (2): ErrorContent(), ErrorFallback()
+Cohesion: 0.83
+Nodes (2): handleExploreClick(), handleSignInWithGoogle()
 
 ### Community 69 - "Community 69"
 Cohesion: 0.67
-Nodes (2): renderCategoryIcon(), toggleFaq()
+Nodes (2): TermsConsentProvider(), useTermsConsent()
 
 ### Community 70 - "Community 70"
 Cohesion: 0.67
-Nodes (2): buildFestPreviewData(), saveFestPreviewDraft()
+Nodes (2): ErrorContent(), ErrorFallback()
 
 ### Community 71 - "Community 71"
 Cohesion: 0.67
@@ -610,29 +610,29 @@ Nodes (2): GET(), getBackendBaseUrl()
 ## Knowledge Gaps
 - **Thin community `Community 48`** (6 nodes): `layout.tsx`, `layout.tsx`, `layout.tsx`, `ClubLayout()`, `EventLayout()`, `generateMetadata()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (5 nodes): `route.ts`, `route.ts`, `PATCH()`, `route.ts`, `route.ts`
+- **Thin community `Community 52`** (5 nodes): `route.ts`, `route.ts`, `PATCH()`, `route.ts`, `route.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 60`** (4 nodes): `route.ts`, `route.ts`, `getBackendUrl()`, `POST()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 61`** (4 nodes): `route.ts`, `route.ts`, `getBackendUrl()`, `POST()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (4 nodes): `centresData.ts`, `centresData.ts`, `getCentreBySlug()`, `getCentresByCategory()`
+- **Thin community `Community 62`** (4 nodes): `page.tsx`, `page.tsx`, `handleInputChange()`, `handleSubmit()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (4 nodes): `page.tsx`, `page.tsx`, `handleFormSubmit()`, `handleInputChange()`
+- **Thin community `Community 63`** (4 nodes): `page.tsx`, `page.tsx`, `renderCategoryIcon()`, `toggleFaq()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (4 nodes): `QRCodeDisplay.tsx`, `QRCodeDisplay.tsx`, `downloadQRCode()`, `fetchQRCode()`
+- **Thin community `Community 64`** (4 nodes): `centresData.ts`, `centresData.ts`, `getCentreBySlug()`, `getCentresByCategory()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (4 nodes): `Hero.tsx`, `Hero.tsx`, `handleExploreClick()`, `handleSignInWithGoogle()`
+- **Thin community `Community 65`** (4 nodes): `festPreviewDraft.ts`, `festPreviewDraft.ts`, `buildFestPreviewData()`, `saveFestPreviewDraft()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (4 nodes): `TermsConsentContext.tsx`, `TermsConsentProvider()`, `TermsConsentContext.tsx`, `useTermsConsent()`
+- **Thin community `Community 66`** (4 nodes): `page.tsx`, `page.tsx`, `handleFormSubmit()`, `handleInputChange()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (4 nodes): `page.tsx`, `page.tsx`, `handleInputChange()`, `handleSubmit()`
+- **Thin community `Community 67`** (4 nodes): `QRCodeDisplay.tsx`, `QRCodeDisplay.tsx`, `downloadQRCode()`, `fetchQRCode()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (4 nodes): `page.tsx`, `page.tsx`, `ErrorContent()`, `ErrorFallback()`
+- **Thin community `Community 68`** (4 nodes): `Hero.tsx`, `Hero.tsx`, `handleExploreClick()`, `handleSignInWithGoogle()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (4 nodes): `page.tsx`, `page.tsx`, `renderCategoryIcon()`, `toggleFaq()`
+- **Thin community `Community 69`** (4 nodes): `TermsConsentContext.tsx`, `TermsConsentProvider()`, `TermsConsentContext.tsx`, `useTermsConsent()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (4 nodes): `festPreviewDraft.ts`, `festPreviewDraft.ts`, `buildFestPreviewData()`, `saveFestPreviewDraft()`
+- **Thin community `Community 70`** (4 nodes): `page.tsx`, `page.tsx`, `ErrorContent()`, `ErrorFallback()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 71`** (3 nodes): `middleware()`, `middleware.ts`, `middleware.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -724,16 +724,16 @@ Nodes (2): GET(), getBackendBaseUrl()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `String()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 19`, `Community 21`, `Community 22`, `Community 25`, `Community 29`, `Community 30`, `Community 31`, `Community 33`, `Community 36`, `Community 37`, `Community 43`, `Community 44`, `Community 50`?**
-  _High betweenness centrality (0.447) - this node is a cross-community bridge._
-- **Why does `useEvents()` connect `Community 4` to `Community 10`, `Community 19`, `Community 6`?**
-  _High betweenness centrality (0.031) - this node is a cross-community bridge._
-- **Why does `safeText()` connect `Community 22` to `Community 1`?**
+- **Why does `String()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 19`, `Community 20`, `Community 21`, `Community 26`, `Community 29`, `Community 30`, `Community 31`, `Community 33`, `Community 34`, `Community 37`, `Community 38`, `Community 44`?**
+  _High betweenness centrality (0.433) - this node is a cross-community bridge._
+- **Why does `useEvents()` connect `Community 4` to `Community 2`, `Community 19`, `Community 5`?**
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `safeText()` connect `Community 20` to `Community 1`?**
   _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Are the 129 inferred relationships involving `String()` (e.g. with `safeText()` and `normalizeUrl()`) actually correct?**
   _`String()` has 129 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.03 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.04 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**

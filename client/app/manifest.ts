@@ -1,0 +1,26 @@
+import { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "SOCIO – Campus Event Management Platform",
+    short_name: "SOCIO",
+    description:
+      "Discover, register, and manage campus events at Christ University. Fests, clubs, workshops, and more.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#154CB3",
+    orientation: "portrait-primary",
+    scope: "/",
+    icons: [
+      {
+        src: "/favicon.svg",
+        sizes: "any",
+        type: "image/svg+xml",
+        purpose: "any",
+      },
+    ],
+    categories: ["education", "social"],
+    lang: "en-IN",
+  };
+}

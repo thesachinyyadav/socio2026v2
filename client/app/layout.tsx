@@ -94,7 +94,7 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   category: "education",
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],

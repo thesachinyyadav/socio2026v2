@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!existingUser) {
               // User may not exist in backend yet (e.g. outsider on page reload).
               // Register them then re-fetch so subsequent requests succeed.
-              await createOrUpdateUser(currentSession.user);
+              await createOrUpdateUser(currentSession.user, currentSession.access_token);
               existingUser = await fetchUserData(currentSession.user.email!);
             }
             if (
@@ -227,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const orgType = getOrganizationType(newSession.user?.email);
 
         void (async () => {
-          await createOrUpdateUser(newSession.user);
+          await createOrUpdateUser(newSession.user, newSession.access_token);
 
           let fetchedUser = await fetchUserData(newSession.user.email!);
           if (!fetchedUser) {
@@ -279,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
-  const createOrUpdateUser = async (user: User) => {
+  const createOrUpdateUser = async (user: User, accessToken?: string) => {
     if (!user?.email) return;
 
     try {
@@ -340,6 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({ user: payload }),
       });
