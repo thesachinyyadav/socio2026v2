@@ -54,7 +54,6 @@ initializeDatabase().catch(err => {
 });
 
 const app = express();
-app.use(express.json());
 
 // Prevent stale API payloads from being cached by browsers or intermediary caches.
 app.use('/api', (req, res, next) => {
@@ -135,15 +134,17 @@ const setCorsHeaders = (req, res) => {
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  setCorsHeaders(req, res);
   if (!isOriginAllowed(origin)) {
     return res.status(403).json({ error: 'CORS origin not allowed' });
   }
-  setCorsHeaders(req, res);
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
+
+app.use(express.json());
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
