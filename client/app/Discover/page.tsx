@@ -105,14 +105,24 @@ const DiscoverPageContent = () => {
       setIsLoadingFests(true);
       setErrorFests(null);
       try {
-        const response = await fetch(`${API_URL}/api/fests?status=upcoming&sortBy=opening_date&sortOrder=asc`, {
-          headers: session?.access_token
-            ? {
-                Authorization: `Bearer ${session.access_token}`,
-              }
-            : undefined,
-          cache: "no-store",
-        });
+        const festsUrl = `${API_URL}/api/fests?status=upcoming&sortBy=opening_date&sortOrder=asc`;
+
+        const tryFetch = (withAuth: boolean) =>
+          fetch(festsUrl, {
+            headers: withAuth && session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : undefined,
+            cache: "no-store",
+          });
+
+        let response: Response;
+        try {
+          response = await tryFetch(true);
+        } catch {
+          // Auth token rejected by server without CORS headers (e.g. outsider user not
+          // yet registered in backend). Fests is a public endpoint so retry without token.
+          response = await tryFetch(false);
+        }
 
         if (!response.ok) {
           throw new Error(`Failed to load fests (status: ${response.status})`);

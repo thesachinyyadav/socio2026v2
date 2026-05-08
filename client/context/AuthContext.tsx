@@ -172,7 +172,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(currentSession);
           persistSession(currentSession);
           // Fetch user data in background so navbar can render immediately.
-          void fetchUserData(currentSession.user.email!).then((existingUser) => {
+          void (async () => {
+            let existingUser = await fetchUserData(currentSession.user.email!);
+            if (!existingUser) {
+              // User may not exist in backend yet (e.g. outsider on page reload).
+              // Register them then re-fetch so subsequent requests succeed.
+              await createOrUpdateUser(currentSession.user);
+              existingUser = await fetchUserData(currentSession.user.email!);
+            }
             if (
               existingUser &&
               existingUser.organization_type === 'christ_member' &&
@@ -181,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ) {
               setShowCampusModal(true);
             }
-          });
+          })();
         } else {
           setSession(null);
           setUserData(null);

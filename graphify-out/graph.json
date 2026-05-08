@@ -9277,7 +9277,7 @@
       "label": "parseCsvEnv()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L84",
+      "source_location": "L83",
       "id": "server_index_parsecsvenv",
       "community": 28,
       "norm_label": "parsecsvenv()"
@@ -9286,7 +9286,7 @@
       "label": "compileOriginPatterns()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L90",
+      "source_location": "L89",
       "id": "server_index_compileoriginpatterns",
       "community": 28,
       "norm_label": "compileoriginpatterns()"
@@ -9295,7 +9295,7 @@
       "label": "isOriginAllowed()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L117",
+      "source_location": "L116",
       "id": "server_index_isoriginallowed",
       "community": 28,
       "norm_label": "isoriginallowed()"
@@ -9304,7 +9304,7 @@
       "label": "setCorsHeaders()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L123",
+      "source_location": "L122",
       "id": "server_index_setcorsheaders",
       "community": 28,
       "norm_label": "setcorsheaders()"
