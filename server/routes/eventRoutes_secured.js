@@ -1713,6 +1713,9 @@ router.post(
         return res.status(409).json({ error: "Volunteer already assigned to this event." });
       }
 
+      // Allow custom expiry date (optional)
+      const customExpiryDate = req.body.expires_on ? String(req.body.expires_on).trim() : null;
+      
       const parsedVolunteers = await buildVolunteerAssignments(
         [
           ...existingVolunteers.map((v) => ({ register_number: v.register_number })),
@@ -1724,6 +1727,7 @@ router.post(
           endTime: event.end_time,
           assignedBy: req.userInfo?.email,
           existingVolunteers: event.volunteers,
+          customExpiryDate, // Pass custom expiry if provided
         }
       );
 

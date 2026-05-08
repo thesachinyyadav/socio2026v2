@@ -385,6 +385,26 @@ function MasterAdminPageInner() {
   const CATERER_PAGE_SIZE = 15;
   const campusDetailsRef   = useRef<HTMLDetailsElement>(null);
 
+  useEffect(() => {
+    const handleOutsideCampusClick = (event: MouseEvent | TouchEvent) => {
+      const details = campusDetailsRef.current;
+      const target = event.target;
+
+      if (!details || !details.open || !(target instanceof Node)) return;
+      if (details.contains(target)) return;
+
+      details.open = false;
+    };
+
+    document.addEventListener("mousedown", handleOutsideCampusClick);
+    document.addEventListener("touchstart", handleOutsideCampusClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideCampusClick);
+      document.removeEventListener("touchstart", handleOutsideCampusClick);
+    };
+  }, []);
+
   const filteredCaterers = caterers.filter((caterer) => {
     const query = catererSearchQuery.trim().toLowerCase();
     if (!query) return true;
@@ -1716,12 +1736,7 @@ function MasterAdminPageInner() {
 
         {/* Data Explorer Tab */}
         {activeTab === "dataExplorer" && (
-          <div className="space-y-6">
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Advanced Analytics Data Explorer</h2>
-            </div>
-            <DataExplorerDashboard />
-          </div>
+          <DataExplorerDashboard />
         )}
 
         {/* Settings placeholder */}
@@ -3675,7 +3690,7 @@ function MasterAdminPageInner() {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Campuses Served <span className="text-red-500">*</span></label>
-                  <details ref={campusDetailsRef} className="group relative" onBlur={() => { if (campusDetailsRef.current) campusDetailsRef.current.open = false; }} onMouseLeave={() => { if (campusDetailsRef.current) campusDetailsRef.current.open = false; }}>
+                  <details ref={campusDetailsRef} className="group relative">
                     <summary className="list-none cursor-pointer w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white flex items-center justify-between gap-3 focus:outline-none focus:ring-1 focus:ring-blue-400">
                       <span className={`truncate ${catererForm.campuses.length === 0 ? "text-gray-400" : "text-gray-800"}`}>
                         {catererForm.campuses.length === 0
@@ -3695,7 +3710,6 @@ function MasterAdminPageInner() {
                             checked={catererForm.campuses.includes(campus)}
                             onChange={e => {
                               setCatererForm(f => ({ ...f, campuses: e.target.checked ? [...f.campuses, campus] : f.campuses.filter(c => c !== campus) }));
-                              if (campusDetailsRef.current) campusDetailsRef.current.open = false;
                             }}
                           />
                           <span>{campus}</span>
@@ -4028,7 +4042,6 @@ function MasterAdminPageInner() {
 
                   {/* Role dropdown */}
                   <div className="min-w-[180px]">
-                    <label className="block text-[11px] font-medium text-gray-500 mb-0.5">Role</label>
                     <select
                       value={roleSelectedRole}
                       onChange={e => { setRoleSelectedRole(e.target.value as any); setRoleSchool(""); setRoleDept(""); setRoleCampus(""); }}

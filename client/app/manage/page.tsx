@@ -385,6 +385,7 @@ const VolunteerManagerModal = ({
   onVolunteersChanged: () => void;
 }) => {
   const [input, setInput] = React.useState("");
+  const [expiryDate, setExpiryDate] = React.useState(""); // For custom expiry when adding
   const [isAdding, setIsAdding] = React.useState(false);
   const [revokingIds, setRevokingIds] = React.useState<Set<string>>(new Set());
   const [editingVolunteer, setEditingVolunteer] = React.useState<VolunteerRecord | null>(null);
@@ -403,16 +404,24 @@ const VolunteerManagerModal = ({
 
     setIsAdding(true);
     try {
+      const payload = { register_number: reg };
+      
+      // Include custom expiry if provided
+      if (expiryDate.trim()) {
+        payload.expires_on = expiryDate;
+      }
+      
       const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(event.event_id)}/volunteers`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify({ register_number: reg }),
+        body: JSON.stringify(payload),
       });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(payload?.error || "Failed to add volunteer.");
-      const updated = normalizeVolunteerRecords(payload?.event?.volunteers);
+      const responsePayload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(responsePayload?.error || "Failed to add volunteer.");
+      const updated = normalizeVolunteerRecords(responsePayload?.event?.volunteers);
       setVolunteers(updated);
       setInput("");
+      setExpiryDate("");
       toast.success("Volunteer added.");
       onVolunteersChanged();
     } catch (err: any) {
@@ -523,26 +532,42 @@ const VolunteerManagerModal = ({
 
         <div className="px-6 py-4 border-b border-slate-100">
           <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Add Volunteer</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
-              placeholder="Register number (e.g. 2541608)"
-              maxLength={20}
-              disabled={isAdding}
-              className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#154CB3]/30 focus:border-[#154CB3] disabled:opacity-50"
-            />
-            <button
-              type="button"
-              disabled={isAdding || !input.trim()}
-              onClick={handleAdd}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#154CB3] text-white text-sm font-semibold rounded-lg hover:bg-[#0f3782] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <UserPlus className="w-4 h-4" />
-              {isAdding ? "Adding…" : "Add"}
-            </button>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+                placeholder="Register number (e.g. 2541608)"
+                maxLength={20}
+                disabled={isAdding}
+                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#154CB3]/30 focus:border-[#154CB3] disabled:opacity-50"
+              />
+              <button
+                type="button"
+                disabled={isAdding || !input.trim()}
+                onClick={handleAdd}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#154CB3] text-white text-sm font-semibold rounded-lg hover:bg-[#0f3782] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <UserPlus className="w-4 h-4" />
+                {isAdding ? "Adding…" : "Add"}
+              </button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                Expiry Date (Optional — defaults to event end)
+              </label>
+              <input
+                type="date"
+                value={expiryDate}
+                min={getTodayDateInputValue()}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                disabled={isAdding}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]/30 focus:border-[#154CB3] disabled:opacity-50"
+              />
+              <p className="text-xs text-slate-400 mt-1">Leave empty to use event end time + 12 hours</p>
+            </div>
           </div>
         </div>
 
@@ -827,6 +852,7 @@ const AddVolunteerModal = ({
 }) => {
   const [selectedEventId, setSelectedEventId] = React.useState(events[0]?.event_id || "");
   const [regInput, setRegInput] = React.useState("");
+  const [expiryDate, setExpiryDate] = React.useState("");
   const [isAdding, setIsAdding] = React.useState(false);
 
   const handleAdd = async () => {
@@ -835,15 +861,23 @@ const AddVolunteerModal = ({
     if (!authToken) { toast.error("Please sign in again."); return; }
     setIsAdding(true);
     try {
+      const payload: any = { register_number: reg };
+      
+      // Include custom expiry if provided
+      if (expiryDate.trim()) {
+        payload.expires_on = expiryDate;
+      }
+      
       const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(selectedEventId)}/volunteers`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify({ register_number: reg }),
+        body: JSON.stringify(payload),
       });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(payload?.error || "Failed to add volunteer.");
+      const responsePayload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(responsePayload?.error || "Failed to add volunteer.");
       toast.success("Volunteer added.");
       setRegInput("");
+      setExpiryDate("");
       onAdded();
     } catch (err: any) {
       toast.error(err?.message || "Unable to add volunteer.");
@@ -885,6 +919,20 @@ const AddVolunteerModal = ({
               disabled={isAdding}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#154CB3]/30 focus:border-[#154CB3] disabled:opacity-50"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+              Expiry Date (Optional — defaults to event end)
+            </label>
+            <input
+              type="date"
+              value={expiryDate}
+              min={getTodayDateInputValue()}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              disabled={isAdding}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3]/30 focus:border-[#154CB3] disabled:opacity-50"
+            />
+            <p className="text-xs text-slate-400 mt-1">Leave empty to use event end time + 12 hours</p>
           </div>
           <button
             type="button"

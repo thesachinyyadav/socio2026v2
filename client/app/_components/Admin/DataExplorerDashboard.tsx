@@ -23,6 +23,7 @@ import {
   Brain,
   CalendarRange,
   Clock3,
+  Download,
   Loader2,
   RefreshCw,
   ShieldAlert,
@@ -37,6 +38,14 @@ import {
   type AnalyticsKpi,
   type MasterAdminAnalyticsBundle,
 } from "@/lib/masterAdminAnalyticsApi";
+import {
+  addStructuredSummarySheet,
+  addStructuredTableSheet,
+  addThemedChartsSheet,
+  createThemedWorkbook,
+  downloadWorkbook,
+} from "@/lib/xlsxTheme";
+import toast from "react-hot-toast";
 
 type DatePreset = "30" | "90" | "180" | "365";
 
@@ -58,6 +67,24 @@ function classNames(...values: Array<string | false | undefined>): string {
 
 function toPercent(value: number): string {
   return `${value.toFixed(1)}%`;
+}
+
+function formatDate(dateValue: string | null | undefined): string {
+  if (!dateValue) return "—";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return date.toLocaleDateString("en-GB");
+}
+
+function formatDateTime(dateValue: string | null | undefined): string {
+  if (!dateValue) return "—";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return date.toLocaleString("en-GB");
+}
+
+function sanitizeFileSegment(value: string): string {
+  return value.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
 }
 
 function formatMonth(monthKey: string): string {
@@ -141,21 +168,30 @@ export default function DataExplorerDashboard() {
   const [preset, setPreset] = useState<DatePreset>("90");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [appliedCustomStart, setAppliedCustomStart] = useState("");
+  const [appliedCustomEnd, setAppliedCustomEnd] = useState("");
 
   const [bundle, setBundle] = useState<MasterAdminAnalyticsBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const query = useMemo(() => {
-    if (customStart || customEnd) {
+    if (appliedCustomStart || appliedCustomEnd) {
       return {
-        start: customStart || undefined,
-        end: customEnd || undefined,
+        start: appliedCustomStart || undefined,
+        end: appliedCustomEnd || undefined,
       };
     }
     return { days: Number(preset) };
-  }, [customEnd, customStart, preset]);
+  }, [appliedCustomEnd, appliedCustomStart, preset]);
+
+  const canApplyCustomRange =
+    Boolean(customStart) &&
+    Boolean(customEnd) &&
+    customStart <= customEnd &&
+    (customStart !== appliedCustomStart || customEnd !== appliedCustomEnd);
 
   const loadAnalytics = useCallback(
     async (silent = false) => {
@@ -274,6 +310,383 @@ export default function DataExplorerDashboard() {
     };
   }, [bundle?.students.behavior, bundle?.students.segmentation.active, bundle?.students.segmentation.inactive]);
 
+  const exportRangeLabel = useMemo(() => {
+    if (!bundle) return "Selected timeline";
+    return `${formatDate(bundle.overview.range.current.start)} to ${formatDate(bundle.overview.range.current.end)}`;
+  }, [bundle]);
+
+  const activeWindowLabel = useMemo(() => {
+    if (appliedCustomStart && appliedCustomEnd) {
+      return `Custom range: ${formatDate(appliedCustomStart)} to ${formatDate(appliedCustomEnd)}`;
+    }
+    return `${preset}-day window`;
+  }, [appliedCustomEnd, appliedCustomStart, preset]);
+
+  const handleExportXlsx = useCallback(async () => {
+    if (!bundle) return;
+
+    setIsExporting(true);
+
+    try {
+      const workbook = createThemedWorkbook("SOCIO Master Admin Analytics");
+      const currentRange = bundle.overview.range.current;
+      const previousRange = bundle.overview.range.previous;
+      const activeTimeline =
+        appliedCustomStart && appliedCustomEnd
+          ? `Custom range (${formatDate(appliedCustomStart)} to ${formatDate(appliedCustomEnd)})`
+          : `${preset} day preset`;
+
+      addStructuredSummarySheet(workbook, {
+        title: "SOCIO Intelligent Dashboard Export",
+        subtitle: `Generated ${formatDateTime(bundle.overview.generatedAt)} · Active range: ${formatDate(currentRange.start)} to ${formatDate(currentRange.end)}`,
+        sections: [
+          {
+            title: "Export Context",
+            rows: [
+              { label: "Dashboard", value: "Master Admin Data Explorer" },
+              { label: "Selected Timeline", value: activeTimeline },
+              { label: "Current Period", value: `${formatDate(currentRange.start)} to ${formatDate(currentRange.end)}` },
+              { label: "Previous Period", value: `${formatDate(previousRange.start)} to ${formatDate(previousRange.end)}` },
+            ],
+          },
+          {
+            title: "KPI Snapshot",
+            rows: bundle.overview.kpis.map((kpi) => ({
+              label: kpi.label,
+              value: `${kpi.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}${kpi.unit} (${kpi.changePct >= 0 ? "+" : ""}${kpi.changePct.toFixed(1)}% vs previous)`,
+            })),
+          },
+          {
+            title: "Data Quality and Funnel",
+            rows: [
+              { label: "Students", value: bundle.overview.dataQuality.students },
+              { label: "Events", value: bundle.overview.dataQuality.events },
+              { label: "Registrations", value: bundle.overview.dataQuality.registrations },
+              { label: "Current Period Registrations", value: bundle.overview.dataQuality.currentPeriodRegistrations },
+              { label: "Registered Funnel", value: bundle.events.funnel.registered },
+              { label: "Attended Funnel", value: bundle.events.funnel.attended },
+              { label: "Feedback Funnel", value: bundle.events.funnel.feedback },
+            ],
+          },
+          {
+            title: "Student Behavior Signals",
+            rows: [
+              { label: "Retention Rate", value: toPercent(retentionSummary.retentionRate) },
+              { label: "Drop Detection Rate", value: toPercent(retentionSummary.dropDetectionRate) },
+              { label: "Average No-show Rate", value: toPercent(retentionSummary.averageNoShowRate) },
+              { label: "Active : Inactive Ratio", value: retentionSummary.activeRatio },
+              {
+                label: "Peak Attendance Time",
+                value: `${bundle.insights.peakAttendanceTime.day} at ${bundle.insights.peakAttendanceTime.hour}`,
+              },
+            ],
+          },
+        ],
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Monthly Trend",
+        columns: [
+          { header: "Month", key: "month", width: 18 },
+          { header: "Registrations", key: "registrations", width: 16, kind: "number", horizontal: "right" },
+          { header: "Attendance Rate %", key: "attendanceRate", width: 18, kind: "number", horizontal: "right" },
+          { header: "Avg Engagement", key: "avgEngagement", width: 16, kind: "number", horizontal: "right" },
+        ],
+        rows: bundle.overview.monthlyTrend.map((item) => ({
+          month: formatMonth(item.month),
+          registrations: item.registrations,
+          attendanceRate: item.attendanceRate,
+          avgEngagement: item.avgEngagement,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Departments",
+        columns: [
+          { header: "Department", key: "department", width: 26 },
+          { header: "Participation %", key: "participationRate", width: 16, kind: "number", horizontal: "right" },
+          { header: "Events Hosted", key: "eventsHosted", width: 16, kind: "number", horizontal: "right" },
+          { header: "Contribution %", key: "contributionIndex", width: 16, kind: "number", horizontal: "right" },
+          { header: "Cross-Dept %", key: "crossDepartmentParticipationRate", width: 16, kind: "number", horizontal: "right" },
+          { header: "Cross-Dept Participants", key: "crossDepartmentParticipants", width: 20, kind: "number", horizontal: "right" },
+          { header: "Avg Engagement", key: "avgEngagementScore", width: 16, kind: "number", horizontal: "right" },
+          { header: "Participating Students", key: "participatingStudents", width: 20, kind: "number", horizontal: "right" },
+          { header: "Total Students", key: "totalStudents", width: 16, kind: "number", horizontal: "right" },
+        ],
+        rows: bundle.departments.departments.map((dept) => ({
+          department: dept.department,
+          participationRate: dept.participationRate,
+          eventsHosted: dept.eventsHosted,
+          contributionIndex: dept.contributionIndex,
+          crossDepartmentParticipationRate: dept.crossDepartmentParticipationRate,
+          crossDepartmentParticipants: dept.crossDepartmentParticipants,
+          avgEngagementScore: dept.avgEngagementScore,
+          participatingStudents: dept.participatingStudents,
+          totalStudents: dept.totalStudents,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Event Performance",
+        columns: [
+          { header: "Event Title", key: "title", width: 34 },
+          { header: "Category", key: "category", width: 18 },
+          { header: "Department", key: "department", width: 22 },
+          { header: "Registrations", key: "registrations", width: 14, kind: "number", horizontal: "right" },
+          { header: "Attended", key: "attended", width: 12, kind: "number", horizontal: "right" },
+          { header: "Attendance Rate %", key: "attendanceRate", width: 16, kind: "number", horizontal: "right" },
+          { header: "Avg Feedback", key: "avgFeedback", width: 14, kind: "number", horizontal: "right" },
+          { header: "Repeat Participation %", key: "repeatParticipation", width: 20, kind: "number", horizontal: "right" },
+          { header: "Success Score", key: "successScore", width: 14, kind: "number", horizontal: "right" },
+        ],
+        rows: bundle.events.attendanceByEvent.map((event) => ({
+          title: event.title,
+          category: event.category,
+          department: event.department,
+          registrations: event.registrations,
+          attended: event.attended,
+          attendanceRate: event.attendanceRate,
+          avgFeedback: event.avgFeedback,
+          repeatParticipation: event.repeatParticipation,
+          successScore: event.successScore,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Categories",
+        columns: [
+          { header: "Category", key: "category", width: 24 },
+          { header: "Events", key: "events", width: 12, kind: "number", horizontal: "right" },
+          { header: "Popularity Index", key: "popularityIndex", width: 18, kind: "number", horizontal: "right" },
+          { header: "Attendance Rate %", key: "attendanceRate", width: 18, kind: "number", horizontal: "right" },
+          { header: "Avg Feedback", key: "avgFeedback", width: 14, kind: "number", horizontal: "right" },
+          { header: "Avg Success Score", key: "avgSuccessScore", width: 18, kind: "number", horizontal: "right" },
+        ],
+        rows: bundle.events.categoryPerformance.map((category) => ({
+          category: category.category,
+          events: category.events,
+          popularityIndex: category.popularityIndex,
+          attendanceRate: category.attendanceRate,
+          avgFeedback: category.avgFeedback,
+          avgSuccessScore: category.avgSuccessScore,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Top Engaged Students",
+        columns: [
+          { header: "Name", key: "name", width: 28 },
+          { header: "Department", key: "department", width: 22 },
+          { header: "Year", key: "year", width: 10 },
+          { header: "Engagement Score", key: "engagementScore", width: 18, kind: "number", horizontal: "right" },
+          { header: "Attended", key: "attendedCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "Organized", key: "organizedCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "No-shows", key: "noShows", width: 12, kind: "number", horizontal: "right" },
+          { header: "No-show Rate %", key: "noShowRate", width: 16, kind: "number", horizontal: "right" },
+        ],
+        rows: bundle.students.topEngaged.map((student) => ({
+          name: student.name,
+          department: student.department,
+          year: student.year,
+          engagementScore: student.engagementScore,
+          attendedCount: student.attendedCount,
+          organizedCount: student.organizedCount,
+          noShows: student.noShows,
+          noShowRate: student.noShowRate,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "At Risk Students",
+        columns: [
+          { header: "Name", key: "name", width: 28 },
+          { header: "Department", key: "department", width: 22 },
+          { header: "Year", key: "year", width: 10 },
+          { header: "Engagement Score", key: "engagementScore", width: 18, kind: "number", horizontal: "right" },
+          { header: "Attended", key: "attendedCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "Organized", key: "organizedCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "No-shows", key: "noShows", width: 12, kind: "number", horizontal: "right" },
+          { header: "No-show Rate %", key: "noShowRate", width: 16, kind: "number", horizontal: "right" },
+          { header: "Engagement Drop %", key: "engagementDrop", width: 18, kind: "number", horizontal: "right" },
+          { header: "Risk Reason", key: "atRiskReason", width: 36 },
+          { header: "Last Activity", key: "lastActivityAt", width: 16 },
+        ],
+        rows: bundle.students.atRisk.map((student) => ({
+          name: student.name,
+          department: student.department,
+          year: student.year,
+          engagementScore: student.engagementScore,
+          attendedCount: student.attendedCount,
+          organizedCount: student.organizedCount,
+          noShows: student.noShows,
+          noShowRate: student.noShowRate,
+          engagementDrop: student.engagementDrop,
+          atRiskReason: student.atRiskReason ?? "",
+          lastActivityAt: formatDate(student.lastActivityAt),
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Engagement Scores",
+        columns: [
+          { header: "Name", key: "name", width: 28 },
+          { header: "Department", key: "department", width: 22 },
+          { header: "Year", key: "year", width: 10 },
+          { header: "Status", key: "status", width: 12 },
+          { header: "Registered", key: "registeredCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "Attended", key: "attendedCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "Organized", key: "organizedCount", width: 12, kind: "number", horizontal: "right" },
+          { header: "No-shows", key: "noShows", width: 12, kind: "number", horizontal: "right" },
+          { header: "No-show Rate %", key: "noShowRate", width: 16, kind: "number", horizontal: "right" },
+          { header: "Engagement Score", key: "engagementScore", width: 18, kind: "number", horizontal: "right" },
+          { header: "Engagement Drop %", key: "engagementDrop", width: 18, kind: "number", horizontal: "right" },
+          { header: "Last Activity", key: "lastActivityAt", width: 16 },
+        ],
+        rows: bundle.students.engagementScores.map((student) => ({
+          name: student.name,
+          department: student.department,
+          year: student.year,
+          status: student.status,
+          registeredCount: student.registeredCount,
+          attendedCount: student.attendedCount,
+          organizedCount: student.organizedCount,
+          noShows: student.noShows,
+          noShowRate: student.noShowRate,
+          engagementScore: student.engagementScore,
+          engagementDrop: student.engagementDrop,
+          lastActivityAt: formatDate(student.lastActivityAt),
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Timing Efficiency",
+        columns: [
+          { header: "Slot", key: "slot", width: 24 },
+          { header: "Day", key: "day", width: 16 },
+          { header: "Hour", key: "hour", width: 14 },
+          { header: "Registrations", key: "registrations", width: 14, kind: "number", horizontal: "right" },
+          { header: "Attended", key: "attended", width: 12, kind: "number", horizontal: "right" },
+          { header: "Attendance Rate %", key: "attendanceRate", width: 16, kind: "number", horizontal: "right" },
+        ],
+        rows: bundle.insights.timingEfficiency.map((slot) => ({
+          slot: slot.slot,
+          day: slot.day,
+          hour: slot.hour,
+          registrations: slot.registrations,
+          attended: slot.attended,
+          attendanceRate: slot.attendanceRate,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Insights",
+        columns: [
+          { header: "Type", key: "type", width: 16 },
+          { header: "Title", key: "title", width: 28 },
+          { header: "Statement", key: "statement", width: 60 },
+          { header: "Confidence", key: "confidence", width: 14 },
+        ],
+        rows: bundle.insights.insights.map((insight) => ({
+          type: insight.type,
+          title: insight.title,
+          statement: insight.statement,
+          confidence: insight.confidence,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Attendance Predictions",
+        columns: [
+          { header: "Event", key: "title", width: 34 },
+          { header: "Event Date", key: "eventDate", width: 16 },
+          { header: "Predicted Attendance %", key: "predictedAttendanceRate", width: 22, kind: "number", horizontal: "right" },
+          { header: "Predicted Drop-off Risk %", key: "predictedDropOffRisk", width: 24, kind: "number", horizontal: "right" },
+          { header: "Confidence", key: "confidence", width: 14 },
+          { header: "Heuristic", key: "heuristic", width: 48 },
+        ],
+        rows: bundle.insights.predictions.attendancePrediction.map((prediction) => ({
+          title: prediction.title,
+          eventDate: formatDate(prediction.eventDate),
+          predictedAttendanceRate: prediction.predictedAttendanceRate,
+          predictedDropOffRisk: prediction.predictedDropOffRisk,
+          confidence: prediction.confidence,
+          heuristic: prediction.heuristic,
+        })),
+      });
+
+      addStructuredTableSheet(workbook, {
+        sheetName: "Drop-off Predictions",
+        columns: [
+          { header: "Event", key: "title", width: 34 },
+          { header: "Event Date", key: "eventDate", width: 16 },
+          { header: "Risk Score %", key: "riskScore", width: 16, kind: "number", horizontal: "right" },
+          { header: "Confidence", key: "confidence", width: 14 },
+          { header: "Rationale", key: "rationale", width: 52 },
+        ],
+        rows: bundle.insights.predictions.dropOffPrediction.map((prediction) => ({
+          title: prediction.title,
+          eventDate: formatDate(prediction.eventDate),
+          riskScore: prediction.riskScore,
+          confidence: prediction.confidence,
+          rationale: prediction.rationale,
+        })),
+      });
+
+      addThemedChartsSheet(workbook, {
+        title: "Dashboard Visual Overview",
+        subtitle: `Trend and student segmentation for ${exportRangeLabel}`,
+        sheetName: "Charts Overview",
+        primaryChart: {
+          title: "Monthly Registrations",
+          type: "line",
+          data: bundle.overview.monthlyTrend.map((item) => ({
+            label: formatMonth(item.month),
+            value: item.registrations,
+          })),
+        },
+        secondaryChart: {
+          title: "Student Segmentation",
+          type: "donut",
+          data: [
+            { label: "Active", value: bundle.students.segmentation.active, color: "#154CB3" },
+            { label: "Inactive", value: bundle.students.segmentation.inactive, color: "#E2E8F0" },
+          ],
+        },
+      });
+
+      addThemedChartsSheet(workbook, {
+        title: "Performance Visual Overview",
+        subtitle: `Category popularity and department contribution for ${exportRangeLabel}`,
+        sheetName: "Charts Performance",
+        primaryChart: {
+          title: "Popularity by Category",
+          type: "bar",
+          data: bundle.events.categoryPerformance.slice(0, 10).map((category) => ({
+            label: category.category,
+            value: category.popularityIndex,
+          })),
+        },
+        secondaryChart: {
+          title: "Department Contribution Index",
+          type: "bar",
+          data: bundle.departments.departments.slice(0, 10).map((dept) => ({
+            label: dept.department,
+            value: dept.contributionIndex,
+          })),
+        },
+      });
+
+      const fileName = `master_admin_analytics_${sanitizeFileSegment(currentRange.start.slice(0, 10))}_to_${sanitizeFileSegment(currentRange.end.slice(0, 10))}.xlsx`;
+      await downloadWorkbook(workbook, fileName);
+      toast.success("Analytics dashboard exported successfully.");
+    } catch (err) {
+      console.error("Failed to export analytics dashboard:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to export analytics dashboard.");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [appliedCustomEnd, appliedCustomStart, bundle, exportRangeLabel, preset]);
+
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-slate-200/80 bg-white p-14 text-center shadow-sm shadow-slate-200/40">
@@ -304,73 +717,144 @@ export default function DataExplorerDashboard() {
 
   return (
     <div className="space-y-7">
-      <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm shadow-slate-200/40 backdrop-blur">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-base font-bold tracking-tight text-slate-900">Analytics Data Explorer</p>
-            <p className="mt-1 text-xs text-slate-500">Master admin data explorer for participation, performance, behavior, and growth planning.</p>
-          </div>
+      <div className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm shadow-slate-200/40">
+        <div className="bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_52%,#f3f7ff_100%)] p-4 sm:p-5">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xl font-bold tracking-tight text-slate-900">Analytics Data Explorer</p>
+                <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                  Explore participation, event quality, and student behavior without jumping between separate reports.
+                </p>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Data Snapshot</p>
-              <p className="text-xs font-medium text-slate-700">{new Date(bundle.overview.generatedAt).toLocaleString()}</p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                void loadAnalytics(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              <RefreshCw className={classNames("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(300px,420px)]">
-          <div>
-            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Date Window</label>
-            <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
-              {(["30", "90", "180", "365"] as DatePreset[]).map((value) => (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+                  {activeWindowLabel}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+                  Snapshot: {new Date(bundle.overview.generatedAt).toLocaleString()}
+                </span>
                 <button
-                  key={value}
                   type="button"
                   onClick={() => {
-                    setPreset(value);
-                    setCustomStart("");
-                    setCustomEnd("");
+                    void loadAnalytics(true);
                   }}
-                  className={classNames(
-                    "rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors",
-                    preset === value && !customStart && !customEnd ? "bg-[#154CB3] text-white" : "text-slate-600 hover:bg-white"
-                  )}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                 >
-                  {value}D
+                  <RefreshCw className={classNames("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+                  Refresh
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div>
-            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Range</label>
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-              <CalendarRange className="h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="date"
-                value={customStart}
-                onChange={(event) => setCustomStart(event.target.value)}
-                className="w-full bg-transparent text-xs text-slate-700 outline-none"
-              />
-              <span className="text-xs text-slate-400">to</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(event) => setCustomEnd(event.target.value)}
-                className="w-full bg-transparent text-xs text-slate-700 outline-none"
-              />
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-3.5">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Quick Range</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Ready-made windows for fast comparisons.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(["30", "90", "180", "365"] as DatePreset[]).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setPreset(value);
+                        setCustomStart("");
+                        setCustomEnd("");
+                        setAppliedCustomStart("");
+                        setAppliedCustomEnd("");
+                      }}
+                      className={classNames(
+                        "min-w-[72px] rounded-xl border px-4 py-2 text-xs font-semibold transition-all",
+                        preset === value && !appliedCustomStart && !appliedCustomEnd
+                          ? "border-[#154CB3] bg-[#154CB3] text-white shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                      )}
+                    >
+                      {value} Days
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-3.5 sm:p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Custom Range</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Choose exact dates and apply once ready.</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleExportXlsx();
+                    }}
+                    disabled={isExporting}
+                    className={classNames(
+                      "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors",
+                      isExporting
+                        ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    <Download className={classNames("h-3.5 w-3.5", isExporting && "animate-pulse")} />
+                    {isExporting ? "Exporting..." : "Export XLSX"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] sm:items-end">
+                  <div className="min-w-0">
+                    <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">From</label>
+                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <CalendarRange className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(event) => setCustomStart(event.target.value)}
+                        className="w-full min-w-0 bg-transparent text-sm text-slate-700 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="hidden text-xs font-medium text-slate-400 sm:block">to</div>
+
+                  <div className="min-w-0">
+                    <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">To</label>
+                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <CalendarRange className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(event) => setCustomEnd(event.target.value)}
+                        className="w-full min-w-0 bg-transparent text-sm text-slate-700 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppliedCustomStart(customStart);
+                      setAppliedCustomEnd(customEnd);
+                    }}
+                    disabled={!canApplyCustomRange}
+                    className={classNames(
+                      "h-fit rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors sm:self-end",
+                      canApplyCustomRange
+                        ? "bg-[#154CB3] text-white hover:bg-[#0f3f95]"
+                        : "cursor-not-allowed bg-slate-200 text-slate-400"
+                    )}
+                  >
+                    Apply Range
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

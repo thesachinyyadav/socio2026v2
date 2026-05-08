@@ -1,4 +1,7 @@
+const path = require("path");
+
 const isProduction = process.env.NODE_ENV === "production";
+const distDir = isProduction ? ".next" : ".next-dev";
 
 if (isProduction && !process.env.NEXT_PUBLIC_API_URL) {
   throw new Error(
@@ -42,6 +45,8 @@ const remotePatterns = remoteImageHosts.map((hostname) => ({
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  distDir,
+  outputFileTracingRoot: path.resolve(__dirname, ".."),
   env: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || fallbackAppUrl,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || fallbackApiUrl,

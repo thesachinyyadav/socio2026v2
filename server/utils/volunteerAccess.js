@@ -67,16 +67,40 @@ const getExistingVolunteerMap = (existingVolunteers) => {
 
 export const buildVolunteerAssignments = async (
   rawVolunteers,
-  { endDate, eventDate, endTime, assignedBy, existingVolunteers = [] }
+  { endDate, eventDate, endTime, assignedBy, existingVolunteers = [], customExpiryDate = null }
 ) => {
   const incomingVolunteers = normalizeVolunteerRecords(rawVolunteers);
   if (incomingVolunteers.length === 0) return [];
 
-  const expiresAt = computeVolunteerExpiry({ endDate, eventDate, endTime });
+  // Use custom expiry if provided, otherwise compute from event dates
+  let expiresAt = customExpiryDate;
+  
   if (!expiresAt) {
-    const error = new Error("Volunteer access requires a valid end date and end time.");
-    error.statusCode = 400;
-    throw error;
+    expiresAt = computeVolunteerExpiry({ endDate, eventDate, endTime });
+    if (!expiresAt) {
+      const error = new Error("Volunteer access requires a valid end date and end time.");
+      error.statusCode = 400;
+      throw error;
+    }
+  } else {
+    // Validate custom expiry date format (YYYY-MM-DD)
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(expiresAt);
+    if (!dateMatch) {
+      const error = new Error("Expiry date must be in YYYY-MM-DD format.");
+      error.statusCode = 400;
+      throw error;
+    }
+    
+    const [, year, month, day] = dateMatch.map(Number);
+    const customDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+    
+    if (Number.isNaN(customDate.getTime())) {
+      const error = new Error("Invalid expiry date provided.");
+      error.statusCode = 400;
+      throw error;
+    }
+    
+    expiresAt = customDate.toISOString();
   }
 
   const uniqueRegisterNumbers = Array.from(
