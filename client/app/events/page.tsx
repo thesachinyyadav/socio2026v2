@@ -418,7 +418,7 @@ const EventsPageContent = () => {
                 Explore events
               </h1>
               <p className="text-gray-500 mt-1 text-sm sm:text-base">
-                Find upcoming events.
+                {userData?.campus ? `Events at ${userData.campus}` : "Events across all campuses"}
               </p>
             </div>
             <Link
