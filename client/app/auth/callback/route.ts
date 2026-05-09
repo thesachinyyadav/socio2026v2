@@ -98,11 +98,13 @@ export async function GET(request: NextRequest) {
   const origin = APP_URL || headerOrigin || requestUrl.origin;
 
   const code = requestUrl.searchParams.get("code");
+  const token = requestUrl.searchParams.get("token");
+  const refreshToken = requestUrl.searchParams.get("refresh_token");
   const isPopup = requestUrl.searchParams.get("popup") === "true";
 
-  if (!code) {
-    console.warn("Auth callback invoked without a 'code' parameter.");
-    return NextResponse.redirect(`${origin}/?error=no_code`);
+  if (!code && !token) {
+    console.warn("Auth callback invoked without a 'code' or 'token' parameter.");
+    return NextResponse.redirect(`${origin}/?error=no_auth_method`);
   }
 
   const cookieStore = await cookies();
@@ -124,21 +126,26 @@ export async function GET(request: NextRequest) {
   );
 
   try {
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
-      code
-    );
-    if (exchangeError) {
-      console.error(
-        "Error exchanging code for session:",
-        exchangeError.message
+    if (token && refreshToken) {
+      console.log("Setting session from provided tokens...");
+      const { error: sessionErr } = await supabase.auth.setSession({
+        access_token: token,
+        refresh_token: refreshToken,
+      });
+      if (sessionErr) throw sessionErr;
+    } else if (code) {
+      console.log("Exchanging code for session...");
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+        code
       );
-      return NextResponse.redirect(`${origin}/?error=auth_exchange_failed`);
+      if (exchangeError) throw exchangeError;
     }
 
     const {
       data: { session },
       error: sessionError,
     } = await supabase.auth.getSession();
+    
     if (sessionError) {
       console.error(
         "Error getting session after exchange:",
@@ -149,7 +156,7 @@ export async function GET(request: NextRequest) {
 
     if (!session || !session.user || !session.user.email) {
       console.warn(
-        "No session or user email found after successful code exchange."
+        "No session or user email found after successful auth."
       );
       await supabase.auth.signOut();
       return NextResponse.redirect(`${origin}/?error=auth_incomplete`);

@@ -171,12 +171,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentSession) {
           setSession(currentSession);
           persistSession(currentSession);
-          // Fetch user data in background so navbar can render immediately.
-          void (async () => {
+          
+          // Fetch user data. We must wait for this if we want to avoid the skeleton-flicker/hang.
+          try {
             let existingUser = await fetchUserData(currentSession.user.email!);
             if (!existingUser) {
-              // User may not exist in backend yet (e.g. outsider on page reload).
-              // Register them then re-fetch so subsequent requests succeed.
               await createOrUpdateUser(currentSession.user, currentSession.access_token);
               existingUser = await fetchUserData(currentSession.user.email!);
             }
@@ -188,7 +187,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ) {
               setShowCampusModal(true);
             }
-          })();
+          } catch (err) {
+            console.error("Error fetching user data in session check:", err);
+          }
         } else {
           setSession(null);
           setUserData(null);

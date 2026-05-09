@@ -35,7 +35,7 @@ router.get("/callback", async (req, res) => {
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.withsocio.com";
     let redirectPath = "/auth/callback";
 
-    if (next && (next.startsWith("http://") || next.startsWith("https://"))) {
+    if (next && (next.startsWith("http://") || next.startsWith("https://") || next.startsWith("socio://"))) {
       baseUrl = next.replace(/\/$/, ""); // Remove trailing slash
     }
 
