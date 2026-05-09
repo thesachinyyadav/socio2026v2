@@ -4,8 +4,8 @@
     "hash": "d13e300f34f5c3dc322b502903ca5fef"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\middleware.ts": {
-    "mtime": 1778175276.5513682,
-    "hash": "898a20345fcc68d304b4474cfe1de85c"
+    "mtime": 1778312733.9558008,
+    "hash": "76369aab7081f97cdeb0f04e8e0f5d6b"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\next-env.d.ts": {
     "mtime": 1776614506.6727636,
@@ -390,6 +390,10 @@
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\masteradmin\\page.tsx": {
     "mtime": 1778243697.0230508,
     "hash": "f8ec1d124e46288613136aa548dcc33a"
+  },
+  "D:\\CODES\\SOCIO\\socioweb\\client\\app\\pitch\\route.ts": {
+    "mtime": 1778312727.4930477,
+    "hash": "5d7b479c1ab43ef9eebd0a6031ebf433"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\pricing\\layout.tsx": {
     "mtime": 1774172772.7085567,
@@ -971,6 +975,10 @@
     "mtime": 1777793904.7938087,
     "hash": "d5d2701dcf743458ffe727333d74eaf2"
   },
+  "D:\\CODES\\SOCIO\\socioweb\\client\\pitch\\executive-presentation.html": {
+    "mtime": 1778183099.0177436,
+    "hash": "ea849d0401db862addc6eb3505d10c7e"
+  },
   "D:\\CODES\\SOCIO\\socioweb\\client\\public\\googlef9d3f1696ce89505.html": {
     "mtime": 1774172772.7298293,
     "hash": "9737c56076a1ff42aadfb0e12c945dca"
@@ -998,10 +1006,6 @@
   "D:\\CODES\\SOCIO\\socioweb\\docs\\SOCIO_FONTS.md": {
     "mtime": 1777287813.1034875,
     "hash": "097789bc487625bdea0cb9bc09826e2a"
-  },
-  "D:\\CODES\\SOCIO\\socioweb\\pitchdeck\\executive-presentation.html": {
-    "mtime": 1778183099.0177436,
-    "hash": "ea849d0401db862addc6eb3505d10c7e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\MIGRATIONS.md": {
     "mtime": 1771428555.827449,

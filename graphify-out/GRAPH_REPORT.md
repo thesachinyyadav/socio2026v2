@@ -1,11 +1,11 @@
-# Graph Report - socioweb  (2026-05-08)
+# Graph Report - socioweb  (2026-05-09)
 
 ## Corpus Check
-- 238 files · ~639,108 words
+- 239 files · ~639,151 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1656 nodes · 3518 edges · 117 communities detected
+- 1658 nodes · 3519 edges · 120 communities detected
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 204 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -127,6 +127,9 @@
 - [[_COMMUNITY_Community 114|Community 114]]
 - [[_COMMUNITY_Community 115|Community 115]]
 - [[_COMMUNITY_Community 116|Community 116]]
+- [[_COMMUNITY_Community 117|Community 117]]
+- [[_COMMUNITY_Community 118|Community 118]]
+- [[_COMMUNITY_Community 119|Community 119]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `String()` - 133 edges
@@ -156,19 +159,19 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.04
-Nodes (115): executeQuery(), initializeDatabase(), insert(), queryAll(), queryOne(), remove(), update(), upsert() (+107 more)
+Nodes (122): executeQuery(), initializeDatabase(), insert(), queryAll(), queryOne(), remove(), update(), upsert() (+114 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.04
-Nodes (78): fetchApprovals(), handleOverride(), pendingDuration(), StatusDot(), getBackendBaseUrl(), normalizeBackendBase(), POST(), formatDate() (+70 more)
-
-### Community 2 - "Community 2"
 Cohesion: 0.05
 Nodes (69): createClub(), deleteClub(), getSupabase(), normalizeAndValidateBannerUrl(), normalizeRoles(), normalizeUrl(), removeClubApplicant(), setClubRegistrations() (+61 more)
 
+### Community 2 - "Community 2"
+Cohesion: 0.05
+Nodes (69): getBackendBaseUrl(), normalizeBackendBase(), POST(), loadBookings(), submit(), handleCreateEvent(), handleSaveDraft(), normalizeEmail() (+61 more)
+
 ### Community 3 - "Community 3"
-Cohesion: 0.07
-Nodes (66): Card(), downloadCSV(), extractCreatorEmails(), formatTimeAgo(), getDateCutoff(), GrowthBadge(), addStructuredSummarySheet(), addStructuredTableSheet() (+58 more)
+Cohesion: 0.06
+Nodes (71): Card(), downloadCSV(), extractCreatorEmails(), formatTimeAgo(), getDateCutoff(), GrowthBadge(), classNames(), confidencePill() (+63 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.07
@@ -176,35 +179,35 @@ Nodes (58): addVolunteer(), computeVolunteerExpiresAt(), fetchFests(), formatDat
 
 ### Community 5 - "Community 5"
 Cohesion: 0.06
-Nodes (51): formatDateShort(), formatDateTime(), formatMobiles(), IconChefHat(), IconMail(), IconMapPin(), IconPhone(), isPastDate() (+43 more)
+Nodes (50): formatDateShort(), formatDateTime(), formatMobiles(), IconChefHat(), IconMail(), IconMapPin(), IconPhone(), isPastDate() (+42 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.09
-Nodes (44): gatedInsert(), gatedQueryAll(), gatedQueryOne(), gatedUpdate(), gatedUpsert(), isGatedEnabled(), asBoolean(), buildArchivePayload() (+36 more)
-
-### Community 7 - "Community 7"
 Cohesion: 0.11
 Nodes (44): useDebounce(), createDefaultPagination(), deleteEvent(), deleteFest(), deleteUser(), exportRolesToCSV(), fetchAllCaterers(), fetchAllVenues() (+36 more)
 
-### Community 8 - "Community 8"
+### Community 7 - "Community 7"
 Cohesion: 0.1
 Nodes (34): toLowerSafe(), toStringArray(), buildFestsUrl(), handleCampusSelect(), handleClickOutside(), handleFilterClick(), handlePageSearchSubmit(), safeLower() (+26 more)
 
-### Community 9 - "Community 9"
-Cohesion: 0.11
-Nodes (33): classNames(), confidencePill(), formatMonth(), InsightCard(), toPercent(), asAttendanceStatus(), asOrganizationType(), asParticipantOrganization() (+25 more)
-
-### Community 10 - "Community 10"
+### Community 8 - "Community 8"
 Cohesion: 0.1
 Nodes (35): loadArticle(), safeText(), createEvent(), createFest(), createNotification(), createOrUpdateUser(), createRegistration(), deleteEvent() (+27 more)
 
-### Community 11 - "Community 11"
+### Community 9 - "Community 9"
 Cohesion: 0.11
 Nodes (28): fbColor(), formatMonth(), pct(), pickFest(), rateColor(), rateLabel(), reset(), toggle() (+20 more)
 
-### Community 12 - "Community 12"
+### Community 10 - "Community 10"
 Cohesion: 0.17
 Nodes (34): buildAnalyticsSnapshot(), buildHodAnalyticsSnapshot(), buildInsights(), buildPredictions(), calculateEngagementScore(), chooseAttendance(), chooseFeedback(), chooseRegistrationDate() (+26 more)
+
+### Community 11 - "Community 11"
+Cohesion: 0.15
+Nodes (28): asAttendanceStatus(), asOrganizationType(), asParticipantOrganization(), asRecordArray(), asRegistrationType(), asStringOrNull(), buildDataset(), ensureMasterAdminSession() (+20 more)
+
+### Community 12 - "Community 12"
+Cohesion: 0.15
+Nodes (28): buildFullSystemPrompt(), buildGeminiHistory(), buildOpenAIHistory(), commitDailyUsage(), findClosestIntentToken(), getDailyUsage(), getDailyUsageKey(), getFriendlyError() (+20 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.13
@@ -219,8 +222,8 @@ Cohesion: 0.13
 Nodes (15): clamp(), closeClaimsModal(), exportAttendance(), fetchParticipants(), formatDDMMYYYY(), generateClaimsXlsx(), handleHourChange(), handleMinuteChange() (+7 more)
 
 ### Community 16 - "Community 16"
-Cohesion: 0.18
-Nodes (17): deriveTags(), fetchEventsFromSupabase(), fetchUpcomingEventsFromSupabase(), getInitialEventsData(), getRandomEvents(), getServerSupabase(), getTodayBoundary(), getUpcomingEventsFromDataset() (+9 more)
+Cohesion: 0.17
+Nodes (18): deriveTags(), fetchEventsFromSupabase(), fetchUpcomingEventsFromSupabase(), getInitialEventsData(), getRandomEvents(), getServerSupabase(), getTodayBoundary(), getUpcomingEventsFromDataset() (+10 more)
 
 ### Community 17 - "Community 17"
 Cohesion: 0.23
@@ -239,68 +242,68 @@ Cohesion: 0.35
 Nodes (15): checksum(), ensureMigrationsDir(), ensureMigrationsTable(), getAppliedMigrations(), getConnectionString(), getDbClient(), getMigrationFiles(), lock() (+7 more)
 
 ### Community 21 - "Community 21"
+Cohesion: 0.42
+Nodes (12): gatedInsert(), gatedQueryAll(), gatedQueryOne(), gatedUpdate(), gatedUpsert(), isGatedEnabled(), createGatedVisitor(), ensureGatedOrganiser() (+4 more)
+
+### Community 22 - "Community 22"
 Cohesion: 0.41
 Nodes (12): buildHighlights(), decodeEntities(), dedupeStrings(), extractCoFounderNames(), extractMetaContent(), getRequestHostname(), htmlToPlainText(), isAllowedLocalHostInDev() (+4 more)
 
-### Community 22 - "Community 22"
+### Community 23 - "Community 23"
 Cohesion: 0.26
 Nodes (12): BellIcon(), CalendarIcon(), CheckIcon(), ClipboardIcon(), ClockIcon(), close(), handleSend(), HeartIcon() (+4 more)
 
-### Community 23 - "Community 23"
+### Community 24 - "Community 24"
 Cohesion: 0.28
 Nodes (11): goNext(), handleSubmit(), loadBookings(), minutes(), nextMonth(), pad2(), prevMonth(), setCatering() (+3 more)
 
-### Community 24 - "Community 24"
+### Community 25 - "Community 25"
 Cohesion: 0.32
 Nodes (8): addDismissedNotification(), addReadNotification(), formatRelativeTime(), getDismissedNotificationsFromStorage(), getReadNotificationsFromStorage(), handleInsert(), mapRawToNotification(), NotificationSystemComponent()
 
-### Community 25 - "Community 25"
+### Community 26 - "Community 26"
 Cohesion: 0.24
 Nodes (6): AnimatedItem(), handleKeyDown(), cn(), handleClickOutside(), handleEscape(), updatePlacement()
 
-### Community 26 - "Community 26"
+### Community 27 - "Community 27"
 Cohesion: 0.27
 Nodes (8): compileOriginPatterns(), isOriginAllowed(), parseCsvEnv(), setCorsHeaders(), extractErrorText(), getFriendlyErrorMessage(), getStatusFriendlyMessage(), sanitizeErrorPayload()
 
-### Community 27 - "Community 27"
+### Community 28 - "Community 28"
 Cohesion: 0.42
 Nodes (9): budgetTotal(), cfoStatus(), confirmReject(), fetchQueue(), handleAction(), pendingDuration(), safeLower(), safeText() (+1 more)
 
-### Community 28 - "Community 28"
+### Community 29 - "Community 29"
 Cohesion: 0.4
 Nodes (9): deanActedBy(), deanStatus(), fetchQueue(), handleAction(), safeLower(), safeText(), StatusBadge(), switchTab() (+1 more)
 
-### Community 29 - "Community 29"
+### Community 30 - "Community 30"
 Cohesion: 0.4
 Nodes (9): fetchQueue(), handleAction(), hodActedBy(), hodStatus(), safeLower(), safeText(), StatusBadge(), switchTab() (+1 more)
-
-### Community 30 - "Community 30"
-Cohesion: 0.35
-Nodes (9): fetchBookings(), formatEventDate(), formatMobileList(), formatSubmitted(), handleAction(), parseContact(), safeLower(), StatusBadge() (+1 more)
 
 ### Community 31 - "Community 31"
 Cohesion: 0.4
 Nodes (9): closeDatabase(), createMySQLTables(), createSQLiteTables(), executeQuery(), initializeDatabase(), initializeMySQL(), initializeSQLite(), queryAll() (+1 more)
 
 ### Community 32 - "Community 32"
-Cohesion: 0.47
-Nodes (9): assignCateringRole(), catersToArray(), escapeLike(), extractCateringIds(), extractEmails(), normalizeEmails(), requireCatering(), revokeCateringRole() (+1 more)
-
-### Community 33 - "Community 33"
 Cohesion: 0.35
 Nodes (9): getNameMap(), getVenue(), getVenueMap(), inScope(), pad2(), requiresApproval(), timeOverlaps(), todayStr() (+1 more)
 
-### Community 34 - "Community 34"
-Cohesion: 0.31
-Nodes (7): getRolePillClasses(), getRoleQuickActionClasses(), isNavLinkActive(), onKeyDown(), onMouseDown(), onResize(), resolveClubEditorDashboard()
+### Community 33 - "Community 33"
+Cohesion: 0.35
+Nodes (9): fetchBookings(), formatEventDate(), formatMobileList(), formatSubmitted(), handleAction(), parseContact(), safeLower(), StatusBadge() (+1 more)
 
-### Community 35 - "Community 35"
+### Community 34 - "Community 34"
 Cohesion: 0.36
 Nodes (8): calcGrowth(), ChartCard(), downloadCSV(), EmptyState(), getDateCutoff(), GrowthBadge(), isAfterCutoff(), StatCard()
 
-### Community 36 - "Community 36"
+### Community 35 - "Community 35"
 Cohesion: 0.4
 Nodes (8): getFieldTypeLabel(), handleAddField(), handleAddOption(), handleEditClick(), handleRemoveField(), handleRemoveOption(), handleUpdateField(), resetForm()
+
+### Community 36 - "Community 36"
+Cohesion: 0.31
+Nodes (7): getRolePillClasses(), getRoleQuickActionClasses(), isNavLinkActive(), onKeyDown(), onMouseDown(), onResize(), resolveClubEditorDashboard()
 
 ### Community 37 - "Community 37"
 Cohesion: 0.47
@@ -315,8 +318,8 @@ Cohesion: 0.44
 Nodes (7): goToSlide(), handleResize(), handleTouchEnd(), handleTouchStart(), handleTransitionEnd(), nextSlide(), prevSlide()
 
 ### Community 40 - "Community 40"
-Cohesion: 0.43
-Nodes (6): cleanupAnimations(), createWordAnimation(), initCharacterAnimations(), scrambleText(), setupLightSweepEffect(), setupWordCycleAnimations()
+Cohesion: 0.5
+Nodes (6): fetchApproval(), formatActionStepLabel(), formatStallDescription(), formatUpperLabel(), isPhase1Complete(), safeText()
 
 ### Community 41 - "Community 41"
 Cohesion: 0.57
@@ -327,433 +330,445 @@ Cohesion: 0.32
 Nodes (4): AdminNotifications(), resetForm(), sendNotification(), validate()
 
 ### Community 43 - "Community 43"
+Cohesion: 0.43
+Nodes (6): cleanupAnimations(), createWordAnimation(), initCharacterAnimations(), scrambleText(), setupLightSweepEffect(), setupWordCycleAnimations()
+
+### Community 44 - "Community 44"
 Cohesion: 0.81
 Nodes (5): buildProxyHeaders(), GET(), getAuthorizationHeader(), getBackendBaseUrl(), POST()
 
-### Community 44 - "Community 44"
-Cohesion: 0.57
-Nodes (5): formatSource(), formatTimestamp(), safeLower(), safeText(), SupportInboxPage()
-
 ### Community 45 - "Community 45"
 Cohesion: 0.52
-Nodes (5): getPageQA(), handleQuestion(), handler(), normalize(), resetChat()
+Nodes (5): formatDate(), handleSubmit(), StatusBadge(), switchTab(), timeAgo()
 
 ### Community 46 - "Community 46"
-Cohesion: 0.52
-Nodes (5): formatTimeToHHMM(), handleClickOutside(), handleSetTime(), parseHHMM(), renderTimeColumn()
-
-### Community 47 - "Community 47"
 Cohesion: 0.48
 Nodes (5): formatDate(), ItDashboard(), safeText(), StatusBadge(), timeAgo()
 
+### Community 47 - "Community 47"
+Cohesion: 0.57
+Nodes (5): formatSource(), formatTimestamp(), safeLower(), safeText(), SupportInboxPage()
+
 ### Community 48 - "Community 48"
+Cohesion: 0.52
+Nodes (5): getPageQA(), handleQuestion(), handler(), normalize(), resetChat()
+
+### Community 49 - "Community 49"
 Cohesion: 0.52
 Nodes (5): checkCameraPermission(), clearResult(), handleQRScan(), startScanning(), stopScanning()
 
-### Community 49 - "Community 49"
+### Community 50 - "Community 50"
+Cohesion: 0.52
+Nodes (5): formatTimeToHHMM(), handleClickOutside(), handleSetTime(), parseHHMM(), renderTimeColumn()
+
+### Community 51 - "Community 51"
 Cohesion: 0.73
 Nodes (5): GET(), getBackendBaseUrl(), getBackendUrl(), POST(), proxyRequest()
 
-### Community 50 - "Community 50"
+### Community 52 - "Community 52"
 Cohesion: 0.33
 Nodes (2): EventLayout(), generateMetadata()
 
-### Community 51 - "Community 51"
+### Community 53 - "Community 53"
 Cohesion: 0.53
 Nodes (4): clearRuntimeCaches(), ClientInit(), getCurrentBuildFingerprint(), unregisterServiceWorkers()
 
-### Community 52 - "Community 52"
+### Community 54 - "Community 54"
+Cohesion: 0.6
+Nodes (4): fetchApprovals(), handleOverride(), pendingDuration(), StatusDot()
+
+### Community 55 - "Community 55"
 Cohesion: 0.6
 Nodes (4): createDirectories(), deleteFileFromLocal(), getPathFromStorageUrl(), uploadFileToLocal()
 
-### Community 53 - "Community 53"
+### Community 56 - "Community 56"
 Cohesion: 0.8
 Nodes (3): DELETE(), getBackendUrl(), PUT()
 
-### Community 54 - "Community 54"
+### Community 57 - "Community 57"
 Cohesion: 0.4
 Nodes (1): PATCH()
 
-### Community 55 - "Community 55"
+### Community 58 - "Community 58"
 Cohesion: 0.8
 Nodes (3): DELETE(), getBackendUrl(), PUT()
 
-### Community 56 - "Community 56"
+### Community 59 - "Community 59"
 Cohesion: 0.8
 Nodes (3): createUserInDatabase(), GET(), getOrganizationType()
 
-### Community 57 - "Community 57"
+### Community 60 - "Community 60"
 Cohesion: 0.6
 Nodes (3): handleRating(), handleSubmit(), init()
 
-### Community 58 - "Community 58"
+### Community 61 - "Community 61"
 Cohesion: 0.6
 Nodes (3): ClipboardIcon(), handleSend(), WarningIcon()
 
-### Community 59 - "Community 59"
+### Community 62 - "Community 62"
 Cohesion: 0.8
 Nodes (3): appLink(), sendRegistrationEmail(), sendWelcomeEmail()
 
-### Community 60 - "Community 60"
+### Community 63 - "Community 63"
 Cohesion: 0.7
 Nodes (4): GET(), getBackendBaseUrl(), POST(), proxyRequest()
 
-### Community 61 - "Community 61"
-Cohesion: 0.83
-Nodes (2): getBackendUrl(), POST()
-
-### Community 62 - "Community 62"
-Cohesion: 0.83
-Nodes (2): getBackendUrl(), POST()
-
-### Community 63 - "Community 63"
-Cohesion: 0.67
-Nodes (2): ErrorContent(), ErrorFallback()
-
 ### Community 64 - "Community 64"
-Cohesion: 0.67
-Nodes (2): renderCategoryIcon(), toggleFaq()
+Cohesion: 0.83
+Nodes (2): getBackendUrl(), POST()
 
 ### Community 65 - "Community 65"
-Cohesion: 0.67
-Nodes (2): buildFestPreviewData(), saveFestPreviewDraft()
+Cohesion: 0.83
+Nodes (2): getBackendUrl(), POST()
 
 ### Community 66 - "Community 66"
 Cohesion: 0.67
-Nodes (2): handleFormSubmit(), handleInputChange()
+Nodes (2): handleInputChange(), handleSubmit()
 
 ### Community 67 - "Community 67"
 Cohesion: 0.67
-Nodes (2): downloadQRCode(), fetchQRCode()
+Nodes (2): ErrorContent(), ErrorFallback()
 
 ### Community 68 - "Community 68"
-Cohesion: 0.83
-Nodes (2): handleExploreClick(), handleSignInWithGoogle()
+Cohesion: 0.67
+Nodes (2): renderCategoryIcon(), toggleFaq()
 
 ### Community 69 - "Community 69"
 Cohesion: 0.67
-Nodes (2): TermsConsentProvider(), useTermsConsent()
+Nodes (2): buildFestPreviewData(), saveFestPreviewDraft()
 
 ### Community 70 - "Community 70"
 Cohesion: 0.67
-Nodes (2): handleInputChange(), handleSubmit()
+Nodes (2): handleFormSubmit(), handleInputChange()
 
 ### Community 71 - "Community 71"
 Cohesion: 0.67
-Nodes (2): getCentreBySlug(), getCentresByCategory()
+Nodes (2): downloadQRCode(), fetchQRCode()
 
 ### Community 72 - "Community 72"
-Cohesion: 0.67
-Nodes (1): middleware()
+Cohesion: 0.83
+Nodes (2): handleExploreClick(), handleSignInWithGoogle()
 
 ### Community 73 - "Community 73"
 Cohesion: 0.67
-Nodes (1): Home()
+Nodes (2): getCentreBySlug(), getCentresByCategory()
 
 ### Community 74 - "Community 74"
 Cohesion: 0.67
-Nodes (1): sitemap()
+Nodes (2): TermsConsentProvider(), useTermsConsent()
 
 ### Community 75 - "Community 75"
 Cohesion: 0.67
-Nodes (1): AboutLayout()
+Nodes (1): middleware()
 
 ### Community 76 - "Community 76"
 Cohesion: 0.67
-Nodes (1): MissionLayout()
+Nodes (1): Home()
 
 ### Community 77 - "Community 77"
 Cohesion: 0.67
-Nodes (1): renderIcon()
+Nodes (1): sitemap()
 
 ### Community 78 - "Community 78"
 Cohesion: 0.67
-Nodes (1): StoryLayout()
+Nodes (1): AboutLayout()
 
 ### Community 79 - "Community 79"
 Cohesion: 0.67
-Nodes (1): TeamLayout()
+Nodes (1): MissionLayout()
 
 ### Community 80 - "Community 80"
-Cohesion: 1.0
-Nodes (2): DELETE(), getBackendUrl()
+Cohesion: 0.67
+Nodes (1): renderIcon()
 
 ### Community 81 - "Community 81"
-Cohesion: 1.0
-Nodes (2): DELETE(), getBackendUrl()
+Cohesion: 0.67
+Nodes (1): StoryLayout()
 
 ### Community 82 - "Community 82"
 Cohesion: 0.67
-Nodes (1): AppDownloadLayout()
+Nodes (1): TeamLayout()
 
 ### Community 83 - "Community 83"
-Cohesion: 0.67
-Nodes (1): AuthLayout()
+Cohesion: 1.0
+Nodes (2): DELETE(), getBackendUrl()
 
 ### Community 84 - "Community 84"
-Cohesion: 0.67
-Nodes (1): Page()
+Cohesion: 1.0
+Nodes (2): DELETE(), getBackendUrl()
 
 ### Community 85 - "Community 85"
 Cohesion: 0.67
-Nodes (1): PopupSuccess()
+Nodes (1): AppDownloadLayout()
 
 ### Community 86 - "Community 86"
 Cohesion: 0.67
-Nodes (1): VerifyPage()
+Nodes (1): AuthLayout()
 
 ### Community 87 - "Community 87"
 Cohesion: 0.67
-Nodes (1): ClubsLayout()
+Nodes (1): Page()
 
 ### Community 88 - "Community 88"
 Cohesion: 0.67
-Nodes (1): ContactLayout()
+Nodes (1): PopupSuccess()
 
 ### Community 89 - "Community 89"
 Cohesion: 0.67
-Nodes (1): CookiesLayout()
+Nodes (1): VerifyPage()
 
 ### Community 90 - "Community 90"
 Cohesion: 0.67
-Nodes (1): CreateClubPage()
+Nodes (1): ClubsLayout()
 
 ### Community 91 - "Community 91"
 Cohesion: 0.67
-Nodes (1): CreateFestPage()
+Nodes (1): ContactLayout()
 
 ### Community 92 - "Community 92"
 Cohesion: 0.67
-Nodes (1): DiscoverLayout()
+Nodes (1): CookiesLayout()
 
 ### Community 93 - "Community 93"
 Cohesion: 0.67
-Nodes (1): fetchFest()
+Nodes (1): CreateClubPage()
 
 ### Community 94 - "Community 94"
 Cohesion: 0.67
-Nodes (1): EventsLayout()
+Nodes (1): CreateFestPage()
 
 ### Community 95 - "Community 95"
 Cohesion: 0.67
-Nodes (1): load()
+Nodes (1): DiscoverLayout()
 
 ### Community 96 - "Community 96"
 Cohesion: 0.67
-Nodes (1): FestsLayout()
+Nodes (1): fetchFest()
 
 ### Community 97 - "Community 97"
 Cohesion: 0.67
-Nodes (1): GET()
+Nodes (1): EventsLayout()
 
 ### Community 98 - "Community 98"
 Cohesion: 0.67
-Nodes (1): PricingLayout()
+Nodes (1): load()
 
 ### Community 99 - "Community 99"
 Cohesion: 0.67
-Nodes (1): PrivacyLayout()
+Nodes (1): FestsLayout()
 
 ### Community 100 - "Community 100"
 Cohesion: 0.67
-Nodes (1): RefundsLayout()
+Nodes (1): GET()
 
 ### Community 101 - "Community 101"
 Cohesion: 0.67
-Nodes (1): RefundPolicy()
+Nodes (1): PricingLayout()
 
 ### Community 102 - "Community 102"
 Cohesion: 0.67
-Nodes (1): SolutionsLayout()
+Nodes (1): PrivacyLayout()
 
 ### Community 103 - "Community 103"
 Cohesion: 0.67
-Nodes (1): SupportLayout()
+Nodes (1): RefundsLayout()
 
 ### Community 104 - "Community 104"
 Cohesion: 0.67
-Nodes (1): TermsLayout()
+Nodes (1): RefundPolicy()
 
 ### Community 105 - "Community 105"
 Cohesion: 0.67
-Nodes (1): fetchVolunteerEvents()
+Nodes (1): SolutionsLayout()
 
 ### Community 106 - "Community 106"
 Cohesion: 0.67
-Nodes (1): DateTimePickerAdmin()
+Nodes (1): SupportLayout()
 
 ### Community 107 - "Community 107"
 Cohesion: 0.67
-Nodes (1): MobileDetectionRedirect()
+Nodes (1): TermsLayout()
 
 ### Community 108 - "Community 108"
 Cohesion: 0.67
-Nodes (1): TermsConsentModal()
+Nodes (1): fetchVolunteerEvents()
 
 ### Community 109 - "Community 109"
 Cohesion: 0.67
-Nodes (1): handleCategoryClick()
+Nodes (1): DateTimePickerAdmin()
 
 ### Community 110 - "Community 110"
 Cohesion: 0.67
-Nodes (1): signInWithGoogle()
+Nodes (1): MobileDetectionRedirect()
 
 ### Community 111 - "Community 111"
 Cohesion: 0.67
-Nodes (1): toggleItem()
+Nodes (1): TermsConsentModal()
 
 ### Community 112 - "Community 112"
 Cohesion: 0.67
-Nodes (1): Footer()
+Nodes (1): handleCategoryClick()
 
 ### Community 113 - "Community 113"
 Cohesion: 0.67
-Nodes (1): FunkyButton()
+Nodes (1): signInWithGoogle()
 
 ### Community 114 - "Community 114"
 Cohesion: 0.67
-Nodes (1): lerp()
+Nodes (1): toggleItem()
 
 ### Community 115 - "Community 115"
 Cohesion: 0.67
-Nodes (1): TextType()
+Nodes (1): Footer()
 
 ### Community 116 - "Community 116"
+Cohesion: 0.67
+Nodes (1): FunkyButton()
+
+### Community 117 - "Community 117"
+Cohesion: 0.67
+Nodes (1): lerp()
+
+### Community 118 - "Community 118"
+Cohesion: 0.67
+Nodes (1): TextType()
+
+### Community 119 - "Community 119"
 Cohesion: 1.0
 Nodes (2): GET(), getBackendBaseUrl()
 
 ## Knowledge Gaps
-- **Thin community `Community 50`** (6 nodes): `layout.tsx`, `layout.tsx`, `layout.tsx`, `ClubLayout()`, `EventLayout()`, `generateMetadata()`
+- **Thin community `Community 52`** (6 nodes): `layout.tsx`, `layout.tsx`, `layout.tsx`, `ClubLayout()`, `EventLayout()`, `generateMetadata()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (5 nodes): `route.ts`, `route.ts`, `PATCH()`, `route.ts`, `route.ts`
+- **Thin community `Community 57`** (5 nodes): `route.ts`, `route.ts`, `PATCH()`, `route.ts`, `route.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (4 nodes): `route.ts`, `route.ts`, `getBackendUrl()`, `POST()`
+- **Thin community `Community 64`** (4 nodes): `route.ts`, `route.ts`, `getBackendUrl()`, `POST()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (4 nodes): `route.ts`, `route.ts`, `getBackendUrl()`, `POST()`
+- **Thin community `Community 65`** (4 nodes): `route.ts`, `route.ts`, `getBackendUrl()`, `POST()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (4 nodes): `page.tsx`, `page.tsx`, `ErrorContent()`, `ErrorFallback()`
+- **Thin community `Community 66`** (4 nodes): `page.tsx`, `page.tsx`, `handleInputChange()`, `handleSubmit()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (4 nodes): `page.tsx`, `page.tsx`, `renderCategoryIcon()`, `toggleFaq()`
+- **Thin community `Community 67`** (4 nodes): `page.tsx`, `page.tsx`, `ErrorContent()`, `ErrorFallback()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (4 nodes): `festPreviewDraft.ts`, `festPreviewDraft.ts`, `buildFestPreviewData()`, `saveFestPreviewDraft()`
+- **Thin community `Community 68`** (4 nodes): `page.tsx`, `page.tsx`, `renderCategoryIcon()`, `toggleFaq()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (4 nodes): `page.tsx`, `page.tsx`, `handleFormSubmit()`, `handleInputChange()`
+- **Thin community `Community 69`** (4 nodes): `festPreviewDraft.ts`, `festPreviewDraft.ts`, `buildFestPreviewData()`, `saveFestPreviewDraft()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (4 nodes): `QRCodeDisplay.tsx`, `QRCodeDisplay.tsx`, `downloadQRCode()`, `fetchQRCode()`
+- **Thin community `Community 70`** (4 nodes): `page.tsx`, `page.tsx`, `handleFormSubmit()`, `handleInputChange()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (4 nodes): `Hero.tsx`, `Hero.tsx`, `handleExploreClick()`, `handleSignInWithGoogle()`
+- **Thin community `Community 71`** (4 nodes): `QRCodeDisplay.tsx`, `QRCodeDisplay.tsx`, `downloadQRCode()`, `fetchQRCode()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (4 nodes): `TermsConsentContext.tsx`, `TermsConsentProvider()`, `TermsConsentContext.tsx`, `useTermsConsent()`
+- **Thin community `Community 72`** (4 nodes): `Hero.tsx`, `Hero.tsx`, `handleExploreClick()`, `handleSignInWithGoogle()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (4 nodes): `page.tsx`, `page.tsx`, `handleInputChange()`, `handleSubmit()`
+- **Thin community `Community 73`** (4 nodes): `centresData.ts`, `centresData.ts`, `getCentreBySlug()`, `getCentresByCategory()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 71`** (4 nodes): `centresData.ts`, `centresData.ts`, `getCentreBySlug()`, `getCentresByCategory()`
+- **Thin community `Community 74`** (4 nodes): `TermsConsentContext.tsx`, `TermsConsentProvider()`, `TermsConsentContext.tsx`, `useTermsConsent()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (3 nodes): `middleware()`, `middleware.ts`, `middleware.ts`
+- **Thin community `Community 75`** (3 nodes): `middleware()`, `middleware.ts`, `middleware.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (3 nodes): `Home()`, `page.tsx`, `page.tsx`
+- **Thin community `Community 76`** (3 nodes): `Home()`, `page.tsx`, `page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 74`** (3 nodes): `sitemap()`, `sitemap.ts`, `sitemap.ts`
+- **Thin community `Community 77`** (3 nodes): `sitemap()`, `sitemap.ts`, `sitemap.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 75`** (3 nodes): `AboutLayout()`, `layout.tsx`, `layout.tsx`
+- **Thin community `Community 78`** (3 nodes): `AboutLayout()`, `layout.tsx`, `layout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 76`** (3 nodes): `layout.tsx`, `layout.tsx`, `MissionLayout()`
+- **Thin community `Community 79`** (3 nodes): `layout.tsx`, `layout.tsx`, `MissionLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 77`** (3 nodes): `page.tsx`, `page.tsx`, `renderIcon()`
+- **Thin community `Community 80`** (3 nodes): `page.tsx`, `page.tsx`, `renderIcon()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 78`** (3 nodes): `layout.tsx`, `layout.tsx`, `StoryLayout()`
+- **Thin community `Community 81`** (3 nodes): `layout.tsx`, `layout.tsx`, `StoryLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 79`** (3 nodes): `layout.tsx`, `layout.tsx`, `TeamLayout()`
+- **Thin community `Community 82`** (3 nodes): `layout.tsx`, `layout.tsx`, `TeamLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 80`** (3 nodes): `DELETE()`, `getBackendUrl()`, `route.ts`
+- **Thin community `Community 83`** (3 nodes): `DELETE()`, `getBackendUrl()`, `route.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 81`** (3 nodes): `route.ts`, `DELETE()`, `getBackendUrl()`
+- **Thin community `Community 84`** (3 nodes): `route.ts`, `DELETE()`, `getBackendUrl()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 82`** (3 nodes): `layout.tsx`, `AppDownloadLayout()`, `layout.tsx`
+- **Thin community `Community 85`** (3 nodes): `layout.tsx`, `AppDownloadLayout()`, `layout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 83`** (3 nodes): `layout.tsx`, `AuthLayout()`, `layout.tsx`
+- **Thin community `Community 86`** (3 nodes): `layout.tsx`, `AuthLayout()`, `layout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 84`** (3 nodes): `page.tsx`, `Page()`, `page.tsx`
+- **Thin community `Community 87`** (3 nodes): `page.tsx`, `Page()`, `page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 85`** (3 nodes): `page.tsx`, `page.tsx`, `PopupSuccess()`
+- **Thin community `Community 88`** (3 nodes): `page.tsx`, `page.tsx`, `PopupSuccess()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 86`** (3 nodes): `page.tsx`, `page.tsx`, `VerifyPage()`
+- **Thin community `Community 89`** (3 nodes): `page.tsx`, `page.tsx`, `VerifyPage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 87`** (3 nodes): `layout.tsx`, `layout.tsx`, `ClubsLayout()`
+- **Thin community `Community 90`** (3 nodes): `layout.tsx`, `layout.tsx`, `ClubsLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 88`** (3 nodes): `layout.tsx`, `layout.tsx`, `ContactLayout()`
+- **Thin community `Community 91`** (3 nodes): `layout.tsx`, `layout.tsx`, `ContactLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 89`** (3 nodes): `layout.tsx`, `layout.tsx`, `CookiesLayout()`
+- **Thin community `Community 92`** (3 nodes): `layout.tsx`, `layout.tsx`, `CookiesLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 90`** (3 nodes): `page.tsx`, `page.tsx`, `CreateClubPage()`
+- **Thin community `Community 93`** (3 nodes): `page.tsx`, `page.tsx`, `CreateClubPage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 91`** (3 nodes): `page.tsx`, `page.tsx`, `CreateFestPage()`
+- **Thin community `Community 94`** (3 nodes): `page.tsx`, `page.tsx`, `CreateFestPage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 92`** (3 nodes): `layout.tsx`, `layout.tsx`, `DiscoverLayout()`
+- **Thin community `Community 95`** (3 nodes): `layout.tsx`, `layout.tsx`, `DiscoverLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 93`** (3 nodes): `page.tsx`, `page.tsx`, `fetchFest()`
+- **Thin community `Community 96`** (3 nodes): `page.tsx`, `page.tsx`, `fetchFest()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 94`** (3 nodes): `layout.tsx`, `layout.tsx`, `EventsLayout()`
+- **Thin community `Community 97`** (3 nodes): `layout.tsx`, `layout.tsx`, `EventsLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 95`** (3 nodes): `page.tsx`, `page.tsx`, `load()`
+- **Thin community `Community 98`** (3 nodes): `page.tsx`, `page.tsx`, `load()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 96`** (3 nodes): `layout.tsx`, `layout.tsx`, `FestsLayout()`
+- **Thin community `Community 99`** (3 nodes): `layout.tsx`, `layout.tsx`, `FestsLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 97`** (3 nodes): `route.ts`, `route.ts`, `GET()`
+- **Thin community `Community 100`** (3 nodes): `route.ts`, `route.ts`, `GET()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 98`** (3 nodes): `layout.tsx`, `layout.tsx`, `PricingLayout()`
+- **Thin community `Community 101`** (3 nodes): `layout.tsx`, `layout.tsx`, `PricingLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 99`** (3 nodes): `layout.tsx`, `layout.tsx`, `PrivacyLayout()`
+- **Thin community `Community 102`** (3 nodes): `layout.tsx`, `layout.tsx`, `PrivacyLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 100`** (3 nodes): `layout.tsx`, `layout.tsx`, `RefundsLayout()`
+- **Thin community `Community 103`** (3 nodes): `layout.tsx`, `layout.tsx`, `RefundsLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 101`** (3 nodes): `page.tsx`, `page.tsx`, `RefundPolicy()`
+- **Thin community `Community 104`** (3 nodes): `page.tsx`, `page.tsx`, `RefundPolicy()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 102`** (3 nodes): `layout.tsx`, `layout.tsx`, `SolutionsLayout()`
+- **Thin community `Community 105`** (3 nodes): `layout.tsx`, `layout.tsx`, `SolutionsLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 103`** (3 nodes): `layout.tsx`, `layout.tsx`, `SupportLayout()`
+- **Thin community `Community 106`** (3 nodes): `layout.tsx`, `layout.tsx`, `SupportLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 104`** (3 nodes): `layout.tsx`, `layout.tsx`, `TermsLayout()`
+- **Thin community `Community 107`** (3 nodes): `layout.tsx`, `layout.tsx`, `TermsLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 105`** (3 nodes): `page.tsx`, `page.tsx`, `fetchVolunteerEvents()`
+- **Thin community `Community 108`** (3 nodes): `page.tsx`, `page.tsx`, `fetchVolunteerEvents()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 106`** (3 nodes): `DateTimePickerAdmin.tsx`, `DateTimePickerAdmin.tsx`, `DateTimePickerAdmin()`
+- **Thin community `Community 109`** (3 nodes): `DateTimePickerAdmin.tsx`, `DateTimePickerAdmin.tsx`, `DateTimePickerAdmin()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 107`** (3 nodes): `MobileDetectionRedirect.tsx`, `MobileDetectionRedirect.tsx`, `MobileDetectionRedirect()`
+- **Thin community `Community 110`** (3 nodes): `MobileDetectionRedirect.tsx`, `MobileDetectionRedirect.tsx`, `MobileDetectionRedirect()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 108`** (3 nodes): `TermsConsentModal.tsx`, `TermsConsentModal.tsx`, `TermsConsentModal()`
+- **Thin community `Community 111`** (3 nodes): `TermsConsentModal.tsx`, `TermsConsentModal.tsx`, `TermsConsentModal()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 109`** (3 nodes): `CategoryCard.tsx`, `CategoryCard.tsx`, `handleCategoryClick()`
+- **Thin community `Community 112`** (3 nodes): `CategoryCard.tsx`, `CategoryCard.tsx`, `handleCategoryClick()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 110`** (3 nodes): `CTA.tsx`, `CTA.tsx`, `signInWithGoogle()`
+- **Thin community `Community 113`** (3 nodes): `CTA.tsx`, `CTA.tsx`, `signInWithGoogle()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 111`** (3 nodes): `FAQs.tsx`, `FAQs.tsx`, `toggleItem()`
+- **Thin community `Community 114`** (3 nodes): `FAQs.tsx`, `FAQs.tsx`, `toggleItem()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 112`** (3 nodes): `Footer.tsx`, `Footer.tsx`, `Footer()`
+- **Thin community `Community 115`** (3 nodes): `Footer.tsx`, `Footer.tsx`, `Footer()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 113`** (3 nodes): `FunkyButton.tsx`, `FunkyButton.tsx`, `FunkyButton()`
+- **Thin community `Community 116`** (3 nodes): `FunkyButton.tsx`, `FunkyButton.tsx`, `FunkyButton()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 114`** (3 nodes): `PublishingOverlay.tsx`, `PublishingOverlay.tsx`, `lerp()`
+- **Thin community `Community 117`** (3 nodes): `PublishingOverlay.tsx`, `PublishingOverlay.tsx`, `lerp()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 115`** (3 nodes): `TextType.tsx`, `TextType()`, `TextType.tsx`
+- **Thin community `Community 118`** (3 nodes): `TextType.tsx`, `TextType()`, `TextType.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 116`** (3 nodes): `GET()`, `getBackendBaseUrl()`, `route.ts`
+- **Thin community `Community 119`** (3 nodes): `GET()`, `getBackendBaseUrl()`, `route.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `String()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 17`, `Community 19`, `Community 20`, `Community 23`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 32`, `Community 33`, `Community 34`, `Community 37`, `Community 38`, `Community 44`, `Community 47`?**
-  _High betweenness centrality (0.447) - this node is a cross-community bridge._
-- **Why does `useEvents()` connect `Community 5` to `Community 8`, `Community 17`, `Community 3`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **Why does `handleGenerateReport()` connect `Community 3` to `Community 1`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `String()` connect `Community 2` to `Community 0`, `Community 1`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 17`, `Community 19`, `Community 20`, `Community 24`, `Community 28`, `Community 29`, `Community 30`, `Community 32`, `Community 33`, `Community 36`, `Community 37`, `Community 38`, `Community 40`, `Community 45`, `Community 46`, `Community 47`, `Community 54`?**
+  _High betweenness centrality (0.390) - this node is a cross-community bridge._
+- **Why does `useEvents()` connect `Community 5` to `Community 17`, `Community 3`, `Community 7`?**
+  _High betweenness centrality (0.040) - this node is a cross-community bridge._
+- **Why does `EventsProvider()` connect `Community 16` to `Community 5`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
 - **Are the 129 inferred relationships involving `String()` (e.g. with `safeText()` and `normalizeUrl()`) actually correct?**
   _`String()` has 129 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.04 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
   _Cohesion score 0.05 - nodes in this community are weakly interconnected._
