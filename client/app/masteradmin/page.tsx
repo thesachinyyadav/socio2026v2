@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -41,8 +41,8 @@ import {
   getDepartmentOptionsForSchool,
   christCampuses,
 } from "@/app/lib/eventFormSchema";
-import AdminDashboardView from "../_components/Admin/AdminDashboardView";
-import ApprovalsManager from "../_components/Admin/ApprovalsManager";
+const AdminDashboardView = dynamic(() => import("../_components/Admin/AdminDashboardView"), { ssr: false, loading: () => <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#154CB3]" /></div> });
+const ApprovalsManager = dynamic(() => import("../_components/Admin/ApprovalsManager"), { ssr: false, loading: () => <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#154CB3]" /></div> });
 import { deleteClub, ClubRecord } from "@/app/actions/clubs";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
@@ -295,6 +295,8 @@ function MasterAdminPageInner() {
   const [selectedEventForBookings, setSelectedEventForBookings] = useState<Event | null>(null);
   const [eventBookings, setEventBookings] = useState<Registration[]>([]);
   const [eventBookingsLoading, setEventBookingsLoading] = useState(false);
+  const [eventBookingsPage, setEventBookingsPage] = useState(1);
+  const EVENT_BOOKINGS_PAGE_SIZE = 25;
   const eventBookingsPanelRef = useRef<HTMLDivElement>(null);
   const [eventBookingsHighlight, setEventBookingsHighlight] = useState(false);
   const [eventPage, setEventPage] = useState(1);
@@ -384,6 +386,8 @@ function MasterAdminPageInner() {
   const [catererSearchQuery, setCatererSearchQuery] = useState("");
   const CATERER_PAGE_SIZE = 15;
   const campusDetailsRef   = useRef<HTMLDetailsElement>(null);
+  // Track tabs that have been fetched once so we don't re-fetch on every tab switch back
+  const fetchedOnce = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const handleOutsideCampusClick = (event: MouseEvent | TouchEvent) => {
@@ -405,10 +409,9 @@ function MasterAdminPageInner() {
     };
   }, []);
 
-  const filteredCaterers = caterers.filter((caterer) => {
+  const filteredCaterers = useMemo(() => caterers.filter((caterer) => {
     const query = catererSearchQuery.trim().toLowerCase();
     if (!query) return true;
-
     return (
       (caterer.catering_name || "").toLowerCase().includes(query) ||
       (caterer.catering_id || "").toLowerCase().includes(query) ||
@@ -416,7 +419,27 @@ function MasterAdminPageInner() {
         (contact.name || "").toLowerCase().includes(query)
       )
     );
-  });
+  }), [caterers, catererSearchQuery]);
+
+  const filteredVenues = useMemo(() => {
+    const q = venueSearchQuery.trim().toLowerCase();
+    if (!q) return venues;
+    return venues.filter(v =>
+      (v.name || "").toLowerCase().includes(q) ||
+      (v.campus || "").toLowerCase().includes(q) ||
+      (v.location || "").toLowerCase().includes(q)
+    );
+  }, [venues, venueSearchQuery]);
+
+  const pagedVenues = useMemo(
+    () => filteredVenues.slice((venuePage - 1) * VENUE_PAGE_SIZE, venuePage * VENUE_PAGE_SIZE),
+    [filteredVenues, venuePage]
+  );
+
+  const pagedEventBookings = useMemo(
+    () => eventBookings.slice((eventBookingsPage - 1) * EVENT_BOOKINGS_PAGE_SIZE, eventBookingsPage * EVENT_BOOKINGS_PAGE_SIZE),
+    [eventBookings, eventBookingsPage]
+  );
 
   async function fetchAllCaterers() {
     setCaterersLoading(true);
@@ -696,28 +719,26 @@ function MasterAdminPageInner() {
 
   useEffect(() => {
     if (!isMasterAdmin || !authToken) return;
-    
-    if (activeTab === "users") {
-      fetchUsers();
-    } else if (activeTab === "events") {
-      fetchEvents();
-    } else if (activeTab === "fests") {
-      fetchFests();
-    } else if (activeTab === "clubs") {
-      fetchClubs();
-    } else if (activeTab === "dashboard") {
+
+    // users/events/fests/clubs are handled by their own dedicated useEffects below — skip here to avoid double-fetch
+    if (activeTab === "dashboard") {
       fetchDashboardData();
     } else if (activeTab === "notifications") {
-      // Ensure users/events are loaded for the notification composer
       if (users.length === 0) fetchUsers({ unpaged: true });
       if (events.length === 0) fetchEvents({ unpaged: true });
     } else if (activeTab === "report") {
-      // Fetch events and fests for report tab
       fetchReportData();
     } else if (activeTab === "venues") {
-      fetchAllVenues();
+      // Only fetch once per session; user can manually refresh if needed
+      if (!fetchedOnce.current.has("venues")) {
+        fetchAllVenues();
+        fetchedOnce.current.add("venues");
+      }
     } else if (activeTab === "caterers") {
-      fetchAllCaterers();
+      if (!fetchedOnce.current.has("caterers")) {
+        fetchAllCaterers();
+        fetchedOnce.current.add("caterers");
+      }
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -851,7 +872,9 @@ function MasterAdminPageInner() {
 
   useEffect(() => {
     if (!isMasterAdmin || !authToken || activeTab !== "roles") return;
+    if (fetchedOnce.current.has("roles")) return;
     fetchRoleHolders();
+    fetchedOnce.current.add("roles");
   }, [activeTab, isMasterAdmin, authToken]); // eslint-disable-line
 
   const fetchRegistrations = async () => {
@@ -878,6 +901,7 @@ function MasterAdminPageInner() {
     }
 
     setSelectedEventForBookings(event);
+    setEventBookingsPage(1);
     setEventBookingsLoading(true);
     setTimeout(() => {
       eventBookingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1876,6 +1900,7 @@ function MasterAdminPageInner() {
                         type="text"
                         value={venueSearchQuery}
                         onChange={e => { setVenueSearchQuery(e.target.value); setVenuePage(1); }}
+
                         placeholder="Search venues…"
                         className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#154CB3] bg-gray-50"
                       />
@@ -1894,13 +1919,7 @@ function MasterAdminPageInner() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {venues.filter(v => {
-                        const q = venueSearchQuery.trim().toLowerCase();
-                        if (!q) return true;
-                        return (v.name || "").toLowerCase().includes(q) ||
-                               (v.campus || "").toLowerCase().includes(q) ||
-                               (v.location || "").toLowerCase().includes(q);
-                      }).slice((venuePage - 1) * VENUE_PAGE_SIZE, venuePage * VENUE_PAGE_SIZE).map(v => (
+                      {pagedVenues.map(v => (
                         <tr key={v.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 font-medium text-gray-900">{v.name}</td>
                           <td className="px-4 py-3 text-gray-600">{v.campus}</td>
@@ -1983,10 +2002,10 @@ function MasterAdminPageInner() {
                   </table>
 
                   {/* Venue table pagination */}
-                  {venues.length > VENUE_PAGE_SIZE && (
+                  {filteredVenues.length > VENUE_PAGE_SIZE && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 mb-24">
                       <p className="text-xs text-gray-500">
-                        {(venuePage - 1) * VENUE_PAGE_SIZE + 1}–{Math.min(venuePage * VENUE_PAGE_SIZE, venues.length)} of {venues.length} venues
+                        {(venuePage - 1) * VENUE_PAGE_SIZE + 1}–{Math.min(venuePage * VENUE_PAGE_SIZE, filteredVenues.length)} of {filteredVenues.length} venues
                       </p>
                       <div className="flex items-center gap-1">
                         <button
@@ -1994,9 +2013,9 @@ function MasterAdminPageInner() {
                           onClick={() => setVenuePage(p => Math.max(1, p - 1))}
                           className="px-3 py-1.5 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >← Prev</button>
-                        <span className="px-3 text-xs text-gray-600">Page {venuePage} / {Math.ceil(venues.length / VENUE_PAGE_SIZE)}</span>
+                        <span className="px-3 text-xs text-gray-600">Page {venuePage} / {Math.ceil(filteredVenues.length / VENUE_PAGE_SIZE)}</span>
                         <button
-                          disabled={venuePage >= Math.ceil(venues.length / VENUE_PAGE_SIZE)}
+                          disabled={venuePage >= Math.ceil(filteredVenues.length / VENUE_PAGE_SIZE)}
                           onClick={() => setVenuePage(p => p + 1)}
                           className="px-3 py-1.5 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >Next →</button>
@@ -2583,18 +2602,11 @@ function MasterAdminPageInner() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                              {eventBookings.map((booking) => {
+                              {pagedEventBookings.map((booking) => {
                                 const isTeam = booking.registration_type?.toLowerCase().includes("team");
-                                const name = isTeam
-                                  ? booking.team_leader_name
-                                  : booking.individual_name;
-                                const email = isTeam
-                                  ? booking.team_leader_email
-                                  : booking.individual_email;
-                                const registerNo = isTeam
-                                  ? booking.team_leader_register_number
-                                  : booking.individual_register_number;
-
+                                const name = isTeam ? booking.team_leader_name : booking.individual_name;
+                                const email = isTeam ? booking.team_leader_email : booking.individual_email;
+                                const registerNo = isTeam ? booking.team_leader_register_number : booking.individual_register_number;
                                 return (
                                   <tr key={booking.registration_id} className="hover:bg-gray-50">
                                     <td className="px-4 py-3 text-sm text-gray-700">{name || "-"}</td>
@@ -2602,19 +2614,23 @@ function MasterAdminPageInner() {
                                     <td className="px-4 py-3 text-sm text-gray-700">{registerNo ?? "-"}</td>
                                     <td className="px-4 py-3 text-sm text-gray-700 capitalize">{booking.registration_type || "-"}</td>
                                     <td className="px-4 py-3 text-sm text-gray-700">
-                                      {new Date(booking.created_at).toLocaleString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
+                                      {new Date(booking.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </td>
                                   </tr>
                                 );
                               })}
                             </tbody>
                           </table>
+                          {eventBookings.length > EVENT_BOOKINGS_PAGE_SIZE && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-xs text-gray-500">
+                              <span>{eventBookings.length} total registrations</span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setEventBookingsPage(p => Math.max(1, p - 1))} disabled={eventBookingsPage === 1} className="px-3 py-1 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Prev</button>
+                                <span>Page {eventBookingsPage} of {Math.ceil(eventBookings.length / EVENT_BOOKINGS_PAGE_SIZE)}</span>
+                                <button onClick={() => setEventBookingsPage(p => p + 1)} disabled={eventBookingsPage * EVENT_BOOKINGS_PAGE_SIZE >= eventBookings.length} className="px-3 py-1 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
