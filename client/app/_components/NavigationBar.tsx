@@ -80,6 +80,7 @@ function NavigationBar() {
   const router = useRouter();
   const pathname = usePathname();
   const isEventsPage = pathname === "/events";
+  const isFestsPage = pathname === "/fests";
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -239,10 +240,10 @@ function NavigationBar() {
     setAvatarLoadError(false);
   }, [displayAvatar]);
 
-  // Sync the search input with the URL whenever we land on (or leave) the events page.
+  // Sync the search input with the URL whenever we land on (or leave) the events/fests pages.
   // Uses window.location.search so NavigationBar needs no useSearchParams / Suspense.
   useEffect(() => {
-    if (!isEventsPage) {
+    if (!isEventsPage && !isFestsPage) {
       setSearchQuery("");
       return;
     }
@@ -253,7 +254,7 @@ function NavigationBar() {
     sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
-  }, [isEventsPage, pathname]);
+  }, [isEventsPage, isFestsPage, pathname]);
 
   const closeDesktopMenu = useCallback(() => {
     setIsDesktopMenuOpen(false);
@@ -417,20 +418,14 @@ function NavigationBar() {
     const trimmedSearch = searchQuery.trim();
     const params = new URLSearchParams();
 
-    if (isEventsPage) {
-      const activeCategory = new URLSearchParams(window.location.search).get("category");
-      if (activeCategory) {
-        params.set("category", activeCategory);
-      }
-    }
-
-    if (trimmedSearch) {
-      params.set("search", trimmedSearch);
-    }
+    const activeCategory = new URLSearchParams(window.location.search).get("category");
+    if (activeCategory) params.set("category", activeCategory);
+    if (trimmedSearch) params.set("search", trimmedSearch);
 
     const queryString = params.toString();
-    router.push(queryString ? `/events?${queryString}` : "/events");
-  }, [isEventsPage, searchQuery, router]);
+    const basePath = isFestsPage ? "/fests" : "/events";
+    router.push(queryString ? `${basePath}?${queryString}` : basePath);
+  }, [isEventsPage, isFestsPage, searchQuery, router]);
 
   const handleDropdownHover = useCallback((linkName: string | null) => {
     if (dropdownTimerRef.current) {
@@ -476,7 +471,7 @@ function NavigationBar() {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search events..."
+                placeholder={isFestsPage ? "Search fests..." : "Search events..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-32 md:w-36 lg:w-48 xl:w-64 px-4 py-2 text-sm border border-gray-300 rounded-full focus:outline-none focus:border-[#154CB3] focus:ring-1 focus:ring-[#154CB3]"
@@ -993,7 +988,7 @@ function NavigationBar() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Search events..."
+              placeholder={isFestsPage ? "Search fests..." : "Search events..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-full focus:outline-none focus:border-[#154CB3] focus:ring-1 focus:ring-[#154CB3] transition-all duration-200"
