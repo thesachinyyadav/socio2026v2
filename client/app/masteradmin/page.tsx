@@ -39,6 +39,8 @@ import {
   Clock,
   Circle,
   Archive,
+  Check,
+  X,
 } from "lucide-react";
 import {
   organizingSchools,
@@ -2336,39 +2338,47 @@ function MasterAdminPageInner() {
                               </td>
 
                               <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
+                                <div className="flex items-center justify-end gap-1.5">
                                   {isEditing ? (
                                     <>
                                       <button
                                         onClick={() => saveRoleChanges(user)}
-                                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                                        className="h-8 w-8 inline-flex items-center justify-center bg-green-600 text-white rounded-lg hover:bg-green-700 hover:-translate-y-0.5 transition-all"
+                                        title="Save changes"
+                                        aria-label="Save changes"
                                       >
-                                        Save
+                                        <Check className="w-3.5 h-3.5" />
                                       </button>
                                       <button
                                         onClick={() => {
                                           setEditingUserId(null);
                                           setEditingUserRoles({});
                                         }}
-                                        className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                                        className="h-8 w-8 inline-flex items-center justify-center bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 hover:-translate-y-0.5 transition-all"
+                                        title="Cancel"
+                                        aria-label="Cancel"
                                       >
-                                        Cancel
+                                        <X className="w-3.5 h-3.5" />
                                       </button>
                                     </>
                                   ) : (
                                     <>
                                       <button
                                         onClick={() => startEditUser(user)}
-                                        className="px-4 py-2 bg-[#154CB3] text-white text-sm font-medium rounded-lg hover:bg-[#154cb3df] transition-colors"
+                                        className="h-8 w-8 inline-flex items-center justify-center bg-[#154CB3] text-white rounded-lg hover:bg-[#154cb3df] hover:-translate-y-0.5 transition-all"
+                                        title="Edit user roles"
+                                        aria-label="Edit user roles"
                                       >
-                                        Edit
+                                        <Pencil className="w-3.5 h-3.5" />
                                       </button>
                                       {user.email !== userData?.email && (
                                         <button
                                           onClick={() => setShowDeleteUserConfirm(user.email)}
-                                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                                          className="h-8 w-8 inline-flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:-translate-y-0.5 transition-all"
+                                          title="Delete user"
+                                          aria-label="Delete user"
                                         >
-                                          Delete
+                                          <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                       )}
                                     </>
@@ -2778,24 +2788,30 @@ function MasterAdminPageInner() {
                               </span>
                             </td>
                             <td className="px-6 py-5 text-right align-top">
-                              <div className="flex flex-wrap items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-1.5">
                                 <a
                                   href={`/edit/fest/${fest.fest_id}`}
-                                  className="px-3.5 py-1.5 bg-[#154CB3] text-white text-xs font-semibold rounded-lg hover:bg-[#154cb3df] hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-[#154CB3] text-white rounded-lg hover:bg-[#154cb3df] hover:-translate-y-0.5 transition-all"
+                                  title="Edit fest"
+                                  aria-label="Edit fest"
                                 >
-                                  Edit
+                                  <Pencil className="w-3.5 h-3.5" />
                                 </a>
                                 <a
                                   href={`/fest/${fest.fest_id}`}
-                                  className="px-3.5 py-1.5 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-gray-600 text-white rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                  title="View fest"
+                                  aria-label="View fest"
                                 >
-                                  View
+                                  <Eye className="w-3.5 h-3.5" />
                                 </a>
                                 <button
                                   onClick={() => setShowDeleteFestConfirm(fest.fest_id)}
-                                  className="px-3.5 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:-translate-y-0.5 transition-all"
+                                  title="Delete fest"
+                                  aria-label="Delete fest"
                                 >
-                                  Delete
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
@@ -2950,30 +2966,38 @@ function MasterAdminPageInner() {
                               </button>
                             </td>
                             <td className="px-6 py-5 text-right align-top">
-                              <div className="flex flex-wrap items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-1.5">
                                 <a
                                   href={`/clubeditor/${club.club_id}`}
-                                  className="px-3.5 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+                                  title="Manage club"
+                                  aria-label="Manage club"
                                 >
-                                  Manage
+                                  <Settings className="w-3.5 h-3.5" />
                                 </a>
                                 <a
                                   href={`/edit/clubs/${club.club_id}`}
-                                  className="px-3.5 py-1.5 bg-[#154CB3] text-white text-xs font-semibold rounded-lg hover:bg-[#0f3f96] hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-[#154CB3] text-white rounded-lg hover:bg-[#0f3f96] hover:-translate-y-0.5 transition-all"
+                                  title="Edit club"
+                                  aria-label="Edit club"
                                 >
-                                  Edit
+                                  <Pencil className="w-3.5 h-3.5" />
                                 </a>
                                 <a
                                   href={`/club/${club.slug || club.club_id}`}
-                                  className="px-3.5 py-1.5 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-gray-600 text-white rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                  title="View club"
+                                  aria-label="View club"
                                 >
-                                  View
+                                  <Eye className="w-3.5 h-3.5" />
                                 </a>
                                 <button
                                   onClick={() => setShowDeleteClubConfirm(club.club_id)}
-                                  className="px-3.5 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 hover:-translate-y-0.5 transition-all"
+                                  className="h-8 w-8 inline-flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:-translate-y-0.5 transition-all"
+                                  title="Delete club"
+                                  aria-label="Delete club"
                                 >
-                                  Delete
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
