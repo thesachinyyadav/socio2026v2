@@ -18,6 +18,12 @@ const resolvedSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co';
 const resolvedSupabaseAnonKey = supabaseAnonKey || 'placeholder-anon-key';
 
 // Create Supabase client for browser
-export const supabase = createBrowserClient(resolvedSupabaseUrl, resolvedSupabaseAnonKey);
+export const supabase = createBrowserClient(resolvedSupabaseUrl, resolvedSupabaseAnonKey, {
+  realtime: {
+    // Back off aggressively: 2s → 5s → 15s → 30s → stop retrying after 4 attempts.
+    // Prevents WebSocket spam on restricted/offline networks.
+    reconnectAfterMs: (tries: number) => ([2000, 5000, 15000, 30000][tries] ?? 1_800_000),
+  },
+});
 
 export default supabase;

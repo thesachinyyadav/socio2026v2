@@ -182,6 +182,7 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
       });
     };
 
+    let errorCount = 0;
     const channel = supabase
       .channel(`notifications:${email}`)
       .on(
@@ -204,7 +205,16 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
         },
         handleInsert
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          errorCount++;
+          if (errorCount >= 3) {
+            supabase.removeChannel(channel);
+          }
+        } else if (status === "SUBSCRIBED") {
+          errorCount = 0;
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

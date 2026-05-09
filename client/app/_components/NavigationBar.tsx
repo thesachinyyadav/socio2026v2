@@ -144,7 +144,9 @@ function NavigationBar() {
       if (!isMounted) return;
 
       if (error) {
-        console.error("Failed to resolve club editor dashboard:", error.message);
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Failed to resolve club editor dashboard:", error.message);
+        }
         setClubEditorClubs([]);
         return;
       }
