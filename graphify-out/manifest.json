@@ -156,8 +156,8 @@
     "hash": "b0b58da4b4bec3b2e844c1c302be3d28"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\auth\\callback\\route.ts": {
-    "mtime": 1777287813.1901953,
-    "hash": "7c6fe8273d9bf7cf3a0b6236ea34deb8"
+    "mtime": 1778313540.1836195,
+    "hash": "f1b7b78da3f273706dc9de19a58251a3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\auth\\popup-success\\page.tsx": {
     "mtime": 1777644973.5536902,
@@ -216,8 +216,8 @@
     "hash": "f7f5917306b35395a5e8207ea40653a0"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\cookies\\page.tsx": {
-    "mtime": 1777439226.4982977,
-    "hash": "cbd9807df1cecc71b4b7002487a584a9"
+    "mtime": 1778317742.7173443,
+    "hash": "ecc0d0e6d7ca3d519ffa188b3df433d9"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\create\\clubs\\page.tsx": {
     "mtime": 1776614301.938165,
@@ -284,8 +284,8 @@
     "hash": "fb0ff46da07f6196e5aa05a4a9f5ac89"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\event\\[id]\\ticket\\[registrationId]\\page.tsx": {
-    "mtime": 1775329941.4570992,
-    "hash": "92ee26e646e083143e8a78a961c3fc96"
+    "mtime": 1778317742.7183475,
+    "hash": "734e5b2be194bf1764fe8e710f3efbe3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\events\\layout.tsx": {
     "mtime": 1774172772.6889489,
@@ -296,8 +296,8 @@
     "hash": "f2069d7803e39f33e9fb219bada76707"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\events\\page.tsx": {
-    "mtime": 1777972024.576227,
-    "hash": "07949ca403352ce12358433054551bb7"
+    "mtime": 1778326769.925839,
+    "hash": "b6c6aae3f94acd84ab5e011744e89e89"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\faq\\layout.tsx": {
     "mtime": 1774172772.6911576,
@@ -332,8 +332,8 @@
     "hash": "9897a25ee944fd32e938c2d2bf828cf7"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\fests\\page.tsx": {
-    "mtime": 1777825922.1281972,
-    "hash": "f9414e6a02e09f80e83a0f89cc1067f0"
+    "mtime": 1778326806.6576269,
+    "hash": "15d834e3fdb2faabc24318bed50081b7"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\googlef9d3f1696ce89505.html\\route.ts": {
     "mtime": 1774172810.4793854,
@@ -408,8 +408,8 @@
     "hash": "37ba80de71aaf62c7611a9f253c4a098"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\privacy\\page.tsx": {
-    "mtime": 1777439226.5156646,
-    "hash": "3aa1f9862ee7c1fc720801261c7aa350"
+    "mtime": 1778317742.719345,
+    "hash": "89acc68e4492a5aad087ef2c20a37da3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\profile\\page.tsx": {
     "mtime": 1777555507.4449975,
@@ -436,8 +436,8 @@
     "hash": "76b152edec861b23acbc6c3e7e63e664"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\statuscheck\\page.tsx": {
-    "mtime": 1777287813.2525651,
-    "hash": "c2f01a461d74edfe07e58af2ab24ac7e"
+    "mtime": 1778317742.9276311,
+    "hash": "77a2ec241d3878a8fe2db5d8f74afa48"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\support\\layout.tsx": {
     "mtime": 1774172772.7176845,
@@ -460,8 +460,8 @@
     "hash": "66a02b28cb91ab0f28759a01ffbbe9bb"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\terms\\page.tsx": {
-    "mtime": 1777439226.517699,
-    "hash": "237a87d734cd3a0b0276d248adadfaf2"
+    "mtime": 1778317742.7215946,
+    "hash": "63309b156ceb9e8dc2564a1756e362bc"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\venue\\page.tsx": {
     "mtime": 1777972024.5863156,
@@ -516,12 +516,12 @@
     "hash": "8442c92716b1eb586a48bd85f42e222b"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\MobileDetectionRedirect.tsx": {
-    "mtime": 1775329941.395202,
-    "hash": "b582cd4265b8fa0fc4fc4d35a8cd6f77"
+    "mtime": 1778323014.2646766,
+    "hash": "60e7e36ef855edab56a1a0ce02d2def3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\NavigationBar.tsx": {
-    "mtime": 1778175276.5306873,
-    "hash": "0d4554b47c73580d0c04ee52ba27e0da"
+    "mtime": 1778326733.7480636,
+    "hash": "fe0ae297fbd68d234f3a37901d71c7c9"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\NotificationSystem.tsx": {
     "mtime": 1778243696.976039,
@@ -712,8 +712,8 @@
     "hash": "1d2cac54b0585465047d78465c96b2fa"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\context\\AuthContext.tsx": {
-    "mtime": 1778258099.4736118,
-    "hash": "8ccfb23bcec15b0311086ecaddee64e9"
+    "mtime": 1778313540.1995833,
+    "hash": "b624e0fd922da8ccf5a92db8f82df6a6"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\context\\EventContext.tsx": {
     "mtime": 1777830423.0772715,
@@ -768,8 +768,8 @@
     "hash": "c0737ad634173d2cfc826248e1e720cc"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\index.js": {
-    "mtime": 1778215058.1891685,
-    "hash": "53a11a70d825886328f65b69651e532d"
+    "mtime": 1778317742.7268465,
+    "hash": "f87afa5a66984a35de2235b61629dde3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\config\\database.js": {
     "mtime": 1777786288.4563951,
@@ -816,8 +816,8 @@
     "hash": "ca6f9b0eeae0ed2f9d77bedcf5110427"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\authRoutes.js": {
-    "mtime": 1778175276.5544279,
-    "hash": "aa4e5f5722a8b23a58c1b5b30a513eaf"
+    "mtime": 1778314827.084764,
+    "hash": "4a3a201ed8d031b40bab0aa4e306ae7d"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\cateringRoutes.js": {
     "mtime": 1778175276.5554667,
@@ -876,8 +876,8 @@
     "hash": "e310b1873697813ef9c69b2a2cf5c15e"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\statuscheckRoutes.js": {
-    "mtime": 1775329941.582522,
-    "hash": "d298db8dec0a6dc5e8c5c3243e9cf91d"
+    "mtime": 1778320461.2570171,
+    "hash": "d1692a8ef32ae8c779f7480ace1ea88b"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\routes\\uploadRoutes.js": {
     "mtime": 1775329941.584221,
