@@ -33,7 +33,7 @@ const ROUTE_GROUP_COVERAGE = [
   { group: "contact/support", mount: "/api/contact, /api/support/messages", probe: "/api/contact" },
   { group: "chat", mount: "/api/chat", probe: "/api/chat/health" },
   { group: "report", mount: "/api/report/data", probe: "dynamic" },
-  { group: "approval", mount: "/api/approval", probe: "/api/approval/approvals/queue" },
+  { group: "approval", mount: "/api (approvalRoutes)", probe: "/api/approvals/queue" },
   { group: "serviceRequest", mount: "/api/serviceRequest", probe: "/api/serviceRequest" },
   { group: "venues", mount: "/api/venues", probe: "/api/venues/campuses" },
   { group: "venueBooking", mount: "/api/venueBooking", probe: "/api/venueBooking" },
@@ -873,7 +873,7 @@ router.post("/run", async (req, res) => {
     probeEndpoint(req, apiBaseUrl, { name: "Dean Analytics summary", path: "/api/dean-analytics/summary", method: "GET", expectedStatuses: [200, 403] }),
     probeEndpoint(req, apiBaseUrl, { name: "Volunteer events", path: "/api/volunteer/events", method: "GET", expectedStatuses: [200, 403] }),
     probeEndpoint(req, apiBaseUrl, { name: "Feedback endpoint", path: "/api/feedback", method: "GET", expectedStatuses: [200, 403, 404] }),
-    probeEndpoint(req, apiBaseUrl, { name: "Approval queue", path: "/api/approval/approvals/queue", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Approval queue", path: "/api/approvals/queue", method: "GET", expectedStatuses: [200] }),
   ]);
 
   if (sampleRows.sampleEventId) {
@@ -995,7 +995,7 @@ router.post("/stream-run", async (req, res) => {
     { name: "Dean Analytics summary", path: "/api/dean-analytics/summary", method: "GET", expectedStatuses: [200, 403] },
     { name: "Volunteer events", path: "/api/volunteer/events", method: "GET", expectedStatuses: [200, 403] },
     { name: "Feedback endpoint", path: "/api/feedback", method: "GET", expectedStatuses: [200, 403, 404] },
-    { name: "Approval queue", path: "/api/approval/approvals/queue", method: "GET", expectedStatuses: [200] },
+    { name: "Approval queue", path: "/api/approvals/queue", method: "GET", expectedStatuses: [200] },
   ];
 
   if (sampleRows.sampleEventId) {
