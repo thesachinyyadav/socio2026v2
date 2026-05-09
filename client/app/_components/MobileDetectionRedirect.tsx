@@ -50,13 +50,7 @@ export default function MobileDetectionRedirect() {
     sessionStorage.setItem(MOBILE_PROMPT_ACK_KEY, "1");
   };
 
-  const handleDownloadApp = () => {
-    acknowledgePrompt();
-    const appDownloadUrl = process.env.NEXT_PUBLIC_APP_DOWNLOAD_URL || "/app-download";
-    window.location.assign(appDownloadUrl);
-  };
-
-  const handleNotNow = () => {
+  const handleOpenApp = () => {
     acknowledgePrompt();
     const pwaBaseUrl = process.env.NEXT_PUBLIC_PWA_URL!;
     const targetUrl = `${pwaBaseUrl}${window.location.pathname}${window.location.search}`;
@@ -99,29 +93,18 @@ export default function MobileDetectionRedirect() {
             Get The Best Mobile Experience
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">
-            Download the SOCIO mobile app for faster access, smoother browsing, and instant updates.
+            Use the SOCIO app for faster access, smoother browsing, and instant updates.
           </p>
 
-          <div className="mt-7 space-y-3">
+          <div className="mt-7">
             <button
               type="button"
-              onClick={handleDownloadApp}
+              onClick={handleOpenApp}
               className="w-full rounded-xl bg-[#154CB3] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0f3d8a] sm:text-base"
             >
-              Download Mobile App
-            </button>
-            <button
-              type="button"
-              onClick={handleNotNow}
-              className="w-full rounded-xl border border-[#154CB3]/25 bg-white px-5 py-3 text-sm font-semibold text-[#154CB3] transition-colors hover:bg-[#154CB3]/5 sm:text-base"
-            >
-              Not Right Now
+              Open App
             </button>
           </div>
-
-          <p className="mt-4 text-xs text-gray-500">
-            Not Right Now will continue you to mobile web.
-          </p>
         </div>
       </div>
     </div>
