@@ -71,7 +71,9 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://live.withsocio.com',
   'https://gated.withsocio.com',
   'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  'capacitor://localhost',
+  'http://localhost'
 ];
 
 const DEFAULT_ALLOWED_ORIGIN_PATTERNS = [
