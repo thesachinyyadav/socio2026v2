@@ -32,7 +32,7 @@ export default function TermsOfService() {
               <p>
                 These Terms and Conditions (&quot;Terms&quot;) constitute a legally binding agreement between you and the SOCIO
                 platform, operated by its founders (&quot;SOCIO&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), governing your access to and use of
-                https://socio.christuniversity.in/ (&quot;Platform&quot;).
+                https://app.withsocio.com/ (&quot;Platform&quot;).
               </p>
               <p>
                 By accessing or using the Platform, you agree to comply with and be bound by these Terms. If you do not

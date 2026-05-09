@@ -22,7 +22,7 @@ export default function CookiePolicy() {
               <h2 className="text-2xl font-bold text-[#063168] m-0">1. Introduction</h2>
               <p>
                 This Cookie Policy explains how SOCIO (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) uses cookies and similar technologies when
-                you access or use the SOCIO platform available at https://socio.christuniversity.in/ (&quot;Platform&quot;).
+                you access or use the SOCIO platform available at https://app.withsocio.com/ (&quot;Platform&quot;).
               </p>
               <p>
                 This Policy should be read together with our Privacy Policy, which explains how we collect, use, and
@@ -204,3 +204,4 @@ export default function CookiePolicy() {
     </div>
   );
 }
+

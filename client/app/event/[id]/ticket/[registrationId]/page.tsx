@@ -371,7 +371,7 @@ export default function TicketPage() {
 
             {/* Ticket footer */}
             <div className="bg-gray-50 border-t border-gray-100 px-6 py-3 flex items-center justify-between gap-2">
-              <p className="text-xs text-gray-400">socio.christuniversity.in</p>
+              <p className="text-xs text-gray-400">app.withsocio.com</p>
               <p className="text-xs text-gray-400 font-mono">#{regId?.slice(0, 8).toUpperCase()}</p>
             </div>
           </div>

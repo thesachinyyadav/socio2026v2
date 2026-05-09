@@ -65,7 +65,6 @@ app.use('/api', (req, res, next) => {
 });
 
 const DEFAULT_ALLOWED_ORIGINS = [
-  'https://socio.christuniversity.in',
   'https://app.withsocio.com',
   'https://sociov2.vercel.app',
   'https://sociodev.vercel.app',
@@ -77,7 +76,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 const DEFAULT_ALLOWED_ORIGIN_PATTERNS = [
   '^https://.*\\.vercel\\.app$',
-  '^https://.*\\.christuniversity\\.in$'
+  '^https://.*\\.withsocio\\.com$'
 ];
 
 const parseCsvEnv = (value) =>
