@@ -35,6 +35,10 @@ import {
   PlusCircle,
   Pencil,
   UtensilsCrossed,
+  GitMerge,
+  Clock,
+  Circle,
+  Archive,
 } from "lucide-react";
 import {
   organizingSchools,
@@ -2519,34 +2523,38 @@ function MasterAdminPageInner() {
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-600 max-w-[140px] truncate">{safeText(event.created_by, "Unknown")}</td>
                               <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
+                                <div className="flex items-center justify-end gap-1.5">
                                   <a
                                     href={`/edit/event/${event.event_id}`}
-                                    className="px-3 py-1.5 bg-[#154CB3] text-white text-xs font-medium rounded-lg hover:bg-[#154cb3df] hover:-translate-y-0.5 transition-all"
+                                    className="h-8 w-8 inline-flex items-center justify-center bg-[#154CB3] text-white rounded-lg hover:bg-[#154cb3df] hover:-translate-y-0.5 transition-all"
+                                    title="Edit event"
+                                    aria-label="Edit event"
                                   >
-                                    Edit
+                                    <Pencil className="w-3.5 h-3.5" />
                                   </a>
                                   <Link
                                     href={`/event/${event.event_id}`}
-                                    className="px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                    className="h-8 w-8 inline-flex items-center justify-center bg-gray-600 text-white rounded-lg hover:bg-gray-700 hover:-translate-y-0.5 transition-all"
+                                    title="View event page"
+                                    aria-label="View event page"
                                   >
-                                    View
+                                    <Eye className="w-3.5 h-3.5" />
                                   </Link>
                                   <button
                                     onClick={() => handleViewEventBookings(event)}
-                                    className="h-8 w-8 inline-flex items-center justify-center bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 hover:-translate-y-0.5 transition-all"
-                                    title="View bookings"
-                                    aria-label="View bookings"
+                                    className={`h-8 w-8 inline-flex items-center justify-center rounded-lg hover:-translate-y-0.5 transition-all ${selectedEventForBookings?.event_id === event.event_id ? "bg-violet-600 text-white" : "bg-violet-100 text-violet-700 hover:bg-violet-200"}`}
+                                    title="View approval pipeline"
+                                    aria-label="View approval pipeline"
                                   >
-                                    <Eye className="w-4 h-4" />
+                                    <GitMerge className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => setShowDeleteEventConfirm(event.event_id)}
-                                    className="h-8 w-8 inline-flex items-center justify-center bg-red-600 text-white rounded-lg hover:bg-red-700 hover:-translate-y-0.5 transition-all"
+                                    className="h-8 w-8 inline-flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:-translate-y-0.5 transition-all"
                                     title="Delete event"
                                     aria-label="Delete event"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </td>
@@ -2565,74 +2573,103 @@ function MasterAdminPageInner() {
                           : "border-gray-200 bg-gray-50"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-4 mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            Bookings for {selectedEventForBookings.title}
-                          </h3>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Event ID: {selectedEventForBookings.event_id}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedEventForBookings(null);
-                            setEventBookings([]);
-                          }}
-                          className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all"
-                        >
-                          Close
-                        </button>
-                      </div>
+                      {(() => {
+                        const ev = selectedEventForBookings;
+                        const isArchived = ev.archived_effective === true || ev.is_archived === true;
+                        const isLive = !ev.is_draft && !isArchived;
+                        const isPending = Boolean(ev.is_draft) && approvalStatuses[ev.event_id] === "pending_approvals";
+                        const isDraft = Boolean(ev.is_draft) && !isPending;
 
-                      {eventBookingsLoading ? (
-                        <div className="text-sm text-gray-600">Loading event bookings...</div>
-                      ) : eventBookings.length === 0 ? (
-                        <div className="text-sm text-gray-600">No bookings found for this event.</div>
-                      ) : (
-                        <div className="overflow-x-auto bg-white border border-gray-200 rounded-lg">
-                          <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                              <tr>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Name</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Email</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Register No.</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Booked At</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {pagedEventBookings.map((booking) => {
-                                const isTeam = booking.registration_type?.toLowerCase().includes("team");
-                                const name = isTeam ? booking.team_leader_name : booking.individual_name;
-                                const email = isTeam ? booking.team_leader_email : booking.individual_email;
-                                const registerNo = isTeam ? booking.team_leader_register_number : booking.individual_register_number;
-                                return (
-                                  <tr key={booking.registration_id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 text-sm text-gray-700">{name || "-"}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-700">{email || booking.user_email || "-"}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-700">{registerNo ?? "-"}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-700 capitalize">{booking.registration_type || "-"}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-700">
-                                      {new Date(booking.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                          {eventBookings.length > EVENT_BOOKINGS_PAGE_SIZE && (
-                            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-xs text-gray-500">
-                              <span>{eventBookings.length} total registrations</span>
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => setEventBookingsPage(p => Math.max(1, p - 1))} disabled={eventBookingsPage === 1} className="px-3 py-1 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Prev</button>
-                                <span>Page {eventBookingsPage} of {Math.ceil(eventBookings.length / EVENT_BOOKINGS_PAGE_SIZE)}</span>
-                                <button onClick={() => setEventBookingsPage(p => p + 1)} disabled={eventBookingsPage * EVENT_BOOKINGS_PAGE_SIZE >= eventBookings.length} className="px-3 py-1 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
+                        type StepStatus = "done" | "active" | "pending" | "archived";
+                        const steps: { label: string; sub: string; status: StepStatus }[] = [
+                          { label: "Submitted", sub: "Organizer", status: "done" },
+                          { label: "HOD Review", sub: "Head of Department", status: isLive ? "done" : isPending ? "active" : isDraft ? "pending" : "done" },
+                          { label: "Dean Review", sub: "Dean of School", status: isLive ? "done" : isPending ? "active" : "pending" },
+                          { label: "CFO Review", sub: "Finance Office", status: isLive ? "done" : isPending ? "active" : "pending" },
+                          { label: "Published", sub: isArchived ? "Archived" : isLive ? "Live" : "Awaiting approval", status: isArchived ? "archived" : isLive ? "done" : "pending" },
+                        ];
+
+                        const stepColor: Record<StepStatus, string> = {
+                          done: "bg-emerald-500 text-white",
+                          active: "bg-amber-400 text-white",
+                          pending: "bg-gray-200 text-gray-400",
+                          archived: "bg-slate-400 text-white",
+                        };
+                        const lineColor: Record<StepStatus, string> = {
+                          done: "bg-emerald-400",
+                          active: "bg-amber-300",
+                          pending: "bg-gray-200",
+                          archived: "bg-slate-300",
+                        };
+                        const labelColor: Record<StepStatus, string> = {
+                          done: "text-emerald-700",
+                          active: "text-amber-700",
+                          pending: "text-gray-400",
+                          archived: "text-slate-500",
+                        };
+
+                        return (
+                          <>
+                            <div className="flex items-start justify-between gap-4 mb-6">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <GitMerge className="w-5 h-5 text-violet-600" />
+                                  <h3 className="text-lg font-semibold text-gray-900">Approval Pipeline</h3>
+                                </div>
+                                <p className="text-sm text-gray-500 mt-0.5">{ev.title} · ID: {ev.event_id.slice(0, 10)}…</p>
+                              </div>
+                              <button
+                                onClick={() => { setSelectedEventForBookings(null); setEventBookings([]); }}
+                                className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all"
+                              >Close</button>
+                            </div>
+
+                            {/* Pipeline */}
+                            <div className="flex items-start gap-0 overflow-x-auto pb-2">
+                              {steps.map((step, i) => (
+                                <div key={step.label} className="flex items-start min-w-0">
+                                  <div className="flex flex-col items-center" style={{ minWidth: 100 }}>
+                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm flex-shrink-0 ${stepColor[step.status]}`}>
+                                      {step.status === "done" && <CheckCircle2 className="w-5 h-5" />}
+                                      {step.status === "active" && <Clock className="w-4 h-4" />}
+                                      {step.status === "pending" && <Circle className="w-4 h-4" />}
+                                      {step.status === "archived" && <Archive className="w-4 h-4" />}
+                                    </div>
+                                    <div className="mt-2 text-center px-1">
+                                      <div className={`text-xs font-semibold ${labelColor[step.status]}`}>{step.label}</div>
+                                      <div className="text-[10px] text-gray-400 mt-0.5">{step.sub}</div>
+                                      {step.status === "active" && (
+                                        <span className="inline-block mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full">In Review</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {i < steps.length - 1 && (
+                                    <div className={`h-0.5 flex-1 mt-4 mx-1 rounded-full ${lineColor[steps[i + 1].status]}`} style={{ minWidth: 24 }} />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Summary card */}
+                            <div className="mt-5 grid grid-cols-3 gap-3">
+                              <div className="bg-white border border-gray-100 rounded-lg px-4 py-3 text-center">
+                                <div className="text-xs text-gray-500 mb-0.5">Status</div>
+                                <div className={`text-sm font-bold ${isLive ? "text-emerald-600" : isPending ? "text-amber-600" : isArchived ? "text-slate-500" : "text-gray-500"}`}>
+                                  {isArchived ? "Archived" : isLive ? "Live" : isPending ? "Pending Approvals" : "Draft"}
+                                </div>
+                              </div>
+                              <div className="bg-white border border-gray-100 rounded-lg px-4 py-3 text-center">
+                                <div className="text-xs text-gray-500 mb-0.5">Registrations</div>
+                                <div className="text-sm font-bold text-gray-800">{ev.registration_count ?? 0}</div>
+                              </div>
+                              <div className="bg-white border border-gray-100 rounded-lg px-4 py-3 text-center">
+                                <div className="text-xs text-gray-500 mb-0.5">Created by</div>
+                                <div className="text-sm font-bold text-gray-800 truncate">{safeText(ev.created_by, "—")}</div>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                   <PaginationControls
