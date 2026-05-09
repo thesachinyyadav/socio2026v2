@@ -580,7 +580,6 @@ router.post("/insert-dummy-event", async (req, res) => {
       registration_fee: null,
       outsider_registration_fee: null,
       participants_per_team: 1,
-      max_participants: null,
       outsider_max_participants: null,
     };
 
