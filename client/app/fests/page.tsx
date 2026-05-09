@@ -84,6 +84,7 @@ const FestsPageContent = () => {
   ]);
 
   const [allFests, setAllFests] = useState<Fest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
   const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
@@ -136,6 +137,9 @@ const FestsPageContent = () => {
       .catch((error) => {
         console.error("Error fetching fests:", error);
         setAllFests([]);
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
   }, [API_URL, session?.access_token]);
 
@@ -319,14 +323,20 @@ const FestsPageContent = () => {
 
           </div>
 
+          {!isLoading && (
           <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-3 sm:mb-4">
-            {`${activeFilter === "All" ? "All" : activeFilter} fests (${ 
+            {`${activeFilter === "All" ? "All" : activeFilter} fests (${
               filteredFests.length
             })`}
           </h2>
+          )}
 
           <div>
-            {paginatedFests.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center items-center py-16">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-[#154CB3]" />
+              </div>
+            ) : paginatedFests.length > 0 ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                   {paginatedFests.map((fest) => (
