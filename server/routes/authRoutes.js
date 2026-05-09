@@ -22,33 +22,38 @@ router.get("/callback", async (req, res) => {
   }
 
   try {
-    // Exchange the code for a session
-    const { data, error } = await supabase.auth.exchangeCodeForSession(String(code));
+    // Determine the base URL for the redirect.
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.withsocio.com";
+    
+    if (next && (next.startsWith("http://") || next.startsWith("https://") || next.startsWith("socio://"))) {
+      baseUrl = next.replace(/\/$/, "");
+    }
 
+    // If the redirect is to the mobile app (socio://), we MUST NOT exchange the code here.
+    // The mobile app needs the code to perform the exchange itself using its local PKCE verifier.
+    if (baseUrl.startsWith("socio://")) {
+      const mobileRedirectUrl = `${baseUrl}?code=${encodeURIComponent(String(code))}`;
+      console.log(`[Auth] Mobile login: Forwarding code to deep link: ${mobileRedirectUrl}`);
+      return res.redirect(mobileRedirectUrl);
+    }
+
+    // For Web/PWA, we exchange the code here to simplify the client-side logic.
+    console.log(`[Auth] Web login: Exchanging code for session...`);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(String(code));
     if (error) throw error;
 
     const { session } = data;
-    if (!session) throw new Error("No session returned");
+    if (!session) throw new Error("No session returned from Supabase");
 
-    // Determine the base URL for the redirect. 
-    // If 'next' is a full URL (passed from the web client), use it as the base.
-    let baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.withsocio.com";
-    let redirectPath = "/auth/callback";
-
-    if (next && (next.startsWith("http://") || next.startsWith("https://") || next.startsWith("socio://"))) {
-      baseUrl = next.replace(/\/$/, ""); // Remove trailing slash
-    }
-
-    const webRedirectUrl = `${baseUrl}${redirectPath}?token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`;
-    
-    console.log(`[Auth] Web login success. Redirecting to: ${webRedirectUrl.substring(0, 50)}...`);
+    const webRedirectUrl = `${baseUrl}/auth/callback?token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`;
+    console.log(`[Auth] Web login success. Redirecting to client callback...`);
     
     return res.redirect(webRedirectUrl);
   } catch (err) {
     console.error("[Auth] Callback error:", err.message);
     const next = req.query.next;
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.withsocio.com";
-    if (next && (next.startsWith("http://") || next.startsWith("https://"))) {
+    if (next && (next.startsWith("http://") || next.startsWith("https://") || next.startsWith("socio://"))) {
       baseUrl = next.replace(/\/$/, "");
     }
     return res.redirect(`${baseUrl}/auth?error=${encodeURIComponent(err.message)}`);
