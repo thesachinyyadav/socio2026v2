@@ -21,56 +21,29 @@ const MAX_LOAD_ITERATIONS = 120;
 const MAX_LOAD_CONCURRENCY = 12;
 
 const ROUTE_GROUP_COVERAGE = [
-  {
-    group: "users",
-    mount: "/api/users",
-    probe: "/api/users?page=1&pageSize=5",
-  },
-  {
-    group: "events",
-    mount: "/api/events",
-    probe: "/api/events?page=1&pageSize=5",
-  },
-  {
-    group: "fests",
-    mount: "/api/fests",
-    probe: "/api/fests?page=1&pageSize=5",
-  },
-  {
-    group: "registrations",
-    mount: "/api/registrations",
-    probe: "/api/registrations",
-  },
-  {
-    group: "attendance",
-    mount: "/api/events/:eventId/participants",
-    probe: "dynamic",
-  },
-  {
-    group: "notifications",
-    mount: "/api/notifications/*",
-    probe: "/api/notifications/admin/history",
-  },
-  {
-    group: "upload",
-    mount: "/api/upload/*",
-    probe: "manual (multipart required)",
-  },
-  {
-    group: "contact/support",
-    mount: "/api/contact, /api/support/messages",
-    probe: "/api/contact",
-  },
-  {
-    group: "chat",
-    mount: "/api/chat",
-    probe: "/api/chat/health",
-  },
-  {
-    group: "report",
-    mount: "/api/report/data",
-    probe: "dynamic",
-  },
+  { group: "auth", mount: "/api/auth", probe: "/api/auth/me" },
+  { group: "users", mount: "/api/users", probe: "/api/users?page=1&pageSize=5" },
+  { group: "events", mount: "/api/events", probe: "/api/events?page=1&pageSize=5" },
+  { group: "fests", mount: "/api/fests", probe: "/api/fests?page=1&pageSize=5" },
+  { group: "clubs", mount: "/api/clubs", probe: "/api/clubs?page=1&pageSize=5" },
+  { group: "registrations", mount: "/api/registrations", probe: "/api/registrations" },
+  { group: "attendance", mount: "/api/events/:eventId/participants", probe: "dynamic" },
+  { group: "notifications", mount: "/api/notifications/*", probe: "/api/notifications/admin/history" },
+  { group: "upload", mount: "/api/upload/*", probe: "manual (multipart required)" },
+  { group: "contact/support", mount: "/api/contact, /api/support/messages", probe: "/api/contact" },
+  { group: "chat", mount: "/api/chat", probe: "/api/chat/health" },
+  { group: "report", mount: "/api/report/data", probe: "dynamic" },
+  { group: "approval", mount: "/api/approval", probe: "/api/approval" },
+  { group: "serviceRequest", mount: "/api/serviceRequest", probe: "/api/serviceRequest" },
+  { group: "venues", mount: "/api/venues", probe: "/api/venues" },
+  { group: "venueBooking", mount: "/api/venueBooking", probe: "/api/venueBooking" },
+  { group: "catering", mount: "/api/catering", probe: "/api/catering" },
+  { group: "stallBooking", mount: "/api/stallBooking", probe: "/api/stallBooking" },
+  { group: "feedback", mount: "/api/feedback", probe: "/api/feedback" },
+  { group: "analytics", mount: "/api/analytics", probe: "/api/analytics" },
+  { group: "hod-analytics", mount: "/api/hod-analytics", probe: "/api/hod-analytics" },
+  { group: "dean-analytics", mount: "/api/dean-analytics", probe: "/api/dean-analytics" },
+  { group: "volunteer", mount: "/api/volunteer", probe: "/api/volunteer" },
 ];
 
 router.use(
@@ -879,36 +852,12 @@ router.post("/run", async (req, res) => {
   const sampleRows = await getSampleRows();
 
   const endpointChecks = await Promise.all([
-    probeEndpoint(req, apiBaseUrl, {
-      name: "Root service",
-      path: "/",
-      method: "GET",
-      expectedStatuses: [200],
-    }),
-    probeEndpoint(req, apiBaseUrl, {
-      name: "Events endpoint",
-      path: "/api/events?page=1&pageSize=5",
-      method: "GET",
-      expectedStatuses: [200],
-    }),
-    probeEndpoint(req, apiBaseUrl, {
-      name: "Fests endpoint",
-      path: "/api/fests?page=1&pageSize=5",
-      method: "GET",
-      expectedStatuses: [200],
-    }),
-    probeEndpoint(req, apiBaseUrl, {
-      name: "Users endpoint",
-      path: "/api/users?page=1&pageSize=5",
-      method: "GET",
-      expectedStatuses: [200],
-    }),
-    probeEndpoint(req, apiBaseUrl, {
-      name: "Notifications endpoint",
-      path: "/api/notifications/admin/history",
-      method: "GET",
-      expectedStatuses: [200],
-    }),
+    probeEndpoint(req, apiBaseUrl, { name: "Root service", path: "/", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Events endpoint", path: "/api/events?page=1&pageSize=5", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Fests endpoint", path: "/api/fests?page=1&pageSize=5", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Users endpoint", path: "/api/users?page=1&pageSize=5", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Clubs endpoint", path: "/api/clubs?page=1&pageSize=5", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Notifications endpoint", path: "/api/notifications/admin/history", method: "GET", expectedStatuses: [200] }),
     probeEndpoint(req, apiBaseUrl, {
       name: "Registrations endpoint",
       path: sampleRows.sampleEventId
@@ -917,12 +866,14 @@ router.post("/run", async (req, res) => {
       method: "GET",
       expectedStatuses: [200],
     }),
-    probeEndpoint(req, apiBaseUrl, {
-      name: "Chat endpoint",
-      path: "/api/chat/health",
-      method: "GET",
-      expectedStatuses: [200],
-    }),
+    probeEndpoint(req, apiBaseUrl, { name: "Chat endpoint", path: "/api/chat/health", method: "GET", expectedStatuses: [200] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Venues endpoint", path: "/api/venues", method: "GET", expectedStatuses: [200, 403] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Analytics endpoint", path: "/api/analytics", method: "GET", expectedStatuses: [200, 403] }),
+    probeEndpoint(req, apiBaseUrl, { name: "HOD Analytics endpoint", path: "/api/hod-analytics", method: "GET", expectedStatuses: [200, 403] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Dean Analytics endpoint", path: "/api/dean-analytics", method: "GET", expectedStatuses: [200, 403] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Volunteer endpoint", path: "/api/volunteer", method: "GET", expectedStatuses: [200, 403] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Feedback endpoint", path: "/api/feedback", method: "GET", expectedStatuses: [200, 403, 404] }),
+    probeEndpoint(req, apiBaseUrl, { name: "Approval endpoint", path: "/api/approval", method: "GET", expectedStatuses: [200, 403] }),
   ]);
 
   if (sampleRows.sampleEventId) {
@@ -987,6 +938,163 @@ router.post("/load", async (req, res) => {
     requestedBy: req.userInfo.email,
     result: loadResult,
   });
+});
+
+router.post("/stream-run", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const emit = (event, data) => {
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (typeof res.flush === "function") res.flush();
+    } catch (_err) {}
+  };
+
+  const includeMutations = Boolean(req.body?.includeMutations);
+  const confirmation = String(req.body?.confirmation || "").trim();
+  const startedAt = Date.now();
+  const apiBaseUrl = buildApiBaseUrl(req);
+
+  if (includeMutations && confirmation !== MUTATION_CONFIRMATION_PHRASE) {
+    emit("error", { message: "Mutation confirmation phrase mismatch" });
+    res.end();
+    return;
+  }
+
+  emit("log", { level: "info", ts: Date.now(), message: "Diagnostic stream started" });
+
+  const sampleRows = await getSampleRows();
+  emit("log", { level: "info", ts: Date.now(), message: `Sample rows → event:${sampleRows.sampleEventId || "none"} fest:${sampleRows.sampleFestId || "none"} user:${sampleRows.sampleUserEmail || "none"}` });
+
+  // ── Endpoint probes (sequential so we can stream each result live) ──
+  emit("section", { section: "endpointChecks" });
+
+  const endpointProbeConfigs = [
+    { name: "Root service", path: "/", method: "GET", expectedStatuses: [200] },
+    { name: "Events endpoint", path: "/api/events?page=1&pageSize=5", method: "GET", expectedStatuses: [200] },
+    { name: "Fests endpoint", path: "/api/fests?page=1&pageSize=5", method: "GET", expectedStatuses: [200] },
+    { name: "Users endpoint", path: "/api/users?page=1&pageSize=5", method: "GET", expectedStatuses: [200] },
+    { name: "Clubs endpoint", path: "/api/clubs?page=1&pageSize=5", method: "GET", expectedStatuses: [200] },
+    { name: "Notifications endpoint", path: "/api/notifications/admin/history", method: "GET", expectedStatuses: [200] },
+    {
+      name: "Registrations endpoint",
+      path: sampleRows.sampleEventId
+        ? `/api/registrations?event_id=${encodeURIComponent(sampleRows.sampleEventId)}`
+        : "/api/registrations",
+      method: "GET",
+      expectedStatuses: [200],
+    },
+    { name: "Chat endpoint", path: "/api/chat/health", method: "GET", expectedStatuses: [200] },
+    { name: "Venues endpoint", path: "/api/venues", method: "GET", expectedStatuses: [200, 403] },
+    { name: "Analytics endpoint", path: "/api/analytics", method: "GET", expectedStatuses: [200, 403] },
+    { name: "HOD Analytics endpoint", path: "/api/hod-analytics", method: "GET", expectedStatuses: [200, 403] },
+    { name: "Dean Analytics endpoint", path: "/api/dean-analytics", method: "GET", expectedStatuses: [200, 403] },
+    { name: "Volunteer endpoint", path: "/api/volunteer", method: "GET", expectedStatuses: [200, 403] },
+    { name: "Feedback endpoint", path: "/api/feedback", method: "GET", expectedStatuses: [200, 403, 404] },
+    { name: "Approval endpoint", path: "/api/approval", method: "GET", expectedStatuses: [200, 403] },
+  ];
+
+  if (sampleRows.sampleEventId) {
+    endpointProbeConfigs.push({
+      name: "Attendance participants endpoint",
+      path: `/api/events/${encodeURIComponent(sampleRows.sampleEventId)}/participants`,
+      method: "GET",
+      expectedStatuses: [200],
+    });
+  } else {
+    emit("check", { section: "endpointChecks", check: buildSkippedResult("Attendance participants endpoint", "No event available") });
+  }
+
+  const endpointChecks = [];
+  for (const probe of endpointProbeConfigs) {
+    const result = await probeEndpoint(req, apiBaseUrl, probe);
+    endpointChecks.push(result);
+    emit("check", { section: "endpointChecks", check: result });
+    emit("log", {
+      level: result.ok ? "pass" : (String(result.status) === "skipped" ? "skip" : "fail"),
+      ts: Date.now(),
+      message: `[${result.method || "GET"}] ${result.path || result.name} → ${result.status} (${result.durationMs}ms)`,
+    });
+  }
+
+  // ── Fetch/Display checks ──
+  emit("section", { section: "fetchDisplayChecks" });
+  const fetchDisplayChecks = await runFetchDisplayChecks(req, apiBaseUrl, sampleRows);
+  emit("checks", { section: "fetchDisplayChecks", checks: fetchDisplayChecks });
+  for (const check of fetchDisplayChecks) {
+    emit("log", {
+      level: check.ok ? "pass" : (String(check.status) === "skipped" ? "skip" : "fail"),
+      ts: Date.now(),
+      message: `[FETCH] ${check.name} → ${check.status} (${check.durationMs}ms)`,
+    });
+  }
+
+  // ── Workflow checks ──
+  emit("section", { section: "workflowChecks" });
+  const workflowChecks = await runWorkflowChecks(req, apiBaseUrl, sampleRows);
+  emit("checks", { section: "workflowChecks", checks: workflowChecks });
+  for (const check of workflowChecks) {
+    emit("log", {
+      level: check.ok ? "pass" : (String(check.status) === "skipped" ? "skip" : "fail"),
+      ts: Date.now(),
+      message: `[WORKFLOW] ${check.name} → ${check.status} (${check.durationMs}ms)`,
+    });
+  }
+
+  // ── Mutation checks ──
+  emit("section", { section: "mutationChecks" });
+  const mutationChecks = includeMutations
+    ? await runMutationChecks(req)
+    : [buildSkippedResult("Mutation workflows", "Mutating checks disabled")];
+  emit("checks", { section: "mutationChecks", checks: mutationChecks });
+  for (const check of mutationChecks) {
+    emit("log", {
+      level: check.ok ? "pass" : (String(check.status) === "skipped" ? "skip" : "fail"),
+      ts: Date.now(),
+      message: `[MUTATION] ${check.name} → ${check.status}`,
+    });
+  }
+
+  // ── Optional load check ──
+  let loadCheck = null;
+  if (req.body?.runLoad === true) {
+    emit("log", { level: "info", ts: Date.now(), message: "Starting load check..." });
+    loadCheck = await runLoadCheck(req, apiBaseUrl, req.body?.loadConfig || {}, sampleRows);
+    emit("loadResult", { result: loadCheck });
+    emit("log", {
+      level: (loadCheck.failureCount || 0) === 0 ? "pass" : "warn",
+      ts: Date.now(),
+      message: `[LOAD] ${loadCheck.targetPath || "?"} → p95=${loadCheck.p95Ms}ms errors=${loadCheck.errorRatePercent}%`,
+    });
+  }
+
+  const summary = {
+    endpoints: countByStatus(endpointChecks),
+    fetchDisplay: countByStatus(fetchDisplayChecks),
+    workflows: countByStatus(workflowChecks),
+    mutations: countByStatus(mutationChecks),
+  };
+
+  emit("done", {
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt,
+    includeMutations,
+    requestedBy: req.userInfo.email,
+    sampleRows,
+    endpointChecks,
+    fetchDisplayChecks,
+    workflowChecks,
+    mutationChecks,
+    loadCheck,
+    summary,
+  });
+
+  res.end();
 });
 
 export default router;
