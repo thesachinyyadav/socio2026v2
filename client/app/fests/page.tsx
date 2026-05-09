@@ -277,7 +277,7 @@ const FestsPageContent = () => {
                 Explore fests
               </h1>
               <p className="text-gray-500 mt-1 text-sm sm:text-base">
-                Browse through all upcoming fests and festivals happening on campus.
+                {userData?.campus ? `Fests at ${userData.campus}` : "Fests across all campuses"}
               </p>
             </div>
             <Link
