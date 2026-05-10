@@ -12,7 +12,9 @@ server/node_modules/
 
 # Next.js and build outputs
 .next/
+.next-dev/
 client/.next/
+client/.next-dev/
 out/
 build/
 dist/

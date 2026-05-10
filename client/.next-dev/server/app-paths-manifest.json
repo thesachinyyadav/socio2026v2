@@ -1,8 +1,0 @@
-{
-  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
-  "/api/notifications/route": "app/api/notifications/route.js",
-  "/page": "app/page.js",
-  "/manage/page": "app/manage/page.js",
-  "/masteradmin/page": "app/masteradmin/page.js",
-  "/Discover/page": "app/Discover/page.js"
-}
