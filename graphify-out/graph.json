@@ -34753,9 +34753,9 @@
       "source_file": "client\\app\\_components\\Tour\\TourGuide.tsx",
       "source_location": "L76",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "client_app_components_tour_tourguide_tsx",
-      "target": "tour_tourguide_computetooltipstyle",
-      "confidence_score": 1.0
+      "target": "tour_tourguide_computetooltipstyle"
     },
     {
       "relation": "contains",
@@ -34763,9 +34763,9 @@
       "source_file": "client\\app\\_components\\Tour\\TourGuide.tsx",
       "source_location": "L184",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "client_app_components_tour_tourguide_tsx",
-      "target": "tour_tourguide_next",
-      "confidence_score": 1.0
+      "target": "tour_tourguide_next"
     },
     {
       "relation": "contains",
@@ -34773,9 +34773,9 @@
       "source_file": "client\\app\\_components\\Tour\\TourGuide.tsx",
       "source_location": "L189",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "client_app_components_tour_tourguide_tsx",
-      "target": "tour_tourguide_back",
-      "confidence_score": 1.0
+      "target": "tour_tourguide_back"
     },
     {
       "relation": "calls",
