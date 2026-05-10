@@ -8,6 +8,7 @@ import { FestsSection } from "../_components/Discover/FestSection";
 import { CategorySection } from "../_components/Discover/CategorySection";
 import { ClubSection } from "../_components/Discover/ClubSection";
 import { PendingFeedbackSection } from "../_components/Discover/PendingFeedbackSection";
+import { TourGuide } from "../_components/Tour/TourGuide";
 import Footer from "../_components/Home/Footer";
 import { ClubRecord } from "../actions/clubs";
 import { toClubCategories } from "../lib/clubCategory";
@@ -475,6 +476,7 @@ const DiscoverPageContent = () => {
             <div
               className="relative w-full md:w-64 mt-4 md:mt-6"
               ref={dropdownRef}
+              data-tour="campus-filter"
             >
               <div
                 className="bg-white rounded-lg px-4 py-3 border-2 border-gray-200 transition-all hover:border-[#154CB3] cursor-pointer"
@@ -559,8 +561,6 @@ const DiscoverPageContent = () => {
             </div>
           )}
 
-          <PendingFeedbackSection />
-
           {!isLoadingEventsFromContext && !errorEventsFromContext && (
             <>
               {campusCarouselEventsFiltered.length > 0 ? (
@@ -577,6 +577,7 @@ const DiscoverPageContent = () => {
                 </div>
               )}
 
+              <div data-tour="trending-events">
               {campusTrendingEventsFiltered.length > 0 ? (
                 <EventsSection
                   title="Trending events"
@@ -595,6 +596,7 @@ const DiscoverPageContent = () => {
                   No trending events at {selectedCampus} right now.
                 </div>
               )}
+              </div>
             </>
           )}
         </section>
@@ -653,7 +655,7 @@ const DiscoverPageContent = () => {
           )}
         </section>
 
-        <section className="mb-12">
+        <section className="mb-12" data-tour="categories">
           <CategorySection
             title="Browse by category"
             categories={dynamicCategories}
@@ -711,6 +713,8 @@ const DiscoverPageContent = () => {
         )}
       </main>
       <Footer />
+      <TourGuide />
+      <PendingFeedbackSection />
     </div>
   );
 };

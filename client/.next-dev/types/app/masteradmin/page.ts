@@ -1,4 +1,4 @@
-// File: C:\Christ ICF\socioweb\client\app\masteradmin\page.tsx
+// File: D:\CODES\SOCIO\socioweb\client\app\masteradmin\page.tsx
 import * as entry from '../../../../app/masteradmin/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

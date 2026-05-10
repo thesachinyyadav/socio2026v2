@@ -677,6 +677,33 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/api/notifications/[id]/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/notifications/[id]">> = Specific
+  const handler = {} as typeof import("../../app/api/notifications/[id]/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/api/notifications/clear-all/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/notifications/clear-all">> = Specific
+  const handler = {} as typeof import("../../app/api/notifications/clear-all/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/api/notifications/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/notifications">> = Specific
+  const handler = {} as typeof import("../../app/api/notifications/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/auth/callback/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/auth/callback">> = Specific
@@ -690,6 +717,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/googlef9d3f1696ce89505.html">> = Specific
   const handler = {} as typeof import("../../app/googlef9d3f1696ce89505.html/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/pitch/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/pitch">> = Specific
+  const handler = {} as typeof import("../../app/pitch/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

@@ -6,65 +6,26 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/masteradmin/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/masteradmin/page.js"
+      "static/css/app/page.css",
+      "static/chunks/app/page.js"
     ],
-    "/about/layout": [
+    "/manifest.webmanifest/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/about/layout.js"
+      "static/chunks/app/manifest.webmanifest/route.js"
     ],
-    "/about/story/layout": [
+    "/auth/callback/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/about/story/layout.js"
+      "static/chunks/app/auth/callback/route.js"
     ],
-    "/about/story/page": [
+    "/api/notifications/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/about/story/page.js"
-    ],
-    "/about/team/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/about/team/layout.js"
-    ],
-    "/about/team/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/about/team/page.js"
-    ],
-    "/manage/loading": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/manage/loading.js"
-    ],
-    "/manage/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/manage/page.js"
-    ],
-    "/event/[id]/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/event/[id]/layout.js"
-    ],
-    "/event/[id]/loading": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/event/[id]/loading.js"
-    ],
-    "/event/[id]/participants/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/event/[id]/participants/page.js"
-    ],
-    "/attendance/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/attendance/page.js"
+      "static/chunks/app/api/notifications/route.js"
     ],
     "/Discover/layout": [
       "static/chunks/webpack.js",
@@ -81,76 +42,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/Discover/page.js"
     ],
-    "/event/[id]/page": [
+    "/manage/loading": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/event/[id]/page.js"
+      "static/chunks/app/manage/loading.js"
     ],
-    "/fest/[id]/loading": [
+    "/manage/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/fest/[id]/loading.js"
+      "static/chunks/app/manage/page.js"
     ],
-    "/fest/[id]/page": [
+    "/masteradmin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/fest/[id]/page.js"
-    ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/page.css",
-      "static/chunks/app/page.js"
-    ],
-    "/terms/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/terms/layout.js"
-    ],
-    "/terms/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/terms/page.js"
-    ],
-    "/auth/callback/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/auth/callback/route.js"
-    ],
-    "/auth/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/auth/layout.js"
-    ],
-    "/auth/popup-success/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/auth/popup-success/page.js"
-    ],
-    "/catering/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/catering/page.js"
-    ],
-    "/about/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/about/page.js"
-    ],
-    "/solutions/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/solutions/layout.js"
-    ],
-    "/solutions/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/solutions/page.js"
-    ],
-    "/_not-found/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/masteradmin/page.js"
     ]
   }
 }

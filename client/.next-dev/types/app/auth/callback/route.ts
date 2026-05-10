@@ -1,4 +1,4 @@
-// File: C:\Christ ICF\socioweb\client\app\auth\callback\route.ts
+// File: D:\CODES\SOCIO\socioweb\client\app\auth\callback\route.ts
 import * as entry from '../../../../../app/auth/callback/route.js'
 import type { NextRequest } from 'next/server.js'
 

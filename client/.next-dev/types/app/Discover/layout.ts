@@ -1,4 +1,4 @@
-// File: C:\Christ ICF\socioweb\client\app\Discover\layout.tsx
+// File: D:\CODES\SOCIO\socioweb\client\app\Discover\layout.tsx
 import * as entry from '../../../../app/Discover/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

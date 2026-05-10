@@ -11,6 +11,12 @@
       "static/chunks/_app-pages-browser_app__components_TermsConsentModal_tsx.js"
     ]
   },
+  "app\\masteradmin\\page.tsx -> ../_components/Admin/AdminDashboardView": {
+    "id": "app\\masteradmin\\page.tsx -> ../_components/Admin/AdminDashboardView",
+    "files": [
+      "static/chunks/_app-pages-browser_app__components_Admin_AdminDashboardView_tsx.js"
+    ]
+  },
   "app\\masteradmin\\page.tsx -> ../_components/Admin/AdminNotifications": {
     "id": "app\\masteradmin\\page.tsx -> ../_components/Admin/AdminNotifications",
     "files": [
@@ -21,6 +27,12 @@
     "id": "app\\masteradmin\\page.tsx -> ../_components/Admin/AnalyticsDashboard",
     "files": [
       "static/chunks/_app-pages-browser_app__components_Admin_AnalyticsDashboard_tsx.js"
+    ]
+  },
+  "app\\masteradmin\\page.tsx -> ../_components/Admin/ApprovalsManager": {
+    "id": "app\\masteradmin\\page.tsx -> ../_components/Admin/ApprovalsManager",
+    "files": [
+      "static/chunks/_app-pages-browser_app__components_Admin_ApprovalsManager_tsx.js"
     ]
   },
   "app\\masteradmin\\page.tsx -> ../_components/Admin/DataExplorerDashboard": {
@@ -98,12 +110,6 @@
     "id": "node_modules\\next\\dist\\client\\index.js -> ../pages/_error",
     "files": [
       "static/chunks/_pages-dir-browser_node_modules_next_dist_pages__error_js.js"
-    ]
-  },
-  "node_modules\\qr-scanner\\qr-scanner.min.js -> ./qr-scanner-worker.min.js": {
-    "id": "node_modules\\qr-scanner\\qr-scanner.min.js -> ./qr-scanner-worker.min.js",
-    "files": [
-      "static/chunks/_app-pages-browser_node_modules_qr-scanner_qr-scanner-worker_min_js.js"
     ]
   }
 }

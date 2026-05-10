@@ -672,6 +672,29 @@ router.delete("/:email", authenticateUser, getUserInfo(), checkRoleExpiration, r
   }
 });
 
+// Mark tour as seen (self-service)
+router.patch("/:email/tour-seen", authenticateUser, async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (!req.user || req.user.email !== email) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const { error } = await supabase
+      .from("users")
+      .update({ tour_seen: true })
+      .eq("email", email);
+
+    if (error) throw error;
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("Error marking tour seen:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Update user campus (self-service for Christ members)
 router.patch("/:email/campus", async (req, res) => {
   try {

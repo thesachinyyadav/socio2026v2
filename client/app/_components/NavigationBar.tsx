@@ -575,6 +575,7 @@ function NavigationBar() {
                                setShowClubSelectionModal(true);
                              }
                            }}
+                           {...((roleAction.key === "organiser" || roleAction.key === "student_organiser") ? { "data-tour": "organiser-pill" } : roleAction.key === "admin" ? { "data-tour": "admin-pill" } : {})}
                         >
                           <button
                             className={`cursor-pointer font-semibold px-3 py-1.5 sm:px-4 sm:py-2 border-2 rounded-full text-xs sm:text-sm transition-all duration-200 ease-in-out ${getRolePillClasses(roleAction.variant)}`}
@@ -652,6 +653,7 @@ function NavigationBar() {
                       onClick={handleProfileDropdownToggle}
                       aria-expanded={showProfileDropdown}
                       aria-label="Open profile menu"
+                      data-tour="profile-menu"
                       className="flex items-center gap-2 lg:gap-4 min-w-0 cursor-pointer"
                     >
                       <div className={profileAvatarClasses}>
@@ -704,6 +706,7 @@ function NavigationBar() {
                       onClick={handleProfileDropdownToggle}
                       aria-expanded={showProfileDropdown}
                       aria-label="Open profile menu"
+                      data-tour="profile-menu"
                       className="flex items-center gap-2 lg:gap-4 min-w-0 cursor-pointer"
                     >
                       <span className="hidden lg:block font-medium truncate max-w-[140px]">

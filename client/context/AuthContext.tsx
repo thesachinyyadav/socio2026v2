@@ -37,6 +37,7 @@ type UserData = {
   organization_type?: 'christ_member' | 'outsider';
   visitor_id?: string | null;
   outsider_name_edit_used?: boolean | null;
+  tour_seen?: boolean | null;
 };
 
 type AuthContextType = {
