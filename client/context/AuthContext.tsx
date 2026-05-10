@@ -114,6 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Restore session + userData from localStorage synchronously before paint so
   // returning users see the correct navbar state on the very first frame.
+  // NOTE: isLoading stays true until Supabase verifies the session — this prevents
+  // protected pages from firing API calls with a potentially expired cached token.
   useLayoutEffect(() => {
     const storedSession = localStorage.getItem('socio_session');
     const storedUserData = localStorage.getItem('socio_user_data');
@@ -121,7 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setSession(JSON.parse(storedSession));
         setUserData(JSON.parse(storedUserData));
-        setIsLoading(false);
       } catch {
         localStorage.removeItem('socio_session');
         localStorage.removeItem('socio_user_data');
@@ -155,8 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const checkUserSession = async () => {
-      // Only show the loading spinner when there is no cached data to display.
-      if (!localStorage.getItem('socio_user_data')) setIsLoading(true);
+      setIsLoading(true);
       try {
         // Add timeout to prevent hanging on Supabase connection issues
         const timeoutPromise = new Promise((_, reject) =>
