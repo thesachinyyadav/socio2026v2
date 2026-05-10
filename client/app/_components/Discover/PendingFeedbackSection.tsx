@@ -15,8 +15,16 @@ export function PendingFeedbackSection() {
   const { userData, session } = useAuth();
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("feedback_widget_dismissed")) {
+      setDismissed(true);
+      setLoaded(true);
+      return;
+    }
+
     if (!userData?.email || !session?.access_token) return;
 
     const token = session.access_token;
@@ -28,7 +36,6 @@ export function PendingFeedbackSection() {
       .then((r) => (r.ok ? r.json() : null))
       .then(async (data) => {
         const notifs: any[] = Array.isArray(data?.notifications) ? data.notifications : [];
-        // Include all feedback_form notifications regardless of read status
         const feedbackNotifs = notifs.filter((n) => n.type === "feedback_form" && n.eventId);
 
         if (feedbackNotifs.length === 0) {
@@ -36,7 +43,6 @@ export function PendingFeedbackSection() {
           return;
         }
 
-        // Filter out events where feedback was already submitted
         const checks = await Promise.all(
           feedbackNotifs.map((n) =>
             fetch(`/api/feedbacks/${n.eventId}/check`, {
@@ -63,53 +69,95 @@ export function PendingFeedbackSection() {
       .finally(() => setLoaded(true));
   }, [userData?.email, session?.access_token]);
 
-  if (!loaded || items.length === 0) return null;
+  const dismiss = () => {
+    sessionStorage.setItem("feedback_widget_dismissed", "1");
+    setDismissed(true);
+  };
+
+  if (!loaded || items.length === 0 || dismissed) return null;
 
   return (
-    <section className="mb-10">
-      <div className="flex items-center gap-2.5 mb-4">
-        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
-          <svg
-            className="w-4 h-4 text-violet-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-            />
-          </svg>
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-gray-900">Share your experience</h2>
-          <p className="text-xs text-gray-500">
-            {items.length} event{items.length !== 1 ? "s" : ""} waiting for your feedback
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="bg-white border border-violet-100 rounded-xl p-4 flex items-center justify-between gap-3 hover:border-violet-300 hover:shadow-sm transition-all"
-          >
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 font-medium mb-0.5">Your feedback is needed</p>
-              <p className="text-sm font-bold text-gray-900 truncate">{item.eventTitle}</p>
+    <div className="fixed bottom-6 left-6 z-50 w-72 max-w-[calc(100vw-3rem)]">
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2.5 bg-[#18181b] border border-[#27272a] text-white px-4 py-2.5 rounded-xl shadow-2xl hover:bg-[#232326] transition-colors"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
+          </span>
+          <span className="text-xs font-medium text-gray-200">
+            {items.length} feedback pending
+          </span>
+        </button>
+      ) : (
+        <div className="bg-[#18181b] border border-[#27272a] rounded-2xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <span className="text-[10px] font-bold bg-violet-600 text-white px-2.5 py-1 rounded-full tracking-widest uppercase">
+              {items.length} PENDING
+            </span>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
+                title="Minimize"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={dismiss}
+                className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
+                title="Dismiss"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
+          </div>
+
+          {/* Body */}
+          <div className="px-4 pb-3 pt-1">
+            <p className="text-sm font-semibold text-white mb-0.5">Share your experience</p>
+            <p className="text-[11px] text-gray-400 leading-relaxed mb-3">
+              You attended {items.length === 1 ? "an event" : `${items.length} events`} — your feedback helps others discover what&apos;s worth going to.
+            </p>
+
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 bg-white/5 hover:bg-white/8 rounded-lg px-3 py-2 transition-colors"
+                >
+                  <span className="text-[11px] text-gray-300 truncate flex-1 leading-tight">
+                    {item.eventTitle}
+                  </span>
+                  <Link
+                    href={item.actionUrl}
+                    className="flex-shrink-0 text-[11px] font-semibold text-violet-400 hover:text-violet-300 transition-colors whitespace-nowrap"
+                  >
+                    Rate →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer CTA */}
+          <div className="px-4 pb-4">
             <Link
-              href={item.actionUrl}
-              className="flex-shrink-0 px-3 py-2 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 transition-colors whitespace-nowrap"
+              href={items[0]?.actionUrl ?? "/"}
+              className="block w-full text-center text-xs font-semibold bg-white text-[#18181b] py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
             >
-              Give Feedback →
+              Give feedback now
             </Link>
           </div>
-        ))}
-      </div>
-    </section>
+        </div>
+      )}
+    </div>
   );
 }

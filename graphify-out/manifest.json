@@ -520,11 +520,11 @@
     "hash": "60e7e36ef855edab56a1a0ce02d2def3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\NavigationBar.tsx": {
-    "mtime": 1778334447.1831534,
+    "mtime": 1778334704.8639717,
     "hash": "4fed2dd78b650f14d3c980da30862be3"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\NotificationSystem.tsx": {
-    "mtime": 1778334433.3155367,
+    "mtime": 1778334704.8662317,
     "hash": "562297ea9e7155adf0bf39ede53d2654"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\app\\_components\\OperationalRequestsWizard.tsx": {
@@ -712,8 +712,8 @@
     "hash": "1d2cac54b0585465047d78465c96b2fa"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\context\\AuthContext.tsx": {
-    "mtime": 1778313540.1995833,
-    "hash": "b624e0fd922da8ccf5a92db8f82df6a6"
+    "mtime": 1778430375.8727996,
+    "hash": "a6ec3bc6f982b98737f5489a4df432bf"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\context\\EventContext.tsx": {
     "mtime": 1777830423.0772715,
@@ -752,7 +752,7 @@
     "hash": "17e8de1f7bbd8c2b1244b66b28adde00"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\supabaseClient.ts": {
-    "mtime": 1778334416.6529398,
+    "mtime": 1778334704.8675954,
     "hash": "01a11d56f588f5d14bfbf7ed7471f001"
   },
   "D:\\CODES\\SOCIO\\socioweb\\client\\lib\\utils.ts": {
@@ -768,8 +768,8 @@
     "hash": "c0737ad634173d2cfc826248e1e720cc"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\index.js": {
-    "mtime": 1778317742.7268465,
-    "hash": "f87afa5a66984a35de2235b61629dde3"
+    "mtime": 1778334704.6359959,
+    "hash": "be01d65bca4525658042a8bcb2660020"
   },
   "D:\\CODES\\SOCIO\\socioweb\\server\\config\\database.js": {
     "mtime": 1777786288.4563951,

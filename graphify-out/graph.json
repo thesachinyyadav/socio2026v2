@@ -8260,7 +8260,7 @@
       "label": "getOrganizationType()",
       "file_type": "code",
       "source_file": "client\\context\\AuthContext.tsx",
-      "source_location": "L142",
+      "source_location": "L143",
       "id": "context_authcontext_getorganizationtype",
       "community": 15,
       "norm_label": "getorganizationtype()"
@@ -8269,7 +8269,7 @@
       "label": "checkUserSession()",
       "file_type": "code",
       "source_file": "client\\context\\AuthContext.tsx",
-      "source_location": "L157",
+      "source_location": "L158",
       "id": "context_authcontext_checkusersession",
       "community": 15,
       "norm_label": "checkusersession()"
@@ -9448,7 +9448,7 @@
       "label": "parseCsvEnv()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L82",
+      "source_location": "L84",
       "id": "server_index_parsecsvenv",
       "community": 27,
       "norm_label": "parsecsvenv()"
@@ -9457,7 +9457,7 @@
       "label": "compileOriginPatterns()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L88",
+      "source_location": "L90",
       "id": "server_index_compileoriginpatterns",
       "community": 27,
       "norm_label": "compileoriginpatterns()"
@@ -9466,7 +9466,7 @@
       "label": "isOriginAllowed()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L115",
+      "source_location": "L117",
       "id": "server_index_isoriginallowed",
       "community": 27,
       "norm_label": "isoriginallowed()"
@@ -9475,7 +9475,7 @@
       "label": "setCorsHeaders()",
       "file_type": "code",
       "source_file": "server\\index.js",
-      "source_location": "L121",
+      "source_location": "L123",
       "id": "server_index_setcorsheaders",
       "community": 27,
       "norm_label": "setcorsheaders()"
