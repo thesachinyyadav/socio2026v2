@@ -92,7 +92,7 @@ function computeTooltipStyle(
     case "left":
       return { top: rect.top + rect.height / 2 - 80, right: window.innerWidth - rect.left + PAD };
     case "right":
-      return { top: rect.top + rect.height / 2 - 80, left: rect.right + PAD };
+      return { top: rect.top + rect.height / 2 - 80, left: rect.left + rect.width + PAD };
     case "bottom":
     default:
       return { top: Math.min(rect.top + rect.height + PAD, window.innerHeight - 200), left: clampedLeft };
