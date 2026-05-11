@@ -4091,10 +4091,10 @@ function MasterAdminPageInner() {
           const campusOnlyRoles = ["venue_manager"];
 
           return (
-            <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
               {/* ── Assign form (compact) ── */}
-              <div className="shrink-0 border-b border-gray-200 bg-white px-5 py-4 space-y-3">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Assign Role</p>
+              <div className="shrink-0 space-y-4 border-b border-slate-200 bg-white/95 px-6 py-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Assign Role</p>
                 <div className="flex gap-3 items-start flex-wrap">
                   {/* Email */}
                   <div className="relative min-w-[220px] flex-1">
@@ -4103,25 +4103,25 @@ function MasterAdminPageInner() {
                       value={roleEmailInput}
                       onChange={(e) => { setRoleEmailInput(e.target.value); setRoleSelectedEmail(""); searchRoleEmails(e.target.value); }}
                       placeholder="Email or name…"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                     {roleEmailSuggestions.length > 0 && !roleSelectedEmail && (
-                      <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden">
+                      <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
                         {roleEmailSuggestions.map(s => (
                           <li key={s.email}>
                             <button type="button"
                               onClick={() => { setRoleSelectedEmail(s.email); setRoleEmailInput(s.email); setRoleEmailSuggestions([]); }}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
                             >
                               <span className="font-medium">{s.name}</span>
-                              {s.name !== s.email && <span className="text-gray-400 text-xs ml-2">{s.email}</span>}
+                              {s.name !== s.email && <span className="ml-2 text-xs text-slate-400">{s.email}</span>}
                             </button>
                           </li>
                         ))}
                       </ul>
                     )}
                     <div className="min-h-[18px] pt-0.5">
-                      {roleSelectedEmail && <p className="text-[11px] text-green-600 font-medium">✓ selected</p>}
+                      {roleSelectedEmail && <p className="text-[11px] font-medium text-blue-700">✓ selected</p>}
                     </div>
                   </div>
 
@@ -4130,7 +4130,7 @@ function MasterAdminPageInner() {
                     <select
                       value={roleSelectedRole}
                       onChange={e => { setRoleSelectedRole(e.target.value as any); setRoleSchool(""); setRoleDept(""); setRoleCampus(""); }}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     >
                       <option value="">Select role…</option>
                       {ASSIGN_ROLE_DEFS.map(r => (
@@ -4144,18 +4144,18 @@ function MasterAdminPageInner() {
                 {roleSelectedRole && (
                   <div className="flex gap-3 flex-wrap items-end">
                     <div className="min-w-[160px]">
-                      <label className="block text-[11px] font-medium text-gray-500 mb-0.5">Campus</label>
-                      <select value={roleCampus} onChange={e => setRoleCampus(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <label className="mb-0.5 block text-[11px] font-medium text-slate-500">Campus</label>
+                        <select value={roleCampus} onChange={e => setRoleCampus(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                         <option value="">Select…</option>
                         {christCampuses.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     {!campusOnlyRoles.includes(roleSelectedRole) && (roleSelectedRole === "hod" || roleSelectedRole === "dean") && (
                       <div className="min-w-[200px]">
-                        <label className="block text-[11px] font-medium text-gray-500 mb-0.5">School</label>
+                        <label className="mb-0.5 block text-[11px] font-medium text-slate-500">School</label>
                         <select value={roleSchool} onChange={e => { setRoleSchool(e.target.value); setRoleDept(""); }}
-                          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                           <option value="">Select…</option>
                           {organizingSchools.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
@@ -4163,9 +4163,9 @@ function MasterAdminPageInner() {
                     )}
                     {!campusOnlyRoles.includes(roleSelectedRole) && roleSelectedRole === "hod" && (
                       <div className="min-w-[200px]">
-                        <label className="block text-[11px] font-medium text-gray-500 mb-0.5">Department</label>
+                        <label className="mb-0.5 block text-[11px] font-medium text-slate-500">Department</label>
                         <select value={roleDept} onChange={e => setRoleDept(e.target.value)} disabled={!roleSchool}
-                          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-40">
+                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-40">
                           <option value="">{roleSchool ? "Select…" : "Pick school first"}</option>
                           {getDepartmentOptionsForSchool(roleSchool).map(d => <option key={d.value} value={d.label}>{d.label}</option>)}
                         </select>
@@ -4173,7 +4173,7 @@ function MasterAdminPageInner() {
                     )}
                     <button onClick={saveApprovalRole}
                       disabled={!roleSelectedEmail || !roleSelectedRole || !roleCampus || (!campusOnlyRoles.includes(roleSelectedRole) && roleSelectedRole === "hod" && (!roleSchool || !roleDept)) || (!campusOnlyRoles.includes(roleSelectedRole) && roleSelectedRole === "dean" && !roleSchool) || roleSaving}
-                      className="px-4 py-1.5 bg-[#154cb3] text-white rounded-lg text-sm font-semibold hover:bg-[#1240a0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      className="whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                     >{roleSaving ? "Saving…" : "Assign Role"}</button>
                   </div>
                 )}
@@ -4182,43 +4182,43 @@ function MasterAdminPageInner() {
               {/* ── Role holders list ── */}
               <div className="flex-1 overflow-y-auto">
                 {/* Filter bar */}
-                <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-5 py-3 flex gap-2 flex-wrap items-center">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-1">Filter</span>
+                <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/95 px-6 py-3 backdrop-blur">
+                  <span className="mr-1 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Filter</span>
                   <select value={roleListRoleFilter} onChange={e => { setRoleListRoleFilter(e.target.value); setRoleListDeptFilter(""); setRoleListSchoolFilter(""); }}
-                    className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                     <option value="all">All Roles</option>
                     {ROLE_DEFS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
                   </select>
                   {needsDept && (
                     <select value={roleListDeptFilter} onChange={e => setRoleListDeptFilter(e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 max-w-[200px]">
+                      className="max-w-[200px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                       <option value="">All Departments</option>
                       {[...new Set(roleHolders.filter(u => u.is_hod).map(u => u.department || "").filter(Boolean))].sort().map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                   )}
                   {needsSchool && (
                     <select value={roleListSchoolFilter} onChange={e => setRoleListSchoolFilter(e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 max-w-[220px]">
+                      className="max-w-[220px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                       <option value="">All Schools</option>
                       {organizingSchools.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   )}
                   <select value={roleListCampusFilter} onChange={e => setRoleListCampusFilter(e.target.value)}
-                    className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                     <option value="">All Campuses</option>
                     {christCampuses.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   <input value={roleListSearch} onChange={e => setRoleListSearch(e.target.value)}
                     placeholder="Search name / email…"
-                    className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 min-w-[150px]" />
-                  <span className="ml-auto text-xs text-gray-400">{filteredRows.length} user{filteredRows.length !== 1 ? "s" : ""}</span>
+                    className="min-w-[150px] rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  <span className="ml-auto text-xs text-slate-400">{filteredRows.length} user{filteredRows.length !== 1 ? "s" : ""}</span>
                   <button onClick={() => exportRolesToCSV(filteredRows.flatMap(r => r.roles.map(role => ({ user: r.user, role: role.roleKey, roleLabel: role.roleLabel }))))}
-                    className="ml-1 flex items-center gap-1.5 px-3 py-1 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                    className="ml-1 flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Export CSV
                   </button>
                   <button onClick={fetchRoleHolders} title="Refresh"
-                    className="p-1 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+                    className="rounded-lg border border-slate-300 p-1.5 text-slate-500 transition-colors hover:bg-slate-50">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                   </button>
                 </div>
@@ -4231,45 +4231,45 @@ function MasterAdminPageInner() {
                 ) : (
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-100 text-left">
-                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
-                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
-                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Roles</th>
-                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept / School</th>
-                        <th className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Campus</th>
+                      <tr className="border-b border-slate-200 text-left">
+                        <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
+                        <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Email</th>
+                        <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Roles</th>
+                        <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Dept / School</th>
+                        <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Campus</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
                         const ROLE_COLORS: Record<string, string> = {
-                          organiser:   "bg-indigo-100 text-indigo-700",
-                          support:     "bg-teal-100 text-teal-700",
-                          masteradmin: "bg-rose-100 text-rose-700",
-                          hod:         "bg-purple-100 text-purple-700",
-                          dean:        "bg-blue-100 text-blue-700",
-                          cfo:         "bg-amber-100 text-amber-700",
-                          director:    "bg-cyan-100 text-cyan-700",
-                          accounts:    "bg-green-100 text-green-700",
-                          it_support:  "bg-sky-100 text-sky-700",
-                          stalls:      "bg-orange-100 text-orange-700",
-                          venue_manager: "bg-violet-100 text-violet-700",
+                          organiser: "border border-blue-200 bg-blue-50 text-blue-700",
+                          support: "border border-blue-200 bg-blue-50 text-blue-700",
+                          masteradmin: "border border-blue-200 bg-blue-50 text-blue-700",
+                          hod: "border border-slate-200 bg-slate-100 text-slate-700",
+                          dean: "border border-slate-200 bg-slate-100 text-slate-700",
+                          cfo: "border border-slate-200 bg-slate-100 text-slate-700",
+                          director: "border border-slate-200 bg-slate-100 text-slate-700",
+                          accounts: "border border-slate-200 bg-slate-100 text-slate-700",
+                          it_support: "border border-slate-200 bg-slate-100 text-slate-700",
+                          stalls: "border border-slate-200 bg-slate-100 text-slate-700",
+                          venue_manager: "border border-slate-200 bg-slate-100 text-slate-700",
                         };
-                        return filteredRows.map(({ user, roles }, i) => (
-                          <tr key={user.email} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? "" : "bg-slate-50/40"}`}>
-                            <td className="px-5 py-2.5 font-medium text-gray-900 truncate max-w-[140px]">{user.name || "—"}</td>
-                            <td className="px-5 py-2.5 text-gray-500 text-xs truncate max-w-[180px]">{user.email}</td>
-                            <td className="px-5 py-2.5">
+                        return filteredRows.map(({ user, roles }) => (
+                          <tr key={user.email} className="border-b border-slate-100 transition-colors hover:bg-slate-50">
+                            <td className="max-w-[140px] truncate px-6 py-3 font-medium text-slate-900">{user.name || "—"}</td>
+                            <td className="max-w-[180px] truncate px-6 py-3 text-xs text-slate-500">{user.email}</td>
+                            <td className="px-6 py-3">
                               <div className="flex flex-wrap gap-1">
                                 {roles.map(({ roleKey, roleLabel }) => {
                                   const removingThis = roleRemoving === `${user.email}:${roleKey}`;
                                   return (
-                                    <span key={roleKey} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${ROLE_COLORS[roleKey] || "bg-gray-100 text-gray-600"}`}>
+                                    <span key={roleKey} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${ROLE_COLORS[roleKey] || "border border-slate-200 bg-slate-100 text-slate-700"}`}>
                                       {roleLabel}
                                       <button
                                         onClick={() => removeApprovalRole(user, roleKey)}
                                         disabled={!!roleRemoving}
                                         title={`Remove ${roleLabel} role`}
-                                        className="opacity-50 hover:opacity-100 disabled:opacity-20 transition-opacity leading-none"
+                                        className="leading-none opacity-50 transition-opacity hover:opacity-100 disabled:opacity-20"
                                       >
                                         {removingThis
                                           ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
@@ -4281,8 +4281,8 @@ function MasterAdminPageInner() {
                                 })}
                               </div>
                             </td>
-                            <td className="px-5 py-2.5 text-gray-600 text-xs truncate max-w-[200px]">{user.department || user.school || "—"}</td>
-                            <td className="px-5 py-2.5 text-gray-500 text-xs truncate max-w-[160px]">{user.campus || "—"}</td>
+                            <td className="max-w-[200px] truncate px-6 py-3 text-xs text-slate-600">{user.department || user.school || "—"}</td>
+                            <td className="max-w-[160px] truncate px-6 py-3 text-xs text-slate-500">{user.campus || "—"}</td>
                           </tr>
                         ));
                       })()}
