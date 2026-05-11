@@ -11,63 +11,87 @@ interface TourStep {
   position?: "top" | "bottom" | "left" | "right";
 }
 
-const BASE_STEPS: TourStep[] = [
+const MASTERADMIN_STEPS: TourStep[] = [
   {
     id: "welcome",
-    title: "Welcome to Socio",
+    title: "Welcome to Admin Control",
     description:
-      "Your platform for discovering and registering for events, fests, and activities at your university. Let us show you around — takes under a minute.",
+      "This is your platform-wide control centre. You have full visibility and control over users, events, fests, roles, venues and more.",
     target: null,
   },
   {
-    id: "campus-filter",
-    title: "Find events near you",
+    id: "dashboard",
+    title: "Dashboard",
     description:
-      "Switch between campuses using this dropdown. Events, fests and clubs are filtered to your selected location.",
-    target: '[data-tour="campus-filter"]',
-    position: "bottom",
+      "Your live analytics overview — KPIs, registration trends, revenue estimates and activity feed across all campuses and departments.",
+    target: '[data-tour="admin-tab-dashboard"]',
+    position: "right",
   },
   {
-    id: "trending-events",
-    title: "What's trending",
+    id: "users",
+    title: "Users",
     description:
-      "See the most popular events happening at your campus right now. Click any card to view details and register.",
-    target: '[data-tour="trending-events"]',
-    position: "top",
+      "Browse, search and manage every user on the platform. Edit roles, view registration history and delete accounts from here.",
+    target: '[data-tour="admin-tab-users"]',
+    position: "right",
   },
   {
-    id: "categories",
-    title: "Browse by category",
-    description: "Academic, Cultural, Sports and more — filter by what interests you most.",
-    target: '[data-tour="categories"]',
-    position: "top",
+    id: "events",
+    title: "Events",
+    description:
+      "Full visibility into every event across all organisers — view registrations, edit details, archive or delete events platform-wide.",
+    target: '[data-tour="admin-tab-events"]',
+    position: "right",
   },
   {
-    id: "profile-menu",
-    title: "Your profile",
-    description: "Access your registered events, badges and account settings here.",
-    target: '[data-tour="profile-menu"]',
-    position: "bottom",
+    id: "fests",
+    title: "Fests",
+    description:
+      "Manage all fests across the university. Review, edit or archive any fest regardless of which organiser created it.",
+    target: '[data-tour="admin-tab-fests"]',
+    position: "right",
+  },
+  {
+    id: "notifications",
+    title: "Notifications",
+    description:
+      "Broadcast announcements to all users, specific campuses or targeted groups. Use for urgent updates or platform-wide reminders.",
+    target: '[data-tour="admin-tab-notifications"]',
+    position: "right",
+  },
+  {
+    id: "report",
+    title: "Reports",
+    description:
+      "Generate master participation sheets formatted for NAAC, NBA, AACSB and other accreditation bodies — export in one click.",
+    target: '[data-tour="admin-tab-report"]',
+    position: "right",
+  },
+  {
+    id: "roles",
+    title: "Roles",
+    description:
+      "Grant or revoke elevated roles — HOD, Dean, CFO, Campus Director, IT Support, Venue Manager and more. Set expiry dates for time-limited access.",
+    target: '[data-tour="admin-tab-roles"]',
+    position: "right",
+  },
+  {
+    id: "venues",
+    title: "Venues",
+    description:
+      "Add and manage campus venues. Control which venues require approval for bookings and review all pending venue requests.",
+    target: '[data-tour="admin-tab-venues"]',
+    position: "right",
+  },
+  {
+    id: "caterers",
+    title: "Catering",
+    description:
+      "Register catering providers, manage their availability and oversee all catering requests linked to events and fests.",
+    target: '[data-tour="admin-tab-caterers"]',
+    position: "right",
   },
 ];
-
-const ORGANISER_STEP: TourStep = {
-  id: "organiser-pill",
-  title: "Your organiser panel",
-  description:
-    "Jump to your event management dashboard anytime — create events, manage registrations and track attendance.",
-  target: '[data-tour="organiser-pill"]',
-  position: "bottom",
-};
-
-const MASTERADMIN_STEP: TourStep = {
-  id: "admin-pill",
-  title: "Your admin dashboard",
-  description:
-    "Full control from here — manage users, roles, events, fests, approvals and platform-wide settings.",
-  target: '[data-tour="admin-pill"]',
-  position: "bottom",
-};
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
 
@@ -80,7 +104,6 @@ function computeTooltipStyle(
   if (!rect) {
     return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
   }
-
   const PAD = 16;
   const TW = 288;
   const centerX = rect.left + rect.width / 2;
@@ -95,61 +118,39 @@ function computeTooltipStyle(
       return { top: rect.top + rect.height / 2 - 80, left: rect.left + rect.width + PAD };
     case "bottom":
     default:
-      return { top: Math.min(rect.top + rect.height + PAD, window.innerHeight - 200), left: clampedLeft };
+      return { top: Math.min(rect.top + rect.height + PAD, window.innerHeight - 220), left: clampedLeft };
   }
 }
 
-export function TourGuide() {
-  const { userData, session, isMasterAdmin, isSupport, isStudentOrganiser } = useAuth();
+export function TourGuideMasterAdmin() {
+  const { userData, session, isMasterAdmin } = useAuth();
   const [active, setActive] = useState(false);
   const [stepIdx, setStepIdx] = useState(0);
   const [rect, setRect] = useState<SpotRect | null>(null);
 
-  const isOrganiser = Boolean(userData?.is_organiser) || isStudentOrganiser;
-  const steps = [
-    ...BASE_STEPS,
-    ...(isOrganiser ? [ORGANISER_STEP] : []),
-    ...(isMasterAdmin ? [MASTERADMIN_STEP] : []),
-  ];
+  const steps = MASTERADMIN_STEPS;
   const current = steps[stepIdx];
   const total = steps.length;
 
-  const hasSeenDiscover =
-    userData?.tour_seen === true ||
-    (typeof userData?.tour_seen === "object" &&
-      userData?.tour_seen !== null &&
-      (userData.tour_seen as { discover?: boolean }).discover === true);
+  const tourSeen = userData?.tour_seen;
+  const hasSeenThisTour =
+    typeof tourSeen === "object" &&
+    tourSeen !== null &&
+    (tourSeen as Record<string, boolean>).masteradmin === true;
 
   useEffect(() => {
     if (!userData?.email) return;
-    if (hasSeenDiscover) return;
-
-    const isPlainStudent =
-      !isMasterAdmin &&
-      !isSupport &&
-      !userData.is_hod &&
-      !userData.is_dean &&
-      !userData.is_cfo &&
-      !userData.is_campus_director &&
-      !userData.is_accounts_office &&
-      !userData.is_venue_manager;
-
-    if (!isOrganiser && !isMasterAdmin && !isPlainStudent) return;
+    if (!isMasterAdmin) return;
+    if (hasSeenThisTour) return;
 
     const t = setTimeout(() => setActive(true), 1500);
     return () => clearTimeout(t);
-  }, [userData?.email, hasSeenDiscover, isOrganiser, isMasterAdmin, isSupport]);
+  }, [userData?.email, isMasterAdmin, hasSeenThisTour]);
 
   const updateRect = useCallback(() => {
-    if (!current?.target) {
-      setRect(null);
-      return;
-    }
+    if (!current?.target) { setRect(null); return; }
     const el = document.querySelector(current.target);
-    if (!el) {
-      setRect(null);
-      return;
-    }
+    if (!el) { setRect(null); return; }
     const r = el.getBoundingClientRect();
     setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
   }, [current?.target]);
@@ -184,7 +185,7 @@ export function TourGuide() {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ tourKey: "discover" }),
+        body: JSON.stringify({ tourKey: "masteradmin" }),
       }).catch(() => {});
     }
   }, [userData?.email, session?.access_token]);
@@ -200,7 +201,6 @@ export function TourGuide() {
     if (stepIdx < total - 1) setStepIdx((s) => s + 1);
     else finish();
   };
-
   const back = () => setStepIdx((s) => Math.max(0, s - 1));
 
   if (!active) return null;
@@ -209,13 +209,8 @@ export function TourGuide() {
 
   return (
     <>
-      {/* Full-screen backdrop — blocks interaction with page */}
       <div className="fixed inset-0 z-[9997]" />
-
-      {/* Welcome step dimmer (no spotlight) */}
       {!rect && <div className="fixed inset-0 z-[9997] bg-black/55" />}
-
-      {/* Spotlight ring around the target element */}
       {rect && (
         <div
           className="fixed z-[9998] rounded-lg pointer-events-none"
@@ -230,13 +225,10 @@ export function TourGuide() {
           }}
         />
       )}
-
-      {/* Tooltip card */}
       <div
         className="fixed z-[9999] w-72 bg-[#18181b] border border-[#27272a] rounded-2xl shadow-2xl p-5"
         style={tooltipStyle}
       >
-        {/* Progress dots + counter */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1">
             {steps.map((_, i) => (
@@ -252,10 +244,8 @@ export function TourGuide() {
             {stepIdx + 1} / {total}
           </span>
         </div>
-
         <h3 className="text-sm font-bold text-white mb-1.5">{current.title}</h3>
         <p className="text-[12px] text-gray-400 leading-relaxed mb-4">{current.description}</p>
-
         <div className="flex items-center justify-between gap-2">
           <button
             onClick={finish}

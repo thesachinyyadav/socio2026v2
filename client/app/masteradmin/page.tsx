@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import { TourGuideMasterAdmin } from "@/app/_components/Tour/TourGuideMasterAdmin";
 import {
   addThemedChartsSheet,
   addStructuredSummarySheet,
@@ -1575,25 +1576,28 @@ function MasterAdminPageInner() {
 
   // ── Sidebar nav config ──
   const sidebarNav = [
-    { id: "dashboard" as const, label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: "dashboard" as const, label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" />, tourId: "admin-tab-dashboard" },
     { id: "dataExplorer" as const, label: "Data Explorer", icon: <LineChart className="w-4 h-4" /> },
     {
       id: "users" as const,
       label: "Users",
       icon: <Users className="w-4 h-4" />,
       count: userPagination.totalItems || users.length,
+      tourId: "admin-tab-users",
     },
     {
       id: "events" as const,
       label: "Events",
       icon: <CalendarDays className="w-4 h-4" />,
       count: eventPagination.totalItems || events.length,
+      tourId: "admin-tab-events",
     },
     {
       id: "fests" as const,
       label: "Fests",
       icon: <Trophy className="w-4 h-4" />,
       count: festPagination.totalItems || fests.length,
+      tourId: "admin-tab-fests",
     },
     {
       id: "clubs" as const,
@@ -1601,8 +1605,8 @@ function MasterAdminPageInner() {
       icon: <Building2 className="w-4 h-4" />,
       count: clubPagination.totalItems || clubs.length,
     },
-    { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-4 h-4" /> },
-    { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" /> },
+    { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-4 h-4" />, tourId: "admin-tab-notifications" },
+    { id: "report" as const, label: "Reports", icon: <BarChart2 className="w-4 h-4" />, tourId: "admin-tab-report" },
   ];
 
   return (
@@ -1617,6 +1621,7 @@ function MasterAdminPageInner() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
+                {...("tourId" in item && item.tourId ? { "data-tour": item.tourId } : {})}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
                   isActive
                     ? "bg-blue-50 text-[#154cb3] font-semibold"
@@ -1644,6 +1649,7 @@ function MasterAdminPageInner() {
         <div className="mt-1 px-3 pb-4 space-y-0.5">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1.5">Management</p>
           <button
+            data-tour="admin-tab-roles"
             onClick={() => setActiveTab("roles")}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
               activeTab === "roles"
@@ -1660,6 +1666,7 @@ function MasterAdminPageInner() {
             Roles
           </button>
           <button
+            data-tour="admin-tab-venues"
             onClick={() => setActiveTab("venues")}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
               activeTab === "venues"
@@ -1681,6 +1688,7 @@ function MasterAdminPageInner() {
             )}
           </button>
           <button
+            data-tour="admin-tab-caterers"
             onClick={() => setActiveTab("caterers")}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative group ${
               activeTab === "caterers"
@@ -4287,6 +4295,7 @@ function MasterAdminPageInner() {
         })()}
 
       </main>
+      <TourGuideMasterAdmin />
     </div>
   );
 }

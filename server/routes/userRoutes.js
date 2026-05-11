@@ -672,18 +672,38 @@ router.delete("/:email", authenticateUser, getUserInfo(), checkRoleExpiration, r
   }
 });
 
-// Mark tour as seen (self-service)
+// Mark a specific tour as seen (self-service)
+// Body: { tourKey: "discover" | "organiser" | "student" }
 router.patch("/:email/tour-seen", authenticateUser, async (req, res) => {
   try {
     const { email } = req.params;
+    const { tourKey } = req.body;
 
     if (!req.user || req.user.email !== email) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
+    const validKeys = ["discover", "organiser", "student", "masteradmin"];
+    if (!tourKey || !validKeys.includes(tourKey)) {
+      return res.status(400).json({ error: "Invalid tourKey" });
+    }
+
+    const { data: current, error: readError } = await supabase
+      .from("users")
+      .select("tour_seen")
+      .eq("email", email)
+      .single();
+
+    if (readError) throw readError;
+
+    const existing =
+      current?.tour_seen && typeof current.tour_seen === "object"
+        ? current.tour_seen
+        : {};
+
     const { error } = await supabase
       .from("users")
-      .update({ tour_seen: true })
+      .update({ tour_seen: { ...existing, [tourKey]: true } })
       .eq("email", email);
 
     if (error) throw error;

@@ -19,6 +19,7 @@ import {
   downloadWorkbook,
 } from "@/lib/xlsxTheme";
 import AnimatedListDropdown from "@/app/_components/UI/AnimatedListDropdown";
+import { TourGuideManage } from "@/app/_components/Tour/TourGuideManage";
 import EventReminderButton from "@/app/_components/EventReminderButton";
 import BookVenueModal from "@/app/_components/BookVenueModal";
 import {
@@ -2375,29 +2376,29 @@ function ManageDashboard() {
             {!isStudentOrganiser && (
               <>
                 <Link href="/bookvenue">
-                  <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
+                  <button data-tour="book-venue" className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                     <MapPin className="w-4 h-4" /> Book Venue
                   </button>
                 </Link>
                 <Link href="/bookcatering">
-                  <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                  <button data-tour="book-catering" className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
                     <ChefHat className="w-4 h-4" /> Book Catering
                   </button>
                 </Link>
                 <Link href="/bookstall">
-                  <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold border-2 border-[#154cb3] rounded-full hover:bg-[#1240a0] transition-colors shadow-sm text-sm">
+                  <button data-tour="book-stall" className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold border-2 border-[#154cb3] rounded-full hover:bg-[#1240a0] transition-colors shadow-sm text-sm">
                     <Store className="w-4 h-4" /> Book Stalls
                   </button>
                 </Link>
                 <Link href="/create/fest">
-                  <button className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                  <button data-tour="create-fest" className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#154cb3] font-semibold border-2 border-[#154cb3] rounded-full hover:bg-blue-50 transition-colors shadow-sm text-sm">
                     <Plus className="w-4 h-4" /> Fest
                   </button>
                 </Link>
               </>
             )}
             <Link href="/create/event">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
+              <button data-tour="create-event" className="flex items-center gap-2 px-4 py-2.5 bg-[#154cb3] text-white font-semibold rounded-full hover:bg-[#124099] transition-colors shadow-sm border-2 border-[#154cb3] text-sm">
                 <Plus className="w-4 h-4" /> Event
               </button>
             </Link>
@@ -2408,6 +2409,7 @@ function ManageDashboard() {
         <div className="flex flex-col md:flex-row justify-between md:items-center border-b border-slate-200 gap-4 mb-6">
           <div className="flex items-center gap-8 overflow-x-auto overflow-y-hidden pb-2 text-sm w-full md:w-auto [&::-webkit-scrollbar]:hidden [-moz-scrollbar-width:none]">
             <button
+              data-tour="tab-fests"
               onClick={() => setActiveTab("fests")}
               className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "fests"
@@ -2418,6 +2420,7 @@ function ManageDashboard() {
               Your fests ({searchedUserFests.length})
             </button>
             <button
+              data-tour="tab-events"
               onClick={() => setActiveTab("events")}
               className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "events"
@@ -2428,6 +2431,7 @@ function ManageDashboard() {
               Your events ({searchedUserEvents.length})
             </button>
             <button
+              data-tour="tab-report"
               onClick={() => setActiveTab("report")}
               className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "report"
@@ -2438,6 +2442,7 @@ function ManageDashboard() {
               Report
             </button>
             <button
+              data-tour="tab-volunteers"
               onClick={() => setActiveTab("volunteers")}
               className={`pb-4 transition-colors whitespace-nowrap -mb-[1px] cursor-pointer ${
                 activeTab === "volunteers"
@@ -3020,6 +3025,7 @@ function ManageDashboard() {
         />
       )}
 
+      <TourGuideManage />
     </div>
   );
 }
