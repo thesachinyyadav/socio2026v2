@@ -66,10 +66,12 @@ app.use('/api', (req, res, next) => {
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://app.withsocio.com',
+  'https://socio.christuniversity.in',
   'https://sociov2.vercel.app',
   'https://sociodev.vercel.app',
   'https://live.withsocio.com',
   'https://gated.withsocio.com',
+  'https://localhost',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'capacitor://localhost',
@@ -131,12 +133,20 @@ const setCorsHeaders = (req, res) => {
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email, Accept, Origin');
+  res.header('Access-Control-Max-Age', '86400');
 };
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   setCorsHeaders(req, res);
+
+  console.log(`🔍 [BackendDebug] req.method: ${req.method}`);
+  console.log(`🔍 [BackendDebug] req.url: ${req.url}`);
+  console.log(`🔍 [BackendDebug] req.headers.origin: ${origin}`);
+  console.log(`🔍 [BackendDebug] req.headers.authorization: ${req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'none'}`);
+
   if (!isOriginAllowed(origin)) {
+    console.log(`🔍 [BackendDebug] CORS Blocked for origin: ${origin}`);
     return res.status(403).json({ error: 'CORS origin not allowed' });
   }
   if (req.method === 'OPTIONS') {
