@@ -140,13 +140,14 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   setCorsHeaders(req, res);
 
-  console.log(`🔍 [BackendDebug] req.method: ${req.method}`);
-  console.log(`🔍 [BackendDebug] req.url: ${req.url}`);
-  console.log(`🔍 [BackendDebug] req.headers.origin: ${origin}`);
-  console.log(`🔍 [BackendDebug] req.headers.authorization: ${req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'none'}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Dev] ${req.method} ${req.url} origin=${origin || 'none'}`);
+  }
 
   if (!isOriginAllowed(origin)) {
-    console.log(`🔍 [BackendDebug] CORS Blocked for origin: ${origin}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Dev] CORS blocked: ${origin}`);
+    }
     return res.status(403).json({ error: 'CORS origin not allowed' });
   }
   if (req.method === 'OPTIONS') {

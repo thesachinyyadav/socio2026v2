@@ -12,10 +12,47 @@ import { sendPushToEmail } from "../utils/webPushService.js";
 
 const router = express.Router();
 
-// Get participants for an event
-router.get("/events/:eventId/participants", async (req, res) => {
+// ── Simple in-memory rate limiter for QR scan endpoint ────────────────────────
+// Limits each volunteer to 120 scans/minute per event (~2/second sustained).
+// Resets automatically as old timestamps fall outside the sliding window.
+const _scanRateLimiter = new Map();
+const SCAN_RATE_WINDOW_MS = 60_000;
+const SCAN_RATE_MAX = 120;
+
+function _checkScanRate(email, eventId) {
+  const key = `${email}:${eventId}`;
+  const now = Date.now();
+  const timestamps = (_scanRateLimiter.get(key) || []).filter(t => now - t < SCAN_RATE_WINDOW_MS);
+  timestamps.push(now);
+  _scanRateLimiter.set(key, timestamps);
+  return timestamps.length <= SCAN_RATE_MAX;
+}
+// Cleanup old entries every 10 minutes to prevent memory growth
+setInterval(() => {
+  const cutoff = Date.now() - SCAN_RATE_WINDOW_MS;
+  for (const [key, ts] of _scanRateLimiter.entries()) {
+    if (ts.every(t => t < cutoff)) _scanRateLimiter.delete(key);
+  }
+}, 600_000);
+
+
+// Get participants for an event — requires authenticated organiser or assigned volunteer
+router.get("/events/:eventId/participants", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { eventId } = req.params;
+    const user = req.userInfo;
+
+    // Security gate: only organisers, admins, or assigned active volunteers may view participant PII
+    const isPrivileged = user?.is_organiser || user?.is_masteradmin || user?.is_hod || user?.is_dean;
+    const isAssignedVolunteer = user?.register_number &&
+      hasActiveVolunteerAccess(
+        (await queryOne("events", { where: { event_id: eventId }, select: "volunteers" }))?.volunteers,
+        user.register_number
+      );
+    if (!isPrivileged && !isAssignedVolunteer) {
+      console.log(`[SecurityAudit] Unauthorized participants access: ${user?.email} → event ${eventId}`);
+      return res.status(403).json({ error: "Access denied: organiser or assigned volunteer required." });
+    }
 
     // Ensure event exists
     const event = await queryOne("events", { where: { event_id: eventId } });
@@ -132,11 +169,20 @@ router.get("/events/:eventId/participants", async (req, res) => {
   }
 });
 
-// Mark attendance for participants
-router.post("/events/:eventId/attendance", async (req, res) => {
+// Mark attendance — requires authenticated organiser or admin
+router.post("/events/:eventId/attendance", authenticateUser, getUserInfo(), checkRoleExpiration, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { participantIds, status, markedBy = "admin" } = req.body;
+    const { participantIds, status, markedBy } = req.body;
+    const user = req.userInfo;
+
+    // Only organisers and admins may use bulk attendance marking
+    if (!user?.is_organiser && !user?.is_masteradmin && !user?.is_hod && !user?.is_dean) {
+      console.log(`[SecurityAudit] Unauthorized bulk attendance: ${user?.email} → event ${eventId}`);
+      return res.status(403).json({ error: "Access denied: organiser privileges required for bulk attendance." });
+    }
+
+    const markedByIdentity = user?.email || markedBy || "admin";
 
     if (!Array.isArray(participantIds) || participantIds.length === 0) {
       return res
@@ -167,7 +213,7 @@ router.post("/events/:eventId/attendance", async (req, res) => {
             event_id: eventId,
             status,
             marked_at: now,
-            marked_by: markedBy,
+            marked_by: markedByIdentity,
           },
           "registration_id",
         );
@@ -285,8 +331,13 @@ router.post(
         });
       }
 
-      const scannedByIdentity =
-        req.userInfo?.email || scannedBy || "qr_scanner";
+      const scannedByIdentity = req.userInfo?.email || scannedBy || "qr_scanner";
+
+      // Rate limiting — prevent scan spam / brute-force QR attempts
+      if (!_checkScanRate(scannedByIdentity, eventId)) {
+        console.log(`[SecurityAudit] Rate limit exceeded: ${scannedByIdentity} → event ${eventId}`);
+        return res.status(429).json({ error: "Too many scans. Please slow down." });
+      }
 
       let isSimpleQR = false;
       let qrData = null;
