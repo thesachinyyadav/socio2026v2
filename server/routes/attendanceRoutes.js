@@ -253,7 +253,7 @@ router.post("/events/:eventId/teammate-attendance", async (req, res) => {
     }
 
     const existing = await queryOne("attendance_status", {
-      where: { registration_id: registrationId },
+      where: { registration_id: registrationId, event_id: eventId },
     });
 
     let teammateStatuses = {};
@@ -455,21 +455,22 @@ router.post(
           ]);
           return res.status(400).json({ error: verification.message });
         }
+      }
 
-        if (String(qrData.eventId) !== String(eventId)) {
-          await insert("qr_scan_logs", [
-            {
-              registration_id: qrData.registrationId,
-              event_id: eventId,
-              scanned_by: scannedByIdentity,
-              scan_result: "invalid",
-              scanner_info: scannerInfo || {},
-            },
-          ]);
-          return res
-            .status(400)
-            .json({ error: "QR code is not valid for this event" });
-        }
+      // Ensure QR code event ID matches the scanner's event ID (prevents cross-event scanning)
+      if (qrData.eventId && String(qrData.eventId) !== String(eventId)) {
+        await insert("qr_scan_logs", [
+          {
+            registration_id: qrData.registrationId || qrData.identifier || null,
+            event_id: eventId,
+            scanned_by: scannedByIdentity,
+            scan_result: "invalid_event",
+            scanner_info: scannerInfo || {},
+          },
+        ]);
+        return res
+          .status(400)
+          .json({ error: "QR code is not valid for this event" });
       }
 
       let registration = null;
@@ -561,7 +562,7 @@ router.post(
       }
 
       const attendance = await queryOne("attendance_status", {
-        where: { registration_id: registration.registration_id },
+        where: { registration_id: registration.registration_id, event_id: eventId },
       });
       const now = new Date().toISOString();
 
