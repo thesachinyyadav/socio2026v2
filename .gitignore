@@ -68,3 +68,5 @@ graphify-out/
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
 **/tsconfig.tsbuildinfo
+client/.next/
+client/.next-dev/
