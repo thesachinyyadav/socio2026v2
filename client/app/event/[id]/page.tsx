@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRef, useState, useEffect } from "react";
+import Container from "@/components/Container";
 import { useRouter, useParams } from "next/navigation";
 import {
   useEvents,
@@ -978,6 +979,7 @@ export default function Page() {
         </div>
       </div>
 
+      <Container>
       <div className="hidden sm:flex flex-col sm:flex-row flex-wrap px-4 sm:px-8 gap-4 sm:gap-8 text-gray-500 font-medium items-center bg-[#F5F5F5] h-auto sm:min-h-[10vh] m-4 sm:m-10 rounded-xl border-2 border-[#E0E0E0] py-4 sm:py-4 overflow-visible relative">
         <p
           className="text-[#063168] cursor-pointer transition-colors text-sm sm:text-base"
@@ -1380,6 +1382,7 @@ export default function Page() {
           </div>
         </div>
       </div>
+      </Container>
     </div>
   );
 }
