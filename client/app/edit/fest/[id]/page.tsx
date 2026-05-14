@@ -1,5 +1,6 @@
 "use client";
 import CreateFestForm from "../../../_components/CreateFestForm";
+import Container from "@/components/Container";
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "../../../../context/AuthContext"; // Adjust path
@@ -128,8 +129,9 @@ const EditPage = () => {
   }
 
   return (
-    <CreateFestForm
-      title={festData?.title}
+    <Container>
+      <CreateFestForm
+        title={festData?.title}
       openingDate={festData?.openingDate}
       closingDate={festData?.closingDate}
       detailedDescription={festData?.detailedDescription}
@@ -144,7 +146,8 @@ const EditPage = () => {
       existingBannerFileUrl={existingBannerFileUrl}
       existingPdfFileUrl={existingPdfFileUrl}
       isDraft={Boolean(festData?.isDraft)}
-    />
+      />
+    </Container>
   );
 };
 

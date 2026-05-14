@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { useAuth } from "@/context/AuthContext";
+import Container from "@/components/Container";
 import {
   addThemedChartsSheet,
   addStructuredTableSheet,
@@ -373,7 +374,8 @@ export default function StudentsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <div className="px-4 sm:px-6 md:px-12 pt-6 md:pt-8">
+      <Container>
+      <div className="pt-6 md:pt-8">
         <div className="mb-4">
           <Link
             href="/manage"
@@ -398,7 +400,7 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      <main className="flex-1 px-4 sm:px-6 md:px-12 pb-6 md:pb-8">
+      <main className="flex-1 pb-6 md:pb-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 gap-4 sm:gap-0">
           <h1 className="text-xl md:text-2xl font-bold text-[#154CB3]">
             Participants ({students.length})
@@ -694,6 +696,7 @@ export default function StudentsPage() {
           </>
         )}
       </main>
+      </Container>
     </div>
   );
 }
