@@ -133,6 +133,7 @@ const setCorsHeaders = (req, res) => {
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email, Accept, Origin');
+  res.header('Access-Control-Expose-Headers', 'Date');
   res.header('Access-Control-Max-Age', '86400');
 };
 
