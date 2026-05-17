@@ -13,6 +13,8 @@ import {
 import { sendBroadcastNotification } from "./notificationRoutes.js";
 import { pushFestToGated, isGatedEnabled } from "../utils/gatedSync.js";
 import { getFestTableForDatabase } from "../utils/festTableResolver.js";
+import { getOrSet, cacheDel, cacheDelPattern, CACHE_KEYSPACE } from "../services/cacheService.js";
+
 
 const router = express.Router();
 
@@ -301,246 +303,251 @@ const mapFestResponse = (fest) => {
 router.get("/", optionalAuth, checkRoleExpiration, async (req, res) => {
   try {
     const { page, pageSize, search, status, archive, sortBy, sortOrder } = req.query;
-    const today = new Date().toISOString().split('T')[0];
-
-    let queryOptions = {
-      order: { column: "created_at", ascending: false }
-    };
-
-    // Optimization: Filter by date in database if status is upcoming
-    if (status === "upcoming") {
-      queryOptions.filters = [
-        { column: "closing_date", operator: "gte", value: today }
-      ];
-    } else if (status === "past") {
-      queryOptions.filters = [
-        { column: "closing_date", operator: "lt", value: today }
-      ];
-    }
-
-    console.log(`Fetching fests with status: ${status || 'all'}...`);
-    let fests = [];
-    try {
-      const festTable = await getFestTableForDatabase(queryAll);
-      fests = await getMergedFestsFromCandidates(queryOptions, festTable);
-    } catch (error) {
-      if (!isMissingRelationError(error)) {
-        throw error;
-      }
-      console.warn("[Fests] Fest tables not available; falling back to event-derived fests.");
-      fests = [];
-    }
-
-    let events = [];
-    try {
-      events = await queryAll("events", {
-        select: "event_id, fest, fest_id, organizing_school, organizing_dept, event_date, created_at, is_archived",
-      });
-    } catch (error) {
-      if (isMissingRelationError(error)) {
-        events = [];
-      } else if (isMissingColumnError(error)) {
-        try {
-          events = await queryAll("events", {
-            select: "event_id, fest_id, organizing_school, organizing_dept, event_date, created_at, is_archived",
-          });
-        } catch (fallbackError) {
-          if (isMissingRelationError(fallbackError) || isMissingColumnError(fallbackError)) {
-            events = [];
-          } else {
-            throw fallbackError;
-          }
-        }
-      } else {
-        throw error;
-      }
-    }
-
-    let registrations = [];
-    try {
-      registrations = await queryAll("registrations", { select: "event_id" });
-    } catch (error) {
-      if (isMissingRelationError(error) || isMissingColumnError(error)) {
-        registrations = [];
-      } else {
-        throw error;
-      }
-    }
-
-    const eventRegistrationCounts = {};
-    (registrations || []).forEach((reg) => {
-      if (reg.event_id) {
-        eventRegistrationCounts[reg.event_id] = (eventRegistrationCounts[reg.event_id] || 0) + 1;
-      }
-    });
-
-    console.log(`Found ${fests?.length || 0} fests`);
-
-    const festTitleToId = new Map((fests || []).map((fest) => [fest.fest_title, fest.fest_id]));
-    const festRegistrationCounts = {};
-    (events || []).forEach((event) => {
-      const linkedFestKey = event.fest || event.fest_id;
-      if (!linkedFestKey) return;
-      const matchedFestId = festTitleToId.get(linkedFestKey) || linkedFestKey;
-      const eventCount = eventRegistrationCounts[event.event_id] || 0;
-      festRegistrationCounts[matchedFestId] = (festRegistrationCounts[matchedFestId] || 0) + eventCount;
-    });
-
-    let processedFests = (fests || []).map((fest) => ({
-      ...mapFestResponse(fest),
-      registration_count: festRegistrationCounts[fest.fest_id] || 0
-    }));
-
-    const hasCanonicalFestRows = processedFests.length > 0;
-    if (!hasCanonicalFestRows && (events || []).length > 0) {
-      processedFests = deriveFestsFromEvents(events, festRegistrationCounts);
-    }
-
-    const normalizedSearch = typeof search === "string" ? search.trim().toLowerCase() : "";
-    if (normalizedSearch) {
-      processedFests = processedFests.filter((fest) =>
-        fest.fest_title?.toLowerCase().includes(normalizedSearch) ||
-        fest.organizing_school?.toLowerCase().includes(normalizedSearch) ||
-        fest.organizing_dept?.toLowerCase().includes(normalizedSearch)
-      );
-    }
-
-    const normalizedStatus = typeof status === "string" ? status.toLowerCase() : "all";
-    if (normalizedStatus !== "all") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      processedFests = processedFests.filter((fest) => {
-        const openingDate = parseComparableDate(fest.opening_date);
-        const closingDate = parseComparableDate(fest.closing_date) || openingDate;
-
-        if (!openingDate && !closingDate) {
-          return false;
-        }
-
-        const referenceEndDate = closingDate || openingDate;
-        if (!referenceEndDate) {
-          return false;
-        }
-
-        if (normalizedStatus === "past") {
-          return referenceEndDate.getTime() < today.getTime();
-        }
-
-        if (normalizedStatus === "ongoing") {
-          if (!openingDate || !closingDate) return false;
-          return openingDate.getTime() <= today.getTime() && closingDate.getTime() >= today.getTime();
-        }
-
-        if (normalizedStatus === "upcoming") {
-          return referenceEndDate.getTime() >= today.getTime();
-        }
-
-        return true;
-      });
-    }
-
-    const normalizedArchive = typeof archive === "string" ? archive.toLowerCase() : "all";
-
-    // Filter out archived fests for non-organizers/admins
     const userInfo = req.userInfo;
     const isAdminOrOrganizer = userInfo && (userInfo.is_masteradmin || userInfo.is_organiser);
-    
-    if (!isAdminOrOrganizer) {
-      processedFests = processedFests.filter((fest) => !fest.is_archived && !asBoolean(fest.is_draft));
 
-      console.log(`[Archive Filter] Non-organizer viewing ${processedFests.length} non-archived fests`);
-    } else {
-      console.log(`[Archive Filter] Organizer/Admin viewing all ${processedFests.length} fests (incl. archived)`);
-    }
+    // Build a deterministic, namespaced, and filter-aware cache key
+    const isAuthVal = isAdminOrOrganizer ? "admin" : "user";
+    const cacheKey = `${CACHE_KEYSPACE.festsList}:${isAuthVal}:${page || "all"}:${pageSize || "all"}:${search || ""}:${status || "all"}:${archive || "all"}:${sortBy || "default"}:${sortOrder || "default"}`;
 
-    if (normalizedArchive === "archived") {
-      processedFests = processedFests.filter((fest) => Boolean(fest.is_archived));
-    } else if (normalizedArchive === "active") {
-      processedFests = processedFests.filter((fest) => !fest.is_archived && !asBoolean(fest.is_draft));
-    }
+    const cachedResponse = await getOrSet(cacheKey, 120, async () => {
+      const today = new Date().toISOString().split('T')[0];
 
-    const hasExplicitSortBy = typeof sortBy === "string" && sortBy.trim() !== "";
-    const hasExplicitSortOrder = sortOrder === "asc" || sortOrder === "desc";
-    const normalizedSortBy = hasExplicitSortBy
-      ? sortBy
-      : normalizedStatus === "upcoming"
-        ? "opening_date"
-        : "date";
-    const normalizedSortOrder = hasExplicitSortOrder
-      ? sortOrder
-      : normalizedStatus === "upcoming"
-        ? "asc"
-        : "desc";
-    processedFests.sort((a, b) => {
-      let result = 0;
-      switch (normalizedSortBy) {
-        case "title":
-          result = (a.fest_title || "").localeCompare(b.fest_title || "");
-          break;
-        case "dept":
-        case "organizing_dept":
-          result = (a.organizing_dept || "").localeCompare(b.organizing_dept || "");
-          break;
-        case "registrations":
-        case "registration_count":
-          result = (a.registration_count || 0) - (b.registration_count || 0);
-          break;
-        case "date":
-        case "opening_date":
-          result =
-            (parseComparableDate(a.opening_date)?.getTime() || 0) -
-            (parseComparableDate(b.opening_date)?.getTime() || 0);
-          break;
-        case "created_at":
-          result =
-            (parseComparableDate(a.created_at)?.getTime() || 0) -
-            (parseComparableDate(b.created_at)?.getTime() || 0);
-          break;
-        default:
-          result =
-            (parseComparableDate(a.created_at)?.getTime() || 0) -
-            (parseComparableDate(b.created_at)?.getTime() || 0);
-          break;
+      let queryOptions = {
+        order: { column: "created_at", ascending: false }
+      };
+
+      // Optimization: Filter by date in database if status is upcoming
+      if (status === "upcoming") {
+        queryOptions.filters = [
+          { column: "closing_date", operator: "gte", value: today }
+        ];
+      } else if (status === "past") {
+        queryOptions.filters = [
+          { column: "closing_date", operator: "lt", value: today }
+        ];
       }
-      return normalizedSortOrder === "asc" ? result : -result;
+
+      console.log(`Fetching fests with status: ${status || 'all'}...`);
+      let fests = [];
+      try {
+        const festTable = await getFestTableForDatabase(queryAll);
+        fests = await getMergedFestsFromCandidates(queryOptions, festTable);
+      } catch (error) {
+        if (!isMissingRelationError(error)) {
+          throw error;
+        }
+        console.warn("[Fests] Fest tables not available; falling back to event-derived fests.");
+        fests = [];
+      }
+
+      let events = [];
+      try {
+        events = await queryAll("events", {
+          select: "event_id, fest, fest_id, organizing_school, organizing_dept, event_date, created_at, is_archived",
+        });
+      } catch (error) {
+        if (isMissingRelationError(error)) {
+          events = [];
+        } else if (isMissingColumnError(error)) {
+          try {
+            events = await queryAll("events", {
+              select: "event_id, fest_id, organizing_school, organizing_dept, event_date, created_at, is_archived",
+            });
+          } catch (fallbackError) {
+            if (isMissingRelationError(fallbackError) || isMissingColumnError(fallbackError)) {
+              events = [];
+            } else {
+              throw fallbackError;
+            }
+          }
+        } else {
+          throw error;
+        }
+      }
+
+      let registrations = [];
+      try {
+        registrations = await queryAll("registrations", { select: "event_id" });
+      } catch (error) {
+        if (isMissingRelationError(error) || isMissingColumnError(error)) {
+          registrations = [];
+        } else {
+          throw error;
+        }
+      }
+
+      const eventRegistrationCounts = {};
+      (registrations || []).forEach((reg) => {
+        if (reg.event_id) {
+          eventRegistrationCounts[reg.event_id] = (eventRegistrationCounts[reg.event_id] || 0) + 1;
+        }
+      });
+
+      console.log(`Found ${fests?.length || 0} fests`);
+
+      const festTitleToId = new Map((fests || []).map((fest) => [fest.fest_title, fest.fest_id]));
+      const festRegistrationCounts = {};
+      (events || []).forEach((event) => {
+        const linkedFestKey = event.fest || event.fest_id;
+        if (!linkedFestKey) return;
+        const matchedFestId = festTitleToId.get(linkedFestKey) || linkedFestKey;
+        const eventCount = eventRegistrationCounts[event.event_id] || 0;
+        festRegistrationCounts[matchedFestId] = (festRegistrationCounts[matchedFestId] || 0) + eventCount;
+      });
+
+      let processedFests = (fests || []).map((fest) => ({
+        ...mapFestResponse(fest),
+        registration_count: festRegistrationCounts[fest.fest_id] || 0
+      }));
+
+      const hasCanonicalFestRows = processedFests.length > 0;
+      if (!hasCanonicalFestRows && (events || []).length > 0) {
+        processedFests = deriveFestsFromEvents(events, festRegistrationCounts);
+      }
+
+      const normalizedSearch = typeof search === "string" ? search.trim().toLowerCase() : "";
+      if (normalizedSearch) {
+        processedFests = processedFests.filter((fest) =>
+          fest.fest_title?.toLowerCase().includes(normalizedSearch) ||
+          fest.organizing_school?.toLowerCase().includes(normalizedSearch) ||
+          fest.organizing_dept?.toLowerCase().includes(normalizedSearch)
+        );
+      }
+
+      const normalizedStatus = typeof status === "string" ? status.toLowerCase() : "all";
+      if (normalizedStatus !== "all") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        processedFests = processedFests.filter((fest) => {
+          const openingDate = parseComparableDate(fest.opening_date);
+          const closingDate = parseComparableDate(fest.closing_date) || openingDate;
+
+          if (!openingDate && !closingDate) {
+            return false;
+          }
+
+          const referenceEndDate = closingDate || openingDate;
+          if (!referenceEndDate) {
+            return false;
+          }
+
+          if (normalizedStatus === "past") {
+            return referenceEndDate.getTime() < today.getTime();
+          }
+
+          if (normalizedStatus === "ongoing") {
+            if (!openingDate || !closingDate) return false;
+            return openingDate.getTime() <= today.getTime() && closingDate.getTime() >= today.getTime();
+          }
+
+          if (normalizedStatus === "upcoming") {
+            return referenceEndDate.getTime() >= today.getTime();
+          }
+
+          return true;
+        });
+      }
+
+      const normalizedArchive = typeof archive === "string" ? archive.toLowerCase() : "all";
+
+      if (!isAdminOrOrganizer) {
+        processedFests = processedFests.filter((fest) => !fest.is_archived && !asBoolean(fest.is_draft));
+        console.log(`[Archive Filter] Non-organizer viewing ${processedFests.length} non-archived fests`);
+      } else {
+        console.log(`[Archive Filter] Organizer/Admin viewing all ${processedFests.length} fests (incl. archived)`);
+      }
+
+      if (normalizedArchive === "archived") {
+        processedFests = processedFests.filter((fest) => Boolean(fest.is_archived));
+      } else if (normalizedArchive === "active") {
+        processedFests = processedFests.filter((fest) => !fest.is_archived && !asBoolean(fest.is_draft));
+      }
+
+      const hasExplicitSortBy = typeof sortBy === "string" && sortBy.trim() !== "";
+      const hasExplicitSortOrder = sortOrder === "asc" || sortOrder === "desc";
+      const normalizedSortBy = hasExplicitSortBy
+        ? sortBy
+        : normalizedStatus === "upcoming"
+          ? "opening_date"
+          : "date";
+      const normalizedSortOrder = hasExplicitSortOrder
+        ? sortOrder
+        : normalizedStatus === "upcoming"
+          ? "asc"
+          : "desc";
+      processedFests.sort((a, b) => {
+        let result = 0;
+        switch (normalizedSortBy) {
+          case "title":
+            result = (a.fest_title || "").localeCompare(b.fest_title || "");
+            break;
+          case "dept":
+          case "organizing_dept":
+            result = (a.organizing_dept || "").localeCompare(b.organizing_dept || "");
+            break;
+          case "registrations":
+          case "registration_count":
+            result = (a.registration_count || 0) - (b.registration_count || 0);
+            break;
+          case "date":
+          case "opening_date":
+            result =
+              (parseComparableDate(a.opening_date)?.getTime() || 0) -
+              (parseComparableDate(b.opening_date)?.getTime() || 0);
+            break;
+          case "created_at":
+            result =
+              (parseComparableDate(a.created_at)?.getTime() || 0) -
+              (parseComparableDate(b.created_at)?.getTime() || 0);
+            break;
+          default:
+            result =
+              (parseComparableDate(a.created_at)?.getTime() || 0) -
+              (parseComparableDate(b.created_at)?.getTime() || 0);
+            break;
+        }
+        return normalizedSortOrder === "asc" ? result : -result;
+      });
+
+      const shouldPaginate = page !== undefined || pageSize !== undefined;
+      if (!shouldPaginate) {
+        return { fests: processedFests };
+      }
+
+      const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+      const parsedPageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
+      const totalItems = processedFests.length;
+      const totalPages = Math.max(Math.ceil(totalItems / parsedPageSize), 1);
+      const safePage = Math.min(parsedPage, totalPages);
+      const start = (safePage - 1) * parsedPageSize;
+      const pagedFests = processedFests.slice(start, start + parsedPageSize);
+
+      return {
+        fests: pagedFests,
+        pagination: {
+          page: safePage,
+          pageSize: parsedPageSize,
+          totalItems,
+          totalPages,
+          hasNext: safePage < totalPages,
+          hasPrev: safePage > 1
+        },
+        filters: {
+          search: normalizedSearch,
+          status: normalizedStatus,
+          archive: normalizedArchive,
+        },
+        sort: {
+          by: normalizedSortBy,
+          order: normalizedSortOrder
+        }
+      };
     });
-
-    const shouldPaginate = page !== undefined || pageSize !== undefined;
-    if (!shouldPaginate) {
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      return res.status(200).json({ fests: processedFests });
-    }
-
-    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
-    const parsedPageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
-    const totalItems = processedFests.length;
-    const totalPages = Math.max(Math.ceil(totalItems / parsedPageSize), 1);
-    const safePage = Math.min(parsedPage, totalPages);
-    const start = (safePage - 1) * parsedPageSize;
-    const pagedFests = processedFests.slice(start, start + parsedPageSize);
 
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    return res.status(200).json({
-      fests: pagedFests,
-      pagination: {
-        page: safePage,
-        pageSize: parsedPageSize,
-        totalItems,
-        totalPages,
-        hasNext: safePage < totalPages,
-        hasPrev: safePage > 1
-      },
-      filters: {
-        search: normalizedSearch,
-        status: normalizedStatus,
-        archive: normalizedArchive,
-      },
-      sort: {
-        by: normalizedSortBy,
-        order: normalizedSortOrder
-      }
-    });
+    return res.status(200).json(cachedResponse);
   } catch (error) {
     console.error("Error fetching fests:", error);
     console.error("Error details:", error.message, error.stack);
@@ -563,45 +570,52 @@ router.get("/:festId", optionalAuth, checkRoleExpiration, async (req, res) => {
       });
     }
 
-    console.log(`[Fest GET] Getting fest table...`);
-    let fest = null;
-    try {
-      const festTable = await getFestTableForDatabase(queryAll);
-      console.log(`[Fest GET] Querying ${festTable} table for fest_id: ${festSlug}`);
-      fest = await getFestByIdFromCandidates(festSlug, festTable);
-    } catch (error) {
-      if (!isMissingRelationError(error)) {
-        throw error;
-      }
-      console.warn(`[Fest GET] Fest tables unavailable while querying ${festSlug}; returning not found.`);
-      fest = null;
-    }
+    const userInfo = req.userInfo;
+    const isAdminOrOrganizer = userInfo && (userInfo.is_masteradmin || userInfo.is_organiser);
+    const isAuthVal = isAdminOrOrganizer ? "admin" : "user";
+    const cacheKey = `${CACHE_KEYSPACE.festDetail(festSlug)}:${isAuthVal}`;
 
-    if (!fest) {
+    const cachedFestData = await getOrSet(cacheKey, 120, async () => {
+      console.log(`[Fest GET] Getting fest table...`);
+      let fest = null;
+      try {
+        const festTable = await getFestTableForDatabase(queryAll);
+        console.log(`[Fest GET] Querying ${festTable} table for fest_id: ${festSlug}`);
+        fest = await getFestByIdFromCandidates(festSlug, festTable);
+      } catch (error) {
+        if (!isMissingRelationError(error)) {
+          throw error;
+        }
+        console.warn(`[Fest GET] Fest tables unavailable while querying ${festSlug}; returning not found.`);
+        fest = null;
+      }
+
+      if (!fest) {
+        return null;
+      }
+
+      // Check if fest is archived
+      if (fest.is_archived && !isAdminOrOrganizer) {
+        return { error: "archived_denied" };
+      }
+
+      return { fest: mapFestResponse(fest) };
+    });
+
+    if (!cachedFestData) {
       console.warn(`[Fest GET] Fest not found: ${festSlug}`);
       return res.status(404).json({ error: `Fest with ID (slug) '${festSlug}' not found.` });
     }
 
-    // Check if fest is archived
-    if (fest.is_archived) {
-      const userInfo = req.userInfo;
-      const isAdminOrOrganizer = userInfo && (userInfo.is_masteradmin || userInfo.is_organiser);
-      
-      if (!isAdminOrOrganizer) {
-        console.warn(`[Fest GET] Archived fest access denied: ${festSlug}`);
-        return res.status(403).json({ error: "This fest is archived and not available" });
-      }
+    if (cachedFestData.error === "archived_denied") {
+      console.warn(`[Fest GET] Archived fest access denied: ${festSlug}`);
+      return res.status(403).json({ error: "This fest is archived and not available" });
     }
 
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    return res.status(200).json({ fest: mapFestResponse(fest) });
+    return res.status(200).json(cachedFestData);
   } catch (error) {
     console.error("❌ Error fetching fest:", error);
-    console.error("🔴 Fest GET error details:", {
-      message: error.message,
-      stack: error.stack,
-      festId: req.params.festId
-    });
     return res.status(500).json({ 
       error: "Internal server error while fetching specific fest.",
       details: error.message
@@ -853,6 +867,10 @@ router.post(
           console.error(`❌ Failed to push fest to Gated:`, gatedError.message);
         });
       }
+
+      // Invalidate fests listing and discover caches on creation
+      cacheDelPattern("fests:list:*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern("discover:feed*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
 
       return res.status(201).json({
         message: "Fest created successfully",
@@ -1236,6 +1254,11 @@ router.put(
       }
 
       console.log(`[response] About to send success response for fest ${festId}`);
+      // Invalidate fests listings, discover feeds, and this specific fest detail cache on update
+      cacheDelPattern("fests:list:*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern("discover:feed*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern(`fests:detail:${festId}:*`).catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+
       return res.status(200).json({
         message: "Fest updated successfully",
         fest: mapFestResponse(updatedFest),
@@ -1407,6 +1430,11 @@ router.patch(
         console.log(`✅ ${archiveValue ? "Archived" : "Unarchived"} ${eventsAffected} events for fest ${festId}`);
       }
 
+      // Invalidate fests listings, discover feeds, and this specific fest detail cache on archive/unarchive
+      cacheDelPattern("fests:list:*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern("discover:feed*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern(`fests:detail:${festId}:*`).catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+
       return res.status(200).json({
         message: archiveValue 
           ? `Fest and ${eventsAffected} associated events archived successfully.` 
@@ -1465,6 +1493,11 @@ router.delete(
       if (!deleted || deleted.length === 0) {
         return res.status(404).json({ error: "Fest not found" });
       }
+
+      // Invalidate fests listings, discover feeds, and this specific fest detail cache on delete
+      cacheDelPattern("fests:list:*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern("discover:feed*").catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
+      cacheDelPattern(`fests:detail:${festId}:*`).catch((err) => console.error("[ValkeyCache] Invalidation error:", err));
 
       return res.status(200).json({
         message: "Fest and associated events deleted successfully"
