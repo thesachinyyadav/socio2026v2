@@ -367,12 +367,12 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
   return (
     <div className={`relative ${className}`}>
-      {/* Notification Bell Button */}
+      {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-[#154CB3] transition-colors rounded-full hover:bg-gray-100"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -381,96 +381,100 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
           />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white font-bold rounded-full h-4 w-4 flex items-center justify-center text-[9px]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Notification Dropdown */}
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <div className="fixed inset-0 z-10" role="presentation" onClick={() => setIsOpen(false)} />
+          {/* Backdrop — dark + blur on mobile, transparent on sm+ */}
+          <div
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] sm:bg-transparent sm:backdrop-blur-none"
+            role="presentation"
+            onClick={() => setIsOpen(false)}
+          />
 
-          {/* Notification Panel */}
-          <div className="absolute right-0 top-full mt-3 w-[340px] sm:w-[420px] bg-white rounded-2xl shadow-2xl border border-gray-100/80 z-20 max-h-[34rem] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-[15px] font-bold text-gray-900">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <span className="text-[10px] bg-[#154CB3] text-white px-2 py-[3px] rounded-full font-semibold leading-none">
-                      {unreadCount} new
-                    </span>
-                  )}
-                </div>
-                {notifications.length > 0 && (
-                  <div className="flex items-center gap-3">
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={markAllAsRead}
-                        className="text-[11px] text-[#154CB3] hover:text-[#0e3a8a] font-semibold transition-colors"
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                    <button
-                      onClick={clearAllNotifications}
-                      className="text-[11px] text-gray-400 hover:text-red-500 font-medium transition-colors"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
-              </div>
+          {/* Panel — bottom sheet on mobile, dropdown on sm+ */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[78vh] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:rounded-2xl sm:max-h-[30rem] sm:shadow-xl sm:border sm:border-gray-100">
+            {/* Drag handle — mobile only */}
+            <div className="flex justify-center pt-2.5 pb-1 sm:hidden">
+              <div className="w-8 h-[3px] bg-gray-200 rounded-full" />
             </div>
 
-            {/* Notifications List */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                {unreadCount > 0 && (
+                  <span className="text-[10px] bg-[#154CB3] text-white px-1.5 py-0.5 rounded-full font-semibold leading-none">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+              {notifications.length > 0 && (
+                <div className="flex items-center gap-3">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[11px] text-[#154CB3] font-medium transition-colors"
+                    >
+                      Mark read
+                    </button>
+                  )}
+                  <button
+                    onClick={clearAllNotifications}
+                    className="text-[11px] text-gray-400 hover:text-red-400 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
               {loading && notifications.length === 0 ? (
-                <div className="flex justify-center items-center py-16">
-                  <div className="animate-spin rounded-full h-7 w-7 border-2 border-gray-200 border-t-[#154CB3]"></div>
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-200 border-t-[#154CB3]" />
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="text-center py-16 px-6">
-                  <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-50 flex items-center justify-center">
-                    <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center py-12 px-4">
+                  <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                   </div>
-                  <p className="text-sm font-medium text-gray-400">You&apos;re all caught up</p>
-                  <p className="text-xs text-gray-300 mt-1">New notifications will appear here</p>
+                  <p className="text-xs font-medium text-gray-400">You&apos;re all caught up</p>
+                  <p className="text-[11px] text-gray-300 mt-0.5">New notifications appear here</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100/80">
+                <div className="divide-y divide-gray-100/60">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`group relative px-5 py-4 cursor-pointer transition-all duration-150 ${
-                        !notification.read
-                          ? "bg-blue-50/30 hover:bg-blue-50/60"
-                          : "hover:bg-gray-50/60"
+                      className={`group relative px-4 py-3 cursor-pointer transition-colors ${
+                        !notification.read ? "bg-blue-50/40" : ""
                       }`}
                       onClick={() => handleNotificationClick(notification)}
                     >
                       {!notification.read && (
-                        <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-[#154CB3] rounded-r-full" />
+                        <div className="absolute left-0 top-3 bottom-3 w-[2px] bg-[#154CB3] rounded-r-full" />
                       )}
 
-                      <div className="flex items-start gap-3.5">
-                        <div className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
                           {getNotificationIcon(notification.type)}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start justify-between gap-2">
                             <p
-                              className={`text-[13px] leading-snug ${
+                              className={`text-xs leading-snug ${
                                 !notification.read
                                   ? "font-semibold text-gray-900"
-                                  : "font-medium text-gray-700"
+                                  : "font-medium text-gray-600"
                               }`}
                             >
                               {notification.title}
@@ -480,26 +484,26 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
                                 e.stopPropagation();
                                 deleteNotification(notification.id);
                               }}
-                              className="text-gray-300 hover:text-red-400 transition-all flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5"
+                              className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5"
                               title="Dismiss"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
                           </div>
 
-                          <p className="text-[12px] text-gray-500 mt-1.5 leading-relaxed line-clamp-2">
+                          <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed line-clamp-2">
                             {notification.message}
                           </p>
 
-                          <div className="flex items-center flex-wrap gap-2 mt-2.5">
+                          <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
                             {notification.eventTitle && (
-                              <span className="inline-flex items-center text-[11px] text-[#154CB3] bg-blue-50 px-2.5 py-1 rounded-md font-medium">
+                              <span className="text-[10px] text-[#154CB3] bg-blue-50 px-1.5 py-0.5 rounded font-medium">
                                 {notification.eventTitle}
                               </span>
                             )}
-                            <span className="text-[11px] text-gray-400">
+                            <span className="text-[10px] text-gray-400">
                               {formatRelativeTime(notification.createdAt)}
                             </span>
                           </div>
@@ -511,22 +515,22 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
               )}
             </div>
 
-            {/* Footer with pagination */}
+            {/* Footer */}
             {notifications.length > 0 && (
-              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between">
-                <span className="text-[11px] text-gray-400 font-medium">
-                  Page {currentPage} of {totalPages}
+              <div className="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-[10px] text-gray-400">
+                  {currentPage} / {totalPages}
                 </span>
                 {hasMore ? (
                   <button
                     onClick={loadMore}
                     disabled={loading}
-                    className="text-[11px] text-[#154CB3] hover:text-[#0e3a8a] font-semibold disabled:opacity-50 transition-colors"
+                    className="text-[11px] text-[#154CB3] font-medium disabled:opacity-50 transition-colors"
                   >
-                    {loading ? "Loading..." : "Load more →"}
+                    {loading ? "Loading…" : "Load more"}
                   </button>
                 ) : (
-                  <span className="text-[11px] text-gray-300">End of notifications</span>
+                  <span className="text-[10px] text-gray-300">Up to date</span>
                 )}
               </div>
             )}
