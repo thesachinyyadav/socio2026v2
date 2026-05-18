@@ -10,6 +10,12 @@ export default function Page() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [hasTriggered, setHasTriggered] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get("returnTo");
+    if (returnTo) sessionStorage.setItem("returnTo", returnTo);
+  }, []);
+
   const triggerGoogleSignIn = useCallback(async () => {
     setAuthError(null);
     setHasTriggered(true);
@@ -24,7 +30,9 @@ export default function Page() {
     if (isLoading) return;
 
     if (session) {
-      router.replace("/Discover");
+      const returnTo = sessionStorage.getItem("returnTo") || "/Discover";
+      sessionStorage.removeItem("returnTo");
+      router.replace(returnTo);
     } else if (!hasTriggered) {
       void triggerGoogleSignIn();
     }

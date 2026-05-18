@@ -77,7 +77,8 @@ export async function middleware(req: NextRequest) {
     );
 
   if (!user && !isPublic(pathname)) {
-    return redirect("/auth");
+    const returnTo = encodeURIComponent(pathname + (req.nextUrl.search || ""));
+    return redirect(`/auth?returnTo=${returnTo}`);
   }
 
   const isManagementRoute =
