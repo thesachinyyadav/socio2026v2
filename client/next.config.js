@@ -63,7 +63,7 @@ const nextConfig = {
   },
   images: {
     remotePatterns,
-    formats: ['image/webp', 'image/avif'],
+    formats: ['image/webp'],
     minimumCacheTTL: 31536000,
   },
   compiler: {
