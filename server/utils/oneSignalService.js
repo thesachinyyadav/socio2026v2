@@ -27,7 +27,10 @@ export async function sendOneSignalToEmail(email, { title, body, actionUrl, data
 
   try {
     const result = await enqueueNotification("email", payload);
-    return { success: true, ...result };
+    // Preserve the inner success value rather than blindly returning success:true.
+    // enqueueNotification's sync fallback can return success:false when the
+    // OneSignal API rejects (e.g. 401 on a misconfigured key).
+    return { ...result, success: result?.success !== false };
   } catch (error) {
     notifLog.error(reqId, "Enqueue error (email)", { message: error?.message });
     if (error?.stack) console.error(error.stack);
@@ -49,7 +52,8 @@ export async function sendOneSignalToAll({ title, body, actionUrl, data = {}, re
 
   try {
     const result = await enqueueNotification("broadcast", payload);
-    return { success: true, ...result };
+    // Preserve the inner success value (see sendOneSignalToEmail above).
+    return { ...result, success: result?.success !== false };
   } catch (error) {
     notifLog.error(reqId, "Enqueue error (broadcast)", { message: error?.message });
     if (error?.stack) console.error(error.stack);
