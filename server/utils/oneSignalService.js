@@ -1,21 +1,20 @@
 /**
  * OneSignal Service Wrapper
  * Adapts legacy sendOneSignalToEmail / sendOneSignalToAll calls into Valkey queue jobs.
- * This ensures backwards compatibility with all existing backend route calls.
+ * Threads reqId through for end-to-end traceability.
  */
 
 import { enqueueNotification } from "../services/queueService.js";
+import { notifLog, normalizeEmail } from "./notificationLogger.js";
 
-/**
- * Enqueue a push notification for a specific user identified by their email.
- */
-export async function sendOneSignalToEmail(email, { title, body, actionUrl, data = {} }) {
-  if (!email) {
-    console.warn("[OneSignal Wrapper] sendOneSignalToEmail called without an email; skipping.");
+export async function sendOneSignalToEmail(email, { title, body, actionUrl, data = {}, reqId } = {}) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) {
+    notifLog.warn(reqId, "sendOneSignalToEmail called without an email; skipping.");
     return { success: false, error: "Missing recipient email" };
   }
   const payload = {
-    userEmail: email,
+    userEmail: normalized,
     title,
     body,
     deepLink: actionUrl,
@@ -23,33 +22,37 @@ export async function sendOneSignalToEmail(email, { title, body, actionUrl, data
     priority: data.priority || "normal",
     category: data.category || "info",
     createdAt: new Date().toISOString(),
+    __reqId: reqId,
   };
 
   try {
     const result = await enqueueNotification("email", payload);
     return { success: true, ...result };
   } catch (error) {
-    console.error("[OneSignal Wrapper] Enqueue error (email):", error?.message, error?.stack);
+    notifLog.error(reqId, "Enqueue error (email)", { message: error?.message });
+    if (error?.stack) console.error(error.stack);
     return { success: false, error: error?.message || String(error) };
   }
 }
 
-export async function sendOneSignalToAll({ title, body, actionUrl, data = {} }) {
+export async function sendOneSignalToAll({ title, body, actionUrl, data = {}, reqId } = {}) {
   const payload = {
     title,
     body,
     deepLink: actionUrl,
     metadata: data,
-    priority: "high",
-    category: "announcement",
+    priority: data.priority || "high",
+    category: data.category || "announcement",
     createdAt: new Date().toISOString(),
+    __reqId: reqId,
   };
 
   try {
     const result = await enqueueNotification("broadcast", payload);
     return { success: true, ...result };
   } catch (error) {
-    console.error("[OneSignal Wrapper] Enqueue error (broadcast):", error?.message, error?.stack);
+    notifLog.error(reqId, "Enqueue error (broadcast)", { message: error?.message });
+    if (error?.stack) console.error(error.stack);
     return { success: false, error: error?.message || String(error) };
   }
 }
