@@ -43,8 +43,12 @@ const ONESIGNAL_KEY_FORMAT = ONESIGNAL_REST_API_KEY.startsWith("os_v2_") ? "v2" 
 //   - v2 ("os_v2_app_*") key       → v2 endpoint + "Key <token>"
 // The v1 endpoint no longer reliably accepts v2 keys despite earlier
 // backwards-compatibility claims, so v2 keys must use the new endpoint.
+// v2 endpoint: OneSignal's newer convention puts channel in the body
+// (`target_channel: "push"`) rather than the `?c=push` query param.
+// Some accounts reject the query-param form with 403; the body form is
+// universally accepted.
 const ONESIGNAL_API_URL = ONESIGNAL_KEY_FORMAT === "v2"
-  ? "https://api.onesignal.com/notifications?c=push"
+  ? "https://api.onesignal.com/notifications"
   : "https://onesignal.com/api/v1/notifications";
 const ONESIGNAL_AUTH_SCHEME = ONESIGNAL_KEY_FORMAT === "v2" ? "Key" : "Basic";
 
@@ -122,6 +126,13 @@ export async function executeOneSignalPush(type, payload) {
     android_accent_color: "011F7B",
     small_icon: "ic_stat_onesignal_default",
   };
+
+  // v2 endpoint requires target_channel in body for broadcasts. Setting it
+  // unconditionally is harmless on v1 (field is accepted but ignored) and
+  // ensures broadcast sends route correctly under v2.
+  if (ONESIGNAL_KEY_FORMAT === "v2") {
+    bodyData.target_channel = "push";
+  }
 
   if (image) {
     bodyData.big_picture = image;
