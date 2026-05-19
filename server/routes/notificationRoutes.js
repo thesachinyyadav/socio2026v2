@@ -146,9 +146,7 @@ router.post(
       return res.status(400).json({ error: "title and message are required" });
     }
 
-    const { data, error } = await supabase
-      .from('notifications')
-      .insert({
+    const insertPayload = {
         title,
         message,
         type: category || type,
@@ -162,11 +160,25 @@ router.post(
         user_email: null,
         is_broadcast: true,
         read: false,
-      })
-      .select()
-      .single();
+      };
+    console.log("[DB INSERT PAYLOAD - Broadcast]", JSON.stringify(insertPayload, null, 2));
 
-    if (error) throw error;
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert(insertPayload)
+      .select();
+
+    if (error) {
+      console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
+      throw error;
+    }
+    
+    const dataRow = data && data.length > 0 ? data[0] : null;
+    if (!dataRow) {
+      console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
+      throw new Error("Insert succeeded but returned no rows.");
+    }
+    console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
 
     // 1. Web Push (VAPID)
     await sendPushToAll({
@@ -441,23 +453,39 @@ router.post("/notifications", async (req, res) => {
       return res.status(400).json({ error: "title, message, and user_email are required" });
     }
 
-    const { data: notification, error } = await supabase
-      .from('notifications')
-      .insert({
+    const insertPayload = {
         title,
         message,
-        type: type || 'info',
+        type: category || type || 'info',
+        category: category || type || 'info',
         event_id: event_id || null,
         event_title: event_title || null,
-        action_url: action_url || null,
+        action_url: deepLink || action_url || null,
+        deep_link: deepLink || action_url || null,
+        priority: priority || "normal",
+        metadata: metadata || {},
         user_email: targetEmail,
         is_broadcast: false,
         read: false
-      })
-      .select()
-      .single();
+      };
+    console.log("[DB INSERT PAYLOAD - Individual]", JSON.stringify(insertPayload, null, 2));
 
-    if (error) throw error;
+    const { data: dataArr, error } = await supabase
+      .from('notifications')
+      .insert(insertPayload)
+      .select();
+
+    if (error) {
+      console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
+      throw error;
+    }
+    
+    const notification = dataArr && dataArr.length > 0 ? dataArr[0] : null;
+    if (!notification) {
+      console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
+      throw new Error("Insert succeeded but returned no rows.");
+    }
+    console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(notification, null, 2));
 
     // 1. Web Push (VAPID)
     await sendPushToEmail(targetEmail, {
@@ -471,8 +499,8 @@ router.post("/notifications", async (req, res) => {
     await sendOneSignalToEmail(targetEmail, {
       title,
       body: message,
-      actionUrl: action_url || "/notifications",
-      data: { notificationId: notification.id }
+      actionUrl: deepLink || action_url || "/notifications",
+      data: { notificationId: notification.id, category: category || type, priority: priority || "normal", ...metadata }
     });
 
     return res.status(201).json({ notification });
@@ -546,7 +574,7 @@ router.delete("/notifications/:id", async (req, res) => {
 // which merges broadcasts with their individual notifications and filters
 // out anything they've dismissed.
 
-export async function sendBroadcastNotification({ title, message, type = 'info', event_id = null, event_title = null, action_url = null }) {
+export async function sendBroadcastNotification({ title, message, type = 'info', event_id = null, event_title = null, action_url = null, deepLink = null, category = null, priority = "high", metadata = {} }) {
   console.log('[BROADCAST] Creating single broadcast notification:', { title, event_id });
 
   try {
@@ -555,27 +583,37 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
       .insert({
         title,
         message,
-        type,
+        type: category || type,
+        category: category || type,
         event_id,
         event_title,
-        action_url,
+        action_url: deepLink || action_url,
+        deep_link: deepLink || action_url,
+        priority,
+        metadata,
         user_email: null,
         is_broadcast: true,
         read: false
       })
-      .select()
-      .single();
+      .select();
 
     if (error) {
-      console.error('[BROADCAST] Insert error:', error);
+      console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
       throw error;
     }
+    
+    const dataRow = data && data.length > 0 ? data[0] : null;
+    if (!dataRow) {
+      console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
+      throw new Error("Insert succeeded but returned no rows.");
+    }
+    console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
 
     // 1. Web Push (VAPID)
     await sendPushToAll({
       title,
       body: message,
-      tag: data.id,
+      tag: dataRow.id,
       actionUrl: action_url || "/notifications",
     });
 
@@ -583,12 +621,12 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
     await sendOneSignalToAll({
       title,
       body: message,
-      actionUrl: action_url || "/notifications",
-      data: { notificationId: data.id }
+      actionUrl: deepLink || action_url || "/notifications",
+      data: { notificationId: dataRow.id, category: category || type, priority, ...metadata }
     });
 
-    console.log(`[BROADCAST] Created 1 broadcast row (id: ${data.id}) — all users will see it`);
-    return { success: true, notificationId: data.id };
+    console.log(`[BROADCAST] Created 1 broadcast row (id: ${dataRow.id}) — all users will see it`);
+    return { success: true, notificationId: dataRow.id };
 
   } catch (error) {
     console.error('[BROADCAST] Error:', error);
