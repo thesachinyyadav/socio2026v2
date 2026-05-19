@@ -11,6 +11,9 @@ import {
   sendOneSignalToEmail,
   sendOneSignalToAll,
 } from "../utils/oneSignalService.js";
+import { executeOneSignalPush, getOneSignalConfigStatus } from "../utils/oneSignalProvider.js";
+import { isQueueReady } from "../services/queueService.js";
+import { notifLog, newReqId, normalizeEmail } from "../utils/notificationLogger.js";
 import {
   cacheGet,
   cacheSet,
@@ -146,12 +149,13 @@ router.post(
   checkRoleExpiration,
   requireMasterAdmin,
   async (req, res) => {
-  const reqId = Math.random().toString(36).slice(2, 10);
+  const reqId = newReqId();
   try {
+    notifLog.info(reqId, "Incoming broadcast request", { sender: req.userInfo?.email, body: req.body });
     const { title, message, type = 'info', event_id, event_title, action_url, deepLink, category, priority, metadata } = req.body || {};
 
     if (!title || !message) {
-      return res.status(400).json({ error: "title and message are required" });
+      return res.status(400).json({ error: "title and message are required", reqId });
     }
 
     const resolvedType = category || type;
@@ -172,7 +176,7 @@ router.post(
       is_broadcast: true,
       read: false,
     };
-    console.log(`[notif:${reqId}] DB insert (broadcast) payload:`, JSON.stringify(insertPayload));
+    notifLog.info(reqId, "DB insert (broadcast) payload", insertPayload);
 
     const { data, error } = await supabase
       .from('notifications')
@@ -180,16 +184,20 @@ router.post(
       .select();
 
     if (error) {
-      console.error(`[notif:${reqId}] Supabase insert error:`, JSON.stringify(error));
-      return res.status(500).json({ error: `Supabase insert failed: ${error.message || error.code || 'unknown'}` });
+      notifLog.error(reqId, "Supabase insert error", error);
+      return res.status(500).json({
+        error: `Supabase insert failed: ${error.message || error.code || 'unknown'}`,
+        reqId,
+        supabase: { code: error.code, hint: error.hint, details: error.details },
+      });
     }
 
     const dataRow = Array.isArray(data) && data.length > 0 ? data[0] : null;
     if (!dataRow) {
-      console.error(`[notif:${reqId}] Insert returned no rows.`);
-      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants)." });
+      notifLog.error(reqId, "Insert returned no rows.");
+      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants).", reqId });
     }
-    console.log(`[notif:${reqId}] DB insert success id=${dataRow.id}`);
+    notifLog.info(reqId, `DB insert success id=${dataRow.id}`);
 
     const webPushResult = await sendPushToAll({
       title,
@@ -197,12 +205,13 @@ router.post(
       tag: dataRow.id,
       actionUrl: resolvedLink || "/notifications",
     });
-    console.log(`[notif:${reqId}] webPush(all) result:`, JSON.stringify(webPushResult));
+    notifLog.info(reqId, "webPush(all) result", webPushResult);
 
     const oneSignalResult = await sendOneSignalToAll({
       title,
       body: message,
       actionUrl: resolvedLink || "/notifications",
+      reqId,
       data: {
         notificationId: dataRow.id,
         category: resolvedType,
@@ -210,12 +219,16 @@ router.post(
         ...(metadata || {}),
       },
     });
-    console.log(`[notif:${reqId}] OneSignal enqueue(broadcast) result:`, JSON.stringify(oneSignalResult));
+    notifLog.info(reqId, "OneSignal enqueue(broadcast) result", oneSignalResult);
 
-    console.log(`[notif:${reqId}] broadcast complete id=${dataRow.id} title="${title}"`);
-    return res.status(201).json({ notification: dataRow, reqId });
+    notifLog.info(reqId, `broadcast complete id=${dataRow.id} title="${title}"`);
+    return res.status(201).json({
+      notification: dataRow,
+      delivery: { webPush: webPushResult, oneSignal: oneSignalResult },
+      reqId,
+    });
   } catch (error) {
-    console.error(`[notif:${reqId}] Error sending broadcast:`, error);
+    notifLog.error(reqId, "Error sending broadcast", { message: error?.message, stack: error?.stack });
     return res.status(500).json({ error: error?.message || "Failed to send broadcast notification", reqId });
   }
 });
@@ -461,8 +474,9 @@ router.patch("/notifications/mark-read", async (req, res) => {
 // ─── CREATE INDIVIDUAL NOTIFICATION ─────────────────────────────────────────────
 
 router.post("/notifications", async (req, res) => {
-  const reqId = Math.random().toString(36).slice(2, 10);
+  const reqId = newReqId();
   try {
+    notifLog.info(reqId, "Incoming individual notification request", { body: req.body });
     const {
       title,
       message,
@@ -478,10 +492,10 @@ router.post("/notifications", async (req, res) => {
       metadata,
     } = req.body || {};
 
-    const targetEmail = (user_email || recipient_email || "").toString().trim().toLowerCase();
+    const targetEmail = normalizeEmail(user_email || recipient_email);
 
     if (!title || !message || !targetEmail) {
-      return res.status(400).json({ error: "title, message, and user_email are required" });
+      return res.status(400).json({ error: "title, message, and user_email are required", reqId });
     }
 
     const resolvedType = category || type || 'info';
@@ -502,7 +516,7 @@ router.post("/notifications", async (req, res) => {
       is_broadcast: false,
       read: false,
     };
-    console.log(`[notif:${reqId}] DB insert (individual) payload:`, JSON.stringify(insertPayload));
+    notifLog.info(reqId, "DB insert (individual) payload", insertPayload);
 
     const { data: dataArr, error } = await supabase
       .from('notifications')
@@ -510,16 +524,20 @@ router.post("/notifications", async (req, res) => {
       .select();
 
     if (error) {
-      console.error(`[notif:${reqId}] Supabase insert error:`, JSON.stringify(error));
-      return res.status(500).json({ error: `Supabase insert failed: ${error.message || error.code || 'unknown'}` });
+      notifLog.error(reqId, "Supabase insert error", error);
+      return res.status(500).json({
+        error: `Supabase insert failed: ${error.message || error.code || 'unknown'}`,
+        reqId,
+        supabase: { code: error.code, hint: error.hint, details: error.details },
+      });
     }
 
     const notification = Array.isArray(dataArr) && dataArr.length > 0 ? dataArr[0] : null;
     if (!notification) {
-      console.error(`[notif:${reqId}] Insert returned no rows.`);
-      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants)." });
+      notifLog.error(reqId, "Insert returned no rows.");
+      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants).", reqId });
     }
-    console.log(`[notif:${reqId}] DB insert success id=${notification.id}`);
+    notifLog.info(reqId, `DB insert success id=${notification.id}`);
 
     const webPushResult = await sendPushToEmail(targetEmail, {
       title,
@@ -527,12 +545,13 @@ router.post("/notifications", async (req, res) => {
       tag: notification.id,
       actionUrl: resolvedLink || "/notifications",
     });
-    console.log(`[notif:${reqId}] webPush result:`, JSON.stringify(webPushResult));
+    notifLog.info(reqId, "webPush result", webPushResult);
 
     const oneSignalResult = await sendOneSignalToEmail(targetEmail, {
       title,
       body: message,
       actionUrl: resolvedLink || "/notifications",
+      reqId,
       data: {
         notificationId: notification.id,
         category: resolvedType,
@@ -540,12 +559,16 @@ router.post("/notifications", async (req, res) => {
         ...(metadata || {}),
       },
     });
-    console.log(`[notif:${reqId}] OneSignal enqueue result:`, JSON.stringify(oneSignalResult));
+    notifLog.info(reqId, "OneSignal enqueue result", oneSignalResult);
 
-    return res.status(201).json({ notification, reqId });
+    return res.status(201).json({
+      notification,
+      delivery: { webPush: webPushResult, oneSignal: oneSignalResult },
+      reqId,
+    });
 
   } catch (error) {
-    console.error(`[notif:${reqId}] Error creating notification:`, error);
+    notifLog.error(reqId, "Error creating notification", { message: error?.message, stack: error?.stack });
     return res.status(500).json({ error: error?.message || "Failed to create notification", reqId });
   }
 });
@@ -736,6 +759,127 @@ router.get("/notifications/sync", async (req, res) => {
     console.error("[Sync] Error fetching notifications:", error);
     return res.status(500).json({ error: "Failed to sync notifications" });
   }
+});
+
+// ─── TEST NOTIFICATION (authenticated user → themselves) ────────────────────────
+// Bypasses broadcast segment; targets the current authenticated user's external_id
+// directly via include_aliases. Returns the full OneSignal response.
+
+router.post(
+  "/notifications/test",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    const reqId = newReqId();
+    const startedAt = Date.now();
+    try {
+      const targetEmail = normalizeEmail(req.userInfo?.email);
+      notifLog.info(reqId, "Incoming test notification request", { targetEmail });
+
+      if (!targetEmail) {
+        return res.status(400).json({ error: "Authenticated user has no email on file.", reqId });
+      }
+
+      const overrideTitle = req.body?.title;
+      const overrideMessage = req.body?.message;
+      const title = (overrideTitle || "🧪 SOCIO Test Notification").toString().slice(0, 100);
+      const message = (overrideMessage || `Hello ${targetEmail} — this is a self-test fired at ${new Date().toLocaleTimeString()}.`).toString().slice(0, 500);
+
+      const insertPayload = {
+        title,
+        message,
+        type: "info",
+        category: "diagnostic",
+        event_id: null,
+        event_title: null,
+        action_url: "/notifications",
+        deep_link: "/notifications",
+        priority: "high",
+        metadata: { test: true, firedAt: new Date().toISOString() },
+        user_email: targetEmail,
+        is_broadcast: false,
+        read: false,
+      };
+      notifLog.info(reqId, "DB insert (test) payload", insertPayload);
+
+      let notification = null;
+      let supabaseError = null;
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .insert(insertPayload)
+          .select();
+        if (error) {
+          supabaseError = { code: error.code, message: error.message, hint: error.hint, details: error.details };
+          notifLog.error(reqId, "Supabase insert failed (continuing anyway for push)", supabaseError);
+        } else {
+          notification = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          notifLog.info(reqId, `DB insert success id=${notification?.id}`);
+        }
+      } catch (dbErr) {
+        supabaseError = { message: dbErr?.message };
+        notifLog.error(reqId, "Supabase insert threw (continuing anyway for push)", supabaseError);
+      }
+
+      // Always attempt push directly (bypasses queue) so we get an immediate, full
+      // OneSignal response in the API reply for diagnostic visibility.
+      const pushPayload = {
+        id: notification?.id,
+        userEmail: targetEmail,
+        title,
+        body: message,
+        deepLink: "/notifications",
+        priority: "high",
+        category: "diagnostic",
+        createdAt: new Date().toISOString(),
+        metadata: { notificationId: notification?.id, test: true },
+        __reqId: reqId,
+      };
+
+      let oneSignal;
+      try {
+        oneSignal = await executeOneSignalPush("email", pushPayload);
+      } catch (osErr) {
+        oneSignal = { success: false, error: osErr?.message || String(osErr) };
+      }
+      notifLog.info(reqId, "OneSignal direct test result", oneSignal);
+
+      const durationMs = Date.now() - startedAt;
+      return res.status(200).json({
+        ok: true,
+        reqId,
+        durationMs,
+        target: { email: targetEmail, external_id: targetEmail },
+        notification,
+        supabaseError,
+        oneSignal,
+        config: getOneSignalConfigStatus(),
+        queueReady: isQueueReady(),
+        diagnostics: {
+          recipients: oneSignal?.recipients,
+          deliveredAtZero: oneSignal?.recipients === 0,
+          hint:
+            oneSignal?.recipients === 0
+              ? "OneSignal accepted the notification but found 0 recipients. Verify the device opened the app, granted permission, called OneSignal.User.PushSubscription.optIn(), and OneSignal.login(email) with the SAME email as your account."
+              : null,
+        },
+      });
+    } catch (error) {
+      notifLog.error(reqId, "Test notification fatal error", { message: error?.message, stack: error?.stack });
+      return res.status(500).json({ error: error?.message || "Test notification failed", reqId });
+    }
+  }
+);
+
+// ─── DIAGNOSTICS (config + queue health) ────────────────────────────────────────
+// Public-ish read-only endpoint; useful for mobile diagnostics screen.
+
+router.get("/notifications/diagnostics", async (req, res) => {
+  return res.json({
+    config: getOneSignalConfigStatus(),
+    queueReady: isQueueReady(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 export default router;
