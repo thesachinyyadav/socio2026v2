@@ -18,9 +18,35 @@
 
 import { osLog, normalizeEmail } from "./notificationLogger.js";
 
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+// Defensive normalization: pasted env values often carry a trailing newline
+// (Vercel dashboard), surrounding quotes, or an accidental "Basic " prefix
+// that the user copied along with the value from documentation. All three
+// produce an opaque 403 from OneSignal that's easy to misdiagnose as a
+// rotated/invalid key.
+function normalizeRestKey(raw) {
+  if (!raw) return "";
+  let v = String(raw).trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+  v = v.replace(/^Basic\s+/i, "").replace(/^Key\s+/i, "").trim();
+  return v;
+}
+
+const ONESIGNAL_APP_ID = (process.env.ONESIGNAL_APP_ID || "").trim();
+const ONESIGNAL_REST_API_KEY = normalizeRestKey(process.env.ONESIGNAL_REST_API_KEY);
 const ONESIGNAL_BROADCAST_SEGMENT = process.env.ONESIGNAL_BROADCAST_SEGMENT || "Subscribed Users";
+const ONESIGNAL_KEY_FORMAT = ONESIGNAL_REST_API_KEY.startsWith("os_v2_") ? "v2" : "legacy";
+
+// OneSignal endpoint + auth pair depends on the key format:
+//   - legacy (48-char base64) key  → v1 endpoint + "Basic <token>"
+//   - v2 ("os_v2_app_*") key       → v2 endpoint + "Key <token>"
+// The v1 endpoint no longer reliably accepts v2 keys despite earlier
+// backwards-compatibility claims, so v2 keys must use the new endpoint.
+const ONESIGNAL_API_URL = ONESIGNAL_KEY_FORMAT === "v2"
+  ? "https://api.onesignal.com/notifications?c=push"
+  : "https://onesignal.com/api/v1/notifications";
+const ONESIGNAL_AUTH_SCHEME = ONESIGNAL_KEY_FORMAT === "v2" ? "Key" : "Basic";
 
 if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
   console.warn(
@@ -28,17 +54,29 @@ if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
   );
 } else {
   console.log(
-    `[OneSignal] Startup check: ready (app_id_suffix=${String(ONESIGNAL_APP_ID).slice(-6)}, key_format=${String(ONESIGNAL_REST_API_KEY).startsWith("os_v2_") ? "v2" : "legacy"}, broadcast_segment="${ONESIGNAL_BROADCAST_SEGMENT}")`
+    `[OneSignal] Startup check: ready (app_id_suffix=${ONESIGNAL_APP_ID.slice(-6)}, key_format=${ONESIGNAL_KEY_FORMAT}, key_length=${ONESIGNAL_REST_API_KEY.length}, key_last4=${ONESIGNAL_REST_API_KEY.slice(-4)}, auth_scheme=${ONESIGNAL_AUTH_SCHEME}, broadcast_segment="${ONESIGNAL_BROADCAST_SEGMENT}")`
   );
+  const rawHadIssue =
+    process.env.ONESIGNAL_REST_API_KEY &&
+    process.env.ONESIGNAL_REST_API_KEY !== ONESIGNAL_REST_API_KEY;
+  if (rawHadIssue) {
+    console.warn(
+      "[OneSignal] Startup check: ONESIGNAL_REST_API_KEY env value contained whitespace, quotes, or an auth-scheme prefix; it has been stripped before use."
+    );
+  }
 }
 
 export function getOneSignalConfigStatus() {
   return {
     appIdConfigured: !!ONESIGNAL_APP_ID,
     restKeyConfigured: !!ONESIGNAL_REST_API_KEY,
-    appIdSuffix: ONESIGNAL_APP_ID ? String(ONESIGNAL_APP_ID).slice(-6) : null,
+    appIdSuffix: ONESIGNAL_APP_ID ? ONESIGNAL_APP_ID.slice(-6) : null,
     broadcastSegment: ONESIGNAL_BROADCAST_SEGMENT,
-    keyFormat: ONESIGNAL_REST_API_KEY?.startsWith("os_v2_") ? "v2" : "legacy",
+    keyFormat: ONESIGNAL_KEY_FORMAT,
+    keyLength: ONESIGNAL_REST_API_KEY.length || 0,
+    keyLast4: ONESIGNAL_REST_API_KEY ? ONESIGNAL_REST_API_KEY.slice(-4) : null,
+    authScheme: ONESIGNAL_AUTH_SCHEME,
+    endpoint: ONESIGNAL_API_URL,
   };
 }
 
@@ -109,11 +147,11 @@ export async function executeOneSignalPush(type, payload) {
 
   let response;
   try {
-    response = await fetch("https://onesignal.com/api/v1/notifications", {
+    response = await fetch(ONESIGNAL_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        Authorization: `Basic ${ONESIGNAL_REST_API_KEY}`,
+        Authorization: `${ONESIGNAL_AUTH_SCHEME} ${ONESIGNAL_REST_API_KEY}`,
       },
       body: JSON.stringify(bodyData),
     });
@@ -132,8 +170,15 @@ export async function executeOneSignalPush(type, payload) {
   osLog.info(reqId, `status=${response.status} response`, result);
 
   if (response.status === 401 || response.status === 403) {
-    osLog.error(reqId, `auth rejected (${response.status}). Check ONESIGNAL_REST_API_KEY.`);
-    throw new Error(`OneSignal auth failed (${response.status}): ${JSON.stringify(result)}`);
+    const hint = [
+      `OneSignal rejected the request (${response.status}). Things to check, in order:`,
+      `  1. The REST API Key in your server env (ONESIGNAL_REST_API_KEY) belongs to the SAME OneSignal app as ONESIGNAL_APP_ID ending in "${ONESIGNAL_APP_ID.slice(-6)}". Open OneSignal dashboard → Settings → Keys & IDs and copy the value next to "REST API Key" (NOT the App ID, NOT the User Auth Key).`,
+      `  2. The key has not been rotated/deleted in the dashboard since it was put into the env var.`,
+      `  3. If the key starts with "os_v2_" the auth scheme is "Key <token>"; otherwise "Basic <token>". Current scheme being sent: "${ONESIGNAL_AUTH_SCHEME}" (key_format=${ONESIGNAL_KEY_FORMAT}, key_length=${ONESIGNAL_REST_API_KEY.length}, key_last4=${ONESIGNAL_REST_API_KEY.slice(-4)}).`,
+      `  4. The env value has no surrounding quotes, no trailing newline, no leading "Basic "/"Key ". (The provider strips these defensively at startup — see the startup-check log line.)`,
+    ].join("\n");
+    osLog.error(reqId, `auth rejected (${response.status})`, { keyLength: ONESIGNAL_REST_API_KEY.length, keyLast4: ONESIGNAL_REST_API_KEY.slice(-4), authScheme: ONESIGNAL_AUTH_SCHEME, hint });
+    throw new Error(`OneSignal auth failed (${response.status}): ${rawText || "(empty body)"}\n\n${hint}`);
   }
 
   if (result.errors) {
