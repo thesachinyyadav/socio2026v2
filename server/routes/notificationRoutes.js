@@ -274,7 +274,29 @@ router.post(
         return res.status(500).json({ error: result?.error || "Broadcast failed", reqId });
       }
 
-      return res.status(201).json({ ok: true, notificationId: result.notificationId, reqId });
+      // Surface per-channel delivery state so the client can show a real toast.
+      // Push delivery can fail even when the broadcast row is inserted (e.g.
+      // OneSignal 401 on a misconfigured key) — without this the client would
+      // see "success" while every device gets nothing.
+      const delivery = result.delivery || {};
+      const oneSignalOk = delivery.oneSignal?.success !== false;
+      const webPushOk = delivery.webPush?.success !== false;
+      const oneSignalRecipients =
+        delivery.oneSignal?.result?.recipients ??
+        delivery.oneSignal?.recipients ??
+        null;
+      const webPushSent = delivery.webPush?.sent ?? null;
+      const anyChannelDelivered =
+        (oneSignalOk && (oneSignalRecipients === null || oneSignalRecipients > 0)) ||
+        (webPushOk && (webPushSent === null || webPushSent > 0));
+
+      return res.status(201).json({
+        ok: true,
+        notificationId: result.notificationId,
+        delivery,
+        delivered: anyChannelDelivered,
+        reqId,
+      });
     } catch (error) {
       notifLog.error(reqId, "Staff welcome broadcast fatal error", { message: error?.message, stack: error?.stack });
       return res.status(500).json({ error: error?.message || "Broadcast failed", reqId });
@@ -731,7 +753,7 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
       console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
       throw error;
     }
-    
+
     const dataRow = data && data.length > 0 ? data[0] : null;
     if (!dataRow) {
       console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
@@ -739,24 +761,44 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
     }
     console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
 
-    // 1. Web Push (VAPID)
-    await sendPushToAll({
-      title,
-      body: message,
-      tag: dataRow.id,
-      actionUrl: action_url || "/notifications",
+    // 1. Web Push (VAPID) — capture result so callers can surface real delivery state
+    let webPushResult;
+    try {
+      webPushResult = await sendPushToAll({
+        title,
+        body: message,
+        tag: dataRow.id,
+        actionUrl: action_url || "/notifications",
+      });
+    } catch (webPushErr) {
+      console.error('[BROADCAST] sendPushToAll threw:', webPushErr?.message || webPushErr);
+      webPushResult = { success: false, error: webPushErr?.message || String(webPushErr) };
+    }
+
+    // 2. Mobile Push (OneSignal) — same: capture so we don't lie to the client
+    let oneSignalResult;
+    try {
+      oneSignalResult = await sendOneSignalToAll({
+        title,
+        body: message,
+        actionUrl: deepLink || action_url || "/notifications",
+        data: { notificationId: dataRow.id, category: category || type, priority, ...metadata }
+      });
+    } catch (osErr) {
+      console.error('[BROADCAST] sendOneSignalToAll threw:', osErr?.message || osErr);
+      oneSignalResult = { success: false, error: osErr?.message || String(osErr) };
+    }
+
+    console.log(`[BROADCAST] Created 1 broadcast row (id: ${dataRow.id}) — delivery:`, {
+      webPush: webPushResult,
+      oneSignal: oneSignalResult,
     });
 
-    // 2. Mobile Push (OneSignal)
-    await sendOneSignalToAll({
-      title,
-      body: message,
-      actionUrl: deepLink || action_url || "/notifications",
-      data: { notificationId: dataRow.id, category: category || type, priority, ...metadata }
-    });
-
-    console.log(`[BROADCAST] Created 1 broadcast row (id: ${dataRow.id}) — all users will see it`);
-    return { success: true, notificationId: dataRow.id };
+    return {
+      success: true,
+      notificationId: dataRow.id,
+      delivery: { webPush: webPushResult, oneSignal: oneSignalResult },
+    };
 
   } catch (error) {
     console.error('[BROADCAST] Error:', error);
