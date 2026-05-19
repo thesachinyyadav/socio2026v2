@@ -233,6 +233,55 @@ router.post(
   }
 });
 
+// ─── STAFF WELCOME BROADCAST ───────────────────────────────────────────────────
+// Hardcoded "Hi, Welcome to Socio!" broadcast that any staff member can trigger.
+// Distinct from /notifications/broadcast (masteradmin-only, arbitrary content)
+// because broadening access to that endpoint would let any organiser send any
+// message — this endpoint can only ever send the canned welcome push.
+
+router.post(
+  "/notifications/staff-welcome-broadcast",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
+    const reqId = newReqId();
+    try {
+      const u = req.userInfo;
+      const isStaff = !!(
+        u && (
+          u.is_masteradmin || u.is_organiser || u.is_hod || u.is_dean ||
+          u.is_cfo || u.is_campus_director || u.is_accounts_office || u.is_support
+        )
+      );
+      if (!isStaff) {
+        notifLog.warn(reqId, `Staff welcome broadcast denied for ${u?.email}`);
+        return res.status(403).json({ error: "Staff role required", reqId });
+      }
+
+      notifLog.info(reqId, `Staff welcome broadcast triggered by ${u.email}`);
+
+      const result = await sendBroadcastNotification({
+        title: "Hi, Welcome to Socio!",
+        message: "Glad to have you on SOCIO — your hub for campus events, fests, and clubs.",
+        type: "info",
+        priority: "high",
+        metadata: { source: "staff-welcome-broadcast", sender: u.email },
+      });
+
+      if (!result?.success) {
+        notifLog.error(reqId, "Broadcast failed", result);
+        return res.status(500).json({ error: result?.error || "Broadcast failed", reqId });
+      }
+
+      return res.status(201).json({ ok: true, notificationId: result.notificationId, reqId });
+    } catch (error) {
+      notifLog.error(reqId, "Staff welcome broadcast fatal error", { message: error?.message, stack: error?.stack });
+      return res.status(500).json({ error: error?.message || "Broadcast failed", reqId });
+    }
+  }
+);
+
 // ─── ORGANISER EVENT REMINDER ───────────────────────────────────────────────────
 // Allows an organiser to send a reminder notification for an event they own.
 // Auth chain: authenticateUser → getUserInfo → checkRoleExpiration → requireOrganiser
@@ -351,41 +400,49 @@ router.post(
 // Read/dismiss state is managed client-side via localStorage — no notification_user_status query.
 
 router.get("/notifications", async (req, res) => {
+  const reqId = newReqId();
   try {
-    const { email, page = 1, limit = 20 } = req.query;
+    const { email: rawEmail, page = 1, limit = 20 } = req.query;
 
-    if (!email) {
-      return res.status(400).json({ error: "Email parameter is required" });
+    if (!rawEmail) {
+      return res.status(400).json({ error: "Email parameter is required", reqId });
     }
 
+    const email = normalizeEmail(rawEmail);
     const pageNum = parseInt(page) || 1;
     const limitNum = Math.min(parseInt(limit) || 20, 50);
     const offset = (pageNum - 1) * limitNum;
 
-    // Get user's join date so we don't surface notifications that predated their account
+    notifLog.info(reqId, `GET /notifications email=${email} page=${pageNum} limit=${limitNum}`);
+
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('created_at')
-      .eq('email', email)
-      .single();
+      .select('created_at, email')
+      .ilike('email', email)
+      .maybeSingle();
 
-    if (userError || !user) {
+    if (userError) {
+      notifLog.error(reqId, "users lookup failed", { code: userError.code, message: userError.message });
+    }
+    if (!user) {
+      notifLog.warn(reqId, `No users row matched email=${email}. Returning empty list.`);
       return res.json({
         notifications: [],
         unreadCount: 0,
-        pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0, hasMore: false }
+        pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0, hasMore: false },
+        debug: { reqId, reason: "user_not_found_in_users_table", queriedEmail: email },
       });
     }
 
     const userCreatedAt = user.created_at;
+    notifLog.info(reqId, `User found, created_at=${userCreatedAt}`);
 
-    // Fetch individual + broadcast notifications in parallel
     const [{ data: individual, error: indError }, { data: broadcasts, error: bcError }] =
       await Promise.all([
         supabase
           .from('notifications')
           .select('*')
-          .eq('user_email', email)
+          .ilike('user_email', email)
           .gte('created_at', userCreatedAt)
           .order('created_at', { ascending: false }),
         supabase
@@ -396,31 +453,42 @@ router.get("/notifications", async (req, res) => {
           .order('created_at', { ascending: false }),
       ]);
 
-    if (indError) throw indError;
-    if (bcError) throw bcError;
+    if (indError) {
+      notifLog.error(reqId, "individual fetch failed", { code: indError.code, message: indError.message });
+      throw indError;
+    }
+    if (bcError) {
+      notifLog.error(reqId, "broadcast fetch failed", { code: bcError.code, message: bcError.message });
+      throw bcError;
+    }
 
-    // Merge, sort, paginate — read/dismiss filtering handled client-side
-    const all = [...(individual || []).map(n => mapNotification(n)), ...(broadcasts || []).map(n => mapNotification(n))]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const indCount = (individual || []).length;
+    const bcCount = (broadcasts || []).length;
+    notifLog.info(reqId, `Fetched individual=${indCount} broadcasts=${bcCount} (since ${userCreatedAt})`);
+
+    const all = [
+      ...(individual || []).map((n) => mapNotification(n)),
+      ...(broadcasts || []).map((n) => mapNotification(n)),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const total = all.length;
     const paginated = all.slice(offset, offset + limitNum);
 
     return res.json({
       notifications: paginated,
-      unreadCount: all.filter(n => !n.read).length,
+      unreadCount: all.filter((n) => !n.read).length,
       pagination: {
         page: pageNum,
         limit: limitNum,
         total,
         totalPages: Math.ceil(total / limitNum),
-        hasMore: offset + limitNum < total
-      }
+        hasMore: offset + limitNum < total,
+      },
+      debug: { reqId, queriedEmail: email, userCreatedAt, individualCount: indCount, broadcastCount: bcCount, returned: paginated.length },
     });
-
   } catch (error) {
-    console.error("Error fetching notifications:", error.message);
-    return res.status(500).json({ error: "Failed to fetch notifications" });
+    notifLog.error(reqId, "GET /notifications fatal error", { message: error?.message });
+    return res.status(500).json({ error: error?.message || "Failed to fetch notifications", reqId });
   }
 });
 
