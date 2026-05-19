@@ -66,6 +66,8 @@ export async function executeOneSignalPush(type, payload) {
     throw new Error(`[OneSignal] Invalid push type or missing target: ${type}`);
   }
 
+  console.log(`[OneSignal] Sending payload to ${type}:`, JSON.stringify(bodyData, null, 2));
+
   const response = await fetch("https://onesignal.com/api/v1/notifications", {
     method: "POST",
     headers: {
@@ -76,13 +78,21 @@ export async function executeOneSignalPush(type, payload) {
   });
 
   const result = await response.json();
+  console.log(`[OneSignal] API Response for ${type}:`, JSON.stringify(result, null, 2));
   
   if (result.errors) {
     // If external ID isn't found, OneSignal returns an error array, we might not want to crash the worker if it's just a missing user.
     if (Array.isArray(result.errors) && result.errors.some(e => typeof e === 'string' && e.includes("external_user_id not found"))) {
-       console.log(`[OneSignal] User ${userEmail} not subscribed to push. Skipping.`);
+       console.log(`[OneSignal] User ${userEmail} not subscribed to push (external_user_id not found). Skipping.`);
        return { success: true, warning: "User not subscribed" };
     }
+    
+    // Also handle object-based errors
+    if (result.errors?.invalid_external_user_ids) {
+        console.log(`[OneSignal] User ${userEmail} has an invalid external_user_id. Skipping.`);
+        return { success: true, warning: "Invalid user external_id" };
+    }
+
     console.error(`[OneSignal] Error sending ${type}:`, result.errors);
     throw new Error(JSON.stringify(result.errors));
   }

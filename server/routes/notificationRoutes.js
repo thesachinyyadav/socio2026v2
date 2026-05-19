@@ -140,7 +140,7 @@ router.post(
   requireMasterAdmin,
   async (req, res) => {
   try {
-    const { title, message, type = 'info', event_id, event_title, action_url } = req.body;
+    const { title, message, type = 'info', event_id, event_title, action_url, deepLink, category, priority, metadata } = req.body;
 
     if (!title || !message) {
       return res.status(400).json({ error: "title and message are required" });
@@ -151,10 +151,14 @@ router.post(
       .insert({
         title,
         message,
-        type,
+        type: category || type,
+        category: category || type,
         event_id: event_id || null,
         event_title: event_title || null,
-        action_url: action_url || null,
+        action_url: deepLink || action_url || null,
+        deep_link: deepLink || action_url || null,
+        priority: priority || "high",
+        metadata: metadata || {},
         user_email: null,
         is_broadcast: true,
         read: false,
@@ -176,8 +180,8 @@ router.post(
     await sendOneSignalToAll({
       title,
       body: message,
-      actionUrl: action_url || "/notifications",
-      data: { notificationId: data.id }
+      actionUrl: deepLink || action_url || "/notifications",
+      data: { notificationId: data.id, category: category || type, priority: priority || "high", ...metadata }
     });
 
     console.log(`[BROADCAST API] Created broadcast (id: ${data.id}): ${title}`);
