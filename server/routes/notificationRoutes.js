@@ -11,6 +11,13 @@ import {
   sendOneSignalToEmail,
   sendOneSignalToAll,
 } from "../utils/oneSignalService.js";
+import {
+  cacheGet,
+  cacheSet,
+  CACHE_KEYSPACE,
+  safeStringify,
+  safeParse,
+} from "../services/cacheService.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -139,29 +146,33 @@ router.post(
   checkRoleExpiration,
   requireMasterAdmin,
   async (req, res) => {
+  const reqId = Math.random().toString(36).slice(2, 10);
   try {
-    const { title, message, type = 'info', event_id, event_title, action_url, deepLink, category, priority, metadata } = req.body;
+    const { title, message, type = 'info', event_id, event_title, action_url, deepLink, category, priority, metadata } = req.body || {};
 
     if (!title || !message) {
       return res.status(400).json({ error: "title and message are required" });
     }
 
+    const resolvedType = category || type;
+    const resolvedLink = deepLink || action_url || null;
+
     const insertPayload = {
-        title,
-        message,
-        type: category || type,
-        category: category || type,
-        event_id: event_id || null,
-        event_title: event_title || null,
-        action_url: deepLink || action_url || null,
-        deep_link: deepLink || action_url || null,
-        priority: priority || "high",
-        metadata: metadata || {},
-        user_email: null,
-        is_broadcast: true,
-        read: false,
-      };
-    console.log("[DB INSERT PAYLOAD - Broadcast]", JSON.stringify(insertPayload, null, 2));
+      title,
+      message,
+      type: resolvedType,
+      category: resolvedType,
+      event_id: event_id || null,
+      event_title: event_title || null,
+      action_url: resolvedLink,
+      deep_link: resolvedLink,
+      priority: priority || "high",
+      metadata: metadata || {},
+      user_email: null,
+      is_broadcast: true,
+      read: false,
+    };
+    console.log(`[notif:${reqId}] DB insert (broadcast) payload:`, JSON.stringify(insertPayload));
 
     const { data, error } = await supabase
       .from('notifications')
@@ -169,38 +180,43 @@ router.post(
       .select();
 
     if (error) {
-      console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
-      throw error;
+      console.error(`[notif:${reqId}] Supabase insert error:`, JSON.stringify(error));
+      return res.status(500).json({ error: `Supabase insert failed: ${error.message || error.code || 'unknown'}` });
     }
-    
-    const dataRow = data && data.length > 0 ? data[0] : null;
+
+    const dataRow = Array.isArray(data) && data.length > 0 ? data[0] : null;
     if (!dataRow) {
-      console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
-      throw new Error("Insert succeeded but returned no rows.");
+      console.error(`[notif:${reqId}] Insert returned no rows.`);
+      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants)." });
     }
-    console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
+    console.log(`[notif:${reqId}] DB insert success id=${dataRow.id}`);
 
-    // 1. Web Push (VAPID)
-    await sendPushToAll({
+    const webPushResult = await sendPushToAll({
       title,
       body: message,
-      tag: data.id,
-      actionUrl: action_url || "/notifications",
+      tag: dataRow.id,
+      actionUrl: resolvedLink || "/notifications",
     });
+    console.log(`[notif:${reqId}] webPush(all) result:`, JSON.stringify(webPushResult));
 
-    // 2. Mobile Push (OneSignal)
-    await sendOneSignalToAll({
+    const oneSignalResult = await sendOneSignalToAll({
       title,
       body: message,
-      actionUrl: deepLink || action_url || "/notifications",
-      data: { notificationId: data.id, category: category || type, priority: priority || "high", ...metadata }
+      actionUrl: resolvedLink || "/notifications",
+      data: {
+        notificationId: dataRow.id,
+        category: resolvedType,
+        priority: priority || "high",
+        ...(metadata || {}),
+      },
     });
+    console.log(`[notif:${reqId}] OneSignal enqueue(broadcast) result:`, JSON.stringify(oneSignalResult));
 
-    console.log(`[BROADCAST API] Created broadcast (id: ${data.id}): ${title}`);
-    return res.status(201).json({ notification: data });
+    console.log(`[notif:${reqId}] broadcast complete id=${dataRow.id} title="${title}"`);
+    return res.status(201).json({ notification: dataRow, reqId });
   } catch (error) {
-    console.error("Error sending broadcast:", error);
-    return res.status(500).json({ error: "Failed to send broadcast notification" });
+    console.error(`[notif:${reqId}] Error sending broadcast:`, error);
+    return res.status(500).json({ error: error?.message || "Failed to send broadcast notification", reqId });
   }
 });
 
@@ -445,30 +461,48 @@ router.patch("/notifications/mark-read", async (req, res) => {
 // ─── CREATE INDIVIDUAL NOTIFICATION ─────────────────────────────────────────────
 
 router.post("/notifications", async (req, res) => {
+  const reqId = Math.random().toString(36).slice(2, 10);
   try {
-    const { title, message, type, event_id, event_title, action_url, recipient_email, user_email } = req.body;
-    const targetEmail = user_email || recipient_email;
+    const {
+      title,
+      message,
+      type,
+      event_id,
+      event_title,
+      action_url,
+      recipient_email,
+      user_email,
+      category,
+      deepLink,
+      priority,
+      metadata,
+    } = req.body || {};
+
+    const targetEmail = (user_email || recipient_email || "").toString().trim().toLowerCase();
 
     if (!title || !message || !targetEmail) {
       return res.status(400).json({ error: "title, message, and user_email are required" });
     }
 
+    const resolvedType = category || type || 'info';
+    const resolvedLink = deepLink || action_url || null;
+
     const insertPayload = {
-        title,
-        message,
-        type: category || type || 'info',
-        category: category || type || 'info',
-        event_id: event_id || null,
-        event_title: event_title || null,
-        action_url: deepLink || action_url || null,
-        deep_link: deepLink || action_url || null,
-        priority: priority || "normal",
-        metadata: metadata || {},
-        user_email: targetEmail,
-        is_broadcast: false,
-        read: false
-      };
-    console.log("[DB INSERT PAYLOAD - Individual]", JSON.stringify(insertPayload, null, 2));
+      title,
+      message,
+      type: resolvedType,
+      category: resolvedType,
+      event_id: event_id || null,
+      event_title: event_title || null,
+      action_url: resolvedLink,
+      deep_link: resolvedLink,
+      priority: priority || "normal",
+      metadata: metadata || {},
+      user_email: targetEmail,
+      is_broadcast: false,
+      read: false,
+    };
+    console.log(`[notif:${reqId}] DB insert (individual) payload:`, JSON.stringify(insertPayload));
 
     const { data: dataArr, error } = await supabase
       .from('notifications')
@@ -476,38 +510,43 @@ router.post("/notifications", async (req, res) => {
       .select();
 
     if (error) {
-      console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
-      throw error;
+      console.error(`[notif:${reqId}] Supabase insert error:`, JSON.stringify(error));
+      return res.status(500).json({ error: `Supabase insert failed: ${error.message || error.code || 'unknown'}` });
     }
-    
-    const notification = dataArr && dataArr.length > 0 ? dataArr[0] : null;
-    if (!notification) {
-      console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
-      throw new Error("Insert succeeded but returned no rows.");
-    }
-    console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(notification, null, 2));
 
-    // 1. Web Push (VAPID)
-    await sendPushToEmail(targetEmail, {
+    const notification = Array.isArray(dataArr) && dataArr.length > 0 ? dataArr[0] : null;
+    if (!notification) {
+      console.error(`[notif:${reqId}] Insert returned no rows.`);
+      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants)." });
+    }
+    console.log(`[notif:${reqId}] DB insert success id=${notification.id}`);
+
+    const webPushResult = await sendPushToEmail(targetEmail, {
       title,
       body: message,
       tag: notification.id,
-      actionUrl: action_url || "/notifications",
+      actionUrl: resolvedLink || "/notifications",
     });
+    console.log(`[notif:${reqId}] webPush result:`, JSON.stringify(webPushResult));
 
-    // 2. Mobile Push (OneSignal)
-    await sendOneSignalToEmail(targetEmail, {
+    const oneSignalResult = await sendOneSignalToEmail(targetEmail, {
       title,
       body: message,
-      actionUrl: deepLink || action_url || "/notifications",
-      data: { notificationId: notification.id, category: category || type, priority: priority || "normal", ...metadata }
+      actionUrl: resolvedLink || "/notifications",
+      data: {
+        notificationId: notification.id,
+        category: resolvedType,
+        priority: priority || "normal",
+        ...(metadata || {}),
+      },
     });
+    console.log(`[notif:${reqId}] OneSignal enqueue result:`, JSON.stringify(oneSignalResult));
 
-    return res.status(201).json({ notification });
+    return res.status(201).json({ notification, reqId });
 
   } catch (error) {
-    console.error("Error creating notification:", error);
-    return res.status(500).json({ error: "Failed to create notification" });
+    console.error(`[notif:${reqId}] Error creating notification:`, error);
+    return res.status(500).json({ error: error?.message || "Failed to create notification", reqId });
   }
 });
 
@@ -643,14 +682,14 @@ router.get("/notifications/sync", async (req, res) => {
       return res.status(400).json({ error: "Email parameter is required" });
     }
 
-    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function' 
-      ? CACHE_KEYSPACE.notificationSummary(email) 
+    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+      ? CACHE_KEYSPACE.notificationSummary(email)
       : `notifications:sync:${email}`;
-      
-    // 1. Try Valkey Cache First
-    const cached = await cacheGet(cacheKey);
-    if (cached) {
-      return res.json(cached);
+
+    const cachedString = await cacheGet(cacheKey);
+    if (cachedString) {
+      const parsed = safeParse(cachedString);
+      if (parsed) return res.json(parsed);
     }
 
     // 2. Fetch User to get join date (prevents sending old broadcasts)
@@ -690,8 +729,7 @@ router.get("/notifications/sync", async (req, res) => {
 
     const payload = { notifications: merged };
 
-    // 4. Cache in Valkey (TTL 60s to prevent spam on rapid cold boots)
-    await cacheSet(cacheKey, payload, 60);
+    await cacheSet(cacheKey, safeStringify(payload), 60);
 
     return res.json(payload);
   } catch (error) {
