@@ -193,19 +193,37 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
         ? { ...basePayload, user_email: recipient }
         : basePayload;
 
+      console.log("[AdminNotifications] POST", endpoint, body);
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error();
+      const raw = await res.text();
+      let parsed: unknown = null;
+      try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = raw; }
+
+      console.log("[AdminNotifications] response", res.status, parsed);
+
+      if (!res.ok) {
+        const serverMsg =
+          (parsed && typeof parsed === "object" && "error" in parsed && typeof (parsed as { error: unknown }).error === "string")
+            ? (parsed as { error: string }).error
+            : typeof parsed === "string" && parsed
+            ? parsed
+            : `HTTP ${res.status}`;
+        throw new Error(serverMsg);
+      }
 
       toast.success(mode === "individual" ? `Sent to ${recipient}` : "Broadcast sent");
       resetForm();
       fetchHistory();
-    } catch {
-      toast.error("Failed to send notification");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      console.error("[AdminNotifications] send failed:", err);
+      toast.error(`Failed to send notification: ${msg}`);
     } finally {
       setIsSending(false);
     }

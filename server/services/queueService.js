@@ -19,25 +19,35 @@ if (connectionString) {
 
     notificationWorker = new Worker("notifications", async (job) => {
       const { type, payload } = job.data;
-      await executeOneSignalPush(type, payload);
-    }, { 
+      console.log(`[Queue] Job ${job.id} starting type=${type} attempt=${job.attemptsMade + 1}/${job.opts?.attempts || 1}`);
+      const result = await executeOneSignalPush(type, payload);
+      console.log(`[Queue] Job ${job.id} executed result:`, JSON.stringify(result));
+      return result;
+    }, {
       connection,
-      concurrency: 5, // Process up to 5 pushes concurrently
+      concurrency: 5,
       limiter: {
         max: 50,
-        duration: 1000, // Rate limit for OneSignal API safety
-      }
+        duration: 1000,
+      },
     });
 
-    notificationWorker.on("completed", (job) => {
-      console.log(`[Queue] Job ${job.id} completed!`);
+    notificationWorker.on("completed", (job, returnValue) => {
+      console.log(`[Queue] Job ${job.id} completed type=${job.data?.type} ->`, JSON.stringify(returnValue));
     });
 
     notificationWorker.on("failed", (job, err) => {
-      console.error(`[Queue] Job ${job?.id} failed: ${err.message}`);
+      console.error(
+        `[Queue] Job ${job?.id} failed type=${job?.data?.type} attempt=${job?.attemptsMade}/${job?.opts?.attempts}: ${err?.message}`,
+        err?.stack
+      );
     });
 
-    console.log("✅ [ValkeyQueue] BullMQ Notification Queue initialized.");
+    notificationWorker.on("error", (err) => {
+      console.error("[Queue] Worker error:", err?.message);
+    });
+
+    console.log("[ValkeyQueue] BullMQ Notification Queue initialized.");
   } catch (err) {
     console.error("❌ [ValkeyQueue] Initialization failed:", err.message);
     notificationQueue = null;
@@ -55,21 +65,27 @@ if (connectionString) {
  */
 export async function enqueueNotification(type, payload) {
   if (notificationQueue) {
-    await notificationQueue.add(type, { type, payload }, {
+    const job = await notificationQueue.add(type, { type, payload }, {
       attempts: 5,
       backoff: {
         type: "exponential",
-        delay: 2000, // 2s, 4s, 8s, 16s, 32s
+        delay: 2000,
       },
-      removeOnComplete: true, // Keep Valkey memory clean
-      removeOnFail: false, // Allow manual retry for failed jobs
+      removeOnComplete: true,
+      removeOnFail: false,
     });
-  } else {
-    // Fallback synchronous execution if queue is disabled
-    try {
-      await executeOneSignalPush(type, payload);
-    } catch (err) {
-      console.error("[Queue Fallback] Push failed:", err);
-    }
+    console.log(
+      `[Queue] Enqueued job id=${job.id} type=${type} target=${payload?.userEmail || "broadcast"} notif=${payload?.metadata?.notificationId || payload?.id || "n/a"}`
+    );
+    return { success: true, queued: true, jobId: job.id };
+  }
+
+  console.warn(`[Queue Fallback] Queue not initialized; executing ${type} push synchronously.`);
+  try {
+    const result = await executeOneSignalPush(type, payload);
+    return { success: true, queued: false, result };
+  } catch (err) {
+    console.error("[Queue Fallback] Push failed:", err?.message, err?.stack);
+    return { success: false, queued: false, error: err?.message || String(err) };
   }
 }

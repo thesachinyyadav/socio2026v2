@@ -581,9 +581,16 @@ export const createEventNotification = async (
         actionUrl: `/event/${eventId}`,
       }),
     });
-    if (!response.ok) throw new Error("Failed to send notifications");
+    if (!response.ok) {
+      const raw = await response.text();
+      console.error(
+        `[createEventNotification] HTTP ${response.status} from /notifications/bulk:`,
+        raw
+      );
+      throw new Error(`Bulk notification failed (HTTP ${response.status}): ${raw || "no body"}`);
+    }
   } catch (error) {
-    console.error("Error creating event notifications:", error);
+    console.error("[createEventNotification] failed:", error);
   }
 };
 
