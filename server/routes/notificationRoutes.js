@@ -74,12 +74,16 @@ function mapNotification(n, userStatus = null) {
     id: n.id,
     title: n.title,
     message: n.message,
-    type: n.type,
+    type: n.category || n.type, // migrate to category
     eventId: n.event_id || null,
     eventTitle: n.event_title || null,
     read: isRead,
     createdAt: n.created_at,
-    actionUrl: n.action_url || null,
+    actionUrl: n.deep_link || n.action_url || null, // fallback for legacy
+    deepLink: n.deep_link || n.action_url || null,
+    priority: n.priority || "normal",
+    category: n.category || n.type,
+    metadata: n.metadata || {},
     isBroadcast: isBroadcast,
   };
 }
@@ -587,5 +591,71 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
     return { success: false, error: error.message };
   }
 }
+
+// ─── HYDRATION SYNC (MOBILE LAUNCH) ──────────────────────────────────────────────
+// High-performance endpoint for mobile cold-boots, backed by Valkey caching.
+router.get("/notifications/sync", async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ error: "Email parameter is required" });
+    }
+
+    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function' 
+      ? CACHE_KEYSPACE.notificationSummary(email) 
+      : `notifications:sync:${email}`;
+      
+    // 1. Try Valkey Cache First
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    // 2. Fetch User to get join date (prevents sending old broadcasts)
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('created_at')
+      .eq('email', email)
+      .single();
+
+    if (userError || !user) {
+      return res.json({ notifications: [] });
+    }
+
+    // 3. Parallel fetch of last 50 individual + broadcast
+    const [{ data: individual }, { data: broadcasts }] = await Promise.all([
+      supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_email', email)
+        .gte('created_at', user.created_at)
+        .order('created_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('notifications')
+        .select('*')
+        .eq('is_broadcast', true)
+        .gte('created_at', user.created_at)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+
+    // Merge and sort
+    const merged = [
+      ...(individual || []).map(n => mapNotification(n)),
+      ...(broadcasts || []).map(n => mapNotification(n))
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50);
+
+    const payload = { notifications: merged };
+
+    // 4. Cache in Valkey (TTL 60s to prevent spam on rapid cold boots)
+    await cacheSet(cacheKey, payload, 60);
+
+    return res.json(payload);
+  } catch (error) {
+    console.error("[Sync] Error fetching notifications:", error);
+    return res.status(500).json({ error: "Failed to sync notifications" });
+  }
+});
 
 export default router;
