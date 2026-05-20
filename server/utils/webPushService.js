@@ -1,169 +1,63 @@
-import { createClient } from "@supabase/supabase-js";
+import webpush from "web-push";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let vapidConfigured = false;
 
-let webpushLib = null;
-let webpushInitAttempted = false;
+function initializeVapid() {
+  if (vapidConfigured) return true;
 
-async function getWebPush() {
-  if (webpushInitAttempted) return webpushLib;
-  webpushInitAttempted = true;
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  const subject = process.env.VAPID_SUBJECT || "mailto:thesocio.blr@gmail.com";
+
+  if (!publicKey || !privateKey) {
+    console.error("[PUSH] VAPID keys are missing from environment variables (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).");
+    return false;
+  }
 
   try {
-    const mod = await import("web-push");
-    webpushLib = mod.default || mod;
-
-    const publicKey = process.env.VAPID_PUBLIC_KEY;
-    const privateKey = process.env.VAPID_PRIVATE_KEY;
-    const subject = process.env.VAPID_SUBJECT || "mailto:thesocio.blr@gmail.com";
-
-    if (!publicKey || !privateKey) {
-      console.warn("[push] VAPID keys are missing. Push delivery disabled.");
-      return null;
-    }
-
-    webpushLib.setVapidDetails(subject, publicKey, privateKey);
-    return webpushLib;
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+    vapidConfigured = true;
+    console.log("[PUSH] VAPID successfully initialized.");
+    return true;
   } catch (error) {
-    console.warn("[push] web-push package not available. Install with: npm i web-push");
-    return null;
+    console.error("[PUSH] VAPID initialization failed:", error.message || error);
+    return false;
   }
 }
 
-function normalizeSubscription(input) {
-  if (!input || typeof input !== "object") return null;
-  const endpoint = input.endpoint;
-  const p256dh = input?.keys?.p256dh;
-  const auth = input?.keys?.auth;
-
-  if (!endpoint || !p256dh || !auth) return null;
-
-  return {
-    endpoint,
-    p256dh,
-    auth,
-    raw: input,
-  };
-}
-
-export async function savePushSubscription(email, subscription) {
-  const normalized = normalizeSubscription(subscription);
-  if (!email || !normalized) {
-    return { success: false, error: "Invalid email or subscription" };
+/**
+ * Sends a push notification directly to a browser push subscription.
+ * @param {object} payload The notification payload (title, body, route, etc.)
+ * @param {object} subscription The VAPID subscription object (endpoint, keys: { p256dh, auth })
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function sendPush(payload, subscription) {
+  if (!initializeVapid()) {
+    return { success: false, error: "VAPID not initialized" };
   }
 
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .upsert(
-      {
-        user_email: email,
-        endpoint: normalized.endpoint,
-        p256dh: normalized.p256dh,
-        auth: normalized.auth,
-        subscription: normalized.raw,
-        is_active: true,
-      },
-      { onConflict: "endpoint" }
-    );
-
-  if (error) {
-    console.error("[push] save subscription error:", error.message);
-    return { success: false, error: error.message };
+  if (!subscription || !subscription.endpoint) {
+    console.error("[PUSH] Delivery failed: Invalid or missing subscription details.");
+    return { success: false, error: "Invalid subscription" };
   }
 
-  return { success: true };
-}
+  const endpoint = subscription.endpoint;
+  console.log(`[PUSH] Delivery started to endpoint: ${endpoint.substring(0, 45)}...`);
 
-export async function disablePushSubscription(email, endpoint) {
-  if (!email || !endpoint) return { success: false, error: "Invalid email or endpoint" };
+  try {
+    const stringifiedPayload = JSON.stringify(payload);
+    await webpush.sendNotification(subscription, stringifiedPayload, {
+      TTL: 60 * 60, // 1 hour Time-To-Live
+    });
 
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .update({ is_active: false })
-    .eq("user_email", email)
-    .eq("endpoint", endpoint);
-
-  if (error) {
-    console.error("[push] disable subscription error:", error.message);
-    return { success: false, error: error.message };
+    console.log(`[PUSH] Delivery success to endpoint: ${endpoint.substring(0, 45)}...`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[PUSH] Delivery failed to endpoint: ${endpoint.substring(0, 45)}... | Error:`, error.message || error);
+    return {
+      success: false,
+      error: error.message || String(error),
+      statusCode: error.statusCode,
+    };
   }
-
-  return { success: true };
-}
-
-async function markSubscriptionInactive(endpoint) {
-  if (!endpoint) return;
-  await supabase
-    .from("push_subscriptions")
-    .update({ is_active: false })
-    .eq("endpoint", endpoint);
-}
-
-async function sendToSubscriptions(rows, payload) {
-  const webpush = await getWebPush();
-  if (!webpush) return { success: false, sent: 0 };
-  if (!rows?.length) return { success: true, sent: 0 };
-
-  let sent = 0;
-  for (const row of rows) {
-    try {
-      const subscription = row.subscription || {
-        endpoint: row.endpoint,
-        keys: {
-          p256dh: row.p256dh,
-          auth: row.auth,
-        },
-      };
-
-      await webpush.sendNotification(
-        subscription,
-        JSON.stringify(payload),
-        { TTL: 60 * 60 }
-      );
-      sent += 1;
-    } catch (error) {
-      const code = Number(error?.statusCode || 0);
-      if (code === 404 || code === 410) {
-        await markSubscriptionInactive(row.endpoint);
-      }
-      console.error("[push] send error:", error?.message || error);
-    }
-  }
-
-  return { success: true, sent };
-}
-
-export async function sendPushToEmail(email, payload) {
-  if (!email) return { success: false, sent: 0 };
-
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint,p256dh,auth,subscription")
-    .eq("user_email", email)
-    .eq("is_active", true);
-
-  if (error) {
-    console.error("[push] fetch subscriptions error:", error.message);
-    return { success: false, sent: 0 };
-  }
-
-  return sendToSubscriptions(data || [], payload);
-}
-
-export async function sendPushToAll(payload) {
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint,p256dh,auth,subscription")
-    .eq("is_active", true)
-    .limit(2000);
-
-  if (error) {
-    console.error("[push] fetch all subscriptions error:", error.message);
-    return { success: false, sent: 0 };
-  }
-
-  return sendToSubscriptions(data || [], payload);
 }

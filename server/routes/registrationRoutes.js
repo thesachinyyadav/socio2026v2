@@ -831,8 +831,6 @@ router.post("/register", async (req, res) => {
     if (registrationEmail && registrationEmail !== "unknown@example.com") {
       (async () => {
         try {
-          const { sendOneSignalToEmail } = await import("../utils/oneSignalService.js");
-          const { sendPushToEmail } = await import("../utils/webPushService.js");
           const eventTitle = event.title || "Event";
           
           const notifPayload = {
@@ -845,11 +843,7 @@ router.post("/register", async (req, res) => {
             }
           };
 
-          // 1. Mobile App Push (OneSignal)
-          await sendOneSignalToEmail(registrationEmail, notifPayload);
-
-          // 2. PWA Web Push (VAPID)
-          await sendPushToEmail(registrationEmail, notifPayload);
+          // Push notifications skipped in database-free lightweight VAPID mode
 
           // 3. In-app Notification (Database)
           await insert("notifications", [

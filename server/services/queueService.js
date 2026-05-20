@@ -1,6 +1,10 @@
 import { Queue, Worker } from "bullmq";
 import Redis from "ioredis";
-import { executeOneSignalPush } from "../utils/oneSignalProvider.js";
+// import { executeOneSignalPush } from "../utils/oneSignalProvider.js";
+const executeOneSignalPush = async (type, payload) => {
+  queueLog.warn(payload?.__reqId, `Push execution bypassed (OneSignal removed, queue requires target subscription)`);
+  return { success: true, bypassed: true };
+};
 import { queueLog } from "../utils/notificationLogger.js";
 import "../config/loadEnv.js";
 
