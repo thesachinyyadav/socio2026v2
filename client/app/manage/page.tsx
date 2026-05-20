@@ -22,6 +22,8 @@ import AnimatedListDropdown from "@/app/_components/UI/AnimatedListDropdown";
 import { TourGuideManage } from "@/app/_components/Tour/TourGuideManage";
 import EventReminderButton from "@/app/_components/EventReminderButton";
 import BookVenueModal from "@/app/_components/BookVenueModal";
+import IQACReportPanel from "@/app/_components/IQACReportPanel";
+import type { IQACReportEventData } from "@/lib/iqacReport";
 import {
   Search,
   SlidersHorizontal,
@@ -209,6 +211,13 @@ const ACCREDITATION_BODIES = [
     fullName: "University Grants Commission",
     description: "Regulatory authority for universities in India.",
     focus: "University standards, grants, governance.",
+  },
+  {
+    id: "iqac_christ",
+    name: "IQAC Christ",
+    fullName: "Internal Quality Assurance Cell - CHRIST (Deemed to be University)",
+    description: "Institutional event activity report format used by IQAC across CHRIST campuses.",
+    focus: "Single-event activity report. Generates an editable .docx with facing sheet, outcomes, analysis, mapping, and checklist.",
   },
 ];
 
@@ -1262,6 +1271,8 @@ function ManageDashboard() {
   const [selectedReportFest, setSelectedReportFest] = useState<string>("");
   const [selectedAccreditation, setSelectedAccreditation] = useState<string>("");
   const [reportMode, setReportMode] = useState<"fest" | "events">("fest");
+  const [iqacPanelOpen, setIqacPanelOpen] = useState(false);
+  const [iqacPanelEvent, setIqacPanelEvent] = useState<IQACReportEventData | null>(null);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [searchTermReport, setSearchTermReport] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1742,6 +1753,79 @@ function ManageDashboard() {
 
   // ─── REPORT GENERATION HANDLER ────────────────────────
   const handleGenerateReport = async () => {
+    // IQAC Christ format: single-event docx via floating panel
+    if (selectedAccreditation === "iqac_christ") {
+      if (selectedEventIds.size !== 1) {
+        toast.error("IQAC Christ format requires exactly one event. Please select a single event.");
+        return;
+      }
+      const eventId = Array.from(selectedEventIds)[0];
+      const allEvents = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+      const sourceEvent: any = allEvents.find((e) => e.event_id === eventId);
+      if (!sourceEvent) {
+        toast.error("Could not locate the selected event.");
+        return;
+      }
+      const volunteerCount = normalizeVolunteerRecords(sourceEvent.volunteers).length;
+      const panelEvent: IQACReportEventData = {
+        event_id: sourceEvent.event_id,
+        title: sourceEvent.title,
+        organizing_dept: sourceEvent.organizing_dept,
+        campus_hosted_at: sourceEvent.campus_hosted_at,
+        venue: sourceEvent.venue,
+        event_date: sourceEvent.event_date,
+        end_date: sourceEvent.end_date,
+        event_time: sourceEvent.event_time,
+        category: sourceEvent.category,
+        created_by: sourceEvent.created_by,
+        total_participants: sourceEvent.total_participants,
+        attended_count: sourceEvent.attended_count,
+        total_registrations: sourceEvent.total_registrations,
+        student_volunteers_count: volunteerCount,
+      };
+      const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+      // Try to enrich with attendance counts from the report endpoint
+      try {
+        const res = await fetch(`${API_URL}/api/report/data`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ eventIds: [eventId], festId: null }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const enriched = Array.isArray(data.events) ? data.events[0] : null;
+          if (enriched) {
+            panelEvent.total_participants = enriched.total_participants;
+            panelEvent.attended_count = enriched.attended_count;
+            panelEvent.total_registrations = enriched.total_registrations;
+            panelEvent.organizing_dept = enriched.organizing_dept || panelEvent.organizing_dept;
+            panelEvent.venue = enriched.venue || panelEvent.venue;
+          }
+        }
+      } catch {
+        // Non-fatal: fallback below
+      }
+      // Fallback: direct registrations endpoint (same source View Participants uses)
+      if (typeof panelEvent.total_registrations !== "number") {
+        try {
+          const regRes = await fetch(`${API_URL}/api/registrations?event_id=${eventId}`);
+          if (regRes.ok) {
+            const regData = await regRes.json();
+            const list = Array.isArray(regData.registrations) ? regData.registrations : [];
+            panelEvent.total_registrations = list.length;
+          }
+        } catch {
+          // Leave undefined
+        }
+      }
+      setIqacPanelEvent(panelEvent);
+      setIqacPanelOpen(true);
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL!;
@@ -2784,18 +2868,41 @@ function ManageDashboard() {
 
               {/* Action */}
               {selectedEventIds.size > 0 && selectedAccreditation && (
-                <div className="pt-2">
-                  <button
-                    disabled={isGenerating}
-                    onClick={handleGenerateReport}
-                    className={`flex items-center gap-2 px-6 py-3 bg-[#154cb3] text-white text-sm font-bold rounded-lg shadow-md hover:bg-[#124099] transition-all ${isGenerating ? "opacity-50 cursor-wait" : ""}`}
-                  >
-                    {isGenerating ? "Generating Analytics..." : "Generate Master Sheet"} <ArrowRight className="w-4 h-4" />
-                  </button>
+                <div className="pt-2 space-y-2">
+                  {selectedAccreditation === "iqac_christ" && selectedEventIds.size !== 1 && (
+                    <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
+                      IQAC Christ format requires exactly one selected event. You have {selectedEventIds.size} selected.
+                    </p>
+                  )}
+                  <div>
+                    <button
+                      disabled={isGenerating || (selectedAccreditation === "iqac_christ" && selectedEventIds.size !== 1)}
+                      onClick={handleGenerateReport}
+                      className={`flex items-center gap-2 px-6 py-3 bg-[#154cb3] text-white text-sm font-bold rounded-lg shadow-md hover:bg-[#124099] transition-all ${
+                        isGenerating || (selectedAccreditation === "iqac_christ" && selectedEventIds.size !== 1)
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {selectedAccreditation === "iqac_christ"
+                        ? "Fill IQAC Report Details"
+                        : isGenerating
+                        ? "Generating Analytics..."
+                        : "Generate Master Sheet"}{" "}
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
         )}
+
+        {/* IQAC Floating Panel */}
+        <IQACReportPanel
+          open={iqacPanelOpen}
+          onClose={() => setIqacPanelOpen(false)}
+          event={iqacPanelEvent}
+        />
 
         {/* 5. Volunteers Tab */}
         {activeTab === "volunteers" && (() => {
