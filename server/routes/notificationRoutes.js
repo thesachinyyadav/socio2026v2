@@ -2,16 +2,8 @@ import express from "express";
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, getUserInfo, checkRoleExpiration, requireMasterAdmin, requireOrganiserOrSubHead, extractCreatorEmails } from "../middleware/authMiddleware.js";
 import {
-  savePushSubscription,
-  disablePushSubscription,
-  sendPushToEmail,
-  sendPushToAll,
+  sendPush,
 } from "../utils/webPushService.js";
-import {
-  sendOneSignalToEmail,
-  sendOneSignalToAll,
-} from "../utils/oneSignalService.js";
-import { executeOneSignalPush, getOneSignalConfigStatus } from "../utils/oneSignalProvider.js";
 import { isQueueReady } from "../services/queueService.js";
 import { notifLog, newReqId, normalizeEmail } from "../utils/notificationLogger.js";
 import {
@@ -21,6 +13,23 @@ import {
   safeStringify,
   safeParse,
 } from "../services/cacheService.js";
+
+const sendPushToAll = async (payload) => {
+  console.log("[PUSH] sendPushToAll bypassed (lightweight database-free mode). Payload:", payload);
+  return { success: true, bypassed: true };
+};
+const sendPushToEmail = async (email, payload) => {
+  console.log(`[PUSH] sendPushToEmail bypassed for ${email} (lightweight database-free mode). Payload:`, payload);
+  return { success: true, bypassed: true };
+};
+const sendOneSignalToAll = async (payload) => {
+  console.log("[PUSH] sendOneSignalToAll bypassed (OneSignal purged). Payload:", payload);
+  return { success: true, bypassed: true };
+};
+const sendOneSignalToEmail = async (email, payload) => {
+  console.log(`[PUSH] sendOneSignalToEmail bypassed for ${email} (OneSignal purged). Payload:`, payload);
+  return { success: true, bypassed: true };
+};
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -32,40 +41,53 @@ const router = express.Router();
 // ─── PUSH SUBSCRIPTIONS ───────────────────────────────────────────────────────
 
 router.post("/notifications/push/subscribe", async (req, res) => {
-  try {
-    const { email, subscription } = req.body || {};
-    if (!email || !subscription) {
-      return res.status(400).json({ error: "email and subscription are required" });
-    }
-
-    const result = await savePushSubscription(email, subscription);
-    if (!result.success) {
-      return res.status(500).json({ error: result.error || "Failed to save push subscription" });
-    }
-
-    return res.status(201).json({ message: "Push subscription saved" });
-  } catch (error) {
-    console.error("Error subscribing push notifications:", error);
-    return res.status(500).json({ error: "Failed to subscribe push notifications" });
-  }
+  // Database-free no-op in lightweight VAPID mode
+  console.log("[PUSH] Subscription registered (local-only, skipped backend DB)");
+  return res.status(201).json({ message: "Push subscription registered" });
 });
 
 router.delete("/notifications/push/unsubscribe", async (req, res) => {
+  // Database-free no-op in lightweight VAPID mode
+  console.log("[PUSH] Subscription removed (local-only, skipped backend DB)");
+  return res.json({ message: "Push subscription removed" });
+});
+
+router.post("/notifications/send-direct", async (req, res) => {
   try {
-    const { email, endpoint } = req.body || {};
-    if (!email || !endpoint) {
-      return res.status(400).json({ error: "email and endpoint are required" });
+    const { subscription, payload } = req.body || {};
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: "Invalid subscription details." });
+    }
+    if (!payload || (!payload.title && !payload.notification?.title)) {
+      return res.status(400).json({ error: "Invalid notification payload (title is required)." });
     }
 
-    const result = await disablePushSubscription(email, endpoint);
+    const title = payload.title || payload.notification?.title;
+    const body = payload.body || payload.notification?.body || "";
+    const resolvedLink = payload.url || payload.deepLink || payload.actionUrl || payload.notification?.click_action || "/notifications";
+
+    const pushPayload = {
+      title,
+      body,
+      tag: payload.tag || payload.notificationId || undefined,
+      deepLink: resolvedLink,
+      actionUrl: resolvedLink,
+      category: payload.category || "general",
+      priority: payload.priority || "high",
+      metadata: payload.metadata || {},
+    };
+
+    console.log("[PUSH] Sending direct web push notification...");
+    const result = await sendPush(pushPayload, subscription);
+
     if (!result.success) {
-      return res.status(500).json({ error: result.error || "Failed to unsubscribe push notifications" });
+      return res.status(500).json({ error: result.error || "Failed to send web push notification" });
     }
 
-    return res.json({ message: "Push subscription removed" });
+    return res.status(200).json({ ok: true, result });
   } catch (error) {
-    console.error("Error unsubscribing push notifications:", error);
-    return res.status(500).json({ error: "Failed to unsubscribe push notifications" });
+    console.error("[PUSH] Error sending direct web push:", error);
+    return res.status(500).json({ error: "Failed to send direct web push notification" });
   }
 });
 
@@ -931,28 +953,18 @@ router.post(
         notifLog.error(reqId, "Supabase insert threw (continuing anyway for push)", supabaseError);
       }
 
-      // Always attempt push directly (bypasses queue) so we get an immediate, full
-      // OneSignal response in the API reply for diagnostic visibility.
-      const pushPayload = {
-        id: notification?.id,
-        userEmail: targetEmail,
-        title,
-        body: message,
-        deepLink: "/notifications",
-        priority: "high",
-        category: "diagnostic",
-        createdAt: new Date().toISOString(),
-        metadata: { notificationId: notification?.id, test: true },
-        __reqId: reqId,
-      };
-
-      let oneSignal;
-      try {
-        oneSignal = await executeOneSignalPush("email", pushPayload);
-      } catch (osErr) {
-        oneSignal = { success: false, error: osErr?.message || String(osErr) };
+      // Always attempt push directly if a client subscription is supplied
+      let pushResult = null;
+      if (req.body?.subscription) {
+        try {
+          pushResult = await sendPush(pushPayload, req.body.subscription);
+        } catch (pushErr) {
+          pushResult = { success: false, error: pushErr?.message || String(pushErr) };
+        }
+      } else {
+        pushResult = { success: false, error: "No target subscription supplied in body for lightweight mode push." };
       }
-      notifLog.info(reqId, "OneSignal direct test result", oneSignal);
+      notifLog.info(reqId, "VAPID direct test result", pushResult);
 
       const durationMs = Date.now() - startedAt;
       return res.status(200).json({
@@ -962,17 +974,13 @@ router.post(
         target: { email: targetEmail, external_id: targetEmail },
         notification,
         supabaseError,
-        oneSignal,
-        config: getOneSignalConfigStatus(),
-        queueReady: isQueueReady(),
-        diagnostics: {
-          recipients: oneSignal?.recipients,
-          deliveredAtZero: oneSignal?.recipients === 0,
-          hint:
-            oneSignal?.recipients === 0
-              ? "OneSignal accepted the notification but found 0 recipients. Verify the device opened the app, granted permission, called OneSignal.User.PushSubscription.optIn(), and OneSignal.login(email) with the SAME email as your account."
-              : null,
+        pushResult,
+        config: {
+          vapidPublicKey: process.env.VAPID_PUBLIC_KEY ? "configured" : "missing",
+          vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ? "configured" : "missing",
+          vapidSubject: process.env.VAPID_SUBJECT || "mailto:thesocio.blr@gmail.com",
         },
+        queueReady: isQueueReady(),
       });
     } catch (error) {
       notifLog.error(reqId, "Test notification fatal error", { message: error?.message, stack: error?.stack });
@@ -986,7 +994,11 @@ router.post(
 
 router.get("/notifications/diagnostics", async (req, res) => {
   return res.json({
-    config: getOneSignalConfigStatus(),
+    config: {
+      vapidPublicKey: process.env.VAPID_PUBLIC_KEY ? "configured" : "missing",
+      vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ? "configured" : "missing",
+      vapidSubject: process.env.VAPID_SUBJECT || "mailto:thesocio.blr@gmail.com",
+    },
     queueReady: isQueueReady(),
     timestamp: new Date().toISOString(),
   });

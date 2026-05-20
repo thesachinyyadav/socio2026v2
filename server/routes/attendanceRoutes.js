@@ -7,8 +7,7 @@ import {
   getUserInfo,
 } from "../middleware/authMiddleware.js";
 import { hasActiveVolunteerAccess } from "../utils/volunteerAccess.js";
-import { sendOneSignalToEmail } from "../utils/oneSignalService.js";
-import { sendPushToEmail } from "../utils/webPushService.js";
+// Push imports removed since database-based notification routing is inactive in lightweight mode
 
 const router = express.Router();
 
@@ -631,11 +630,7 @@ router.post(
             }
           };
 
-          // 1. Mobile App Push (OneSignal)
-          await sendOneSignalToEmail(participantEmail, notifPayload);
-
-          // 2. PWA Web Push (VAPID)
-          await sendPushToEmail(participantEmail, notifPayload);
+          // Push notification skipped in database-free lightweight VAPID mode
 
           // 3. In-app Notification (Database)
           await insert("notifications", [
