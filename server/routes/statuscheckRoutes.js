@@ -13,6 +13,7 @@ import {
   checkRoleExpiration,
 } from "../middleware/authMiddleware.js";
 import { getFestTableForDatabase } from "../utils/festTableResolver.js";
+import { createAndPushNotification } from "../utils/notificationHelper.js";
 
 const router = express.Router();
 
@@ -471,16 +472,14 @@ async function runMutationChecks(req) {
       details: { fest_id: createdFestId },
     });
 
-    const notificationInsert = await insert("notifications", [
-      {
-        user_email: req.userInfo.email,
-        title: `Statuscheck Notification ${stamp}`,
-        message: "Synthetic notification for mutation test",
-        type: "system",
-        read: false,
-        action_url: "/statuscheck",
-      },
-    ]);
+    const notificationInsert = await createAndPushNotification({
+      user_email: req.userInfo.email,
+      title: `Statuscheck Notification ${stamp}`,
+      message: "Synthetic notification for mutation test",
+      type: "system",
+      read: false,
+      action_url: "/statuscheck",
+    });
 
     createdNotificationId = notificationInsert?.[0]?.id || null;
 

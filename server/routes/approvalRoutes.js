@@ -8,6 +8,7 @@ import {
   requireMasterAdmin,
   extractCreatorEmails,
 } from "../middleware/authMiddleware.js";
+import { createAndPushNotification } from "../utils/notificationHelper.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -36,13 +37,14 @@ async function setEventOrFestLive(itemId, type) {
 
 async function sendApprovalNotification(targetEmail, title, message) {
   try {
-    await insert("notifications", {
+    await createAndPushNotification({
+      user_email: targetEmail.toLowerCase(),
       title,
       message,
-      target_email: targetEmail,
-      type: "approval",
+      type: "approval_update",
+      category: "approval",
     });
-  } catch (err) {
+  } catch (error) {
     console.warn("[Approvals] Notification insert failed (non-critical):", err?.message);
   }
 }

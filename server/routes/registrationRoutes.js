@@ -10,6 +10,8 @@ import {
 import { generateQRCodeData, generateQRCodeImage } from "../utils/qrCodeUtils.js";
 import { resolveGatedEvent, createGatedVisitor, getGatedVerifyUrl, isGatedEnabled, pushEventToGated } from "../utils/gatedSync.js";
 import { createOrUpdateTeammateUsers } from "../utils/teammateService.js";
+import { getFestTableForDatabase } from "../utils/festTableResolver.js";
+import { createAndPushNotification } from "../utils/notificationHelper.js";
 import { 
   authenticateUser, 
   getUserInfo, 
@@ -845,18 +847,16 @@ router.post("/register", async (req, res) => {
 
           // Push notifications skipped in database-free lightweight VAPID mode
 
-          // 3. In-app Notification (Database)
-          await insert("notifications", [
-            {
-              user_email: registrationEmail.toLowerCase(),
-              title: "Event Registered",
-              message: `You have successfully registered for "${eventTitle}".`,
-              type: "registration",
-              event_id: normalizedEventId,
-              event_title: eventTitle,
-              action_url: `/event/${normalizedEventId}`,
-            },
-          ]);
+          // 3. In-app Notification + Push (Database)
+          await createAndPushNotification({
+            user_email: registrationEmail.toLowerCase(),
+            title: "Event Registered",
+            message: `You have successfully registered for "${eventTitle}".`,
+            type: "registration",
+            event_id: normalizedEventId,
+            event_title: eventTitle,
+            action_url: `/event/${normalizedEventId}`,
+          });
         } catch (notifError) {
           console.warn("[Notification] Multi-channel registration failed:", notifError.message);
         }

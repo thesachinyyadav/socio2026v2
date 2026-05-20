@@ -8,6 +8,7 @@ import {
 } from "../middleware/authMiddleware.js";
 import { hasActiveVolunteerAccess } from "../utils/volunteerAccess.js";
 // Push imports removed since database-based notification routing is inactive in lightweight mode
+import { createAndPushNotification } from "../utils/notificationHelper.js";
 
 const router = express.Router();
 
@@ -632,18 +633,16 @@ router.post(
 
           // Push notification skipped in database-free lightweight VAPID mode
 
-          // 3. In-app Notification (Database)
-          await insert("notifications", [
-            {
-              user_email: participantEmail.toLowerCase(),
-              title: "Attendance Confirmed",
-              message: `Your attendance for "${eventTitle}" has been marked.`,
-              type: "attendance",
-              event_id: eventId,
-              event_title: eventTitle,
-              action_url: `/event/${eventId}`,
-            },
-          ]);
+          // 3. In-app Notification + Push
+          await createAndPushNotification({
+            user_email: participantEmail.toLowerCase(),
+            title: "Attendance Marked",
+            message: `Your attendance has been marked for "${eventTitle}".`,
+            type: "attendance",
+            event_id: eventId,
+            event_title: eventTitle,
+            action_url: `/event/${eventId}`
+          });
         } catch (notifError) {
           console.warn("[Notification] Multi-channel delivery failed:", notifError.message);
         }

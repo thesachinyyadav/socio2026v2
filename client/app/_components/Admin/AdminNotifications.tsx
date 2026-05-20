@@ -99,17 +99,13 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
         const data = await res.json();
         setHistory(data.notifications || []);
       } else {
-        const fallback = await fetch(
-          `${API_URL}/api/notifications?email=admin@system&page=1&limit=200`,
-          { headers: { Authorization: `Bearer ${authToken}` } }
-        );
-        if (fallback.ok) {
-          const data = await fallback.json();
-          setHistory(data.notifications || []);
-        }
+        const text = await res.text();
+        console.error("Failed to fetch admin history:", res.status, text);
+        toast.error(`History fetch failed (${res.status})`);
       }
-    } catch {
-      console.error("Failed to load notification history");
+    } catch (err) {
+      console.error("Failed to load notification history", err);
+      toast.error("Failed to load history due to network error");
     } finally {
       setHistoryLoading(false);
     }
@@ -185,10 +181,11 @@ export default function AdminNotifications({ authToken, users, events }: AdminNo
         action_url:  eventId ? `/event/${eventId}` : null,
       };
 
-      const endpoint = mode === "individual"
-        ? `${API_URL}/api/notifications`
-        : `${API_URL}/api/notifications/broadcast`;
-
+      const endpoint = mode === "broadcast" 
+        ? `${API_URL}/api/notifications/broadcast`
+        : mode === "event"
+          ? `${API_URL}/api/notifications/event-blast`
+          : `${API_URL}/api/notifications`;
       const body = mode === "individual"
         ? { ...basePayload, user_email: recipient }
         : basePayload;
