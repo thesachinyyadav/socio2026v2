@@ -502,6 +502,7 @@ export async function getNotifications(userEmail: string) {
     .from('notifications')
     .select('*')
     .eq('user_email', userEmail)
+    .neq('type', 'push_subscription_metadata')
     .order('created_at', { ascending: false });
   
   if (error) throw error;

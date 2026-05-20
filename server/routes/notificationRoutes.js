@@ -51,36 +51,37 @@ router.post(
 
       console.log(`[PUSH] Subscribing user ${email} with endpoint: ${subscription.endpoint}`);
 
-      // Query existing subscriptions for this email
-      const { data: subs, error: selectError } = await supabase
-        .from("push_subscriptions")
-        .select("*")
-        .eq("user_email", email);
+      // Query existing subscription metadata row for this email and endpoint
+      const { data: existing, error: selectError } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_email", email)
+        .eq("type", "push_subscription_metadata")
+        .eq("message", subscription.endpoint)
+        .maybeSingle();
 
       if (selectError) {
-        console.error("[PUSH] Error querying subscriptions:", selectError.message);
-        // Fallback: If table doesn't exist yet, we still return 201 to not block the frontend
-        return res.status(201).json({ 
-          message: "Push subscription registered locally (Warning: DB table missing)", 
-          dbError: selectError.message 
-        });
+        console.error("[PUSH] Error querying existing subscription metadata:", selectError.message);
+        return res.status(500).json({ error: selectError.message });
       }
 
-      const existing = (subs || []).find(s => s.subscription?.endpoint === subscription.endpoint);
-
       if (existing) {
-        // Update updated/created timestamp
+        // Already registered, update created_at to mark it active/fresh
         await supabase
-          .from("push_subscriptions")
+          .from("notifications")
           .update({ created_at: new Date().toISOString() })
           .eq("id", existing.id);
       } else {
-        // Insert new subscription
+        // Insert a new metadata row
         await supabase
-          .from("push_subscriptions")
+          .from("notifications")
           .insert({
             user_email: email,
-            subscription: subscription
+            title: "push_subscription_metadata",
+            message: subscription.endpoint,
+            type: "push_subscription_metadata",
+            metadata: subscription,
+            read: true // mark as read so it doesn't affect counts
           });
       }
 
@@ -110,23 +111,12 @@ router.delete(
 
       console.log(`[PUSH] Unsubscribing user ${email} with endpoint: ${subscription.endpoint}`);
 
-      const { data: subs, error: selectError } = await supabase
-        .from("push_subscriptions")
-        .select("*")
-        .eq("user_email", email);
-
-      if (selectError) {
-        console.error("[PUSH] Error querying subscriptions for unsubscribe:", selectError.message);
-        return res.json({ message: "Push subscription removed (table missing)" });
-      }
-
-      const target = (subs || []).find(s => s.subscription?.endpoint === subscription.endpoint);
-      if (target) {
-        await supabase
-          .from("push_subscriptions")
-          .delete()
-          .eq("id", target.id);
-      }
+      await supabase
+        .from("notifications")
+        .delete()
+        .eq("user_email", email)
+        .eq("type", "push_subscription_metadata")
+        .eq("message", subscription.endpoint);
 
       return res.json({ message: "Push subscription removed" });
     } catch (err) {
@@ -231,6 +221,7 @@ router.get(
     const { data: notifications, error } = await supabase
       .from('notifications')
       .select('*')
+      .neq('type', 'push_subscription_metadata')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -583,12 +574,14 @@ router.get("/notifications", async (req, res) => {
           .from('notifications')
           .select('*')
           .ilike('user_email', email)
+          .neq('type', 'push_subscription_metadata')
           .gte('created_at', userCreatedAt)
           .order('created_at', { ascending: false }),
         supabase
           .from('notifications')
           .select('*')
           .eq('is_broadcast', true)
+          .neq('type', 'push_subscription_metadata')
           .gte('created_at', userCreatedAt)
           .order('created_at', { ascending: false }),
       ]);
@@ -960,6 +953,7 @@ router.get("/notifications/sync", async (req, res) => {
         .from('notifications')
         .select('*')
         .eq('user_email', email)
+        .neq('type', 'push_subscription_metadata')
         .gte('created_at', user.created_at)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -967,6 +961,7 @@ router.get("/notifications/sync", async (req, res) => {
         .from('notifications')
         .select('*')
         .eq('is_broadcast', true)
+        .neq('type', 'push_subscription_metadata')
         .gte('created_at', user.created_at)
         .order('created_at', { ascending: false })
         .limit(50),

@@ -71,9 +71,10 @@ export async function sendPushToEmail(email, payload) {
   try {
     console.log(`[PUSH] sendPushToEmail started for ${email}`);
     const { data: subs, error } = await supabase
-      .from("push_subscriptions")
-      .select("subscription")
-      .eq("user_email", email);
+      .from("notifications")
+      .select("metadata")
+      .eq("user_email", email)
+      .eq("type", "push_subscription_metadata");
 
     if (error) {
       console.error("[PUSH] Error fetching subscriptions for sendPushToEmail:", error.message);
@@ -87,7 +88,7 @@ export async function sendPushToEmail(email, payload) {
 
     let successCount = 0;
     for (const subRow of subs) {
-      const sub = subRow.subscription;
+      const sub = subRow.metadata;
       if (sub && sub.endpoint) {
         const result = await sendPush(payload, sub);
         if (result.success) {
@@ -111,8 +112,9 @@ export async function sendPushToAll(payload) {
   try {
     console.log("[PUSH] sendPushToAll started");
     const { data: subs, error } = await supabase
-      .from("push_subscriptions")
-      .select("subscription");
+      .from("notifications")
+      .select("metadata")
+      .eq("type", "push_subscription_metadata");
 
     if (error) {
       console.error("[PUSH] Error fetching all subscriptions for broadcast:", error.message);
@@ -126,7 +128,7 @@ export async function sendPushToAll(payload) {
 
     let successCount = 0;
     for (const subRow of subs) {
-      const sub = subRow.subscription;
+      const sub = subRow.metadata;
       if (sub && sub.endpoint) {
         const result = await sendPush(payload, sub);
         if (result.success) {
