@@ -25,6 +25,8 @@ function initializeVapid() {
   }
 }
 
+import { supabase } from "../config/database.js";
+
 /**
  * Sends a push notification directly to a browser push subscription.
  * @param {object} payload The notification payload (title, body, route, etc.)
@@ -63,18 +65,81 @@ export async function sendPush(payload, subscription) {
 }
 
 /**
- * Mocked sendPushToEmail for database-free VAPID push mode.
+ * Send push notifications to all subscriptions for a specific user email.
  */
 export async function sendPushToEmail(email, payload) {
-  console.log(`[PUSH] sendPushToEmail bypassed for ${email} (lightweight database-free mode). Payload:`, payload);
-  return { success: true, bypassed: true };
+  try {
+    console.log(`[PUSH] sendPushToEmail started for ${email}`);
+    const { data: subs, error } = await supabase
+      .from("push_subscriptions")
+      .select("subscription")
+      .eq("user_email", email);
+
+    if (error) {
+      console.error("[PUSH] Error fetching subscriptions for sendPushToEmail:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    if (!subs || subs.length === 0) {
+      console.log(`[PUSH] No active subscriptions found for ${email}`);
+      return { success: true, sent: 0 };
+    }
+
+    let successCount = 0;
+    for (const subRow of subs) {
+      const sub = subRow.subscription;
+      if (sub && sub.endpoint) {
+        const result = await sendPush(payload, sub);
+        if (result.success) {
+          successCount++;
+        }
+      }
+    }
+
+    console.log(`[PUSH] sendPushToEmail complete. Sent ${successCount}/${subs.length} notifications to ${email}`);
+    return { success: true, sent: successCount };
+  } catch (err) {
+    console.error(`[PUSH] sendPushToEmail error for ${email}:`, err);
+    return { success: false, error: err.message };
+  }
 }
 
 /**
- * Mocked sendPushToAll for database-free VAPID push mode.
+ * Send push notifications to all users' active subscriptions.
  */
 export async function sendPushToAll(payload) {
-  console.log("[PUSH] sendPushToAll bypassed (lightweight database-free mode). Payload:", payload);
-  return { success: true, bypassed: true };
+  try {
+    console.log("[PUSH] sendPushToAll started");
+    const { data: subs, error } = await supabase
+      .from("push_subscriptions")
+      .select("subscription");
+
+    if (error) {
+      console.error("[PUSH] Error fetching all subscriptions for broadcast:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    if (!subs || subs.length === 0) {
+      console.log("[PUSH] No subscriptions in database for broadcast.");
+      return { success: true, sent: 0 };
+    }
+
+    let successCount = 0;
+    for (const subRow of subs) {
+      const sub = subRow.subscription;
+      if (sub && sub.endpoint) {
+        const result = await sendPush(payload, sub);
+        if (result.success) {
+          successCount++;
+        }
+      }
+    }
+
+    console.log(`[PUSH] sendPushToAll complete. Sent ${successCount}/${subs.length} notifications.`);
+    return { success: true, sent: successCount };
+  } catch (err) {
+    console.error("[PUSH] sendPushToAll error:", err);
+    return { success: false, error: err.message };
+  }
 }
 

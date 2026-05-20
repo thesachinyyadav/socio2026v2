@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, getUserInfo, checkRoleExpiration, requireMasterAdmin, requireOrganiserOrSubHead, extractCreatorEmails } from "../middleware/authMiddleware.js";
 import {
   sendPush,
+  sendPushToEmail,
+  sendPushToAll,
 } from "../utils/webPushService.js";
 import { isQueueReady } from "../services/queueService.js";
 import { notifLog, newReqId, normalizeEmail } from "../utils/notificationLogger.js";
@@ -13,15 +15,6 @@ import {
   safeStringify,
   safeParse,
 } from "../services/cacheService.js";
-
-const sendPushToAll = async (payload) => {
-  console.log("[PUSH] sendPushToAll bypassed (lightweight database-free mode). Payload:", payload);
-  return { success: true, bypassed: true };
-};
-const sendPushToEmail = async (email, payload) => {
-  console.log(`[PUSH] sendPushToEmail bypassed for ${email} (lightweight database-free mode). Payload:`, payload);
-  return { success: true, bypassed: true };
-};
 const sendOneSignalToAll = async (payload) => {
   console.log("[PUSH] sendOneSignalToAll bypassed (OneSignal purged). Payload:", payload);
   return { success: true, bypassed: true };
@@ -40,17 +33,108 @@ const router = express.Router();
 
 // ─── PUSH SUBSCRIPTIONS ───────────────────────────────────────────────────────
 
-router.post("/notifications/push/subscribe", async (req, res) => {
-  // Database-free no-op in lightweight VAPID mode
-  console.log("[PUSH] Subscription registered (local-only, skipped backend DB)");
-  return res.status(201).json({ message: "Push subscription registered" });
-});
+router.post(
+  "/notifications/push/subscribe",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const email = req.userInfo?.email;
+      if (!email) {
+        return res.status(401).json({ error: "Unauthorized: User email not found" });
+      }
 
-router.delete("/notifications/push/unsubscribe", async (req, res) => {
-  // Database-free no-op in lightweight VAPID mode
-  console.log("[PUSH] Subscription removed (local-only, skipped backend DB)");
-  return res.json({ message: "Push subscription removed" });
-});
+      const subscription = req.body;
+      if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ error: "Invalid subscription details." });
+      }
+
+      console.log(`[PUSH] Subscribing user ${email} with endpoint: ${subscription.endpoint}`);
+
+      // Query existing subscriptions for this email
+      const { data: subs, error: selectError } = await supabase
+        .from("push_subscriptions")
+        .select("*")
+        .eq("user_email", email);
+
+      if (selectError) {
+        console.error("[PUSH] Error querying subscriptions:", selectError.message);
+        // Fallback: If table doesn't exist yet, we still return 201 to not block the frontend
+        return res.status(201).json({ 
+          message: "Push subscription registered locally (Warning: DB table missing)", 
+          dbError: selectError.message 
+        });
+      }
+
+      const existing = (subs || []).find(s => s.subscription?.endpoint === subscription.endpoint);
+
+      if (existing) {
+        // Update updated/created timestamp
+        await supabase
+          .from("push_subscriptions")
+          .update({ created_at: new Date().toISOString() })
+          .eq("id", existing.id);
+      } else {
+        // Insert new subscription
+        await supabase
+          .from("push_subscriptions")
+          .insert({
+            user_email: email,
+            subscription: subscription
+          });
+      }
+
+      return res.status(201).json({ message: "Push subscription registered" });
+    } catch (err) {
+      console.error("[PUSH] Subscription registration fatal error:", err);
+      return res.status(500).json({ error: err.message || "Failed to register subscription" });
+    }
+  }
+);
+
+router.delete(
+  "/notifications/push/unsubscribe",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const email = req.userInfo?.email;
+      if (!email) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const subscription = req.body;
+      if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ error: "Invalid subscription details." });
+      }
+
+      console.log(`[PUSH] Unsubscribing user ${email} with endpoint: ${subscription.endpoint}`);
+
+      const { data: subs, error: selectError } = await supabase
+        .from("push_subscriptions")
+        .select("*")
+        .eq("user_email", email);
+
+      if (selectError) {
+        console.error("[PUSH] Error querying subscriptions for unsubscribe:", selectError.message);
+        return res.json({ message: "Push subscription removed (table missing)" });
+      }
+
+      const target = (subs || []).find(s => s.subscription?.endpoint === subscription.endpoint);
+      if (target) {
+        await supabase
+          .from("push_subscriptions")
+          .delete()
+          .eq("id", target.id);
+      }
+
+      return res.json({ message: "Push subscription removed" });
+    } catch (err) {
+      console.error("[PUSH] Unsubscribe fatal error:", err);
+      return res.status(500).json({ error: err.message || "Failed to unsubscribe" });
+    }
+  }
+);
 
 router.post("/notifications/send-direct", async (req, res) => {
   try {
