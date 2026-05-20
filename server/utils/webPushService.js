@@ -61,3 +61,20 @@ export async function sendPush(payload, subscription) {
     };
   }
 }
+
+/**
+ * Mocked sendPushToEmail for database-free VAPID push mode.
+ */
+export async function sendPushToEmail(email, payload) {
+  console.log(`[PUSH] sendPushToEmail bypassed for ${email} (lightweight database-free mode). Payload:`, payload);
+  return { success: true, bypassed: true };
+}
+
+/**
+ * Mocked sendPushToAll for database-free VAPID push mode.
+ */
+export async function sendPushToAll(payload) {
+  console.log("[PUSH] sendPushToAll bypassed (lightweight database-free mode). Payload:", payload);
+  return { success: true, bypassed: true };
+}
+
