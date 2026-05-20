@@ -39,7 +39,7 @@ router.post(
   getUserInfo(),
   async (req, res) => {
     try {
-      const email = req.userInfo?.email;
+      const email = normalizeEmail(req.userInfo?.email);
       if (!email) {
         return res.status(401).json({ error: "Unauthorized: User email not found" });
       }
@@ -99,7 +99,7 @@ router.delete(
   getUserInfo(),
   async (req, res) => {
     try {
-      const email = req.userInfo?.email;
+      const email = normalizeEmail(req.userInfo?.email);
       if (!email) {
         return res.status(401).json({ error: "Unauthorized" });
       }
@@ -1045,6 +1045,13 @@ router.post(
       }
 
       // Always attempt push directly if a client subscription is supplied
+      const pushPayload = {
+        title,
+        body: message,
+        tag: notification?.id || undefined,
+        actionUrl: "/notifications",
+      };
+
       let pushResult = null;
       if (req.body?.subscription) {
         try {

@@ -73,7 +73,7 @@ export async function sendPushToEmail(email, payload) {
     const { data: subs, error } = await supabase
       .from("notifications")
       .select("metadata")
-      .eq("user_email", email)
+      .ilike("user_email", email)
       .eq("type", "push_subscription_metadata");
 
     if (error) {
