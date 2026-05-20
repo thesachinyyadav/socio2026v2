@@ -278,9 +278,13 @@ router.post(
 
     const webPushResult = await sendPushToAll({
       title,
-      body: message,
-      tag: dataRow.id,
-      actionUrl: resolvedLink || "/notifications",
+      body:           message,
+      tag:            dataRow.id,
+      notificationId: dataRow.id,
+      actionUrl:      resolvedLink || "/notifications",
+      category:       resolvedType,
+      priority:       priority || "high",
+      timestamp:      Date.now(),
     });
     notifLog.info(reqId, "webPush(all) result", webPushResult);
 
@@ -471,10 +475,14 @@ router.post(
 
       // 1. Web Push (VAPID)
       await sendPushToAll({
-        title: tpl.title,
-        body: tpl.message,
-        tag: data.id,
-        actionUrl: `/event/${event.event_id}`,
+        title:          tpl.title,
+        body:           tpl.message,
+        tag:            data.id,
+        notificationId: data.id,
+        actionUrl:      `/event/${event.event_id}`,
+        category:       "event",
+        priority:       "high",
+        timestamp:      Date.now(),
       });
 
       // 2. Mobile Push (OneSignal)
@@ -806,9 +814,14 @@ router.post("/notifications", async (req, res) => {
 
     const webPushResult = await sendPushToEmail(targetEmail, {
       title,
-      body: message,
-      tag: notification.id,
-      actionUrl: resolvedLink || "/notifications",
+      body:           message,
+      tag:            notification.id,
+      notificationId: notification.id,
+      actionUrl:      resolvedLink || "/notifications",
+      category:       resolvedType,
+      priority:       priority || "normal",
+      timestamp:      Date.now(),
+      userEmail:      targetEmail,
     });
     notifLog.info(reqId, "webPush result", webPushResult);
 
@@ -1041,9 +1054,13 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
     try {
       webPushResult = await sendPushToAll({
         title,
-        body: message,
-        tag: dataRow.id,
-        actionUrl: action_url || "/notifications",
+        body:           message,
+        tag:            dataRow.id,
+        notificationId: dataRow.id,
+        actionUrl:      deepLink || action_url || "/notifications",
+        category:       category || type || "info",
+        priority:       priority || "high",
+        timestamp:      Date.now(),
       });
     } catch (webPushErr) {
       console.error('[BROADCAST] sendPushToAll threw:', webPushErr?.message || webPushErr);
@@ -1239,9 +1256,14 @@ router.post(
       // Always attempt push directly if a client subscription is supplied
       const pushPayload = {
         title,
-        body: message,
-        tag: notification?.id || undefined,
-        actionUrl: "/notifications",
+        body:           message,
+        tag:            notification?.id || undefined,
+        notificationId: notification?.id || undefined,
+        actionUrl:      "/notifications",
+        category:       "diagnostic",
+        priority:       "high",
+        timestamp:      Date.now(),
+        userEmail:      targetEmail,
       };
 
       let pushResult = null;

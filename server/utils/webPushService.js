@@ -93,6 +93,59 @@ export function getAllSubscriptions() {
   return all;
 }
 
+/* ── Android notification icon paths ──────────────────────────────────────────
+ * These paths must match the actual files served from /public/icons/
+ * The badge must be monochrome (white-on-transparent) at 72×72px.
+ */
+const ANDROID_ICON  = "/icons/icon-192x192.png";
+const ANDROID_BADGE = "/icons/badge-72x72.png";
+
+/**
+ * Normalizes and enriches a raw push payload with Android-presentation defaults.
+ * This is a non-breaking enrichment: caller-provided values are preserved;
+ * missing fields are filled with SOCIO-branded defaults.
+ *
+ * @param {object} payload Raw payload from a route or utility call
+ * @returns {object}       Enriched payload ready for web-push delivery
+ */
+function buildAndroidPayload(payload) {
+  const p = payload || {};
+  return {
+    // Content
+    title:              p.title || "SOCIO",
+    body:               p.body  || p.message || "New activity on SOCIO",
+
+    // Branding — always use the proper icon ladder paths
+    icon:               p.icon  || ANDROID_ICON,
+    badge:              p.badge || ANDROID_BADGE,
+
+    // Optional large image (event banners, etc.)
+    image:              p.image || undefined,
+
+    // Identification — used for notification grouping and deduplication
+    tag:            p.tag            || p.notificationId || p.id || undefined,
+    notificationId: p.notificationId || p.tag            || p.id || undefined,
+
+    // Routing — the path the notification click opens
+    actionUrl:      p.actionUrl || p.deepLink || p.route || "/notifications",
+
+    // Classification — used by the SW to choose group tag and vibration pattern
+    category:       p.category || p.type || "info",
+
+    // Priority — drives requireInteraction and vibration intensity
+    priority:       p.priority || "normal",
+
+    // Timestamp — Android uses this to sort notifications
+    timestamp:      p.timestamp || Date.now(),
+
+    // User identity — forwarded through for analytics/routing in the SW
+    userEmail:      p.userEmail || p.email || undefined,
+
+    // Pass-through metadata
+    ...(p.metadata ? { metadata: p.metadata } : {}),
+  };
+}
+
 /**
  * Sends a push notification directly to a browser push subscription.
  * @param {object} payload The notification payload (title, body, route, etc.)
@@ -113,7 +166,10 @@ export async function sendPush(payload, subscription) {
   console.log(`[PUSH] Delivery started to endpoint: ${endpoint.substring(0, 45)}...`);
 
   try {
-    const stringifiedPayload = JSON.stringify(payload);
+    // Enrich the payload with Android branding defaults before sending
+    const enrichedPayload    = buildAndroidPayload(payload);
+    const stringifiedPayload = JSON.stringify(enrichedPayload);
+
     await webpush.sendNotification(subscription, stringifiedPayload, {
       TTL: 60 * 60, // 1 hour Time-To-Live
     });
