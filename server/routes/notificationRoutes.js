@@ -5,6 +5,8 @@ import {
   sendPush,
   sendPushToEmail,
   sendPushToAll,
+  addSubscription,
+  removeSubscription,
 } from "../utils/webPushService.js";
 import { isQueueReady } from "../services/queueService.js";
 import { notifLog, newReqId, normalizeEmail } from "../utils/notificationLogger.js";
@@ -52,41 +54,10 @@ router.post(
 
       console.log(`[PUSH] Subscribing user ${email} with endpoint: ${subscription.endpoint}`);
 
-      // Query existing subscription metadata row for this email and endpoint
-      const { data: existing, error: selectError } = await supabase
-        .from("notifications")
-        .select("id")
-        .eq("user_email", email)
-        .eq("type", "push_subscription_metadata")
-        .eq("message", subscription.endpoint)
-        .maybeSingle();
+      // Register subscription in the memory-only store on the backend
+      addSubscription(email, subscription);
 
-      if (selectError) {
-        console.error("[PUSH] Error querying existing subscription metadata:", selectError.message);
-        return res.status(500).json({ error: selectError.message });
-      }
-
-      if (existing) {
-        // Already registered, update created_at to mark it active/fresh
-        await supabase
-          .from("notifications")
-          .update({ created_at: new Date().toISOString() })
-          .eq("id", existing.id);
-      } else {
-        // Insert a new metadata row
-        await supabase
-          .from("notifications")
-          .insert({
-            user_email: email,
-            title: "push_subscription_metadata",
-            message: subscription.endpoint,
-            type: "push_subscription_metadata",
-            metadata: subscription,
-            read: true // mark as read so it doesn't affect counts
-          });
-      }
-
-      return res.status(201).json({ message: "Push subscription registered" });
+      return res.status(201).json({ message: "Push subscription registered in-memory" });
     } catch (err) {
       console.error("[PUSH] Subscription registration fatal error:", err);
       return res.status(500).json({ error: err.message || "Failed to register subscription" });
@@ -112,14 +83,10 @@ router.delete(
 
       console.log(`[PUSH] Unsubscribing user ${email} with endpoint: ${subscription.endpoint}`);
 
-      await supabase
-        .from("notifications")
-        .delete()
-        .eq("user_email", email)
-        .eq("type", "push_subscription_metadata")
-        .eq("message", subscription.endpoint);
+      // Remove subscription from the memory-only store on the backend
+      removeSubscription(email, subscription.endpoint);
 
-      return res.json({ message: "Push subscription removed" });
+      return res.json({ message: "Push subscription removed from in-memory" });
     } catch (err) {
       console.error("[PUSH] Unsubscribe fatal error:", err);
       return res.status(500).json({ error: err.message || "Failed to unsubscribe" });
