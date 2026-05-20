@@ -54,7 +54,7 @@ router.delete("/notifications/push/unsubscribe", async (req, res) => {
 
 router.post("/notifications/send-direct", async (req, res) => {
   try {
-    const { subscription, payload } = req.body || {};
+    const { subscription, payload, delayMs } = req.body || {};
     if (!subscription || !subscription.endpoint) {
       return res.status(400).json({ error: "Invalid subscription details." });
     }
@@ -78,6 +78,18 @@ router.post("/notifications/send-direct", async (req, res) => {
     };
 
     console.log("[PUSH] Sending direct web push notification...");
+    if (delayMs && typeof delayMs === "number" && delayMs > 0) {
+      setTimeout(async () => {
+        try {
+          console.log(`[PUSH] Delayed push delivery executing after ${delayMs}ms...`);
+          await sendPush(pushPayload, subscription);
+        } catch (delayedErr) {
+          console.error("[PUSH] Error sending delayed direct web push:", delayedErr);
+        }
+      }, delayMs);
+      return res.status(200).json({ ok: true, delayed: true });
+    }
+
     const result = await sendPush(pushPayload, subscription);
 
     if (!result.success) {
