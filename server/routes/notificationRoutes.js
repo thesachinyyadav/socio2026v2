@@ -11,6 +11,7 @@ import { notifLog, newReqId, normalizeEmail } from "../utils/notificationLogger.
 import {
   cacheGet,
   cacheSet,
+  cacheDel,
   CACHE_KEYSPACE,
   safeStringify,
   safeParse,
@@ -528,7 +529,7 @@ router.post(
 
 // ─── GET NOTIFICATIONS ──────────────────────────────────────────────────────────
 // Returns individual notifications for this user + all broadcasts since they joined.
-// Read/dismiss state is managed client-side via localStorage — no notification_user_status query.
+// Read/dismiss state is managed per-user via notification_user_status table.
 
 router.get("/notifications", async (req, res) => {
   const reqId = newReqId();
@@ -568,7 +569,7 @@ router.get("/notifications", async (req, res) => {
     const userCreatedAt = user.created_at;
     notifLog.info(reqId, `User found, created_at=${userCreatedAt}`);
 
-    const [{ data: individual, error: indError }, { data: broadcasts, error: bcError }] =
+    const [{ data: individual, error: indError }, { data: broadcasts, error: bcError }, { data: statusRows, error: statusError }] =
       await Promise.all([
         supabase
           .from('notifications')
@@ -584,6 +585,10 @@ router.get("/notifications", async (req, res) => {
           .neq('type', 'push_subscription_metadata')
           .gte('created_at', userCreatedAt)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('notification_user_status')
+          .select('notification_id, is_read, is_dismissed')
+          .eq('user_email', email),
       ]);
 
     if (indError) {
@@ -594,14 +599,42 @@ router.get("/notifications", async (req, res) => {
       notifLog.error(reqId, "broadcast fetch failed", { code: bcError.code, message: bcError.message });
       throw bcError;
     }
+    if (statusError) {
+      notifLog.error(reqId, "user status fetch failed", { code: statusError.code, message: statusError.message });
+      // Fallback: don't crash
+    }
 
-    const indCount = (individual || []).length;
-    const bcCount = (broadcasts || []).length;
+    const statusMap = new Map();
+    (statusRows || []).forEach(row => {
+      statusMap.set(row.notification_id, {
+        is_read: row.is_read,
+        is_dismissed: row.is_dismissed
+      });
+    });
+
+    const processedIndividual = (individual || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
+
+    const processedBroadcasts = (broadcasts || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
+
+    const indCount = processedIndividual.length;
+    const bcCount = processedBroadcasts.length;
     notifLog.info(reqId, `Fetched individual=${indCount} broadcasts=${bcCount} (since ${userCreatedAt})`);
 
     const all = [
-      ...(individual || []).map((n) => mapNotification(n)),
-      ...(broadcasts || []).map((n) => mapNotification(n)),
+      ...processedIndividual,
+      ...processedBroadcasts,
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const total = all.length;
@@ -626,19 +659,47 @@ router.get("/notifications", async (req, res) => {
 });
 
 // ─── MARK ONE AS READ ───────────────────────────────────────────────────────────
-// Broadcast read state is managed client-side; only individual rows are updated here.
+// Broadcast read state is saved in notification_user_status; individual rows are updated directly.
 
 router.patch("/notifications/:id/read", async (req, res) => {
   try {
     const { id } = req.params;
+    const rawEmail = req.body?.email;
+    const email = normalizeEmail(rawEmail);
 
-    const { error } = await supabase
+    // 1. Mark individual notification as read in notifications table
+    await supabase
       .from('notifications')
       .update({ read: true })
       .eq('id', id)
       .eq('is_broadcast', false);
 
-    if (error) throw error;
+    // 2. Also write to notification_user_status for broadcast / cross-device support
+    if (email) {
+      const { error: insertErr } = await supabase
+        .from('notification_user_status')
+        .insert({
+          notification_id: id,
+          user_email: email,
+          is_read: true
+        });
+
+      if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('unique'))) {
+        await supabase
+          .from('notification_user_status')
+          .update({ is_read: true })
+          .eq('notification_id', id)
+          .eq('user_email', email);
+      }
+
+      // Invalidate sync/summary caches
+      const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+        ? CACHE_KEYSPACE.notificationSummary(email)
+        : `notifications:sync:${email}`;
+      await cacheDel(cacheKey);
+      await cacheDel(`notifications:sync:${email}`);
+    }
+
     return res.json({ message: "Notification marked as read" });
 
   } catch (error) {
@@ -648,21 +709,57 @@ router.patch("/notifications/:id/read", async (req, res) => {
 });
 
 // ─── MARK ALL AS READ ───────────────────────────────────────────────────────────
-// Broadcast read state is managed client-side; only individual rows are updated here.
+// Broadcast read state is saved in notification_user_status; individual rows are updated directly.
 
 router.patch("/notifications/mark-read", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email: rawEmail } = req.body;
+    const email = normalizeEmail(rawEmail);
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
 
+    // 1. Mark all individual notifications as read in notifications table
     await supabase
       .from('notifications')
       .update({ read: true })
       .eq('user_email', email)
       .eq('read', false);
+
+    // 2. Fetch all active broadcasts and mark them as read in notification_user_status
+    const { data: user } = await supabase
+      .from('users')
+      .select('created_at')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (user?.created_at) {
+      const { data: broadcasts } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('is_broadcast', true)
+        .gte('created_at', user.created_at);
+
+      if (broadcasts && broadcasts.length > 0) {
+        const insertRows = broadcasts.map(b => ({
+          notification_id: b.id,
+          user_email: email,
+          is_read: true
+        }));
+
+        await supabase
+          .from('notification_user_status')
+          .upsert(insertRows, { onConflict: 'notification_id,user_email' });
+      }
+    }
+
+    // Invalidate sync/summary caches
+    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+      ? CACHE_KEYSPACE.notificationSummary(email)
+      : `notifications:sync:${email}`;
+    await cacheDel(cacheKey);
+    await cacheDel(`notifications:sync:${email}`);
 
     return res.json({ message: "All notifications marked as read" });
 
@@ -780,17 +877,71 @@ router.post("/notifications", async (req, res) => {
 
 router.delete("/notifications/clear-all", async (req, res) => {
   try {
-    const { email } = req.query;
+    const { email: rawEmail } = req.query;
+    const email = normalizeEmail(rawEmail);
 
     if (!email) {
       return res.status(400).json({ error: "Email parameter is required" });
     }
 
+    // 1. Delete user status rows for the user's individual notifications to avoid foreign key violations
+    // First, fetch the IDs of individual notifications for this user
+    const { data: individual } = await supabase
+      .from('notifications')
+      .select('id')
+      .ilike('user_email', email)
+      .or('is_broadcast.is.null,is_broadcast.eq.false');
+
+    if (individual && individual.length > 0) {
+      const indIds = individual.map(n => n.id);
+      await supabase
+        .from('notification_user_status')
+        .delete()
+        .eq('user_email', email)
+        .in('notification_id', indIds);
+    }
+
+    // 2. Delete individual notifications
     await supabase
       .from('notifications')
       .delete()
-      .eq('user_email', email)
+      .ilike('user_email', email)
       .or('is_broadcast.is.null,is_broadcast.eq.false');
+
+    // 3. Mark all current active broadcasts as dismissed in notification_user_status
+    const { data: user } = await supabase
+      .from('users')
+      .select('created_at')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (user?.created_at) {
+      const { data: broadcasts } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('is_broadcast', true)
+        .gte('created_at', user.created_at);
+
+      if (broadcasts && broadcasts.length > 0) {
+        const insertRows = broadcasts.map(b => ({
+          notification_id: b.id,
+          user_email: email,
+          is_dismissed: true,
+          is_read: true
+        }));
+
+        await supabase
+          .from('notification_user_status')
+          .upsert(insertRows, { onConflict: 'notification_id,user_email' });
+      }
+    }
+
+    // Invalidate sync/summary caches
+    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+      ? CACHE_KEYSPACE.notificationSummary(email)
+      : `notifications:sync:${email}`;
+    await cacheDel(cacheKey);
+    await cacheDel(`notifications:sync:${email}`);
 
     return res.json({ message: "All notifications cleared" });
 
@@ -801,26 +952,72 @@ router.delete("/notifications/clear-all", async (req, res) => {
 });
 
 // ─── DISMISS ONE ────────────────────────────────────────────────────────────────
-// Broadcasts are dismissed client-side only. Individual notifications are deleted from DB.
+// Broadcasts are dismissed in notification_user_status; individual notifications are deleted from DB.
 
 router.delete("/notifications/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const rawEmail = req.query.email || req.body?.email;
+    const email = normalizeEmail(rawEmail);
 
-    // Check if broadcast — if so, dismiss is client-side only, nothing to do in DB
+    // Check if broadcast
     const { data: notif } = await supabase
       .from('notifications')
       .select('is_broadcast')
       .eq('id', id)
       .single();
 
-    if (!notif?.is_broadcast) {
+    if (notif?.is_broadcast) {
+      // If broadcast, mark as dismissed in notification_user_status
+      if (email) {
+        const { error: insertErr } = await supabase
+          .from('notification_user_status')
+          .insert({
+            notification_id: id,
+            user_email: email,
+            is_dismissed: true,
+            is_read: true
+          });
+
+        if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('unique'))) {
+          await supabase
+            .from('notification_user_status')
+            .update({ is_dismissed: true, is_read: true })
+            .eq('notification_id', id)
+            .eq('user_email', email);
+        }
+      }
+    } else {
+      // If individual, delete from notification_user_status first, then from notifications table
+      if (email) {
+        await supabase
+          .from('notification_user_status')
+          .delete()
+          .eq('notification_id', id)
+          .eq('user_email', email);
+      } else {
+        // Fallback: delete status records for this notification first just in case
+        await supabase
+          .from('notification_user_status')
+          .delete()
+          .eq('notification_id', id);
+      }
+
       const { error } = await supabase
         .from('notifications')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+    }
+
+    // Invalidate sync/summary caches
+    if (email) {
+      const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+        ? CACHE_KEYSPACE.notificationSummary(email)
+        : `notifications:sync:${email}`;
+      await cacheDel(cacheKey);
+      await cacheDel(`notifications:sync:${email}`);
     }
 
     return res.json({ message: "Notification dismissed" });
@@ -947,8 +1144,8 @@ router.get("/notifications/sync", async (req, res) => {
       return res.json({ notifications: [] });
     }
 
-    // 3. Parallel fetch of last 50 individual + broadcast
-    const [{ data: individual }, { data: broadcasts }] = await Promise.all([
+    // 3. Parallel fetch of last 50 individual + broadcast + status
+    const [{ data: individual }, { data: broadcasts }, { data: statusRows }] = await Promise.all([
       supabase
         .from('notifications')
         .select('*')
@@ -965,13 +1162,41 @@ router.get("/notifications/sync", async (req, res) => {
         .gte('created_at', user.created_at)
         .order('created_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('notification_user_status')
+        .select('notification_id, is_read, is_dismissed')
+        .eq('user_email', email),
     ]);
+
+    const statusMap = new Map();
+    (statusRows || []).forEach(row => {
+      statusMap.set(row.notification_id, {
+        is_read: row.is_read,
+        is_dismissed: row.is_dismissed
+      });
+    });
+
+    const processedIndividual = (individual || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
+
+    const processedBroadcasts = (broadcasts || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
 
     // Merge and sort
     const merged = [
-      ...(individual || []).map(n => mapNotification(n)),
-      ...(broadcasts || []).map(n => mapNotification(n))
-    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50);
+      ...processedIndividual,
+      ...processedBroadcasts
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50);
 
     const payload = { notifications: merged };
 
