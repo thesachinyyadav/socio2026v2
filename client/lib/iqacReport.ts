@@ -771,7 +771,7 @@ export async function generateIQACDocx(input: IQACReportInput, filenameBase = "i
         ),
       ],
     }),
-    ...CHECKLIST_ITEMS.map((item) =>
+    ...CHECKLIST_ITEMS.filter((item) => input.checklist[item.key]).map((item) =>
       new Paragraph({
         bullet: { level: 0 },
         spacing: { after: 60 },
