@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Download, Sparkles, RotateCcw } from "lucide-react";
+import { X, Download, Sparkles, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   CHECKLIST_ITEMS,
   deriveDefaultsFromEvent,
@@ -15,7 +15,8 @@ const LS_PREFIX = "iqac_report_draft_";
 type Props = {
   open: boolean;
   onClose: () => void;
-  event: IQACReportEventData | null;
+  // Pass an array; the panel renders one event at a time with Next/Back nav.
+  events: IQACReportEventData[];
 };
 
 type FieldSpec = {
@@ -92,9 +93,52 @@ const ALL_SECTIONS: { title: string; fields: FieldSpec[] }[] = [
   { title: "Suggestions & Sign-off", fields: FINAL_FIELDS },
 ];
 
-export default function IQACReportPanel({ open, onClose, event }: Props) {
+export default function IQACReportPanel({ open, onClose, events }: Props) {
   const [input, setInput] = useState<IQACReportInput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Stable localStorage key based on the event-set so the cursor persists
+  // across refresh for the same set of events.
+  const indexLsKey = useMemo(() => {
+    if (events.length === 0) return null;
+    return `iqac_panel_index_${events.map((e) => e.event_id).sort().join("_")}`;
+  }, [events]);
+
+  // On open (or when the event list changes), restore the saved cursor.
+  useEffect(() => {
+    if (!open) return;
+    if (!indexLsKey) {
+      setCurrentIndex(0);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(indexLsKey);
+      const idx = saved !== null ? parseInt(saved, 10) : 0;
+      if (Number.isFinite(idx) && idx >= 0 && idx < events.length) {
+        setCurrentIndex(idx);
+      } else {
+        setCurrentIndex(0);
+      }
+    } catch {
+      setCurrentIndex(0);
+    }
+  }, [open, indexLsKey, events.length]);
+
+  // Persist the cursor on every change.
+  useEffect(() => {
+    if (!open || !indexLsKey) return;
+    try {
+      localStorage.setItem(indexLsKey, String(currentIndex));
+    } catch {
+      // ignore
+    }
+  }, [open, indexLsKey, currentIndex]);
+
+  const event = events[currentIndex] || null;
+  const totalEvents = events.length;
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < totalEvents - 1;
 
   const lsKey = useMemo(
     () => (event ? `${LS_PREFIX}${event.event_id}` : null),
@@ -173,6 +217,11 @@ export default function IQACReportPanel({ open, onClose, event }: Props) {
     setIsGenerating(true);
     try {
       await generateIQACDocx(input);
+      // After a successful download, auto-advance to the next event if there
+      // are more to fill. Stay on the last one when finished.
+      if (hasNext) {
+        setCurrentIndex((i) => i + 1);
+      }
     } catch (e) {
       console.error("Failed to generate docx", e);
       alert("Failed to generate the document. Check the console for details.");
@@ -182,36 +231,68 @@ export default function IQACReportPanel({ open, onClose, event }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Slide-in panel */}
-      <aside className="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl flex flex-col animate-[slideIn_180ms_ease-out]">
-        <style>{`@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
+      {/* Centered modal panel */}
+      <aside className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col animate-[modalIn_180ms_ease-out] overflow-hidden">
+        <style>{`@keyframes modalIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }`}</style>
 
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200 bg-gradient-to-r from-[#0f2557] to-[#154cb3] text-white">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide opacity-80">
-              <Sparkles className="w-3.5 h-3.5" />
-              IQAC Activity Report
+        <div className="px-6 py-5 border-b border-slate-200 bg-gradient-to-r from-[#0f2557] to-[#154cb3] text-white">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide opacity-80">
+                <Sparkles className="w-3.5 h-3.5" />
+                IQAC Activity Report
+                {totalEvents > 1 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded bg-white/15 text-[10px]">
+                    Event {currentIndex + 1} of {totalEvents}
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl font-bold mt-1">{event.title}</h2>
+              <p className="text-xs opacity-80 mt-0.5">
+                Fill blanks below. Auto-filled fields are editable. Saved as draft in your browser.
+              </p>
             </div>
-            <h2 className="text-xl font-bold mt-1">{event.title}</h2>
-            <p className="text-xs opacity-80 mt-0.5">
-              Fill blanks below. Auto-filled fields are editable. Saved as draft in your browser.
-            </p>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {totalEvents > 1 && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/15">
+              <button
+                onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                disabled={!hasPrev}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  hasPrev ? "bg-white/15 hover:bg-white/25" : "opacity-40 cursor-not-allowed"
+                }`}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Back
+              </button>
+              <span className="text-[11px] opacity-80">
+                Each event downloads as its own .docx
+              </span>
+              <button
+                onClick={() => setCurrentIndex((i) => Math.min(totalEvents - 1, i + 1))}
+                disabled={!hasNext}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  hasNext ? "bg-white/15 hover:bg-white/25" : "opacity-40 cursor-not-allowed"
+                }`}
+              >
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Body */}
@@ -229,11 +310,6 @@ export default function IQACReportPanel({ open, onClose, event }: Props) {
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-xs font-semibold text-slate-700">
                           {f.label}
-                          {f.autoFilled && (
-                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              auto
-                            </span>
-                          )}
                         </label>
                       </div>
                       {f.multiline ? (
@@ -295,6 +371,48 @@ export default function IQACReportPanel({ open, onClose, event }: Props) {
                   <span className="text-xs text-slate-700">{item.label}</span>
                 </label>
               ))}
+            </div>
+          </section>
+
+          {/* Optional Appendix Pages */}
+          <section>
+            <h3 className="text-sm font-bold text-[#0f2557] uppercase tracking-wide mb-3 pb-1.5 border-b border-slate-200">
+              Optional Appendix Pages
+            </h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Tick to include these reference pages at the end of the generated doc. Off by default.
+            </p>
+            <div className="space-y-1.5">
+              <label className="flex items-start gap-2.5 p-2 rounded-md hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!input.includeHelpTextPage}
+                  onChange={(e) =>
+                    setInput((prev) =>
+                      prev ? { ...prev, includeHelpTextPage: e.target.checked } : prev
+                    )
+                  }
+                  className="mt-0.5 h-4 w-4 text-[#154cb3] border-slate-300 rounded cursor-pointer"
+                />
+                <span className="text-xs text-slate-700">
+                  Help Text for Filling Facing Sheet (Page 7)
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 p-2 rounded-md hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!input.includeMetricsPage}
+                  onChange={(e) =>
+                    setInput((prev) =>
+                      prev ? { ...prev, includeMetricsPage: e.target.checked } : prev
+                    )
+                  }
+                  className="mt-0.5 h-4 w-4 text-[#154cb3] border-slate-300 rounded cursor-pointer"
+                />
+                <span className="text-xs text-slate-700">
+                  Various Metrics of Events (Page 8)
+                </span>
+              </label>
             </div>
           </section>
         </div>

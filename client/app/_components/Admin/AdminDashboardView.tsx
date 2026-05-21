@@ -636,13 +636,7 @@ export default function AdminDashboardView({
       {/* ── Header Row ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Overview</h1>
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Live</span>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Overview</h1>
           <p className="text-sm text-slate-500 mt-0.5">{today}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

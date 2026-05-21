@@ -164,6 +164,13 @@ const CAMPUSES = [
 
 const ACCREDITATION_BODIES = [
   {
+    id: "iqac_christ",
+    name: "IQAC Christ",
+    fullName: "Internal Quality Assurance Cell - CHRIST (Deemed to be University)",
+    description: "Institutional event activity report format used by IQAC across CHRIST campuses.",
+    focus: "Single-event activity report. Generates an editable .docx with facing sheet, outcomes, analysis, mapping, and checklist.",
+  },
+  {
     id: "naac",
     name: "NAAC",
     fullName: "National Assessment and Accreditation Council",
@@ -211,13 +218,6 @@ const ACCREDITATION_BODIES = [
     fullName: "University Grants Commission",
     description: "Regulatory authority for universities in India.",
     focus: "University standards, grants, governance.",
-  },
-  {
-    id: "iqac_christ",
-    name: "IQAC Christ",
-    fullName: "Internal Quality Assurance Cell - CHRIST (Deemed to be University)",
-    description: "Institutional event activity report format used by IQAC across CHRIST campuses.",
-    focus: "Single-event activity report. Generates an editable .docx with facing sheet, outcomes, analysis, mapping, and checklist.",
   },
 ];
 
@@ -1272,9 +1272,13 @@ function ManageDashboard() {
   const [selectedAccreditation, setSelectedAccreditation] = useState<string>("");
   const [reportMode, setReportMode] = useState<"fest" | "events">("fest");
   const [iqacPanelOpen, setIqacPanelOpen] = useState(false);
-  const [iqacPanelEvent, setIqacPanelEvent] = useState<IQACReportEventData | null>(null);
+  const [iqacPanelEvents, setIqacPanelEvents] = useState<IQACReportEventData[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [searchTermReport, setSearchTermReport] = useState<string>("");
+  // Refs for progressive auto-scroll on the Report tab
+  const reportEventsListRef = useRef<HTMLDivElement>(null);
+  const reportAccreditationRef = useRef<HTMLDivElement>(null);
+  const reportActionRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [archiveOverrides, setArchiveOverrides] = useState<Record<string, { is_archived: boolean; archived_at: string | null; archived_by?: string | null }>>({});
   const [archiveUpdatingIds, setArchiveUpdatingIds] = useState<Set<string>>(new Set());
@@ -1451,6 +1455,27 @@ function ManageDashboard() {
     refreshFests();
   }, [refreshFests]);
 
+  // ── Progressive auto-scroll on the Report tab ───────────────────────────
+  // As the user fills each step, smoothly bring the newly-revealed section
+  // into view so they never need to scroll manually.
+  useEffect(() => {
+    if (selectedReportFest && reportEventsListRef.current) {
+      reportEventsListRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedReportFest]);
+
+  useEffect(() => {
+    if (selectedEventIds.size > 0 && reportAccreditationRef.current) {
+      reportAccreditationRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedEventIds.size]);
+
+  useEffect(() => {
+    if (selectedAccreditation && reportActionRef.current) {
+      reportActionRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [selectedAccreditation]);
+
   // Fetch fresh events from Supabase directly on page load to ensure archive status is current
   // This bypasses the cached events from EventContext to show real-time archive changes
   const [liveEvents, setLiveEvents] = useState<ContextEvent[]>([]);
@@ -1518,6 +1543,65 @@ function ManageDashboard() {
 
     fetchLiveEvents();
   }, [authToken, contextAllEvents]);
+
+  // ── Persist & restore the IQAC panel across page refreshes ──────────────
+  // localStorage shape: { open: boolean, eventIds: string[] }
+  // Per-event form drafts and the panel's currentIndex are persisted inside
+  // the panel; this only restores which events are loaded + that it was open.
+  useEffect(() => {
+    if (iqacPanelOpen) return;
+    const allEvents = liveEvents.length > 0 ? liveEvents : contextAllEvents;
+    if (allEvents.length === 0) return;
+    try {
+      const raw = localStorage.getItem("iqac_panel_state");
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { open?: boolean; eventIds?: string[] };
+      if (!saved.open || !Array.isArray(saved.eventIds) || saved.eventIds.length === 0) return;
+      const sourceEvents: any[] = saved.eventIds
+        .map((id) => allEvents.find((e) => e.event_id === id))
+        .filter(Boolean) as any[];
+      if (sourceEvents.length === 0) return;
+      const panelEvents: IQACReportEventData[] = sourceEvents.map((sourceEvent: any) => ({
+        event_id: sourceEvent.event_id,
+        title: sourceEvent.title,
+        organizing_dept: sourceEvent.organizing_dept,
+        campus_hosted_at: sourceEvent.campus_hosted_at,
+        venue: sourceEvent.venue,
+        event_date: sourceEvent.event_date,
+        end_date: sourceEvent.end_date,
+        event_time: sourceEvent.event_time,
+        category: sourceEvent.category,
+        created_by: sourceEvent.created_by,
+        total_participants: sourceEvent.total_participants,
+        attended_count: sourceEvent.attended_count,
+        total_registrations: sourceEvent.total_registrations,
+        student_volunteers_count: normalizeVolunteerRecords(sourceEvent.volunteers).length,
+      }));
+      setIqacPanelEvents(panelEvents);
+      setIqacPanelOpen(true);
+    } catch {
+      // Corrupt key → ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveEvents, contextAllEvents]);
+
+  useEffect(() => {
+    try {
+      if (iqacPanelOpen && iqacPanelEvents.length > 0) {
+        localStorage.setItem(
+          "iqac_panel_state",
+          JSON.stringify({
+            open: true,
+            eventIds: iqacPanelEvents.map((e) => e.event_id),
+          })
+        );
+      } else if (!iqacPanelOpen) {
+        localStorage.removeItem("iqac_panel_state");
+      }
+    } catch {
+      // Quota / unavailable → ignore
+    }
+  }, [iqacPanelOpen, iqacPanelEvents]);
 
 
   // Fetch approval statuses for all draft fests and events
@@ -1753,21 +1837,24 @@ function ManageDashboard() {
 
   // ─── REPORT GENERATION HANDLER ────────────────────────
   const handleGenerateReport = async () => {
-    // IQAC Christ format: single-event docx via floating panel
+    // IQAC Christ format: per-event docx via floating panel (Next/Back nav)
     if (selectedAccreditation === "iqac_christ") {
-      if (selectedEventIds.size !== 1) {
-        toast.error("IQAC Christ format requires exactly one event. Please select a single event.");
+      if (selectedEventIds.size === 0) {
+        toast.error("Select at least one event.");
         return;
       }
-      const eventId = Array.from(selectedEventIds)[0];
+      const eventIds = Array.from(selectedEventIds);
       const allEvents = liveEvents.length > 0 ? liveEvents : contextAllEvents;
-      const sourceEvent: any = allEvents.find((e) => e.event_id === eventId);
-      if (!sourceEvent) {
-        toast.error("Could not locate the selected event.");
+      const sourceEvents: any[] = eventIds
+        .map((id) => allEvents.find((e) => e.event_id === id))
+        .filter(Boolean) as any[];
+      if (sourceEvents.length === 0) {
+        toast.error("Could not locate the selected events.");
         return;
       }
-      const volunteerCount = normalizeVolunteerRecords(sourceEvent.volunteers).length;
-      const panelEvent: IQACReportEventData = {
+
+      // Seed the panel event objects from the events list
+      const panelEvents: IQACReportEventData[] = sourceEvents.map((sourceEvent) => ({
         event_id: sourceEvent.event_id,
         title: sourceEvent.title,
         organizing_dept: sourceEvent.organizing_dept,
@@ -1781,10 +1868,11 @@ function ManageDashboard() {
         total_participants: sourceEvent.total_participants,
         attended_count: sourceEvent.attended_count,
         total_registrations: sourceEvent.total_registrations,
-        student_volunteers_count: volunteerCount,
-      };
+        student_volunteers_count: normalizeVolunteerRecords(sourceEvent.volunteers).length,
+      }));
+
       const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-      // Try to enrich with attendance counts from the report endpoint
+      // Batch-enrich attendance counts in a single call
       try {
         const res = await fetch(`${API_URL}/api/report/data`, {
           method: "POST",
@@ -1792,36 +1880,47 @@ function ManageDashboard() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
-          body: JSON.stringify({ eventIds: [eventId], festId: null }),
+          body: JSON.stringify({ eventIds, festId: null }),
         });
         if (res.ok) {
           const data = await res.json();
-          const enriched = Array.isArray(data.events) ? data.events[0] : null;
-          if (enriched) {
-            panelEvent.total_participants = enriched.total_participants;
-            panelEvent.attended_count = enriched.attended_count;
-            panelEvent.total_registrations = enriched.total_registrations;
-            panelEvent.organizing_dept = enriched.organizing_dept || panelEvent.organizing_dept;
-            panelEvent.venue = enriched.venue || panelEvent.venue;
+          const enrichedById = new Map<string, any>(
+            (Array.isArray(data.events) ? data.events : []).map((ev: any) => [ev.event_id, ev])
+          );
+          for (const pe of panelEvents) {
+            const enriched = enrichedById.get(pe.event_id);
+            if (enriched) {
+              pe.total_participants = enriched.total_participants;
+              pe.attended_count = enriched.attended_count;
+              pe.total_registrations = enriched.total_registrations;
+              pe.organizing_dept = enriched.organizing_dept || pe.organizing_dept;
+              pe.venue = enriched.venue || pe.venue;
+            }
           }
         }
       } catch {
-        // Non-fatal: fallback below
+        // Non-fatal: fall back to per-event /api/registrations below
       }
-      // Fallback: direct registrations endpoint (same source View Participants uses)
-      if (typeof panelEvent.total_registrations !== "number") {
-        try {
-          const regRes = await fetch(`${API_URL}/api/registrations?event_id=${eventId}`);
-          if (regRes.ok) {
-            const regData = await regRes.json();
-            const list = Array.isArray(regData.registrations) ? regData.registrations : [];
-            panelEvent.total_registrations = list.length;
-          }
-        } catch {
-          // Leave undefined
-        }
-      }
-      setIqacPanelEvent(panelEvent);
+      // Per-event fallback for events whose total_registrations is still missing
+      await Promise.all(
+        panelEvents
+          .filter((pe) => typeof pe.total_registrations !== "number")
+          .map(async (pe) => {
+            try {
+              const regRes = await fetch(`${API_URL}/api/registrations?event_id=${pe.event_id}`);
+              if (regRes.ok) {
+                const regData = await regRes.json();
+                pe.total_registrations = Array.isArray(regData.registrations)
+                  ? regData.registrations.length
+                  : 0;
+              }
+            } catch {
+              // Leave undefined
+            }
+          })
+      );
+
+      setIqacPanelEvents(panelEvents);
       setIqacPanelOpen(true);
       return;
     }
@@ -2736,10 +2835,10 @@ function ManageDashboard() {
                       return matchesByFestId || matchesByFestTitle;
                     });
                     if (festEvents.length === 0) {
-                      return <div className="p-6 bg-white border border-slate-200 rounded-xl text-slate-500 text-sm">No specific events have been organized under this fest umbrella yet.</div>;
+                      return <div ref={reportEventsListRef} className="p-6 bg-white border border-slate-200 rounded-xl text-slate-500 text-sm">No specific events have been organized under this fest umbrella yet.</div>;
                     }
                     return (
-                      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                      <div ref={reportEventsListRef} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                           <h2 className="text-sm font-bold text-slate-800">Available Fest Events ({festEvents.length})</h2>
                           <button
@@ -2847,7 +2946,7 @@ function ManageDashboard() {
 
               {/* Accreditation Select */}
               {selectedEventIds.size > 0 && (
-                <div className="bg-slate-100/50 border border-slate-200 rounded-xl p-6">
+                <div ref={reportAccreditationRef} className="bg-slate-100/50 border border-slate-200 rounded-xl p-6">
                   <h2 className="text-sm font-bold text-slate-800 mb-1">Accreditation Template Standard</h2>
                   <p className="text-xs text-slate-500 mb-4">This defines the formal schema embedded inside the exported document.</p>
                   <AnimatedListDropdown
@@ -2868,24 +2967,19 @@ function ManageDashboard() {
 
               {/* Action */}
               {selectedEventIds.size > 0 && selectedAccreditation && (
-                <div className="pt-2 space-y-2">
-                  {selectedAccreditation === "iqac_christ" && selectedEventIds.size !== 1 && (
-                    <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
-                      IQAC Christ format requires exactly one selected event. You have {selectedEventIds.size} selected.
-                    </p>
-                  )}
+                <div ref={reportActionRef} className="pt-2 space-y-2">
                   <div>
                     <button
-                      disabled={isGenerating || (selectedAccreditation === "iqac_christ" && selectedEventIds.size !== 1)}
+                      disabled={isGenerating}
                       onClick={handleGenerateReport}
                       className={`flex items-center gap-2 px-6 py-3 bg-[#154cb3] text-white text-sm font-bold rounded-lg shadow-md hover:bg-[#124099] transition-all ${
-                        isGenerating || (selectedAccreditation === "iqac_christ" && selectedEventIds.size !== 1)
-                          ? "opacity-50 cursor-not-allowed"
-                          : ""
+                        isGenerating ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {selectedAccreditation === "iqac_christ"
-                        ? "Fill IQAC Report Details"
+                        ? selectedEventIds.size > 1
+                          ? `Fill IQAC Report Details (${selectedEventIds.size} events)`
+                          : "Fill IQAC Report Details"
                         : isGenerating
                         ? "Generating Analytics..."
                         : "Generate Master Sheet"}{" "}
@@ -2901,7 +2995,7 @@ function ManageDashboard() {
         <IQACReportPanel
           open={iqacPanelOpen}
           onClose={() => setIqacPanelOpen(false)}
-          event={iqacPanelEvent}
+          events={iqacPanelEvents}
         />
 
         {/* 5. Volunteers Tab */}
