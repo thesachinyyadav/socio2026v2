@@ -55,9 +55,15 @@ export async function createAndPushNotification(payload) {
     if (user_email) {
       const pushResult = await sendPushToEmail(user_email, {
         title,
-        body: message,
-        tag: notificationId,
-        actionUrl: resolvedLink
+        body:           message,
+        tag:            notificationId,
+        notificationId: notificationId,
+        actionUrl:      resolvedLink,
+        category:       resolvedType,
+        priority:       priority,
+        timestamp:      Date.now(),
+        userEmail:      user_email,
+        ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
       });
       console.log(`[NotificationHelper] Push triggered for ${user_email}:`, pushResult);
     }
