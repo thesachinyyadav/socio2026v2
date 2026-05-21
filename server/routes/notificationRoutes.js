@@ -18,14 +18,7 @@ import {
   safeStringify,
   safeParse,
 } from "../services/cacheService.js";
-const sendOneSignalToAll = async (payload) => {
-  console.log("[PUSH] sendOneSignalToAll bypassed (OneSignal purged). Payload:", payload);
-  return { success: true, bypassed: true };
-};
-const sendOneSignalToEmail = async (email, payload) => {
-  console.log(`[PUSH] sendOneSignalToEmail bypassed for ${email} (OneSignal purged). Payload:`, payload);
-  return { success: true, bypassed: true };
-};
+import { sendOneSignalToEmail, sendOneSignalToAll } from "../utils/oneSignalService.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -90,6 +83,34 @@ router.delete(
     } catch (err) {
       console.error("[PUSH] Unsubscribe fatal error:", err);
       return res.status(500).json({ error: err.message || "Failed to unsubscribe" });
+    }
+  }
+);
+
+router.post(
+  "/notifications/push/register-platform",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const email = normalizeEmail(req.userInfo?.email || req.body?.email);
+      if (!email) {
+        return res.status(401).json({ error: "Unauthorized: User email not found" });
+      }
+
+      const { platform } = req.body;
+      if (!platform || (platform !== "web" && platform !== "android-native")) {
+        return res.status(400).json({ error: "Invalid or missing platform. Allowed: web, android-native" });
+      }
+
+      const key = `user:platform:${email}`;
+      console.log(`[PUSH] Registering platform for ${email}: ${platform}`);
+      await cacheSet(key, safeStringify(platform));
+
+      return res.status(200).json({ message: "Platform registered successfully", platform });
+    } catch (err) {
+      console.error("[PUSH] Register platform fatal error:", err);
+      return res.status(500).json({ error: err.message || "Failed to register platform" });
     }
   }
 );
@@ -812,32 +833,40 @@ router.post("/notifications", async (req, res) => {
     }
     notifLog.info(reqId, `DB insert success id=${notification.id}`);
 
-    const webPushResult = await sendPushToEmail(targetEmail, {
-      title,
-      body:           message,
-      tag:            notification.id,
-      notificationId: notification.id,
-      actionUrl:      resolvedLink || "/notifications",
-      category:       resolvedType,
-      priority:       priority || "normal",
-      timestamp:      Date.now(),
-      userEmail:      targetEmail,
-    });
-    notifLog.info(reqId, "webPush result", webPushResult);
+    let webPushResult = null;
+    let oneSignalResult = null;
 
-    const oneSignalResult = await sendOneSignalToEmail(targetEmail, {
-      title,
-      body: message,
-      actionUrl: resolvedLink || "/notifications",
-      reqId,
-      data: {
+    const cachedPlatform = safeParse(await cacheGet(`user:platform:${targetEmail}`));
+    notifLog.info(reqId, `Active platform for ${targetEmail} is: ${cachedPlatform}`);
+
+    if (cachedPlatform === "android-native") {
+      oneSignalResult = await sendOneSignalToEmail(targetEmail, {
+        title,
+        body: message,
+        actionUrl: resolvedLink || "/notifications",
+        reqId,
+        data: {
+          notificationId: notification.id,
+          category: resolvedType,
+          priority: priority || "normal",
+          ...(metadata || {}),
+        },
+      });
+      notifLog.info(reqId, "OneSignal enqueue result", oneSignalResult);
+    } else {
+      webPushResult = await sendPushToEmail(targetEmail, {
+        title,
+        body:           message,
+        tag:            notification.id,
         notificationId: notification.id,
-        category: resolvedType,
-        priority: priority || "normal",
-        ...(metadata || {}),
-      },
-    });
-    notifLog.info(reqId, "OneSignal enqueue result", oneSignalResult);
+        actionUrl:      resolvedLink || "/notifications",
+        category:       resolvedType,
+        priority:       priority || "normal",
+        timestamp:      Date.now(),
+        userEmail:      targetEmail,
+      });
+      notifLog.info(reqId, "webPush result", webPushResult);
+    }
 
     return res.status(201).json({
       notification,

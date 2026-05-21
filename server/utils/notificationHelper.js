@@ -1,5 +1,7 @@
 import { supabase } from "../config/database.js";
 import { sendPushToEmail } from "./webPushService.js";
+import { sendOneSignalToEmail } from "./oneSignalService.js";
+import { cacheGet, safeParse } from "../services/cacheService.js";
 
 /**
  * Helper to insert a notification into the database and immediately trigger a push notification.
@@ -53,19 +55,38 @@ export async function createAndPushNotification(payload) {
 
     // 2. Trigger Push Notification to the user
     if (user_email) {
-      const pushResult = await sendPushToEmail(user_email, {
-        title,
-        body:           message,
-        tag:            notificationId,
-        notificationId: notificationId,
-        actionUrl:      resolvedLink,
-        category:       resolvedType,
-        priority:       priority,
-        timestamp:      Date.now(),
-        userEmail:      user_email,
-        ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
-      });
-      console.log(`[NotificationHelper] Push triggered for ${user_email}:`, pushResult);
+      const normalizedEmail = user_email.toLowerCase().trim();
+      const cachedPlatform = safeParse(await cacheGet(`user:platform:${normalizedEmail}`));
+      console.log(`[NotificationHelper] Active platform for ${normalizedEmail} is: ${cachedPlatform}`);
+
+      let pushResult;
+      if (cachedPlatform === "android-native") {
+        pushResult = await sendOneSignalToEmail(normalizedEmail, {
+          title,
+          body: message,
+          actionUrl: resolvedLink,
+          data: {
+            notificationId,
+            category: resolvedType,
+            priority,
+            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
+          }
+        });
+      } else {
+        pushResult = await sendPushToEmail(normalizedEmail, {
+          title,
+          body:           message,
+          tag:            notificationId,
+          notificationId: notificationId,
+          actionUrl:      resolvedLink,
+          category:       resolvedType,
+          priority:       priority,
+          timestamp:      Date.now(),
+          userEmail:      normalizedEmail,
+          ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
+        });
+      }
+      console.log(`[NotificationHelper] Push triggered for ${normalizedEmail}:`, pushResult);
     }
 
     return { success: true, data: insertedRows[0] };
