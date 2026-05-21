@@ -3,33 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, getUserInfo, checkRoleExpiration, requireMasterAdmin, requireOrganiserOrSubHead, extractCreatorEmails } from "../middleware/authMiddleware.js";
 import {
   sendPush,
+  sendPushToEmail,
+  sendPushToAll,
+  addSubscription,
+  removeSubscription,
 } from "../utils/webPushService.js";
 import { isQueueReady } from "../services/queueService.js";
 import { notifLog, newReqId, normalizeEmail } from "../utils/notificationLogger.js";
 import {
   cacheGet,
   cacheSet,
+  cacheDel,
   CACHE_KEYSPACE,
   safeStringify,
   safeParse,
 } from "../services/cacheService.js";
-
-const sendPushToAll = async (payload) => {
-  console.log("[PUSH] sendPushToAll bypassed (lightweight database-free mode). Payload:", payload);
-  return { success: true, bypassed: true };
-};
-const sendPushToEmail = async (email, payload) => {
-  console.log(`[PUSH] sendPushToEmail bypassed for ${email} (lightweight database-free mode). Payload:`, payload);
-  return { success: true, bypassed: true };
-};
-const sendOneSignalToAll = async (payload) => {
-  console.log("[PUSH] sendOneSignalToAll bypassed (OneSignal purged). Payload:", payload);
-  return { success: true, bypassed: true };
-};
-const sendOneSignalToEmail = async (email, payload) => {
-  console.log(`[PUSH] sendOneSignalToEmail bypassed for ${email} (OneSignal purged). Payload:`, payload);
-  return { success: true, bypassed: true };
-};
+import { sendOneSignalToEmail, sendOneSignalToAll } from "../utils/oneSignalService.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -40,21 +29,95 @@ const router = express.Router();
 
 // ─── PUSH SUBSCRIPTIONS ───────────────────────────────────────────────────────
 
-router.post("/notifications/push/subscribe", async (req, res) => {
-  // Database-free no-op in lightweight VAPID mode
-  console.log("[PUSH] Subscription registered (local-only, skipped backend DB)");
-  return res.status(201).json({ message: "Push subscription registered" });
-});
+router.post(
+  "/notifications/push/subscribe",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const email = normalizeEmail(req.userInfo?.email);
+      if (!email) {
+        return res.status(401).json({ error: "Unauthorized: User email not found" });
+      }
 
-router.delete("/notifications/push/unsubscribe", async (req, res) => {
-  // Database-free no-op in lightweight VAPID mode
-  console.log("[PUSH] Subscription removed (local-only, skipped backend DB)");
-  return res.json({ message: "Push subscription removed" });
-});
+      const subscription = req.body;
+      if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ error: "Invalid subscription details." });
+      }
+
+      console.log(`[PUSH] Subscribing user ${email} with endpoint: ${subscription.endpoint}`);
+
+      // Register subscription in the memory-only store on the backend
+      addSubscription(email, subscription);
+
+      return res.status(201).json({ message: "Push subscription registered in-memory" });
+    } catch (err) {
+      console.error("[PUSH] Subscription registration fatal error:", err);
+      return res.status(500).json({ error: err.message || "Failed to register subscription" });
+    }
+  }
+);
+
+router.delete(
+  "/notifications/push/unsubscribe",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const email = normalizeEmail(req.userInfo?.email);
+      if (!email) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const subscription = req.body;
+      if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ error: "Invalid subscription details." });
+      }
+
+      console.log(`[PUSH] Unsubscribing user ${email} with endpoint: ${subscription.endpoint}`);
+
+      // Remove subscription from the memory-only store on the backend
+      removeSubscription(email, subscription.endpoint);
+
+      return res.json({ message: "Push subscription removed from in-memory" });
+    } catch (err) {
+      console.error("[PUSH] Unsubscribe fatal error:", err);
+      return res.status(500).json({ error: err.message || "Failed to unsubscribe" });
+    }
+  }
+);
+
+router.post(
+  "/notifications/push/register-platform",
+  authenticateUser,
+  getUserInfo(),
+  async (req, res) => {
+    try {
+      const email = normalizeEmail(req.userInfo?.email || req.body?.email);
+      if (!email) {
+        return res.status(401).json({ error: "Unauthorized: User email not found" });
+      }
+
+      const { platform } = req.body;
+      if (!platform || (platform !== "web" && platform !== "android-native")) {
+        return res.status(400).json({ error: "Invalid or missing platform. Allowed: web, android-native" });
+      }
+
+      const key = `user:platform:${email}`;
+      console.log(`[PUSH] Registering platform for ${email}: ${platform}`);
+      await cacheSet(key, safeStringify(platform));
+
+      return res.status(200).json({ message: "Platform registered successfully", platform });
+    } catch (err) {
+      console.error("[PUSH] Register platform fatal error:", err);
+      return res.status(500).json({ error: err.message || "Failed to register platform" });
+    }
+  }
+);
 
 router.post("/notifications/send-direct", async (req, res) => {
   try {
-    const { subscription, payload } = req.body || {};
+    const { subscription, payload, delayMs } = req.body || {};
     if (!subscription || !subscription.endpoint) {
       return res.status(400).json({ error: "Invalid subscription details." });
     }
@@ -78,6 +141,18 @@ router.post("/notifications/send-direct", async (req, res) => {
     };
 
     console.log("[PUSH] Sending direct web push notification...");
+    if (delayMs && typeof delayMs === "number" && delayMs > 0) {
+      setTimeout(async () => {
+        try {
+          console.log(`[PUSH] Delayed push delivery executing after ${delayMs}ms...`);
+          await sendPush(pushPayload, subscription);
+        } catch (delayedErr) {
+          console.error("[PUSH] Error sending delayed direct web push:", delayedErr);
+        }
+      }, delayMs);
+      return res.status(200).json({ ok: true, delayed: true });
+    }
+
     const result = await sendPush(pushPayload, subscription);
 
     if (!result.success) {
@@ -135,6 +210,7 @@ router.get(
     const { data: notifications, error } = await supabase
       .from('notifications')
       .select('*')
+      .neq('type', 'push_subscription_metadata')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -223,9 +299,13 @@ router.post(
 
     const webPushResult = await sendPushToAll({
       title,
-      body: message,
-      tag: dataRow.id,
-      actionUrl: resolvedLink || "/notifications",
+      body:           message,
+      tag:            dataRow.id,
+      notificationId: dataRow.id,
+      actionUrl:      resolvedLink || "/notifications",
+      category:       resolvedType,
+      priority:       priority || "high",
+      timestamp:      Date.now(),
     });
     notifLog.info(reqId, "webPush(all) result", webPushResult);
 
@@ -416,10 +496,14 @@ router.post(
 
       // 1. Web Push (VAPID)
       await sendPushToAll({
-        title: tpl.title,
-        body: tpl.message,
-        tag: data.id,
-        actionUrl: `/event/${event.event_id}`,
+        title:          tpl.title,
+        body:           tpl.message,
+        tag:            data.id,
+        notificationId: data.id,
+        actionUrl:      `/event/${event.event_id}`,
+        category:       "event",
+        priority:       "high",
+        timestamp:      Date.now(),
       });
 
       // 2. Mobile Push (OneSignal)
@@ -441,7 +525,7 @@ router.post(
 
 // ─── GET NOTIFICATIONS ──────────────────────────────────────────────────────────
 // Returns individual notifications for this user + all broadcasts since they joined.
-// Read/dismiss state is managed client-side via localStorage — no notification_user_status query.
+// Read/dismiss state is managed per-user via notification_user_status table.
 
 router.get("/notifications", async (req, res) => {
   const reqId = newReqId();
@@ -481,20 +565,26 @@ router.get("/notifications", async (req, res) => {
     const userCreatedAt = user.created_at;
     notifLog.info(reqId, `User found, created_at=${userCreatedAt}`);
 
-    const [{ data: individual, error: indError }, { data: broadcasts, error: bcError }] =
+    const [{ data: individual, error: indError }, { data: broadcasts, error: bcError }, { data: statusRows, error: statusError }] =
       await Promise.all([
         supabase
           .from('notifications')
           .select('*')
           .ilike('user_email', email)
+          .neq('type', 'push_subscription_metadata')
           .gte('created_at', userCreatedAt)
           .order('created_at', { ascending: false }),
         supabase
           .from('notifications')
           .select('*')
           .eq('is_broadcast', true)
+          .neq('type', 'push_subscription_metadata')
           .gte('created_at', userCreatedAt)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('notification_user_status')
+          .select('notification_id, is_read, is_dismissed')
+          .eq('user_email', email),
       ]);
 
     if (indError) {
@@ -505,14 +595,42 @@ router.get("/notifications", async (req, res) => {
       notifLog.error(reqId, "broadcast fetch failed", { code: bcError.code, message: bcError.message });
       throw bcError;
     }
+    if (statusError) {
+      notifLog.error(reqId, "user status fetch failed", { code: statusError.code, message: statusError.message });
+      // Fallback: don't crash
+    }
 
-    const indCount = (individual || []).length;
-    const bcCount = (broadcasts || []).length;
+    const statusMap = new Map();
+    (statusRows || []).forEach(row => {
+      statusMap.set(row.notification_id, {
+        is_read: row.is_read,
+        is_dismissed: row.is_dismissed
+      });
+    });
+
+    const processedIndividual = (individual || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
+
+    const processedBroadcasts = (broadcasts || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
+
+    const indCount = processedIndividual.length;
+    const bcCount = processedBroadcasts.length;
     notifLog.info(reqId, `Fetched individual=${indCount} broadcasts=${bcCount} (since ${userCreatedAt})`);
 
     const all = [
-      ...(individual || []).map((n) => mapNotification(n)),
-      ...(broadcasts || []).map((n) => mapNotification(n)),
+      ...processedIndividual,
+      ...processedBroadcasts,
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const total = all.length;
@@ -537,19 +655,47 @@ router.get("/notifications", async (req, res) => {
 });
 
 // ─── MARK ONE AS READ ───────────────────────────────────────────────────────────
-// Broadcast read state is managed client-side; only individual rows are updated here.
+// Broadcast read state is saved in notification_user_status; individual rows are updated directly.
 
 router.patch("/notifications/:id/read", async (req, res) => {
   try {
     const { id } = req.params;
+    const rawEmail = req.body?.email;
+    const email = normalizeEmail(rawEmail);
 
-    const { error } = await supabase
+    // 1. Mark individual notification as read in notifications table
+    await supabase
       .from('notifications')
       .update({ read: true })
       .eq('id', id)
       .eq('is_broadcast', false);
 
-    if (error) throw error;
+    // 2. Also write to notification_user_status for broadcast / cross-device support
+    if (email) {
+      const { error: insertErr } = await supabase
+        .from('notification_user_status')
+        .insert({
+          notification_id: id,
+          user_email: email,
+          is_read: true
+        });
+
+      if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('unique'))) {
+        await supabase
+          .from('notification_user_status')
+          .update({ is_read: true })
+          .eq('notification_id', id)
+          .eq('user_email', email);
+      }
+
+      // Invalidate sync/summary caches
+      const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+        ? CACHE_KEYSPACE.notificationSummary(email)
+        : `notifications:sync:${email}`;
+      await cacheDel(cacheKey);
+      await cacheDel(`notifications:sync:${email}`);
+    }
+
     return res.json({ message: "Notification marked as read" });
 
   } catch (error) {
@@ -559,21 +705,57 @@ router.patch("/notifications/:id/read", async (req, res) => {
 });
 
 // ─── MARK ALL AS READ ───────────────────────────────────────────────────────────
-// Broadcast read state is managed client-side; only individual rows are updated here.
+// Broadcast read state is saved in notification_user_status; individual rows are updated directly.
 
 router.patch("/notifications/mark-read", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email: rawEmail } = req.body;
+    const email = normalizeEmail(rawEmail);
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
 
+    // 1. Mark all individual notifications as read in notifications table
     await supabase
       .from('notifications')
       .update({ read: true })
       .eq('user_email', email)
       .eq('read', false);
+
+    // 2. Fetch all active broadcasts and mark them as read in notification_user_status
+    const { data: user } = await supabase
+      .from('users')
+      .select('created_at')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (user?.created_at) {
+      const { data: broadcasts } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('is_broadcast', true)
+        .gte('created_at', user.created_at);
+
+      if (broadcasts && broadcasts.length > 0) {
+        const insertRows = broadcasts.map(b => ({
+          notification_id: b.id,
+          user_email: email,
+          is_read: true
+        }));
+
+        await supabase
+          .from('notification_user_status')
+          .upsert(insertRows, { onConflict: 'notification_id,user_email' });
+      }
+    }
+
+    // Invalidate sync/summary caches
+    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+      ? CACHE_KEYSPACE.notificationSummary(email)
+      : `notifications:sync:${email}`;
+    await cacheDel(cacheKey);
+    await cacheDel(`notifications:sync:${email}`);
 
     return res.json({ message: "All notifications marked as read" });
 
@@ -651,27 +833,40 @@ router.post("/notifications", async (req, res) => {
     }
     notifLog.info(reqId, `DB insert success id=${notification.id}`);
 
-    const webPushResult = await sendPushToEmail(targetEmail, {
-      title,
-      body: message,
-      tag: notification.id,
-      actionUrl: resolvedLink || "/notifications",
-    });
-    notifLog.info(reqId, "webPush result", webPushResult);
+    let webPushResult = null;
+    let oneSignalResult = null;
 
-    const oneSignalResult = await sendOneSignalToEmail(targetEmail, {
-      title,
-      body: message,
-      actionUrl: resolvedLink || "/notifications",
-      reqId,
-      data: {
+    const cachedPlatform = safeParse(await cacheGet(`user:platform:${targetEmail}`));
+    notifLog.info(reqId, `Active platform for ${targetEmail} is: ${cachedPlatform}`);
+
+    if (cachedPlatform === "android-native") {
+      oneSignalResult = await sendOneSignalToEmail(targetEmail, {
+        title,
+        body: message,
+        actionUrl: resolvedLink || "/notifications",
+        reqId,
+        data: {
+          notificationId: notification.id,
+          category: resolvedType,
+          priority: priority || "normal",
+          ...(metadata || {}),
+        },
+      });
+      notifLog.info(reqId, "OneSignal enqueue result", oneSignalResult);
+    } else {
+      webPushResult = await sendPushToEmail(targetEmail, {
+        title,
+        body:           message,
+        tag:            notification.id,
         notificationId: notification.id,
-        category: resolvedType,
-        priority: priority || "normal",
-        ...(metadata || {}),
-      },
-    });
-    notifLog.info(reqId, "OneSignal enqueue result", oneSignalResult);
+        actionUrl:      resolvedLink || "/notifications",
+        category:       resolvedType,
+        priority:       priority || "normal",
+        timestamp:      Date.now(),
+        userEmail:      targetEmail,
+      });
+      notifLog.info(reqId, "webPush result", webPushResult);
+    }
 
     return res.status(201).json({
       notification,
@@ -691,17 +886,71 @@ router.post("/notifications", async (req, res) => {
 
 router.delete("/notifications/clear-all", async (req, res) => {
   try {
-    const { email } = req.query;
+    const { email: rawEmail } = req.query;
+    const email = normalizeEmail(rawEmail);
 
     if (!email) {
       return res.status(400).json({ error: "Email parameter is required" });
     }
 
+    // 1. Delete user status rows for the user's individual notifications to avoid foreign key violations
+    // First, fetch the IDs of individual notifications for this user
+    const { data: individual } = await supabase
+      .from('notifications')
+      .select('id')
+      .ilike('user_email', email)
+      .or('is_broadcast.is.null,is_broadcast.eq.false');
+
+    if (individual && individual.length > 0) {
+      const indIds = individual.map(n => n.id);
+      await supabase
+        .from('notification_user_status')
+        .delete()
+        .eq('user_email', email)
+        .in('notification_id', indIds);
+    }
+
+    // 2. Delete individual notifications
     await supabase
       .from('notifications')
       .delete()
-      .eq('user_email', email)
+      .ilike('user_email', email)
       .or('is_broadcast.is.null,is_broadcast.eq.false');
+
+    // 3. Mark all current active broadcasts as dismissed in notification_user_status
+    const { data: user } = await supabase
+      .from('users')
+      .select('created_at')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (user?.created_at) {
+      const { data: broadcasts } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('is_broadcast', true)
+        .gte('created_at', user.created_at);
+
+      if (broadcasts && broadcasts.length > 0) {
+        const insertRows = broadcasts.map(b => ({
+          notification_id: b.id,
+          user_email: email,
+          is_dismissed: true,
+          is_read: true
+        }));
+
+        await supabase
+          .from('notification_user_status')
+          .upsert(insertRows, { onConflict: 'notification_id,user_email' });
+      }
+    }
+
+    // Invalidate sync/summary caches
+    const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+      ? CACHE_KEYSPACE.notificationSummary(email)
+      : `notifications:sync:${email}`;
+    await cacheDel(cacheKey);
+    await cacheDel(`notifications:sync:${email}`);
 
     return res.json({ message: "All notifications cleared" });
 
@@ -712,26 +961,72 @@ router.delete("/notifications/clear-all", async (req, res) => {
 });
 
 // ─── DISMISS ONE ────────────────────────────────────────────────────────────────
-// Broadcasts are dismissed client-side only. Individual notifications are deleted from DB.
+// Broadcasts are dismissed in notification_user_status; individual notifications are deleted from DB.
 
 router.delete("/notifications/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const rawEmail = req.query.email || req.body?.email;
+    const email = normalizeEmail(rawEmail);
 
-    // Check if broadcast — if so, dismiss is client-side only, nothing to do in DB
+    // Check if broadcast
     const { data: notif } = await supabase
       .from('notifications')
       .select('is_broadcast')
       .eq('id', id)
       .single();
 
-    if (!notif?.is_broadcast) {
+    if (notif?.is_broadcast) {
+      // If broadcast, mark as dismissed in notification_user_status
+      if (email) {
+        const { error: insertErr } = await supabase
+          .from('notification_user_status')
+          .insert({
+            notification_id: id,
+            user_email: email,
+            is_dismissed: true,
+            is_read: true
+          });
+
+        if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('unique'))) {
+          await supabase
+            .from('notification_user_status')
+            .update({ is_dismissed: true, is_read: true })
+            .eq('notification_id', id)
+            .eq('user_email', email);
+        }
+      }
+    } else {
+      // If individual, delete from notification_user_status first, then from notifications table
+      if (email) {
+        await supabase
+          .from('notification_user_status')
+          .delete()
+          .eq('notification_id', id)
+          .eq('user_email', email);
+      } else {
+        // Fallback: delete status records for this notification first just in case
+        await supabase
+          .from('notification_user_status')
+          .delete()
+          .eq('notification_id', id);
+      }
+
       const { error } = await supabase
         .from('notifications')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+    }
+
+    // Invalidate sync/summary caches
+    if (email) {
+      const cacheKey = typeof CACHE_KEYSPACE.notificationSummary === 'function'
+        ? CACHE_KEYSPACE.notificationSummary(email)
+        : `notifications:sync:${email}`;
+      await cacheDel(cacheKey);
+      await cacheDel(`notifications:sync:${email}`);
     }
 
     return res.json({ message: "Notification dismissed" });
@@ -788,9 +1083,13 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
     try {
       webPushResult = await sendPushToAll({
         title,
-        body: message,
-        tag: dataRow.id,
-        actionUrl: action_url || "/notifications",
+        body:           message,
+        tag:            dataRow.id,
+        notificationId: dataRow.id,
+        actionUrl:      deepLink || action_url || "/notifications",
+        category:       category || type || "info",
+        priority:       priority || "high",
+        timestamp:      Date.now(),
       });
     } catch (webPushErr) {
       console.error('[BROADCAST] sendPushToAll threw:', webPushErr?.message || webPushErr);
@@ -858,12 +1157,13 @@ router.get("/notifications/sync", async (req, res) => {
       return res.json({ notifications: [] });
     }
 
-    // 3. Parallel fetch of last 50 individual + broadcast
-    const [{ data: individual }, { data: broadcasts }] = await Promise.all([
+    // 3. Parallel fetch of last 50 individual + broadcast + status
+    const [{ data: individual }, { data: broadcasts }, { data: statusRows }] = await Promise.all([
       supabase
         .from('notifications')
         .select('*')
         .eq('user_email', email)
+        .neq('type', 'push_subscription_metadata')
         .gte('created_at', user.created_at)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -871,16 +1171,45 @@ router.get("/notifications/sync", async (req, res) => {
         .from('notifications')
         .select('*')
         .eq('is_broadcast', true)
+        .neq('type', 'push_subscription_metadata')
         .gte('created_at', user.created_at)
         .order('created_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('notification_user_status')
+        .select('notification_id, is_read, is_dismissed')
+        .eq('user_email', email),
     ]);
+
+    const statusMap = new Map();
+    (statusRows || []).forEach(row => {
+      statusMap.set(row.notification_id, {
+        is_read: row.is_read,
+        is_dismissed: row.is_dismissed
+      });
+    });
+
+    const processedIndividual = (individual || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
+
+    const processedBroadcasts = (broadcasts || [])
+      .map(n => {
+        const userStatus = statusMap.get(n.id);
+        if (userStatus?.is_dismissed) return null;
+        return mapNotification(n, userStatus);
+      })
+      .filter(Boolean);
 
     // Merge and sort
     const merged = [
-      ...(individual || []).map(n => mapNotification(n)),
-      ...(broadcasts || []).map(n => mapNotification(n))
-    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50);
+      ...processedIndividual,
+      ...processedBroadcasts
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50);
 
     const payload = { notifications: merged };
 
@@ -954,6 +1283,18 @@ router.post(
       }
 
       // Always attempt push directly if a client subscription is supplied
+      const pushPayload = {
+        title,
+        body:           message,
+        tag:            notification?.id || undefined,
+        notificationId: notification?.id || undefined,
+        actionUrl:      "/notifications",
+        category:       "diagnostic",
+        priority:       "high",
+        timestamp:      Date.now(),
+        userEmail:      targetEmail,
+      };
+
       let pushResult = null;
       if (req.body?.subscription) {
         try {

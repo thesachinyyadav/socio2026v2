@@ -125,22 +125,16 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
         if (response.ok) {
           const data = await response.json();
+          // Server now filters dismissed and maps read state via notification_user_status
           const incoming = (data.notifications || []) as Notification[];
-
-          const readIds = getReadNotificationsFromStorage();
-          const dismissedIds = getDismissedNotificationsFromStorage();
-
-          const filtered = incoming
-            .filter((n) => !dismissedIds.has(n.id))
-            .map((n) => ({ ...n, read: n.read || readIds.has(n.id) }));
 
           if (append) {
             setNotifications((prev) => {
               const existingIds = new Set(prev.map((n) => n.id));
-              return [...prev, ...filtered.filter((n) => !existingIds.has(n.id))];
+              return [...prev, ...incoming.filter((n) => !existingIds.has(n.id))];
             });
           } else {
-            setNotifications(filtered);
+            setNotifications(incoming);
           }
 
           setHasMore(data.pagination?.hasMore || false);
@@ -172,8 +166,6 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     // Handler shared by both individual and broadcast insert events
     const handleInsert = (payload: { new: Record<string, unknown> }) => {
       const newNotif = mapRawToNotification(payload.new);
-      const dismissedIds = getDismissedNotificationsFromStorage();
-      if (dismissedIds.has(newNotif.id)) return;
 
       setNotifications((prev) => {
         // Deduplicate in case the initial fetch and realtime fire close together
@@ -221,35 +213,50 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
     };
   }, [userData?.email, fetchNotifications]);
 
-  // ─── READ / DISMISS ACTIONS (localStorage-only, no backend round-trips) ──
+  // ─── READ / DISMISS ACTIONS (backed by notification_user_status on server) ──
 
   const markAsRead = useCallback((notificationId: string) => {
-    addReadNotification(notificationId);
+    // Optimistic UI update
     setNotifications((prev) =>
       prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
     );
-  }, []);
+    // Persist to backend (and notification_user_status for broadcasts)
+    if (session?.access_token && userData?.email) {
+      fetch(`/api/notifications/${notificationId}/read`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: userData.email }),
+      }).catch((err) => console.error("Mark-read backend sync failed:", err));
+    }
+  }, [session?.access_token, userData?.email]);
 
   const markAllAsRead = useCallback(() => {
     if (notifications.length === 0) return;
-    notifications.forEach((n) => addReadNotification(n.id));
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, [notifications]);
+    // Persist to backend
+    if (session?.access_token && userData?.email) {
+      fetch(`/api/notifications/mark-read`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: userData.email }),
+      }).catch((err) => console.error("Mark-all-read backend sync failed:", err));
+    }
+  }, [notifications, session?.access_token, userData?.email]);
 
   const clearAllNotifications = useCallback(() => {
-    notifications.forEach((n) => {
-      addDismissedNotification(n.id);
-      addReadNotification(n.id);
-    });
-
     setNotifications([]);
     setCurrentPage(1);
     setTotalPages(1);
     setHasMore(false);
 
-    // Only need to clean up individual rows from DB (broadcasts are shared rows)
-    const hasIndividual = notifications.some((n) => !n.isBroadcast);
-    if (session?.access_token && userData?.email && hasIndividual) {
+    // Always call backend — it handles both individual deletion and broadcast dismissal
+    if (session?.access_token && userData?.email) {
       fetch(
         `/api/notifications/clear-all?email=${encodeURIComponent(userData.email)}`,
         {
@@ -262,18 +269,10 @@ const NotificationSystemComponent: React.FC<NotificationSystemProps> = ({
 
   const deleteNotification = useCallback(
     async (notificationId: string) => {
-      const notif = notifications.find((n) => n.id === notificationId);
-
-      // Optimistically remove from UI and persist locally
+      // Optimistically remove from UI
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-      addDismissedNotification(notificationId);
 
-      if (notif?.isBroadcast) {
-        // Broadcasts are shared rows — dismiss locally only, nothing to delete in DB
-        return;
-      }
-
-      // Individual notifications can be deleted from DB
+      // Always call backend — server handles broadcast dismiss in notification_user_status
       if (!session?.access_token) return;
       try {
         const emailParam = userData?.email
