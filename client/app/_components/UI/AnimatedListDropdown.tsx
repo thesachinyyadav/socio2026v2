@@ -129,17 +129,15 @@ export default function AnimatedListDropdown({
               onChange(selected.value);
               setIsOpen(false);
             }}
-            showGradients
+            showGradients={false}
             enableArrowNavigation={false}
-            displayScrollbar={false}
+            displayScrollbar={true}
             className="w-full"
-            listClassName="max-h-[240px] px-1 py-1"
+            listClassName="max-h-[240px] px-1 py-1 [&::-webkit-scrollbar-track]:!bg-slate-100 [&::-webkit-scrollbar-thumb]:!bg-slate-400 hover:[&::-webkit-scrollbar-thumb]:!bg-slate-500"
             itemWrapperClassName="mb-1 last:mb-0"
             itemClassName="!bg-slate-50 hover:!bg-slate-100 !rounded-md !p-3"
             selectedItemClassName="!bg-[#154cb3]/10"
             itemTextClassName="!text-slate-700 text-sm font-medium"
-            topGradientClassName="bg-gradient-to-b from-white to-transparent"
-            bottomGradientClassName="bg-gradient-to-t from-white to-transparent"
           />
         </div>
       )}
