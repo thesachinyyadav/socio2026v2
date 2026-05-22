@@ -53,15 +53,14 @@ export async function createAndPushNotification(payload) {
 
     const notificationId = insertedRows && insertedRows.length > 0 ? insertedRows[0].id : null;
 
-    // 2. Trigger Push Notification to the user
+    // 2. Trigger Push Notification to the user via parallel dispatch (both OneSignal & Web Push)
     if (user_email) {
       const normalizedEmail = user_email.toLowerCase().trim();
       const cachedPlatform = safeParse(await cacheGet(`user:platform:${normalizedEmail}`));
-      console.log(`[NotificationHelper] Active platform for ${normalizedEmail} is: ${cachedPlatform}`);
+      console.log(`[NotificationHelper] Active platform for ${normalizedEmail} is: ${cachedPlatform}. Executing parallel dispatch...`);
 
-      let pushResult;
-      if (cachedPlatform === "android-native") {
-        pushResult = await sendOneSignalToEmail(normalizedEmail, {
+      const [oneSignalResult, webPushResult] = await Promise.allSettled([
+        sendOneSignalToEmail(normalizedEmail, {
           title,
           body: message,
           actionUrl: resolvedLink,
@@ -71,9 +70,8 @@ export async function createAndPushNotification(payload) {
             priority,
             ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
           }
-        });
-      } else {
-        pushResult = await sendPushToEmail(normalizedEmail, {
+        }),
+        sendPushToEmail(normalizedEmail, {
           title,
           body:           message,
           tag:            notificationId,
@@ -84,9 +82,13 @@ export async function createAndPushNotification(payload) {
           timestamp:      Date.now(),
           userEmail:      normalizedEmail,
           ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
-        });
-      }
-      console.log(`[NotificationHelper] Push triggered for ${normalizedEmail}:`, pushResult);
+        })
+      ]);
+
+      console.log(`[NotificationHelper] Parallel dispatch results for ${normalizedEmail}:`, {
+        oneSignal: oneSignalResult.status === "fulfilled" ? oneSignalResult.value : { success: false, error: oneSignalResult.reason },
+        webPush: webPushResult.status === "fulfilled" ? webPushResult.value : { success: false, error: webPushResult.reason }
+      });
     }
 
     return { success: true, data: insertedRows[0] };

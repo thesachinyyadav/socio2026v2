@@ -297,31 +297,35 @@ router.post(
     }
     notifLog.info(reqId, `DB insert success id=${dataRow.id}`);
 
-    const webPushResult = await sendPushToAll({
-      title,
-      body:           message,
-      tag:            dataRow.id,
-      notificationId: dataRow.id,
-      actionUrl:      resolvedLink || "/notifications",
-      category:       resolvedType,
-      priority:       priority || "high",
-      timestamp:      Date.now(),
-    });
-    notifLog.info(reqId, "webPush(all) result", webPushResult);
-
-    const oneSignalResult = await sendOneSignalToAll({
-      title,
-      body: message,
-      actionUrl: resolvedLink || "/notifications",
-      reqId,
-      data: {
+    const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
+      sendPushToAll({
+        title,
+        body:           message,
+        tag:            dataRow.id,
         notificationId: dataRow.id,
-        category: resolvedType,
-        priority: priority || "high",
-        ...(metadata || {}),
-      },
-    });
-    notifLog.info(reqId, "OneSignal enqueue(broadcast) result", oneSignalResult);
+        actionUrl:      resolvedLink || "/notifications",
+        category:       resolvedType,
+        priority:       priority || "high",
+        timestamp:      Date.now(),
+      }),
+      sendOneSignalToAll({
+        title,
+        body: message,
+        actionUrl: resolvedLink || "/notifications",
+        reqId,
+        data: {
+          notificationId: dataRow.id,
+          category: resolvedType,
+          priority: priority || "high",
+          ...(metadata || {}),
+        },
+      })
+    ]);
+
+    const webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+    const oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
+
+    notifLog.info(reqId, "Parallel broadcast results:", { webPushResult, oneSignalResult });
 
     notifLog.info(reqId, `broadcast complete id=${dataRow.id} title="${title}"`);
     return res.status(201).json({
@@ -494,25 +498,30 @@ router.post(
 
       if (error) throw error;
 
-      // 1. Web Push (VAPID)
-      await sendPushToAll({
-        title:          tpl.title,
-        body:           tpl.message,
-        tag:            data.id,
-        notificationId: data.id,
-        actionUrl:      `/event/${event.event_id}`,
-        category:       "event",
-        priority:       "high",
-        timestamp:      Date.now(),
-      });
+      // Trigger parallel dispatch to both Web Push and OneSignal
+      const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
+        sendPushToAll({
+          title:          tpl.title,
+          body:           tpl.message,
+          tag:            data.id,
+          notificationId: data.id,
+          actionUrl:      `/event/${event.event_id}`,
+          category:       "event",
+          priority:       "high",
+          timestamp:      Date.now(),
+        }),
+        sendOneSignalToAll({
+          title: tpl.title,
+          body: tpl.message,
+          actionUrl: `/event/${event.event_id}`,
+          data: { notificationId: data.id, eventId: event.event_id }
+        })
+      ]);
 
-      // 2. Mobile Push (OneSignal)
-      await sendOneSignalToAll({
-        title: tpl.title,
-        body: tpl.message,
-        actionUrl: `/event/${event.event_id}`,
-        data: { notificationId: data.id, eventId: event.event_id }
-      });
+      const webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+      const oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
+
+      console.log(`[EVENT-REMINDER] Parallel dispatch results:`, { webPushResult, oneSignalResult });
 
       console.log(`[EVENT-REMINDER] Organiser ${req.userInfo.email} sent "${template}" for event "${event.title}" (id: ${data.id})`);
       return res.status(201).json({ notification: data, template: template });
@@ -837,10 +846,10 @@ router.post("/notifications", async (req, res) => {
     let oneSignalResult = null;
 
     const cachedPlatform = safeParse(await cacheGet(`user:platform:${targetEmail}`));
-    notifLog.info(reqId, `Active platform for ${targetEmail} is: ${cachedPlatform}`);
+    notifLog.info(reqId, `Active platform for ${targetEmail} is: ${cachedPlatform}. Executing parallel dispatch...`);
 
-    if (cachedPlatform === "android-native") {
-      oneSignalResult = await sendOneSignalToEmail(targetEmail, {
+    const [oneSignalResultSettled, webPushResultSettled] = await Promise.allSettled([
+      sendOneSignalToEmail(targetEmail, {
         title,
         body: message,
         actionUrl: resolvedLink || "/notifications",
@@ -851,10 +860,8 @@ router.post("/notifications", async (req, res) => {
           priority: priority || "normal",
           ...(metadata || {}),
         },
-      });
-      notifLog.info(reqId, "OneSignal enqueue result", oneSignalResult);
-    } else {
-      webPushResult = await sendPushToEmail(targetEmail, {
+      }),
+      sendPushToEmail(targetEmail, {
         title,
         body:           message,
         tag:            notification.id,
@@ -864,9 +871,13 @@ router.post("/notifications", async (req, res) => {
         priority:       priority || "normal",
         timestamp:      Date.now(),
         userEmail:      targetEmail,
-      });
-      notifLog.info(reqId, "webPush result", webPushResult);
-    }
+      })
+    ]);
+
+    oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
+    webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+
+    notifLog.info(reqId, "Parallel dispatch results:", { oneSignalResult, webPushResult });
 
     return res.status(201).json({
       notification,
@@ -1078,10 +1089,9 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
     }
     console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
 
-    // 1. Web Push (VAPID) — capture result so callers can surface real delivery state
-    let webPushResult;
-    try {
-      webPushResult = await sendPushToAll({
+    // Trigger parallel dispatch to both Web Push and OneSignal
+    const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
+      sendPushToAll({
         title,
         body:           message,
         tag:            dataRow.id,
@@ -1090,25 +1100,17 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
         category:       category || type || "info",
         priority:       priority || "high",
         timestamp:      Date.now(),
-      });
-    } catch (webPushErr) {
-      console.error('[BROADCAST] sendPushToAll threw:', webPushErr?.message || webPushErr);
-      webPushResult = { success: false, error: webPushErr?.message || String(webPushErr) };
-    }
-
-    // 2. Mobile Push (OneSignal) — same: capture so we don't lie to the client
-    let oneSignalResult;
-    try {
-      oneSignalResult = await sendOneSignalToAll({
+      }),
+      sendOneSignalToAll({
         title,
         body: message,
         actionUrl: deepLink || action_url || "/notifications",
         data: { notificationId: dataRow.id, category: category || type, priority, ...metadata }
-      });
-    } catch (osErr) {
-      console.error('[BROADCAST] sendOneSignalToAll threw:', osErr?.message || osErr);
-      oneSignalResult = { success: false, error: osErr?.message || String(osErr) };
-    }
+      })
+    ]);
+
+    const webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+    const oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
 
     console.log(`[BROADCAST] Created 1 broadcast row (id: ${dataRow.id}) — delivery:`, {
       webPush: webPushResult,
