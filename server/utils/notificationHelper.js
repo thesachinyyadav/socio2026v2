@@ -59,6 +59,11 @@ export async function createAndPushNotification(payload) {
       const cachedPlatform = safeParse(await cacheGet(`user:platform:${normalizedEmail}`));
       console.log(`[NotificationHelper] Active platform for ${normalizedEmail} is: ${cachedPlatform}. Executing parallel dispatch...`);
 
+      console.log("[ADMIN_PUSH_START]", {
+        email: normalizedEmail,
+        title
+      });
+
       const [oneSignalResult, webPushResult] = await Promise.allSettled([
         sendOneSignalToEmail(normalizedEmail, {
           title,
@@ -85,9 +90,15 @@ export async function createAndPushNotification(payload) {
         })
       ]);
 
+      const oneSignalVal = oneSignalResult.status === "fulfilled" ? oneSignalResult.value : { success: false, error: oneSignalResult.reason };
+      const webPushVal = webPushResult.status === "fulfilled" ? webPushResult.value : { success: false, error: webPushResult.reason };
+
+      console.log("[WEB_PUSH_RESULT]", webPushVal);
+      console.log("[ONESIGNAL_RESULT]", oneSignalVal);
+
       console.log(`[NotificationHelper] Parallel dispatch results for ${normalizedEmail}:`, {
-        oneSignal: oneSignalResult.status === "fulfilled" ? oneSignalResult.value : { success: false, error: oneSignalResult.reason },
-        webPush: webPushResult.status === "fulfilled" ? webPushResult.value : { success: false, error: webPushResult.reason }
+        oneSignal: oneSignalVal,
+        webPush: webPushVal
       });
     }
 

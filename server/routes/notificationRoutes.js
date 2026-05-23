@@ -848,6 +848,11 @@ router.post("/notifications", async (req, res) => {
     const cachedPlatform = safeParse(await cacheGet(`user:platform:${targetEmail}`));
     notifLog.info(reqId, `Active platform for ${targetEmail} is: ${cachedPlatform}. Executing parallel dispatch...`);
 
+    console.log("[ADMIN_PUSH_START]", {
+      email: targetEmail,
+      title
+    });
+
     const [oneSignalResultSettled, webPushResultSettled] = await Promise.allSettled([
       sendOneSignalToEmail(targetEmail, {
         title,
@@ -876,6 +881,9 @@ router.post("/notifications", async (req, res) => {
 
     oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
     webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+
+    console.log("[WEB_PUSH_RESULT]", webPushResult);
+    console.log("[ONESIGNAL_RESULT]", oneSignalResult);
 
     notifLog.info(reqId, "Parallel dispatch results:", { oneSignalResult, webPushResult });
 

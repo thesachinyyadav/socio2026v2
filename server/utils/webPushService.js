@@ -282,8 +282,14 @@ export async function sendPush(payload, subscription) {
  * Uses Promise.allSettled for parallel delivery — avoids N×sequential HTTP calls.
  */
 export async function sendPushToEmail(email, payload) {
+  if (!email) {
+    console.warn("[PUSH] No email supplied to sendPushToEmail. Bypassing Web Push.");
+    return { success: false, error: "Email is required" };
+  }
+
   try {
     const normalizedEmail = email.toLowerCase().trim();
+    console.log("[WEB_PUSH_START]", normalizedEmail);
     console.log(`[PUSH] sendPushToEmail started for ${normalizedEmail}`);
     
     const userSubs = getSubscriptionsForEmail(normalizedEmail);
@@ -307,6 +313,7 @@ export async function sendPushToEmail(email, payload) {
     return { success: true, sent: successCount };
   } catch (err) {
     console.error(`[PUSH] sendPushToEmail error for ${email}:`, err);
+    console.error("[WEB_PUSH_ERROR]", err);
     return { success: false, error: err.message };
   }
 }
