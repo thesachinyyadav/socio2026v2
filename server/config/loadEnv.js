@@ -13,6 +13,15 @@ for (const envFile of [".env", ".env.local"]) {
   });
 }
 
+console.log("[ONESIGNAL_ENV]", {
+  hasAppId: !!process.env.ONESIGNAL_APP_ID,
+  hasApiKey: !!process.env.ONESIGNAL_REST_API_KEY
+});
+
+if (!process.env.ONESIGNAL_APP_ID || !process.env.ONESIGNAL_REST_API_KEY) {
+  throw new Error("CRITICAL ERROR: OneSignal environment variables ONESIGNAL_APP_ID and/or ONESIGNAL_REST_API_KEY are missing from the environment!");
+}
+
 // Ensure `fetch` is available in Node (Supabase JS requires global fetch).
 // Prefer top-level await so the polyfill is ready before other modules use it.
 if (typeof globalThis.fetch === 'undefined') {

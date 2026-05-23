@@ -21,11 +21,9 @@ export async function sendOneSignalToEmail(email, payload) {
   const message = body || payload.message || "";
   const normalizedEmail = email ? email.toLowerCase().trim() : "";
 
-  console.log("[ONESIGNAL_EXECUTING]", normalizedEmail);
-  console.log("[ONESIGNAL_TARGET_EMAIL]", normalizedEmail);
-  console.log("[ONESIGNAL_ENV]", {
-    hasAppId: !!process.env.ONESIGNAL_APP_ID,
-    hasKey: !!process.env.ONESIGNAL_REST_API_KEY
+  console.log("[ONESIGNAL_SEND_START]", {
+    email: normalizedEmail,
+    title
   });
 
   if (!appId || !apiKey) {
@@ -58,6 +56,7 @@ export async function sendOneSignalToEmail(email, payload) {
   };
 
   try {
+    console.log("[ONESIGNAL_HTTP_REQUEST]");
     const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
@@ -68,7 +67,7 @@ export async function sendOneSignalToEmail(email, payload) {
     });
 
     const json = await response.json();
-    console.log("[ONESIGNAL_RESPONSE]", json);
+    console.log("[ONESIGNAL_RESPONSE]", json || response.status);
 
     if (!response.ok) {
       console.error(`[ONESIGNAL] Push failed for ${normalizedEmail}:`, json);
@@ -77,8 +76,7 @@ export async function sendOneSignalToEmail(email, payload) {
     console.log(`[ONESIGNAL] Push succeeded for ${normalizedEmail}:`, json);
     return { success: true, result: json };
   } catch (err) {
-    console.error(`[ONESIGNAL] Error sending push to ${normalizedEmail}:`, err);
-    console.error("[ONESIGNAL_ERROR]", err);
+    console.error("[ONESIGNAL_ERROR]", err.response?.data || err);
     return { success: false, error: err.message || err };
   }
 }
@@ -97,18 +95,25 @@ export async function sendOneSignalToAll(payload) {
   const appId = process.env.ONESIGNAL_APP_ID;
   const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
+  const { title, body, actionUrl, data } = payload;
+  const message = body || payload.message || "";
+
+  console.log("[ONESIGNAL_SEND_START]", {
+    email: "all_users",
+    title
+  });
+
   if (!appId || !apiKey) {
     console.warn("[ONESIGNAL] Credentials missing. Bypassing broadcast native push.");
     return { success: false, error: "OneSignal credentials missing" };
   }
 
-  const { title, body, actionUrl, data } = payload;
-
   const bodyData = {
     app_id: appId,
     headings: { en: title },
-    contents: { en: body },
+    contents: { en: message },
     included_segments: ["Subscribed Users"],
+    target_channel: "push",
     url: actionUrl || "/notifications",
     data: {
       actionUrl: actionUrl || "/notifications",
@@ -118,16 +123,19 @@ export async function sendOneSignalToAll(payload) {
   };
 
   try {
-    const response = await fetch("https://onesignal.com/api/v1/notifications", {
+    console.log("[ONESIGNAL_HTTP_REQUEST]");
+    const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Authorization": `Basic ${apiKey}`
+        "Authorization": `Key ${apiKey}`
       },
       body: JSON.stringify(bodyData)
     });
 
     const resJson = await response.json();
+    console.log("[ONESIGNAL_RESPONSE]", resJson || response.status);
+
     if (!response.ok) {
       console.error("[ONESIGNAL] Broadcast push failed:", resJson);
       return { success: false, error: resJson };
@@ -135,7 +143,7 @@ export async function sendOneSignalToAll(payload) {
     console.log("[ONESIGNAL] Broadcast push succeeded:", resJson);
     return { success: true, result: resJson };
   } catch (err) {
-    console.error("[ONESIGNAL] Error sending broadcast push:", err);
+    console.error("[ONESIGNAL_ERROR]", err.response?.data || err);
     return { success: false, error: err.message || err };
   }
 }
