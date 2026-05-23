@@ -21,11 +21,10 @@ export async function sendOneSignalToEmail(email, payload) {
   const message = body || payload.message || "";
   const normalizedEmail = email ? email.toLowerCase().trim() : "";
 
-  console.log("[ONESIGNAL_SEND]", {
-    email: normalizedEmail,
-    title,
-    hasAppId: !!appId,
-    hasApiKey: !!apiKey
+  console.log("[ONESIGNAL_TARGET_EMAIL]", normalizedEmail);
+  console.log("[ONESIGNAL_ENV]", {
+    hasAppId: !!process.env.ONESIGNAL_APP_ID,
+    hasKey: !!process.env.ONESIGNAL_REST_API_KEY
   });
 
   if (!appId || !apiKey) {
@@ -67,15 +66,15 @@ export async function sendOneSignalToEmail(email, payload) {
       body: JSON.stringify(bodyData)
     });
 
-    const resJson = await response.json();
-    console.log("[ONESIGNAL_RESPONSE]", resJson);
+    const json = await response.json();
+    console.log("[ONESIGNAL_RESPONSE]", json);
 
     if (!response.ok) {
-      console.error(`[ONESIGNAL] Push failed for ${normalizedEmail}:`, resJson);
-      return { success: false, error: resJson };
+      console.error(`[ONESIGNAL] Push failed for ${normalizedEmail}:`, json);
+      return { success: false, error: json };
     }
-    console.log(`[ONESIGNAL] Push succeeded for ${normalizedEmail}:`, resJson);
-    return { success: true, result: resJson };
+    console.log(`[ONESIGNAL] Push succeeded for ${normalizedEmail}:`, json);
+    return { success: true, result: json };
   } catch (err) {
     console.error(`[ONESIGNAL] Error sending push to ${normalizedEmail}:`, err);
     return { success: false, error: err.message || err };
