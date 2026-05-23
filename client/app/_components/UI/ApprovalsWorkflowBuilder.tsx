@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { ShieldCheck, Zap } from "lucide-react";
 
 export interface WorkflowStage {
   role: string;
@@ -254,7 +255,7 @@ export function ApprovalsWorkflowBuilder({
     const isEmptyDropTarget = dropTarget?.section === section && dropTarget?.role === null;
     return (
       <div
-        className={`min-h-[60px] space-y-0.5 rounded-lg transition-colors ${isEmptyDropTarget ? 'bg-blue-50/50' : ''}`}
+        className={`min-h-[60px] space-y-2.5 rounded-lg transition-colors duration-200 ${isEmptyDropTarget ? 'bg-blue-50/50' : ''}`}
         onDragOver={(e) => isEmpty && handleDragOverEmpty(e, section)}
         onDrop={(e) => isEmpty && handleDropOnEmpty(e, section)}
         onDragLeave={(e) => {
@@ -264,8 +265,8 @@ export function ApprovalsWorkflowBuilder({
         }}
       >
         {isEmpty ? (
-          <div className={`border-2 border-dashed rounded-lg p-4 text-center text-xs transition-colors ${
-            isEmptyDropTarget ? 'border-blue-400 text-blue-500 bg-blue-50' : 'border-gray-200 text-gray-400'
+          <div className={`border-2 border-dashed rounded-xl p-5 text-center text-sm transition-all duration-200 ${
+            isEmptyDropTarget ? 'border-blue-400 text-blue-500 bg-blue-50 scale-[1.01]' : 'border-gray-200 text-gray-400'
           }`}>
             {emptyText}
           </div>
@@ -275,9 +276,10 @@ export function ApprovalsWorkflowBuilder({
             const isDropBefore = dropTarget?.role === s.role && dropTarget.position === 'before';
             const isDropAfter  = dropTarget?.role === s.role && dropTarget.position === 'after';
             const isLocked = s.role === 'accounts' && cfoEnabled;
+            const stepNumber = String(i + 1).padStart(2, '0');
             return (
               <div key={s.role}>
-                <div className={`h-0.5 rounded-full mx-1 transition-all ${isDropBefore ? 'mb-1' : 'mb-0 bg-transparent'}`}
+                <div className={`h-0.5 rounded-full mx-1 transition-all duration-200 ${isDropBefore ? 'mb-1' : 'mb-0 bg-transparent'}`}
                   style={isDropBefore ? { backgroundColor: accentColor } : {}} />
 
                 <div
@@ -286,28 +288,28 @@ export function ApprovalsWorkflowBuilder({
                   onDragOver={(e) => handleDragOverItem(e, s.role, section)}
                   onDrop={(e) => handleDropOnItem(e, s.role, section)}
                   onDragEnd={handleDragEnd}
-                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 bg-white cursor-grab active:cursor-grabbing select-none transition-all ${
-                    isDragging ? 'opacity-30 scale-[0.98]' : 'opacity-100'
-                  } border-gray-200 hover:border-gray-300 hover:shadow-sm`}
+                  className={`group flex items-center gap-3.5 rounded-xl border px-4 py-3.5 bg-white cursor-grab active:cursor-grabbing select-none transition-all duration-200 ease-out ${
+                    isDragging ? 'opacity-30 scale-[0.97] shadow-lg rotate-[0.5deg]' : 'opacity-100 scale-100'
+                  } border-gray-200 hover:border-gray-300 hover:shadow-md hover:-translate-y-[1px]`}
                 >
-                  <svg className="w-4 h-4 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-400 shrink-0 transition-colors duration-200" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
                   </svg>
 
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                    section === 'pre' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 tabular-nums transition-colors duration-200 ${
+                    section === 'pre' ? 'bg-blue-50 text-[#154CB3] border border-blue-200' : 'bg-purple-50 text-purple-700 border border-purple-200'
                   }`}>
-                    {i + 1}
+                    {stepNumber}
                   </span>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-800">{s.label}</p>
-                    <p className="text-xs text-gray-400">{s.desc}</p>
+                    <p className="font-semibold text-sm text-gray-800 leading-snug">{s.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{s.desc}</p>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {s.required ? (
-                      <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium select-none">
+                      <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider select-none">
                         Required
                       </span>
                     ) : (
@@ -322,7 +324,7 @@ export function ApprovalsWorkflowBuilder({
                           disabled={isLocked}
                           onChange={() => !isLocked && toggleStage(s.role, s.enabled === false)}
                         />
-                        <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#154CB3]" />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#154CB3]/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all after:duration-200 peer-checked:bg-[#154CB3] transition-colors duration-200" />
                       </label>
                     )}
                     {!s.required && (
@@ -330,7 +332,7 @@ export function ApprovalsWorkflowBuilder({
                         type="button"
                         title={section === 'pre' ? 'Move to Post-Live' : 'Move to Pre-Live'}
                         onClick={() => section === 'pre' ? moveToPostLive(s.role) : moveToPreLive(s.role)}
-                        className="text-xs text-gray-400 hover:text-gray-600 shrink-0 px-1 py-0.5 rounded hover:bg-gray-100 transition-colors"
+                        className="text-xs text-gray-400 hover:text-gray-600 shrink-0 px-1.5 py-1 rounded-md hover:bg-gray-100 transition-all duration-200"
                       >
                         {section === 'pre' ? '↓' : '↑'}
                       </button>
@@ -338,7 +340,7 @@ export function ApprovalsWorkflowBuilder({
                   </div>
                 </div>
 
-                <div className={`h-0.5 rounded-full mx-1 transition-all ${isDropAfter ? 'mt-1' : 'mt-0 bg-transparent'}`}
+                <div className={`h-0.5 rounded-full mx-1 transition-all duration-200 ${isDropAfter ? 'mt-1' : 'mt-0 bg-transparent'}`}
                   style={isDropAfter ? { backgroundColor: accentColor } : {}} />
               </div>
             );
@@ -366,31 +368,47 @@ export function ApprovalsWorkflowBuilder({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
         {/* Pre-Live Section */}
-        <div className="rounded-xl border-2 border-blue-200 bg-blue-50/30 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-            <h3 className="text-sm font-bold text-blue-800">Stage 1 — Pre-Live</h3>
-            <span className="text-xs text-blue-500 ml-auto">Blocks publishing</span>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-5 shadow-sm transition-shadow duration-300 hover:shadow-md">
+          <div className="flex items-start gap-3 mb-1">
+            <span className="w-10 h-10 rounded-full bg-[#154CB3] flex items-center justify-center shrink-0 shadow-sm">
+              <ShieldCheck className="w-5 h-5 text-white" strokeWidth={2} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-gray-900">Stage 1: Pre-Live Gates</h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#154CB3] border border-blue-200 px-2 py-0.5 rounded-md select-none">Mandatory</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Must be completed before {itemLabel} publication.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-blue-600 mb-3">
-            These approvals must complete before your {itemLabel} goes live.
-          </p>
-          {renderSectionList(preLiveStages, 'pre', 'Drag stages here to require approval before going live')}
+          <div className="mt-4">
+            {renderSectionList(preLiveStages, 'pre', 'Drag here to add Pre-Live stage')}
+          </div>
         </div>
 
         {/* Post-Live Section */}
-        <div className="rounded-xl border-2 border-purple-200 bg-purple-50/30 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-            <h3 className="text-sm font-bold text-purple-800">Stage 2 — Post-Live</h3>
-            <span className="text-xs text-purple-500 ml-auto">Operational</span>
+        <div className="rounded-2xl border border-purple-100 bg-purple-50/40 p-5 shadow-sm transition-shadow duration-300 hover:shadow-md">
+          <div className="flex items-start gap-3 mb-1">
+            <span className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center shrink-0 shadow-sm">
+              <Zap className="w-5 h-5 text-white" strokeWidth={2} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-gray-900">Stage 2: Post-Live Operations</h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md select-none">Parallel</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Concurrent tasks triggered after {itemLabel} launch.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-purple-600 mb-3">
-            These run in parallel after the {itemLabel} is live.
-          </p>
-          {renderSectionList(postLiveStages, 'post', 'Drag stages here for post-live operational tasks')}
+          <div className="mt-4">
+            {renderSectionList(postLiveStages, 'post', 'Drag here to add Post-Live stage')}
+          </div>
         </div>
       </div>
 
