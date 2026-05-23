@@ -290,12 +290,19 @@ router.post(
       });
     }
 
+    console.log("[ADMIN_NOTIFICATION_CREATED]");
+
     const dataRow = Array.isArray(data) && data.length > 0 ? data[0] : null;
     if (!dataRow) {
       notifLog.error(reqId, "Insert returned no rows.");
       return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants).", reqId });
     }
     notifLog.info(reqId, `DB insert success id=${dataRow.id}`);
+
+    console.log("[PUSH_DISPATCH_START]", {
+      email: "all_users",
+      title
+    });
 
     const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
       sendPushToAll({
@@ -338,6 +345,157 @@ router.post(
     return res.status(500).json({ error: error?.message || "Failed to send broadcast notification", reqId });
   }
 });
+
+// ─── ADMIN: EVENT BLAST NOTIFICATION ─────────────────────────────────────────────
+// POST endpoint to let the admin panel send blasts to registered participants of a specific event.
+router.post(
+  "/notifications/event-blast",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  requireMasterAdmin,
+  async (req, res) => {
+    const reqId = newReqId();
+    try {
+      notifLog.info(reqId, "Incoming event blast request", { sender: req.userInfo?.email, body: req.body });
+      const { title, message, type = 'info', event_id, event_title, action_url, deepLink, category, priority, metadata } = req.body || {};
+
+      if (!event_id) {
+        return res.status(400).json({ error: "event_id is required for event blast", reqId });
+      }
+      if (!title || !message) {
+        return res.status(400).json({ error: "title and message are required", reqId });
+      }
+
+      // 1. Fetch all registered users for this event
+      const { data: registrations, error: regError } = await supabase
+        .from("registrations")
+        .select("user_email, individual_email, team_leader_email, teammates")
+        .eq("event_id", event_id);
+
+      if (regError) {
+        notifLog.error(reqId, "Failed to fetch event registrations", regError);
+        return res.status(500).json({ error: "Failed to fetch event registrations", reqId });
+      }
+
+      // Collect all unique attendee emails
+      const emails = new Set();
+      (registrations || []).forEach(r => {
+        if (r.user_email) emails.add(r.user_email.toLowerCase().trim());
+        if (r.individual_email) emails.add(r.individual_email.toLowerCase().trim());
+        if (r.team_leader_email) emails.add(r.team_leader_email.toLowerCase().trim());
+        if (r.teammates && Array.isArray(r.teammates)) {
+          r.teammates.forEach(tm => {
+            if (tm.email) emails.add(tm.email.toLowerCase().trim());
+          });
+        }
+      });
+
+      const emailList = Array.from(emails);
+      notifLog.info(reqId, `Found ${emailList.length} unique registered users for event ${event_id}`);
+
+      if (emailList.length === 0) {
+        return res.status(200).json({ message: "No registered participants found for this event", sentCount: 0, reqId });
+      }
+
+      const resolvedType = category || type;
+      const resolvedLink = deepLink || action_url || `/event/${event_id}`;
+
+      // 2. Insert individual notifications in database for each attendee
+      const insertPayloads = emailList.map(email => ({
+        title,
+        message,
+        type: resolvedType,
+        category: resolvedType,
+        event_id: event_id || null,
+        event_title: event_title || null,
+        action_url: resolvedLink,
+        deep_link: resolvedLink,
+        priority: priority || "high",
+        metadata: metadata || {},
+        user_email: email,
+        is_broadcast: false,
+        read: false,
+      }));
+
+      const { data: insertedRows, error: insertError } = await supabase
+        .from('notifications')
+        .insert(insertPayloads)
+        .select();
+
+      if (insertError) {
+        notifLog.error(reqId, "Failed to insert event blast notifications in DB", insertError);
+        return res.status(500).json({ error: "Failed to insert event blast notifications in DB", reqId });
+      }
+
+      console.log("[ADMIN_NOTIFICATION_CREATED]");
+
+      // Map inserted notification IDs to user emails
+      const notifIdMap = {};
+      (insertedRows || []).forEach(row => {
+        if (row.user_email) {
+          notifIdMap[row.user_email.toLowerCase().trim()] = row.id;
+        }
+      });
+
+      // 3. Dispatch parallel push notifications to each attendee
+      const promises = emailList.map(async (email) => {
+        const notifId = notifIdMap[email] || null;
+
+        console.log("[PUSH_DISPATCH_START]", {
+          email,
+          title
+        });
+
+        const [oneSignalResultSettled, webPushResultSettled] = await Promise.allSettled([
+          sendOneSignalToEmail(email, {
+            title,
+            body: message,
+            actionUrl: resolvedLink,
+            data: {
+              notificationId: notifId,
+              category: resolvedType,
+              priority: priority || "high",
+              eventId: event_id,
+              ...(metadata || {}),
+            }
+          }),
+          sendPushToEmail(email, {
+            title,
+            body:           message,
+            tag:            notifId,
+            notificationId: notifId,
+            actionUrl:      resolvedLink,
+            category:       resolvedType,
+            priority:       priority || "high",
+            timestamp:      Date.now(),
+            userEmail:      email,
+          })
+        ]);
+
+        const oneSignalVal = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
+        const webPushVal = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+
+        console.log("[WEB_PUSH_RESULT]", webPushVal);
+        console.log("[ONESIGNAL_RESULT]", oneSignalVal);
+
+        return { email, oneSignal: oneSignalVal, webPush: webPushVal };
+      });
+
+      const dispatchResults = await Promise.all(promises);
+
+      return res.status(201).json({
+        ok: true,
+        sentCount: emailList.length,
+        delivery: dispatchResults,
+        reqId
+      });
+    } catch (error) {
+      notifLog.error(reqId, "Error sending event blast", { message: error?.message, stack: error?.stack });
+      return res.status(500).json({ error: error?.message || "Failed to send event blast", reqId });
+    }
+  }
+);
 
 // ─── STAFF WELCOME BROADCAST ───────────────────────────────────────────────────
 // Hardcoded "Hi, Welcome to Socio!" broadcast that any staff member can trigger.
@@ -835,6 +993,8 @@ router.post("/notifications", async (req, res) => {
       });
     }
 
+    console.log("[ADMIN_NOTIFICATION_CREATED]");
+
     const notification = Array.isArray(dataArr) && dataArr.length > 0 ? dataArr[0] : null;
     if (!notification) {
       notifLog.error(reqId, "Insert returned no rows.");
@@ -848,7 +1008,7 @@ router.post("/notifications", async (req, res) => {
     const cachedPlatform = safeParse(await cacheGet(`user:platform:${targetEmail}`));
     notifLog.info(reqId, `Active platform for ${targetEmail} is: ${cachedPlatform}. Executing parallel dispatch...`);
 
-    console.log("[ADMIN_PUSH_START]", {
+    console.log("[PUSH_DISPATCH_START]", {
       email: targetEmail,
       title
     });
@@ -1090,12 +1250,19 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
       throw error;
     }
 
+    console.log("[ADMIN_NOTIFICATION_CREATED]");
+
     const dataRow = data && data.length > 0 ? data[0] : null;
     if (!dataRow) {
       console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
       throw new Error("Insert succeeded but returned no rows.");
     }
     console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
+
+    console.log("[PUSH_DISPATCH_START]", {
+      email: "all_users",
+      title
+    });
 
     // Trigger parallel dispatch to both Web Push and OneSignal
     const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([

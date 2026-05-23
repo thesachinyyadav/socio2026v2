@@ -289,7 +289,7 @@ export async function sendPushToEmail(email, payload) {
 
   try {
     const normalizedEmail = email.toLowerCase().trim();
-    console.log("[WEB_PUSH_START]", normalizedEmail);
+    console.log("[WEB_PUSH_EXECUTING]", normalizedEmail);
     console.log(`[PUSH] sendPushToEmail started for ${normalizedEmail}`);
     
     const userSubs = getSubscriptionsForEmail(normalizedEmail);

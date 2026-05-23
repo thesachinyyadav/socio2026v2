@@ -21,7 +21,7 @@ export async function sendOneSignalToEmail(email, payload) {
   const message = body || payload.message || "";
   const normalizedEmail = email ? email.toLowerCase().trim() : "";
 
-  console.log("[ONESIGNAL_START]", normalizedEmail);
+  console.log("[ONESIGNAL_EXECUTING]", normalizedEmail);
   console.log("[ONESIGNAL_TARGET_EMAIL]", normalizedEmail);
   console.log("[ONESIGNAL_ENV]", {
     hasAppId: !!process.env.ONESIGNAL_APP_ID,

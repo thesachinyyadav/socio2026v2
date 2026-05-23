@@ -51,6 +51,8 @@ export async function createAndPushNotification(payload) {
       return { success: false, error };
     }
 
+    console.log("[ADMIN_NOTIFICATION_CREATED]");
+
     const notificationId = insertedRows && insertedRows.length > 0 ? insertedRows[0].id : null;
 
     // 2. Trigger Push Notification to the user via parallel dispatch (both OneSignal & Web Push)
@@ -59,7 +61,7 @@ export async function createAndPushNotification(payload) {
       const cachedPlatform = safeParse(await cacheGet(`user:platform:${normalizedEmail}`));
       console.log(`[NotificationHelper] Active platform for ${normalizedEmail} is: ${cachedPlatform}. Executing parallel dispatch...`);
 
-      console.log("[ADMIN_PUSH_START]", {
+      console.log("[PUSH_DISPATCH_START]", {
         email: normalizedEmail,
         title
       });
