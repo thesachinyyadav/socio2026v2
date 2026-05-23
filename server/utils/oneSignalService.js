@@ -17,26 +17,38 @@ export async function sendOneSignalToEmail(email, payload) {
   const appId = process.env.ONESIGNAL_APP_ID;
   const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
+  const { title, body, actionUrl, data } = payload;
+  const message = body || payload.message || "";
+  const normalizedEmail = email ? email.toLowerCase().trim() : "";
+
+  console.log("[ONESIGNAL_SEND]", {
+    email: normalizedEmail,
+    title,
+    hasAppId: !!appId,
+    hasApiKey: !!apiKey
+  });
+
   if (!appId || !apiKey) {
     console.warn("[ONESIGNAL] Credentials missing. Bypassing native push.");
     return { success: false, error: "OneSignal credentials missing" };
   }
 
-  if (!email) {
+  if (!normalizedEmail) {
     return { success: false, error: "Email is required to send individual native push" };
   }
 
-  const { title, body, actionUrl, data } = payload;
-  const normalizedEmail = email.toLowerCase().trim();
-
   const bodyData = {
     app_id: appId,
-    headings: { en: title },
-    contents: { en: body },
     include_aliases: {
       external_id: [normalizedEmail]
     },
     target_channel: "push",
+    headings: {
+      en: title
+    },
+    contents: {
+      en: message
+    },
     url: actionUrl || "/notifications",
     data: {
       actionUrl: actionUrl || "/notifications",
@@ -46,16 +58,18 @@ export async function sendOneSignalToEmail(email, payload) {
   };
 
   try {
-    const response = await fetch("https://onesignal.com/api/v1/notifications", {
+    const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Authorization": `Basic ${apiKey}`
+        "Content-Type": "application/json",
+        "Authorization": `Key ${apiKey}`
       },
       body: JSON.stringify(bodyData)
     });
 
     const resJson = await response.json();
+    console.log("[ONESIGNAL_RESPONSE]", resJson);
+
     if (!response.ok) {
       console.error(`[ONESIGNAL] Push failed for ${normalizedEmail}:`, resJson);
       return { success: false, error: resJson };
