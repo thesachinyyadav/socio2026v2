@@ -256,6 +256,12 @@ router.post(
       return res.status(400).json({ error: "title and message are required", reqId });
     }
 
+    console.log("[ADMIN_NOTIFICATION_TRIGGERED]", {
+      title,
+      email: "all_users",
+      timestamp: Date.now()
+    });
+
     const resolvedType = category || type;
     const resolvedLink = deepLink || action_url || null;
 
@@ -958,6 +964,12 @@ router.post("/notifications", async (req, res) => {
     if (!title || !message || !targetEmail) {
       return res.status(400).json({ error: "title, message, and user_email are required", reqId });
     }
+
+    console.log("[ADMIN_NOTIFICATION_TRIGGERED]", {
+      title,
+      email: targetEmail,
+      timestamp: Date.now()
+    });
 
     const resolvedType = category || type || 'info';
     const resolvedLink = deepLink || action_url || null;

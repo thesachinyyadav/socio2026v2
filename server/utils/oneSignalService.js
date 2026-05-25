@@ -60,8 +60,10 @@ export async function sendOneSignalToEmail(email, payload) {
     }
   };
 
+  console.log("[ONESIGNAL_PAYLOAD]", JSON.stringify(bodyData, null, 2));
+
   try {
-    console.log("[ONESIGNAL_HTTP_REQUEST]");
+    console.log("[ONESIGNAL_HTTP_REQUEST]", "POST https://api.onesignal.com/notifications");
     const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
@@ -136,8 +138,10 @@ export async function sendOneSignalToAll(payload) {
     }
   };
 
+  console.log("[ONESIGNAL_PAYLOAD_BROADCAST]", JSON.stringify(bodyData, null, 2));
+
   try {
-    console.log("[ONESIGNAL_HTTP_REQUEST]");
+    console.log("[ONESIGNAL_HTTP_REQUEST]", "POST https://api.onesignal.com/notifications");
     const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
