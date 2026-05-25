@@ -26,6 +26,11 @@ export async function sendOneSignalToEmail(email, payload) {
     title
   });
 
+  console.log("[ONESIGNAL_ENV]", {
+    appId: Boolean(appId),
+    apiKey: Boolean(apiKey),
+  });
+
   if (!appId || !apiKey) {
     console.warn("[ONESIGNAL] Credentials missing. Bypassing native push.");
     return { success: false, error: "OneSignal credentials missing" };
@@ -67,7 +72,11 @@ export async function sendOneSignalToEmail(email, payload) {
     });
 
     const json = await response.json();
-    console.log("[ONESIGNAL_RESPONSE]", json || response.status);
+    console.log("[ONESIGNAL_HTTP_RESPONSE]", {
+      status: response.status,
+      ok: response.ok,
+      body: json || null,
+    });
 
     if (!response.ok) {
       console.error(`[ONESIGNAL] Push failed for ${normalizedEmail}:`, json);
@@ -103,6 +112,11 @@ export async function sendOneSignalToAll(payload) {
     title
   });
 
+  console.log("[ONESIGNAL_ENV]", {
+    appId: Boolean(appId),
+    apiKey: Boolean(apiKey),
+  });
+
   if (!appId || !apiKey) {
     console.warn("[ONESIGNAL] Credentials missing. Bypassing broadcast native push.");
     return { success: false, error: "OneSignal credentials missing" };
@@ -134,7 +148,11 @@ export async function sendOneSignalToAll(payload) {
     });
 
     const resJson = await response.json();
-    console.log("[ONESIGNAL_RESPONSE]", resJson || response.status);
+    console.log("[ONESIGNAL_HTTP_RESPONSE]", {
+      status: response.status,
+      ok: response.ok,
+      body: resJson || null,
+    });
 
     if (!response.ok) {
       console.error("[ONESIGNAL] Broadcast push failed:", resJson);

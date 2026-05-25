@@ -1516,6 +1516,8 @@ router.get("/notifications/diagnostics", async (req, res) => {
       vapidPublicKey: process.env.VAPID_PUBLIC_KEY ? "configured" : "missing",
       vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ? "configured" : "missing",
       vapidSubject: process.env.VAPID_SUBJECT || "mailto:thesocio.blr@gmail.com",
+      oneSignalAppId: process.env.ONESIGNAL_APP_ID ? "configured" : "missing",
+      oneSignalRestApiKey: process.env.ONESIGNAL_REST_API_KEY ? "configured" : "missing",
     },
     queueReady: isQueueReady(),
     timestamp: new Date().toISOString(),
