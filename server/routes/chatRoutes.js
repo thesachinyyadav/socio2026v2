@@ -16,11 +16,9 @@ const GEMINI_FALLBACK_MODELS = Array.from(new Set([
   "gemini-flash-latest",
 ]));
 const MAX_HISTORY_MESSAGES = 24;
-const DEFAULT_CHAT_DAILY_LIMIT = 7;
-const parsedDailyLimit = Number.parseInt(process.env.CHAT_DAILY_LIMIT || "", 10);
-const CHAT_DAILY_LIMIT = Number.isInteger(parsedDailyLimit) && parsedDailyLimit > 0
-  ? parsedDailyLimit
-  : DEFAULT_CHAT_DAILY_LIMIT;
+// Hard-coded daily AI chatbot limit. Intentionally NOT env-configurable to
+// avoid drift between environments; change this constant to adjust.
+const CHAT_DAILY_LIMIT = 5;
 
 // Lazy-init OpenAI - do not crash startup if key is missing
 let openAI = null;
@@ -257,14 +255,26 @@ function getQuickReplyForLowSignalMessage(message, currentPage) {
   return null;
 }
 
-// Per-user daily limit storage
+// Per-user daily limit storage. Keyed by `email_YYYY-MM-DD` so a new day
+// naturally starts a fresh count. No DB / migration needed — the limit
+// persists across browser refreshes because the backend keeps the Map
+// across HTTP requests. It does reset on server restart, which is acceptable
+// for a low-stakes rate limit on free AI calls.
 const dailyLimitMap = new Map();
 
-// Clean up old entries every hour
+function currentUsageDate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Drop yesterday's entries from the in-memory cache periodically.
 const dailyLimitCleanupInterval = setInterval(() => {
-  const today = new Date().toDateString();
+  const today = currentUsageDate();
   for (const [key] of dailyLimitMap.entries()) {
-    if (!key.includes(today)) {
+    if (!key.endsWith(`_${today}`)) {
       dailyLimitMap.delete(key);
     }
   }
@@ -274,17 +284,20 @@ if (typeof dailyLimitCleanupInterval.unref === "function") {
   dailyLimitCleanupInterval.unref();
 }
 
-function getDailyUsageKey(userEmail) {
-  return `${userEmail}_${new Date().toDateString()}`;
+function getDailyUsageKey(userEmail, usageDate) {
+  return `${userEmail}_${usageDate}`;
 }
 
-function getDailyUsage(userEmail) {
-  const key = getDailyUsageKey(userEmail);
-  const used = dailyLimitMap.get(key) || 0;
+async function getDailyUsage(userEmail) {
+  const usageDate = currentUsageDate();
+  const cacheKey = getDailyUsageKey(userEmail, usageDate);
   const limit = CHAT_DAILY_LIMIT;
+  const used = dailyLimitMap.get(cacheKey) || 0;
 
   return {
-    key,
+    cacheKey,
+    userEmail,
+    usageDate,
     limit,
     used,
     remaining: Math.max(0, limit - used),
@@ -300,8 +313,9 @@ function getNextUsageSnapshot(currentUsage) {
   };
 }
 
-function commitDailyUsage(usage) {
-  dailyLimitMap.set(usage.key, usage.used);
+async function commitDailyUsage(usage) {
+  dailyLimitMap.set(usage.cacheKey, usage.used);
+  return usage;
 }
 
 function toUsageBody(usage) {
@@ -659,18 +673,23 @@ router.get("/health", (req, res) => {
   });
 });
 
-router.get("/usage", authenticateUser, (req, res) => {
+router.get("/usage", authenticateUser, async (req, res) => {
   const userEmail = req.user?.email || "unknown";
-  const usage = getDailyUsage(userEmail);
-  setUsageHeaders(res, usage);
-  return res.json(toUsageBody(usage));
+  try {
+    const usage = await getDailyUsage(userEmail);
+    setUsageHeaders(res, usage);
+    return res.json(toUsageBody(usage));
+  } catch (error) {
+    console.error("[ChatBot] /usage error:", error.message);
+    return res.status(500).json({ error: "Failed to read usage" });
+  }
 });
 
 router.post("/", authenticateUser, async (req, res) => {
   const userEmail = req.user?.email || "unknown";
   console.log("[ChatBot] Request received from:", userEmail);
 
-  const usage = getDailyUsage(userEmail);
+  const usage = await getDailyUsage(userEmail);
 
   try {
     const { message, history = [], context, stream = false } = req.body || {};
@@ -790,7 +809,7 @@ router.post("/", authenticateUser, async (req, res) => {
         }
 
         console.log("[ChatBot] Stream completed via", providerUsed, "| length:", reply.length);
-        commitDailyUsage(usageAfterSuccess);
+        await commitDailyUsage(usageAfterSuccess);
         if (!res.writableEnded) {
           res.end();
         }
@@ -827,9 +846,9 @@ router.post("/", authenticateUser, async (req, res) => {
         throw geminiError || openAIError || new Error("AI_PROVIDER_UNAVAILABLE");
       }
 
-      commitDailyUsage(usageAfterSuccess);
-      setUsageHeaders(res, usageAfterSuccess);
-      return res.json({ reply, usage: toUsageBody(usageAfterSuccess) });
+      const committed = await commitDailyUsage(usageAfterSuccess);
+      setUsageHeaders(res, committed);
+      return res.json({ reply, usage: toUsageBody(committed) });
     } finally {
       if (typeof req.off === "function") {
         req.off("close", onClientClose);

@@ -1,12 +1,82 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Footer from "../_components/Home/Footer";
 import Link from "next/link";
 import Image from "next/image";
 import FAQSection from "../_components/Home/FAQs";
+import { useAuth } from "../../context/AuthContext";
 
 const AboutPage = () => {
+  const { session } = useAuth();
+  const isLoggedIn = !!session;
+
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
+
+  const [feedbackForm, setFeedbackForm] = useState({ name: "", email: "", message: "" });
+  const [feedbackErrors, setFeedbackErrors] = useState<{ name?: string; email?: string; message?: string }>({});
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<null | "success" | "error">(null);
+  const [feedbackStatusMessage, setFeedbackStatusMessage] = useState<string>("");
+
+  const validateFeedback = () => {
+    const errors: { name?: string; email?: string; message?: string } = {};
+    if (!feedbackForm.name.trim()) errors.name = "Name is required";
+    if (!feedbackForm.email.trim()) {
+      errors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(feedbackForm.email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+    if (!feedbackForm.message.trim()) errors.message = "Message is required";
+    setFeedbackErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleFeedbackChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target;
+    setFeedbackForm(prev => ({ ...prev, [id]: value }));
+    if (feedbackErrors[id as keyof typeof feedbackErrors]) {
+      setFeedbackErrors(prev => ({ ...prev, [id]: undefined }));
+    }
+  };
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackStatus(null);
+    setFeedbackStatusMessage("");
+
+    if (!validateFeedback()) return;
+
+    setFeedbackSubmitting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: feedbackForm.name.trim(),
+          email: feedbackForm.email.trim(),
+          subject: "About page feedback",
+          message: feedbackForm.message.trim(),
+          source: "about_feedback",
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.message || "Unable to submit feedback right now.");
+      }
+
+      setFeedbackStatus("success");
+      setFeedbackStatusMessage("Feedback submitted successfully");
+      setFeedbackForm({ name: "", email: "", message: "" });
+    } catch (err) {
+      setFeedbackStatus("error");
+      setFeedbackStatusMessage(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
   const features = [
     {
       icon: (
@@ -302,7 +372,7 @@ const AboutPage = () => {
               </svg>
             </div>
             <div className="text-base sm:text-xl md:text-3xl font-bold text-[#154CB3]">
-              2000+
+              20,000+
             </div>
             <div className="text-xs sm:text-sm md:text-base text-gray-600 mt-1 sm:mt-2">
               Students Impacted
@@ -328,7 +398,7 @@ const AboutPage = () => {
               </svg>
             </div>
             <div className="text-base sm:text-xl md:text-3xl font-bold text-[#154CB3]">
-              1K+
+              1000+
             </div>
             <div className="text-xs sm:text-sm md:text-base text-gray-600 mt-1 sm:mt-2">
               Teachers
@@ -351,53 +421,53 @@ const AboutPage = () => {
             Hear from students and faculty who have experienced the difference SOCIO makes.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 items-stretch">
             {/* Testimonial 1 */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative flex flex-col h-full">
               <div className="text-[#154CB3] text-5xl font-serif absolute -top-4 left-4">"</div>
-              <p className="text-gray-700 italic mb-6 pt-4">
+              <p className="text-gray-700 italic mb-6 pt-4 flex-grow">
                 SOCIO has completely transformed how our club manages events. The QR attendance system saves us hours of manual work!
               </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-[#154CB3] flex items-center justify-center text-white font-bold">
+              <div className="flex items-center mt-auto">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-[#154CB3] flex items-center justify-center text-white text-sm font-bold leading-none">
                   A
                 </div>
                 <div className="ml-3">
-                  <p className="font-bold text-gray-800">Toyesa Jaiswal </p>
-                  <p className="text-sm text-gray-600">Club Member, COGNITO , Department of Professional Studies</p>
+                  <p className="font-bold text-gray-800">Toyesa Jaiswal</p>
+                  <p className="text-sm text-gray-600">Club Member, COGNITO, Department of Professional Studies</p>
                 </div>
               </div>
             </div>
 
             {/* Testimonial 2 */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative flex flex-col h-full">
               <div className="text-[#154CB3] text-5xl font-serif absolute -top-4 left-4">"</div>
-              <p className="text-gray-700 italic mb-6 pt-4">
+              <p className="text-gray-700 italic mb-6 pt-4 flex-grow">
                 As a faculty advisor, I've seen firsthand how SOCIO has increased student participation in department events by over 40%.
               </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-[#154CB3] flex items-center justify-center text-white font-bold">
+              <div className="flex items-center mt-auto">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-[#154CB3] flex items-center justify-center text-white text-sm font-bold leading-none">
                   R
                 </div>
                 <div className="ml-3">
-                  <p className="font-bold text-gray-800">Dr. Smitha Vinod </p>
+                  <p className="font-bold text-gray-800">Dr. Smitha Vinod</p>
                   <p className="text-sm text-gray-600">Associate Professor, Computer Science</p>
                 </div>
               </div>
             </div>
 
             {/* Testimonial 3 */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm relative flex flex-col h-full">
               <div className="text-[#154CB3] text-5xl font-serif absolute -top-4 left-4">"</div>
-              <p className="text-gray-700 italic mb-6 pt-4">
+              <p className="text-gray-700 italic mb-6 pt-4 flex-grow">
                 I used to miss half the campus events because I'd find out too late. With SOCIO, I'm always in the loop and have made so many more connections.
               </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-[#154CB3] flex items-center justify-center text-white font-bold">
+              <div className="flex items-center mt-auto">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-[#154CB3] flex items-center justify-center text-white text-sm font-bold leading-none">
                   P
                 </div>
                 <div className="ml-3">
-                  <p className="font-bold text-gray-800">Arjun Ramesh </p>
+                  <p className="font-bold text-gray-800">Arjun Ramesh</p>
                   <p className="text-sm text-gray-600">2nd Year Student, BCA</p>
                 </div>
               </div>
@@ -419,21 +489,46 @@ const AboutPage = () => {
           </p>
 
           <div className="max-w-2xl mx-auto bg-white p-6 md:p-8 rounded-xl border border-gray-200">
-            {" "}
-            <form>
+            {feedbackStatus === "success" && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-2">
+                <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-green-800 font-medium text-sm md:text-base">{feedbackStatusMessage}</p>
+              </div>
+            )}
+
+            {feedbackStatus === "error" && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-red-800 font-medium text-sm md:text-base">{feedbackStatusMessage}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleFeedbackSubmit} noValidate>
               <div className="mb-6">
                 <label
                   htmlFor="name"
                   className="block text-gray-700 text-sm md:text-base font-medium mb-2"
                 >
-                  Name
+                  Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   id="name"
-                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                  value={feedbackForm.name}
+                  onChange={handleFeedbackChange}
+                  aria-invalid={!!feedbackErrors.name}
+                  className={`w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3] ${
+                    feedbackErrors.name ? "border-red-400" : "border-gray-300"
+                  }`}
                   placeholder="Enter your name"
                 />
+                {feedbackErrors.name && (
+                  <p className="mt-1 text-xs text-red-600">{feedbackErrors.name}</p>
+                )}
               </div>
 
               <div className="mb-6">
@@ -441,14 +536,22 @@ const AboutPage = () => {
                   htmlFor="email"
                   className="block text-gray-700 text-sm md:text-base font-medium mb-2"
                 >
-                  Email
+                  Email <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
                   id="email"
-                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                  value={feedbackForm.email}
+                  onChange={handleFeedbackChange}
+                  aria-invalid={!!feedbackErrors.email}
+                  className={`w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3] ${
+                    feedbackErrors.email ? "border-red-400" : "border-gray-300"
+                  }`}
                   placeholder="Enter your college email"
                 />
+                {feedbackErrors.email && (
+                  <p className="mt-1 text-xs text-red-600">{feedbackErrors.email}</p>
+                )}
               </div>
 
               <div className="mb-6">
@@ -456,21 +559,30 @@ const AboutPage = () => {
                   htmlFor="message"
                   className="block text-gray-700 text-sm md:text-base font-medium mb-2"
                 >
-                  Message/Query
+                  Message/Query <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   id="message"
                   rows={4}
-                  className="w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border border-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3]"
+                  value={feedbackForm.message}
+                  onChange={handleFeedbackChange}
+                  aria-invalid={!!feedbackErrors.message}
+                  className={`w-full px-3 py-2 md:px-4 md:py-3 text-sm md:text-base border bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#154CB3] ${
+                    feedbackErrors.message ? "border-red-400" : "border-gray-300"
+                  }`}
                   placeholder="Type your message/query"
                 ></textarea>
+                {feedbackErrors.message && (
+                  <p className="mt-1 text-xs text-red-600">{feedbackErrors.message}</p>
+                )}
               </div>
 
               <button
                 type="submit"
-                className="w-full sm:w-auto hover:border-[#154cb3df] hover:bg-[#154cb3df] transition-all duration-200 ease-in-out cursor-pointer font-semibold px-6 py-2.5 my-4 mt-2 border-2 border-[#154CB3] text-sm rounded-full text-white bg-[#154CB3]"
+                disabled={feedbackSubmitting}
+                className="w-full sm:w-auto hover:border-[#154cb3df] hover:bg-[#154cb3df] transition-all duration-200 ease-in-out cursor-pointer font-semibold px-6 py-2.5 my-4 mt-2 border-2 border-[#154CB3] text-sm rounded-full text-white bg-[#154CB3] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Submit Feedback
+                {feedbackSubmitting ? "Submitting…" : "Submit Feedback"}
               </button>
             </form>
           </div>
@@ -494,12 +606,14 @@ const AboutPage = () => {
             >
               Explore events
             </Link>
-            <Link
-              href="/auth"
-              className="w-full sm:w-auto justify-center cursor-pointer font-semibold px-4 py-2 border-2 border-[#fff] hover:bg-[#ffffff1a] transition-all ease-in-out text-sm rounded-full text-white flex items-center"
-            >
-              Create account
-            </Link>
+            {!isLoggedIn && (
+              <Link
+                href="/auth"
+                className="w-full sm:w-auto justify-center cursor-pointer font-semibold px-4 py-2 border-2 border-[#fff] hover:bg-[#ffffff1a] transition-all ease-in-out text-sm rounded-full text-white flex items-center"
+              >
+                Create account
+              </Link>
+            )}
           </div>
         </div>
       </section>

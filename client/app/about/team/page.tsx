@@ -112,7 +112,7 @@ export default function TeamPage() {
 
   const milestones = [
     { metric: "5+", achievement: "Campuses", description: "Expanded beyond our home university" },
-    { metric: "2000+", achievement: "Students Served", description: "Growing community of active users" },
+    { metric: "20,000+", achievement: "Students Served", description: "Growing community of active users" },
     { metric: "50+", achievement: "Events Managed", description: "Helping organizers reach their audience" },
     { metric: "95%", achievement: "Satisfaction", description: "High user satisfaction ratings" },
   ];
@@ -137,15 +137,6 @@ export default function TeamPage() {
       github: "https://github.com/alton-joe-christ",
     },
     {
-      name: "Suryachalam",
-      role: "Product Engineer & Mobile App Developer",
-      image: suryachalamImg,
-      skills: ["Product Engineering", "Mobile Apps", "Product Delivery"],
-      email: "suryachalam18@gmail.com",
-      linkedin: "https://www.linkedin.com/in/suryachalam/",
-      github: "https://github.com/sgk18",
-    },
-    {
       name: "Hatim Abizer",
       role: "Fullstack & Cybersecurity Engineer",
       image: hatimImg,
@@ -153,6 +144,15 @@ export default function TeamPage() {
       email: "hatim.work07@gmail.com",
       linkedin: "https://www.linkedin.com/in/hatim-abizer-361031371/",
       github: "https://github.com/hatimAbizer",
+    },
+    {
+      name: "Suryachalam",
+      role: "Product Engineer & Mobile App Developer",
+      image: suryachalamImg,
+      skills: ["Product Engineering", "Mobile Apps", "Product Delivery"],
+      email: "suryachalam18@gmail.com",
+      linkedin: "https://www.linkedin.com/in/suryachalam/",
+      github: "https://github.com/sgk18",
     },
   ];
 
@@ -684,7 +684,7 @@ export default function TeamPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="mailto:thesocio.blr@gmail.com"
+              href="/support/careers"
               className="inline-flex items-center justify-center gap-2 bg-[#154CB3] text-white px-8 py-3.5 rounded-xl font-semibold hover:bg-[#063168] transition-all duration-300"
             >
               Get In Touch
