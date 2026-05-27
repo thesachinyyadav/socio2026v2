@@ -66,18 +66,7 @@ export async function createAndPushNotification(payload) {
         title
       });
 
-      const [oneSignalResult, webPushResult] = await Promise.allSettled([
-        sendOneSignalToEmail(normalizedEmail, {
-          title,
-          body: message,
-          actionUrl: resolvedLink,
-          data: {
-            notificationId,
-            category: resolvedType,
-            priority,
-            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
-          }
-        }),
+      const results = await Promise.allSettled([
         sendPushToEmail(normalizedEmail, {
           title,
           body:           message,
@@ -89,11 +78,24 @@ export async function createAndPushNotification(payload) {
           timestamp:      Date.now(),
           userEmail:      normalizedEmail,
           ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
+        }),
+        sendOneSignalToEmail(normalizedEmail, {
+          title,
+          body: message,
+          actionUrl: resolvedLink,
+          data: {
+            notificationId,
+            category: resolvedType,
+            priority,
+            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
+          }
         })
       ]);
 
-      const oneSignalVal = oneSignalResult.status === "fulfilled" ? oneSignalResult.value : { success: false, error: oneSignalResult.reason };
-      const webPushVal = webPushResult.status === "fulfilled" ? webPushResult.value : { success: false, error: webPushResult.reason };
+      console.log("[PUSH_RESULTS]", results);
+
+      const webPushVal = results[0].status === "fulfilled" ? results[0].value : { success: false, error: results[0].reason };
+      const oneSignalVal = results[1].status === "fulfilled" ? results[1].value : { success: false, error: results[1].reason };
 
       console.log("[WEB_PUSH_RESULT]", webPushVal);
       console.log("[ONESIGNAL_RESULT]", oneSignalVal);

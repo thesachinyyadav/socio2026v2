@@ -244,12 +244,14 @@ export async function sendPush(payload, subscription) {
   try {
     await webpush.sendNotification(subscription, stringifiedPayload, pushOptions);
     console.log(`[PUSH] Delivery success → endpoint: ${endpoint.substring(0, 50)}...`);
+    console.log("[WEB_PUSH_RESPONSE]", { success: true });
     return { success: true };
   } catch (error) {
     // ── Stale / invalid subscription (permanent) ─────────────────────────────
     if (error.statusCode === 410 || error.statusCode === 404) {
       console.log(`[PUSH] Subscription expired/invalid (status ${error.statusCode}). Purging from store.`);
       purgeStaleEndpoint(endpoint);
+      console.error("[WEB_PUSH_ERROR]", error.message || error);
       return { success: false, error: error.message, statusCode: error.statusCode, purged: true };
     }
 
@@ -261,14 +263,17 @@ export async function sendPush(payload, subscription) {
       try {
         await webpush.sendNotification(subscription, stringifiedPayload, pushOptions);
         console.log(`[PUSH] Retry delivery success → endpoint: ${endpoint.substring(0, 50)}...`);
+        console.log("[WEB_PUSH_RESPONSE]", { success: true, retried: true });
         return { success: true, retried: true };
       } catch (retryError) {
         console.error(`[PUSH] Retry failed → endpoint: ${endpoint.substring(0, 50)}... | Error:`, retryError.message || retryError);
+        console.error("[WEB_PUSH_ERROR]", retryError.message || retryError);
         return { success: false, error: retryError.message, statusCode: retryError.statusCode };
       }
     }
 
     console.error(`[PUSH] Delivery failed → endpoint: ${endpoint.substring(0, 50)}... | Error:`, error.message || error);
+    console.error("[WEB_PUSH_ERROR]", error.message || error);
     return {
       success: false,
       error: error.message || String(error),
@@ -282,8 +287,10 @@ export async function sendPush(payload, subscription) {
  * Uses Promise.allSettled for parallel delivery — avoids N×sequential HTTP calls.
  */
 export async function sendPushToEmail(email, payload) {
+  console.log("[WEB_PUSH_START]");
   if (!email) {
     console.warn("[PUSH] No email supplied to sendPushToEmail. Bypassing Web Push.");
+    console.error("[WEB_PUSH_ERROR]", "Email is required");
     return { success: false, error: "Email is required" };
   }
 
@@ -295,6 +302,7 @@ export async function sendPushToEmail(email, payload) {
     const userSubs = getSubscriptionsForEmail(normalizedEmail);
     if (userSubs.length === 0) {
       console.log(`[PUSH] No active subscriptions found for ${normalizedEmail}`);
+      console.log("[WEB_PUSH_RESPONSE]", { success: true, sent: 0 });
       return { success: true, sent: 0 };
     }
 
@@ -310,6 +318,7 @@ export async function sendPushToEmail(email, payload) {
     ).length;
 
     console.log(`[PUSH] sendPushToEmail complete. Sent ${successCount}/${userSubs.length} notifications to ${normalizedEmail}`);
+    console.log("[WEB_PUSH_RESPONSE]", { success: true, sent: successCount });
     return { success: true, sent: successCount };
   } catch (err) {
     console.error(`[PUSH] sendPushToEmail error for ${email}:`, err);

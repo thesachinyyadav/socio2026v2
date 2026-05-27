@@ -14,17 +14,13 @@
  * @returns {Promise<object>} Result status and payload.
  */
 export async function sendOneSignalToEmail(email, payload) {
+  console.log("[ONESIGNAL_START]");
   const appId = process.env.ONESIGNAL_APP_ID;
   const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
-  const { title, body, actionUrl, data } = payload;
-  const message = body || payload.message || "";
+  const { title, body: rawBody, actionUrl, data } = payload;
+  const body = rawBody || payload.message || "";
   const normalizedEmail = email ? email.toLowerCase().trim() : "";
-
-  console.log("[ONESIGNAL_SEND_START]", {
-    email: normalizedEmail,
-    title
-  });
 
   console.log("[ONESIGNAL_ENV]", {
     appId: Boolean(appId),
@@ -33,10 +29,12 @@ export async function sendOneSignalToEmail(email, payload) {
 
   if (!appId || !apiKey) {
     console.warn("[ONESIGNAL] Credentials missing. Bypassing native push.");
+    console.error("[ONESIGNAL_ERROR]", "Credentials missing");
     return { success: false, error: "OneSignal credentials missing" };
   }
 
   if (!normalizedEmail) {
+    console.error("[ONESIGNAL_ERROR]", "Email is required");
     return { success: false, error: "Email is required to send individual native push" };
   }
 
@@ -50,9 +48,8 @@ export async function sendOneSignalToEmail(email, payload) {
       en: title
     },
     contents: {
-      en: message
+      en: body
     },
-    url: actionUrl || "/notifications",
     data: {
       actionUrl: actionUrl || "/notifications",
       deepLink: actionUrl || "/notifications",
@@ -74,17 +71,12 @@ export async function sendOneSignalToEmail(email, payload) {
     });
 
     const json = await response.json();
-    console.log("[ONESIGNAL_HTTP_RESPONSE]", {
-      status: response.status,
-      ok: response.ok,
-      body: json || null,
-    });
+    console.log("[ONESIGNAL_RESPONSE]", json);
 
     if (!response.ok) {
-      console.error(`[ONESIGNAL] Push failed for ${normalizedEmail}:`, json);
+      console.error("[ONESIGNAL_ERROR]", json);
       return { success: false, error: json };
     }
-    console.log(`[ONESIGNAL] Push succeeded for ${normalizedEmail}:`, json);
     return { success: true, result: json };
   } catch (err) {
     console.error("[ONESIGNAL_ERROR]", err.response?.data || err);
