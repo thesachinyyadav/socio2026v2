@@ -2,6 +2,10 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from 'url';
 import "./config/loadEnv.js";
+console.log("[ONESIGNAL ENV CHECK]", {
+  appId: process.env.ONESIGNAL_APP_ID,
+  apiKeyExists: !!process.env.ONESIGNAL_REST_API_KEY
+});
 import * as Sentry from "@sentry/node";
 import { initializeDatabase } from "./config/database.js";
 
