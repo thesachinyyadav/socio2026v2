@@ -485,7 +485,7 @@ function MasterAdminPageInner() {
         if (ra.updated?.length) parts.push(`${ra.updated.length} of ${ra.requested} contacts assigned`);
         if (ra.notFound?.length) parts.push(`${ra.notFound.length} email(s) have no Socio account: ${ra.notFound.join(", ")}`);
         if (ra.errors?.length) parts.push(`${ra.errors.length} update error(s) — check server logs`);
-        toast(`Caterer added, but: ${parts.join("; ")}`, { icon: "⚠️", duration: 6000 });
+        toast(`Caterer added, but: ${parts.join("; ")}`, { icon: (<svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>), duration: 6000 });
         console.warn("[Caterer] role_assignment partial:", ra);
       } else {
         toast.success("Caterer added");
@@ -536,7 +536,7 @@ function MasterAdminPageInner() {
       }
       if (rr?.errors?.length) warnings.push(`${rr.errors.length} revoke error(s)`);
       if (warnings.length) {
-        toast(`Caterer updated, but: ${warnings.join("; ")} — check server logs`, { icon: "⚠️", duration: 6000 });
+        toast(`Caterer updated, but: ${warnings.join("; ")} — check server logs`, { icon: (<svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>), duration: 6000 });
         console.warn("[Caterer] role diagnostics:", { role_assignment: ra, role_revocation: rr });
       } else {
         toast.success("Caterer updated");

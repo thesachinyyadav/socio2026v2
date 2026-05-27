@@ -2144,11 +2144,11 @@ function ManageDashboard() {
   };
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
-    console.log(`🔄 Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
+    console.log(`Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
     
     if (!authToken) {
       toast.error("Please sign in again to update archive status.");
-      console.error("❌ No access token available");
+      console.error("No access token available");
       return;
     }
 
@@ -2160,7 +2160,7 @@ function ManageDashboard() {
 
     try {
       const endpoint = `/api/events/${eventId}/archive`;
-      console.log(`📤 Sending PATCH request to: ${endpoint}`);
+      console.log(`Sending PATCH request to: ${endpoint}`);
       
       const response = await fetch(endpoint, {
         method: "PATCH",
@@ -2171,9 +2171,9 @@ function ManageDashboard() {
         body: JSON.stringify({ archive: shouldArchive }),
       });
 
-      console.log(`📨 Response status: ${response.status}`);
+      console.log(`Response status: ${response.status}`);
       const payload = await response.json().catch(() => null);
-      console.log(`📋 Response payload:`, payload);
+      console.log(`Response payload:`, payload);
 
       if (!response.ok) {
         const errorMsg = payload?.error || `HTTP ${response.status}: Failed to update archive status.`;
@@ -2213,16 +2213,16 @@ function ManageDashboard() {
 
       toast.success(
         shouldArchive
-          ? "✅ Event archived successfully."
-          : "✅ Event restored successfully."
+          ? "Event archived successfully."
+          : "Event restored successfully."
       );
-      console.log(`✅ Archive update successful`);
+      console.log(`Archive update successful`);
       
       // Refresh live events to reflect the latest archive status
       await refreshLiveEvents();
     } catch (error: any) {
-      console.error("❌ Archive update failed:", error);
-      toast.error(`❌ ${error?.message || "Unable to update archive status."}`);
+      console.error("Archive update failed:", error);
+      toast.error(`${error?.message || "Unable to update archive status."}`);
     } finally {
       setArchiveUpdatingIds((prev) => {
         const next = new Set(prev);
@@ -2233,11 +2233,11 @@ function ManageDashboard() {
   };
 
   const handleToggleArchiveFest = async (festId: string, shouldArchive: boolean) => {
-    console.log(`🔄 Fest archive toggle initiated: festId=${festId}, shouldArchive=${shouldArchive}`);
+    console.log(`Fest archive toggle initiated: festId=${festId}, shouldArchive=${shouldArchive}`);
     
     if (!authToken) {
       toast.error("Please sign in again to update archive status.");
-      console.error("❌ No access token available");
+      console.error("No access token available");
       return;
     }
 
@@ -2249,7 +2249,7 @@ function ManageDashboard() {
 
     try {
       const endpoint = `/api/fests/${festId}/archive`;
-      console.log(`📤 Sending PATCH request to: ${endpoint}`);
+      console.log(`Sending PATCH request to: ${endpoint}`);
       
       const response = await fetch(endpoint, {
         method: "PATCH",
@@ -2260,9 +2260,9 @@ function ManageDashboard() {
         body: JSON.stringify({ archive: shouldArchive }),
       });
 
-      console.log(`📨 Response status: ${response.status}`);
+      console.log(`Response status: ${response.status}`);
       const payload = await response.json().catch(() => null);
-      console.log(`📋 Response payload:`, payload);
+      console.log(`Response payload:`, payload);
 
       if (!response.ok) {
         const errorMsg = payload?.error || `HTTP ${response.status}: Failed to update fest archive status.`;
@@ -2321,16 +2321,16 @@ function ManageDashboard() {
       const eventsAffected = payload?.events_affected || 0;
       toast.success(
         shouldArchive
-          ? `✅ Fest and ${eventsAffected} events archived successfully.`
-          : "✅ Fest and associated events moved back to active list."
+          ? `Fest and ${eventsAffected} events archived successfully.`
+          : "Fest and associated events moved back to active list."
       );
-      console.log(`✅ Fest archive update successful: ${eventsAffected} events affected`);
+      console.log(`Fest archive update successful: ${eventsAffected} events affected`);
 
       // Refresh both datasets so archive UI does not snap back to stale state.
       await Promise.all([refreshLiveEvents(), refreshFests()]);
     } catch (error: any) {
-      console.error("❌ Fest archive update failed:", error);
-      toast.error(`❌ ${error?.message || "Unable to update fest archive status."}`);
+      console.error("Fest archive update failed:", error);
+      toast.error(`${error?.message || "Unable to update fest archive status."}`);
     } finally {
       setFestArchiveUpdatingIds((prev) => {
         const next = new Set(prev);

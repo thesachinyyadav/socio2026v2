@@ -401,7 +401,12 @@ export default function ChatBot() {
               {/* Unavailable banner */}
               {isUnavailable && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
-                  <p className="text-sm text-amber-700 font-medium">SocioAssist is resting right now 🌙</p>
+                  <p className="text-sm text-amber-700 font-medium inline-flex items-center gap-1.5">
+                    SocioAssist is resting right now
+                    <svg className="w-4 h-4 inline-block" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                  </p>
                   <p className="text-xs text-amber-500 mt-1">Try a preset question or come back in a bit.</p>
                   {!showPresets && (
                     <div className="mt-3 grid grid-cols-2 gap-1.5">

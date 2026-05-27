@@ -26,6 +26,14 @@ function normalizeEmail(value) {
   return trimmed || null;
 }
 
+// Normalizes an optional filter value; treats empty/"all" as "no filter".
+function normalizeFilterValue(value) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === "all") return "";
+  return trimmed;
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -827,6 +835,8 @@ function normalizeData(users, events, registrations, attendanceRows) {
     department: normalizeText(row.department, "Unknown"),
     year: normalizeText(row.year || row.course_year || row.course || "N/A", "N/A"),
     email: typeof row.email === "string" ? row.email : null,
+    campus: normalizeText(row.campus, "Unknown"),
+    school: normalizeText(row.school, "Unknown"),
     createdAt: toDate(row.created_at || row.createdAt),
   }));
 
@@ -839,24 +849,31 @@ function normalizeData(users, events, registrations, attendanceRows) {
     title: normalizeText(row.title, "Untitled Event"),
     category: normalizeText(row.category || row.event_type, "Uncategorized"),
     department: normalizeText(row.department || row.organizing_dept, "Unknown"),
+    school: normalizeText(row.organizing_school || row.school, "Unknown"),
     eventDate: toDate(row.event_date || row.eventDate),
     startTime: normalizeText(row.start_time || row.startTime || row.event_time, ""),
     organizerEmail: normalizeEmail(row.created_by || row.organizer_email || row.organiser_email),
     organizerStudentId: normalizeText(row.created_by_id || row.organizer_id || row.organiser_id || "", ""),
+    // Events have no campus column; attribute campus via the organiser's campus.
+    campus: "Unknown",
   }));
 
   const studentById = new Map(normalizedStudents.map((student) => [student.studentId, student]));
 
   normalizedEvents.forEach((event) => {
+    let organizer = null;
     const organizerById = event.organizerStudentId ? studentById.get(event.organizerStudentId) : null;
     if (organizerById) {
+      organizer = organizerById;
       event.organizerStudentId = organizerById.studentId;
-      return;
+    } else if (event.organizerEmail) {
+      const organizerByEmail = studentByEmail.get(event.organizerEmail);
+      organizer = organizerByEmail || null;
+      event.organizerStudentId = organizerByEmail?.studentId || "";
     }
 
-    if (event.organizerEmail) {
-      const organizerByEmail = studentByEmail.get(event.organizerEmail);
-      event.organizerStudentId = organizerByEmail?.studentId || "";
+    if (organizer?.campus) {
+      event.campus = organizer.campus;
     }
   });
 
@@ -952,7 +969,10 @@ function getTeacherAnalytics(teacherNormalized, deptEvents, currentRows) {
 
 export async function buildAnalyticsSnapshot(query = {}) {
   const range = parseRange(query);
-  const cacheKey = getCacheKey(range);
+  const campusFilter = normalizeFilterValue(query.campus);
+  const schoolFilter = normalizeFilterValue(query.school);
+  const departmentFilter = normalizeFilterValue(query.department);
+  const cacheKey = `master::${campusFilter.toLowerCase() || "all"}::${schoolFilter.toLowerCase() || "all"}::${departmentFilter.toLowerCase() || "all"}::${getCacheKey(range)}`;
   const cached = getCachedPayload(cacheKey);
 
   if (cached) {
@@ -968,28 +988,63 @@ export async function buildAnalyticsSnapshot(query = {}) {
 
   const normalized = normalizeData(users, events, registrations, attendanceRows);
 
-  const currentRows = normalized.registrations.filter((row) => inRange(row.registeredAt, range.current));
-  const previousRows = normalized.registrations.filter((row) => inRange(row.registeredAt, range.previous));
+  // Scope students/events to the selected campus, school and/or department.
+  let scopedStudents = normalized.students;
+  let scopedEvents = normalized.events;
+  if (departmentFilter) {
+    const d = departmentFilter.toLowerCase();
+    scopedStudents = scopedStudents.filter((s) => s.department.toLowerCase() === d);
+    scopedEvents = scopedEvents.filter((e) => e.department.toLowerCase() === d);
+  }
+  if (schoolFilter) {
+    const sc = schoolFilter.toLowerCase();
+    scopedStudents = scopedStudents.filter((s) => (s.school || "Unknown").toLowerCase() === sc);
+    scopedEvents = scopedEvents.filter((e) => (e.school || "Unknown").toLowerCase() === sc);
+  }
+  if (campusFilter) {
+    const c = campusFilter.toLowerCase();
+    scopedStudents = scopedStudents.filter((s) => (s.campus || "Unknown").toLowerCase() === c);
+    scopedEvents = scopedEvents.filter((e) => (e.campus || "Unknown").toLowerCase() === c);
+  }
 
-  const currentEvents = normalized.events.filter((event) => inRange(event.eventDate, range.current));
-  const totalStudents = normalized.students.length || new Set(normalized.registrations.map((row) => row.studentId).filter(Boolean)).size;
+  // Two scopes (same pattern as the HOD snapshot) so KPI denominators stay sane:
+  //   student-scope rows → KPIs & student analytics (only in-scope students appear)
+  //   event-scope rows   → event & time analytics (full attendance per scoped event)
+  const filtering = Boolean(campusFilter || schoolFilter || departmentFilter);
+  const scopedStudentIds = new Set(scopedStudents.map((s) => s.studentId));
+  const scopedEventIds = new Set(scopedEvents.map((e) => e.eventId));
+  const studentScopeRegs = filtering
+    ? normalized.registrations.filter((r) => scopedStudentIds.has(r.studentId))
+    : normalized.registrations;
+  const eventScopeRegs = filtering
+    ? normalized.registrations.filter((r) => scopedEventIds.has(r.eventId))
+    : normalized.registrations;
 
-  const overview = getKpiBundle(currentRows, previousRows, normalized.registrations, totalStudents);
+  const currentRows = studentScopeRegs.filter((row) => inRange(row.registeredAt, range.current));
+  const previousRows = studentScopeRegs.filter((row) => inRange(row.registeredAt, range.previous));
+  const currentEventRows = eventScopeRegs.filter((row) => inRange(row.registeredAt, range.current));
+
+  const currentEvents = scopedEvents.filter((event) => inRange(event.eventDate, range.current));
+  const effectiveEvents = currentEvents.length > 0 ? currentEvents : scopedEvents;
+  const totalStudents = scopedStudents.length || scopedStudentIds.size;
+
+  const overview = getKpiBundle(currentRows, previousRows, studentScopeRegs, totalStudents);
   const studentAnalytics = getStudentAnalytics(
-    normalized.students,
+    scopedStudents,
     currentRows,
     previousRows,
-    currentEvents.length > 0 ? currentEvents : normalized.events,
+    effectiveEvents,
     range.current.end
   );
-  const eventAnalytics = getEventAnalytics(currentEvents.length > 0 ? currentEvents : normalized.events, currentRows, studentAnalytics);
-  const departmentAnalytics = getDepartmentAnalytics(normalized.students, currentEvents, currentRows, studentAnalytics);
-  const timeAnalytics = getTimeAnalytics(normalized.registrations);
-  const predictions = buildPredictions(normalized.events, normalized.registrations, eventAnalytics);
+  const eventAnalytics = getEventAnalytics(effectiveEvents, currentEventRows, studentAnalytics);
+  const departmentAnalytics = getDepartmentAnalytics(scopedStudents, currentEvents, currentEventRows, studentAnalytics);
+  const timeAnalytics = getTimeAnalytics(eventScopeRegs);
+  const predictions = buildPredictions(scopedEvents, eventScopeRegs, eventAnalytics);
   const insights = buildInsights({ overview, studentAnalytics, eventAnalytics, departmentAnalytics, timeAnalytics });
 
   const payload = {
     generatedAt: new Date().toISOString(),
+    filters: { campus: campusFilter || null, school: schoolFilter || null, department: departmentFilter || null },
     range: {
       current: {
         start: range.current.start.toISOString(),
@@ -1001,10 +1056,10 @@ export async function buildAnalyticsSnapshot(query = {}) {
       },
     },
     dataQuality: {
-      students: normalized.students.length,
-      events: normalized.events.length,
-      registrations: normalized.registrations.length,
-      currentPeriodRegistrations: currentRows.length,
+      students: scopedStudents.length,
+      events: scopedEvents.length,
+      registrations: filtering ? eventScopeRegs.length : normalized.registrations.length,
+      currentPeriodRegistrations: currentEventRows.length,
     },
     overview,
     students: studentAnalytics,

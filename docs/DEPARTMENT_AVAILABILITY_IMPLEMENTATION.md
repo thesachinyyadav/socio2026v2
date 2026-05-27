@@ -115,10 +115,10 @@ The fest is stored with:
 
 ## Next Steps
 
-1. ✅ Database migration ready
-2. ✅ Frontend form updated
-3. ✅ API endpoints updated
-4. 🔜 Run migration in Supabase
-5. 🔜 Test the feature end-to-end
-6. 🔜 Deploy to production
+1. Database migration ready
+2. Frontend form updated
+3. API endpoints updated
+4. Run migration in Supabase
+5. Test the feature end-to-end
+6. Deploy to production
 

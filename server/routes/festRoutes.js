@@ -285,6 +285,14 @@ const mapFestResponse = (fest) => {
   try {
     return {
       ...fest,
+      // Re-derive status from dates on every read. The stored status column is
+      // only recomputed at create/update time, so without this a fest created
+      // while "upcoming" stays "upcoming" forever once its opening date passes.
+      status: deriveFestStatusFromDates(
+        fest.opening_date,
+        fest.closing_date,
+        fest.status || "upcoming"
+      ),
       department_access: normalizeJsonField(fest.department_access),
       event_heads: normalizeJsonField(fest.event_heads),
       timeline: normalizeJsonField(fest.timeline),
@@ -615,7 +623,7 @@ router.get("/:festId", optionalAuth, checkRoleExpiration, async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.status(200).json(cachedFestData);
   } catch (error) {
-    console.error("❌ Error fetching fest:", error);
+    console.error("Error fetching fest:", error);
     return res.status(500).json({ 
       error: "Internal server error while fetching specific fest.",
       details: error.message
@@ -849,9 +857,9 @@ router.post(
           event_title: festPayload.fest_title,
           action_url: `/fest/${fest_id}`
         }).then(() => {
-          console.log(`✅ Sent notifications for new fest: ${festPayload.fest_title}`);
+          console.log(`Sent notifications for new fest: ${festPayload.fest_title}`);
         }).catch((notifError) => {
-          console.error('❌ Failed to send fest notifications:', notifError);
+          console.error('Failed to send fest notifications:', notifError);
         });
       }
 
@@ -862,9 +870,9 @@ router.post(
           req.userInfo?.email || festPayload.created_by,
           req.userInfo?.name || 'SOCIO Organiser'
         ).then(() => {
-          console.log(`✅ Pushed fest "${festPayload.fest_title}" to UniversityGated`);
+          console.log(`Pushed fest "${festPayload.fest_title}" to UniversityGated`);
         }).catch((gatedError) => {
-          console.error(`❌ Failed to push fest to Gated:`, gatedError.message);
+          console.error(`Failed to push fest to Gated:`, gatedError.message);
         });
       }
 
@@ -1176,19 +1184,19 @@ router.put(
       
       // If update didn't return data, try fetching the updated fest
       if (!updatedFest) {
-        console.warn("⚠️ Update query returned no data, fetching fest from database...");
+        console.warn("Update query returned no data, fetching fest from database...");
         try {
           updatedFest = await queryOne(festTable, { where: { fest_id: festId } });
           if (!updatedFest) {
             throw new Error("Could not fetch updated fest after update");
           }
-          console.log(`✅ Fest updated and refetched successfully: ${festId}`);
+          console.log(`Fest updated and refetched successfully: ${festId}`);
         } catch (refetchError) {
-          console.error("❌ Failed to refetch fest after update:", refetchError.message);
+          console.error("Failed to refetch fest after update:", refetchError.message);
           throw new Error("Fest update failed - could not verify update");
         }
       } else {
-        console.log(`✅ Fest updated successfully: ${festId}`);
+        console.log(`Fest updated successfully: ${festId}`);
       }
 
       // Push to UniversityGated if outsiders are now enabled (non-blocking)
@@ -1200,9 +1208,9 @@ router.put(
             req.userInfo?.email || updatedFest.created_by,
             req.userInfo?.name || 'SOCIO Organiser'
           ).then(() => {
-            console.log(`✅ Pushed updated fest "${updatedFest.fest_title}" to UniversityGated`);
+            console.log(`Pushed updated fest "${updatedFest.fest_title}" to UniversityGated`);
           }).catch((gatedError) => {
-            console.error(`❌ Failed to push updated fest to Gated:`, gatedError.message);
+            console.error(`Failed to push updated fest to Gated:`, gatedError.message);
           });
         }
       }
@@ -1216,7 +1224,7 @@ router.put(
           event_title: updatedFest.fest_title,
           action_url: `/fest/${festId}`,
         }).catch((notifError) => {
-          console.error("❌ Failed to send fest publish notifications:", notifError);
+          console.error("Failed to send fest publish notifications:", notifError);
         });
       }
 
@@ -1238,18 +1246,18 @@ router.put(
                   is_organiser: true,
                   organiser_expires_at: head.expiresAt || null
                 }, { email: head.email });
-                console.log(`✅ Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
+                console.log(`Granted organiser access to ${head.email} (expires: ${head.expiresAt || 'never'})`);
               } else {
-                console.log(`[EventHeads] ⚠️ User ${head.email} not found, will be granted access when they sign up`);
+                console.log(`[EventHeads] User ${head.email} not found, will be granted access when they sign up`);
               }
             } catch (userError) {
-              console.error(`❌ Error updating organiser status for ${head.email}:`, userError.message);
+              console.error(`Error updating organiser status for ${head.email}:`, userError.message);
               // Continue processing other heads even if one fails
             }
           }
         }
       } catch (eventHeadsError) {
-        console.error(`❌ Error processing event heads:`, eventHeadsError.message);
+        console.error(`Error processing event heads:`, eventHeadsError.message);
         // Don't fail the entire update, just log and continue
       }
 
@@ -1267,8 +1275,8 @@ router.put(
       });
 
     } catch (error) {
-      console.error("❌ Error updating fest:", error);
-      console.error("🔴 Detailed error info:", {
+      console.error("Error updating fest:", error);
+      console.error("Detailed error info:", {
         message: error.message,
         stack: error.stack,
         code: error.code,
@@ -1427,7 +1435,7 @@ router.patch(
           }
         }
 
-        console.log(`✅ ${archiveValue ? "Archived" : "Unarchived"} ${eventsAffected} events for fest ${festId}`);
+        console.log(`${archiveValue ? "Archived" : "Unarchived"} ${eventsAffected} events for fest ${festId}`);
       }
 
       // Invalidate fests listings, discover feeds, and this specific fest detail cache on archive/unarchive

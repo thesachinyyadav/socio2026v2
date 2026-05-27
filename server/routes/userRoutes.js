@@ -298,7 +298,7 @@ router.post("/", authenticateUser, async (req, res) => {
     const organizationType = getOrganizationType(authClientUser.email);
     const isStaffEmail = isStaffDomain(authClientUser.email);
     
-    console.log(`📧 User login: ${authClientUser.email} | Organization: ${organizationType}`);
+    console.log(`User login: ${authClientUser.email} | Organization: ${organizationType}`);
     
     // Check if user already exists by email
     const existingUser = await queryOne("users", { where: { email: authClientUser.email } });
@@ -309,7 +309,7 @@ router.post("/", authenticateUser, async (req, res) => {
       
       // SAFETY CHECK: If user is already a Christ member, NEVER convert to outsider
       if (existingUser.organization_type === 'christ_member' && organizationType === 'outsider') {
-        console.warn(`⚠️  Attempted to convert Christ member to outsider: ${authClientUser.email}. Blocked.`);
+        console.warn(`Attempted to convert Christ member to outsider: ${authClientUser.email}. Blocked.`);
         return res.status(200).json({
           user: existingUser,
           isNew: false,
@@ -752,7 +752,7 @@ router.patch("/:email/campus", async (req, res) => {
 
     if (error) throw error;
 
-    console.log(`📍 Campus updated for ${email}: ${campus}`);
+    console.log(`Campus updated for ${email}: ${campus}`);
     return res.status(200).json({ user: updatedUser, message: 'Campus updated successfully' });
   } catch (error) {
     console.error('Error updating campus:', error);

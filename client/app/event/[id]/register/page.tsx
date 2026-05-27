@@ -250,7 +250,7 @@ const Page = () => {
         }
         
         // Debug log to help troubleshoot
-        console.log('🔍 Custom Fields Debug:', {
+        console.log('Custom Fields Debug:', {
           eventId: foundEvent.event_id,
           rawCustomFields,
           parsedCustomFields,

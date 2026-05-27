@@ -28,9 +28,9 @@ if (typeof globalThis.fetch === 'undefined') {
   try {
     const { fetch: undiciFetch } = await import('undici');
     globalThis.fetch = undiciFetch;
-    console.log('✅ Polyfilled global `fetch` using undici');
+    console.log('Polyfilled global `fetch` using undici');
   } catch (err) {
-    console.warn('⚠️ global `fetch` is not available and `undici` could not be loaded.');
+    console.warn('global `fetch` is not available and `undici` could not be loaded.');
     console.warn('Install `undici` (npm install undici) or upgrade Node to v18+ to provide global fetch.');
   }
 }

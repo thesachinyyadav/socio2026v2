@@ -72,7 +72,7 @@ async function createUserInDatabase(user: any) {
           const errorData = await response.text();
           console.error("User creation failed:", response.status, errorData);
         } else {
-          console.log(`✅ User record created/updated for: ${user.email}`);
+          console.log(`User record created/updated for: ${user.email}`);
         }
       })
       .catch(err => {

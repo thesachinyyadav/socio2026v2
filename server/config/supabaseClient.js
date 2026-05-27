@@ -22,11 +22,11 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Log which key type we're using for debugging
 if (supabaseServiceKey) {
-  console.log('✅ Using Supabase service role key for token verification');
+  console.log('Using Supabase service role key for token verification');
 } else if (supabaseAnonKey) {
-  console.log('⚠️  Using Supabase anon key for token verification (consider upgrading to service role key)');
+  console.log('Using Supabase anon key for token verification (consider upgrading to service role key)');
 } else {
-  console.warn('❌ No valid Supabase key found! Authentication will not work.');
+  console.warn('No valid Supabase key found! Authentication will not work.');
 }
 
 // Create minimal Supabase client only for auth token verification

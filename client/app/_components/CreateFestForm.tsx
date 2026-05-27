@@ -1771,7 +1771,7 @@ function CreateFestForm(props?: CreateFestProps) {
 
         // Use the URL returned from our server API
         uploadedFestImageUrl = uploadData.url;
-        console.log(`✅ Fest image uploaded successfully: ${uploadedFestImageUrl}`);
+        console.log(`Fest image uploaded successfully: ${uploadedFestImageUrl}`);
       } catch (uploadError: any) {
         const errorMessage = uploadError.message || 'Unknown upload error';
         setErrors((prev) => ({
@@ -2496,7 +2496,12 @@ function CreateFestForm(props?: CreateFestProps) {
                     {finalIsEditMode && (
                       <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-sm text-amber-800">
-                          <span className="font-semibold">⚠️ Note:</span> Changing the title will also update your fest&apos;s URL/link.
+                          <span className="font-semibold inline-flex items-center gap-1">
+                            <svg className="w-4 h-4 inline-block" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                            Note:
+                          </span> Changing the title will also update your fest&apos;s URL/link.
                         </p>
                         <p className="text-xs text-amber-700 mt-1">
                           Example: &quot;My Fest&quot; → <code className="bg-amber-100 px-1 rounded">/fest/my-fest</code>

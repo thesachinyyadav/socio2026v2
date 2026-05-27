@@ -35,10 +35,10 @@ export async function PATCH(
       return NextResponse.json(data, { status: response.status });
     }
 
-    // ✅ Revalidate cache after successful archive
+    // Revalidate cache after successful archive
     revalidateTag("events");
     revalidateTag("fests");
-    console.log("🔄 Cache revalidated for tags: events, fests");
+    console.log("Cache revalidated for tags: events, fests");
 
     return NextResponse.json(data, { status: 200 });
   } catch (error: any) {

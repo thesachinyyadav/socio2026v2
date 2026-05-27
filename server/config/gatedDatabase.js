@@ -6,7 +6,7 @@ const gatedSupabaseUrl = process.env.GATED_SUPABASE_URL;
 const gatedServiceKey = process.env.GATED_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!gatedSupabaseUrl || !gatedServiceKey) {
-  console.warn('⚠️  GATED_SUPABASE_URL or GATED_SUPABASE_SERVICE_ROLE_KEY not set — Gated integration disabled');
+  console.warn('GATED_SUPABASE_URL or GATED_SUPABASE_SERVICE_ROLE_KEY not set — Gated integration disabled');
 }
 
 // Create Supabase client for Gated DB (lazy — only connects when env vars are present)

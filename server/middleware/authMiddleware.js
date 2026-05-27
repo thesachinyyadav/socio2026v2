@@ -160,14 +160,14 @@ export const getUserInfo = () => {
  */
 export const requireOrganiser = (req, res, next) => {
   if (!req.userInfo) {
-    console.error("[ORGANISER CHECK] ❌ No req.userInfo available");
+    console.error("[ORGANISER CHECK] No req.userInfo available");
     return res.status(401).json({ error: 'User info not available' });
   }
 
   console.log(`[ORGANISER CHECK] Checking user: ${req.userInfo.email}, is_organiser: ${req.userInfo.is_organiser}`);
   
   if (!req.userInfo.is_organiser) {
-    console.warn(`[ORGANISER CHECK] ❌ User ${req.userInfo.email} is NOT an organiser. Access denied.`);
+    console.warn(`[ORGANISER CHECK] User ${req.userInfo.email} is NOT an organiser. Access denied.`);
     return res.status(403).json({ 
       error: 'Access denied: Organiser privileges required',
       userEmail: req.userInfo.email,
@@ -175,7 +175,7 @@ export const requireOrganiser = (req, res, next) => {
     });
   }
 
-  console.log(`[ORGANISER CHECK] ✅ User ${req.userInfo.email} IS an organiser. Proceeding.`);
+  console.log(`[ORGANISER CHECK] User ${req.userInfo.email} IS an organiser. Proceeding.`);
   next();
 };
 
@@ -258,7 +258,7 @@ export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => 
 
       // Master admin bypass - can access any resource
       if (req.userInfo?.is_masteradmin) {
-        console.log(`[Ownership] ✅ BYPASSED for master admin: ${req.userInfo.email}`);
+        console.log(`[Ownership] BYPASSED for master admin: ${req.userInfo.email}`);
         
         // Still fetch the resource for req.resource
         const resourceId = req.params[paramName] || req.params.id;
@@ -338,11 +338,11 @@ export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => 
       // Strategy 1: Check auth_uuid (preferred for new records)
       if (resource.auth_uuid) {
         if (resource.auth_uuid === req.userId) {
-          console.log(`[Ownership] ✅ PASSED via auth_uuid match`);
+          console.log(`[Ownership] PASSED via auth_uuid match`);
           req.resource = resource;
           return next();
         } else {
-          console.log(`[Ownership] ⚠️ auth_uuid mismatch (${resource.auth_uuid} !== ${req.userId}), checking legacy created_by fallback...`);
+          console.log(`[Ownership] auth_uuid mismatch (${resource.auth_uuid} !== ${req.userId}), checking legacy created_by fallback...`);
         }
       }
       
@@ -351,7 +351,7 @@ export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => 
         const userEmail = req.userInfo.email.toLowerCase();
         const creatorEmails = extractCreatorEmails(resource.created_by).map(e => e.toLowerCase());
         if (creatorEmails.includes(userEmail)) {
-          console.log(`[Ownership] ✅ PASSED via created_by match (${req.userInfo.email})`);
+          console.log(`[Ownership] PASSED via created_by match (${req.userInfo.email})`);
           req.resource = resource;
           return next();
         }
@@ -366,7 +366,7 @@ export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => 
           if (fest) {
             const festCreatorEmails = extractCreatorEmails(fest.created_by).map(e => e.toLowerCase());
             if (festCreatorEmails.includes(req.userInfo.email.toLowerCase())) {
-              console.log(`[Ownership] ✅ PASSED via parent fest creator match (${req.userInfo.email})`);
+              console.log(`[Ownership] PASSED via parent fest creator match (${req.userInfo.email})`);
               req.resource = resource;
               return next();
             }
@@ -375,7 +375,7 @@ export const requireOwnership = (table, paramName, ownerField = 'auth_uuid') => 
       }
 
       // No match found
-      console.log(`[Ownership] ❌ FAILED: No ownership match found`);
+      console.log(`[Ownership] FAILED: No ownership match found`);
       console.log(`[Ownership] Checked: auth_uuid=${resource.auth_uuid}, created_by=${resource.created_by}`);
       console.log(`[Ownership] Against: userId=${req.userId}, email=${req.userInfo?.email}`);
       
@@ -415,7 +415,7 @@ export const requireOrganiserOrSubHead = async (req, res, next) => {
   }
 
   if (req.userInfo.is_organiser || req.userInfo.is_masteradmin) {
-    console.log(`[SubHead] ✅ User ${req.userInfo.email} is a full organiser/masteradmin. Proceeding.`);
+    console.log(`[SubHead] User ${req.userInfo.email} is a full organiser/masteradmin. Proceeding.`);
     return next();
   }
 
@@ -440,11 +440,11 @@ export const requireOrganiserOrSubHead = async (req, res, next) => {
     if (activeFests.length > 0) {
       req.isSubHead = true;
       req.subHeadFests = activeFests.map((f) => ({ fest_id: f.fest_id, created_by: f.created_by }));
-      console.log(`[SubHead] ✅ User ${userEmail} is sub-head of ${activeFests.length} fest(s)`);
+      console.log(`[SubHead] User ${userEmail} is sub-head of ${activeFests.length} fest(s)`);
       return next();
     }
 
-    console.warn(`[SubHead] ❌ User ${userEmail} has no organiser or active sub-head role`);
+    console.warn(`[SubHead] User ${userEmail} has no organiser or active sub-head role`);
     return res.status(403).json({ error: 'Access denied: Organiser or sub-head privileges required' });
   } catch (error) {
     console.error('[SubHead] Error checking sub-head status:', error);

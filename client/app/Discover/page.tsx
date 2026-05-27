@@ -351,11 +351,11 @@ const DiscoverPageContent = () => {
   }, [organizations, isMasterAdmin, currentEmail]);
 
   const handleToggleArchive = async (eventId: string, shouldArchive: boolean) => {
-    console.log(`🔄 Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
+    console.log(`Archive toggle initiated: eventId=${eventId}, shouldArchive=${shouldArchive}`);
     
     if (!session?.access_token) {
       toast.error("Please sign in again to update archive status.");
-      console.error("❌ No access token available");
+      console.error("No access token available");
       return;
     }
 
@@ -367,7 +367,7 @@ const DiscoverPageContent = () => {
 
     try {
       const endpoint = `/api/events/${eventId}/archive`;
-      console.log(`📤 Sending PATCH request to: ${endpoint}`);
+      console.log(`Sending PATCH request to: ${endpoint}`);
       
       const response = await fetch(endpoint, {
         method: "PATCH",
@@ -378,9 +378,9 @@ const DiscoverPageContent = () => {
         body: JSON.stringify({ archive: shouldArchive }),
       });
 
-      console.log(`📨 Response status: ${response.status}`);
+      console.log(`Response status: ${response.status}`);
       const payload = await response.json().catch(() => null);
-      console.log(`📋 Response payload:`, payload);
+      console.log(`Response payload:`, payload);
 
       if (!response.ok) {
         const errorMsg = payload?.error || `HTTP ${response.status}: Failed to update archive status.`;
@@ -398,11 +398,11 @@ const DiscoverPageContent = () => {
         });
       }
 
-      toast.success(shouldArchive ? "✅ Event archived successfully." : "✅ Event moved back to active list.");
-      console.log(`✅ Archive update successful`);
+      toast.success(shouldArchive ? "Event archived successfully." : "Event moved back to active list.");
+      console.log(`Archive update successful`);
     } catch (error: any) {
-      console.error("❌ Archive update failed:", error);
-      toast.error(`❌ ${error?.message || "Unable to update archive status."}`);
+      console.error("Archive update failed:", error);
+      toast.error(`${error?.message || "Unable to update archive status."}`);
     } finally {
       setArchiveUpdatingIds((prev) => {
         const next = new Set(prev);
