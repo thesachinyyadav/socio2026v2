@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import { useAuth } from "@/context/AuthContext";
@@ -75,6 +75,51 @@ function getPageQA(pathname: string, isOrganiser: boolean, isMasterAdmin: boolea
 
 function normalize(s: string) {
   return s.toLowerCase().replace(/[?.!,;:]+$/, "").replace(/\s+/g, " ").trim();
+}
+
+/* ─── Markdown renderer (bold, bullets, line breaks) ─────── */
+function renderInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith("**") && part.endsWith("**")
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : part
+  );
+}
+
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  const listBuf: string[] = [];
+
+  const flushList = () => {
+    if (!listBuf.length) return;
+    elements.push(
+      <ul key={`ul-${elements.length}`} className="list-disc pl-4 space-y-0.5 my-1">
+        {listBuf.map((item, i) => (
+          <li key={i}>{renderInline(item)}</li>
+        ))}
+      </ul>
+    );
+    listBuf.length = 0;
+  };
+
+  for (const line of lines) {
+    if (line.startsWith("* ") || line.startsWith("- ")) {
+      listBuf.push(line.slice(2));
+    } else {
+      flushList();
+      if (line.trim()) {
+        elements.push(<p key={`p-${elements.length}`}>{renderInline(line)}</p>);
+      } else if (elements.length > 0) {
+        // empty line → small gap (only if not first element)
+        elements.push(<div key={`gap-${elements.length}`} className="h-1" />);
+      }
+    }
+  }
+  flushList();
+
+  return <>{elements}</>;
 }
 
 const UNAVAILABLE_KEYWORDS = ["daily limit", "quota", "rate limit", "try again tomorrow", "high usage", "temporarily unavailable"];
@@ -289,7 +334,7 @@ export default function ChatBot() {
                       ? "bg-[#154CB3] text-white rounded-br-sm"
                       : "bg-white text-gray-700 rounded-bl-sm shadow-sm"
                   }`}>
-                    {msg.content}
+                    {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
                   </div>
                 </div>
               ))}
