@@ -19,6 +19,7 @@ import {
   safeParse,
 } from "../services/cacheService.js";
 import { sendOneSignalToEmail, sendOneSignalToAll } from "../utils/oneSignalService.js";
+import { createAndPushNotification } from "../utils/notificationHelper.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -351,6 +352,30 @@ router.post(
     return res.status(500).json({ error: error?.message || "Failed to send broadcast notification", reqId });
   }
 });
+
+  // ─── CREATE: Single Notification (DB + Push)
+  // Centralized endpoint so clients can create a notification that also triggers push delivery.
+  router.post(
+    "/notifications/create",
+    authenticateUser,
+    getUserInfo(),
+    async (req, res) => {
+      try {
+        const payload = req.body || {};
+        if (!payload.user_email) payload.user_email = normalizeEmail(req.userInfo?.email);
+        if (!payload.user_email) return res.status(400).json({ error: "user_email is required" });
+
+        const result = await createAndPushNotification(payload);
+        if (!result || result.success === false) {
+          return res.status(500).json({ error: result?.error || "Failed to create and push notification" });
+        }
+        return res.status(201).json({ notification: result.data || null, ok: true });
+      } catch (err) {
+        console.error("/notifications/create fatal:", err);
+        return res.status(500).json({ error: err?.message || "Failed to create notification" });
+      }
+    }
+  );
 
 // ─── ADMIN: EVENT BLAST NOTIFICATION ─────────────────────────────────────────────
 // POST endpoint to let the admin panel send blasts to registered participants of a specific event.
