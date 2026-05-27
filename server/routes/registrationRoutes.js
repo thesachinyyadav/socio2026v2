@@ -342,7 +342,7 @@ router.post("/register", async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
     
-    // 🔒 CHECK IF EVENT IS ARCHIVED (BLOCK REGISTRATIONS FOR ARCHIVED EVENTS)
+    // CHECK IF EVENT IS ARCHIVED (BLOCK REGISTRATIONS FOR ARCHIVED EVENTS)
     if (event.is_archived) {
       return res.status(403).json({
         error: "Event is archived",
@@ -428,7 +428,7 @@ router.post("/register", async (req, res) => {
       const deadlineDate = new Date(event.registration_deadline);
       if (currentDate > deadlineDate) {
         if (asBoolean(event.on_spot)) {
-          console.log(`ℹ️ Registration deadline passed for ${normalizedEventId}, but on_spot is enabled. Allowing online registration.`);
+          console.log(`Registration deadline passed for ${normalizedEventId}, but on_spot is enabled. Allowing online registration.`);
         } else {
         return res.status(403).json({
           error: "Registration deadline has passed",
@@ -585,13 +585,13 @@ router.post("/register", async (req, res) => {
         const regCandidate = processedData.individual_register_number || processedData.team_leader_register_number || (processedTeammates && processedTeammates[0]?.registerNumber) || null;
         if (regCandidate && String(regCandidate).toUpperCase().startsWith('VIS')) {
           participantOrganization = 'outsider';
-          console.log('🌍 Outsider detected from processed data (visitor ID)');
+          console.log('Outsider detected from processed data (visitor ID)');
         } else if (!regCandidate && participantEmail) {
           // Lookup user by email to see if they're an outsider
           const user = await queryOne('users', { where: { email: effectiveParticipantEmail } });
           if (user && user.visitor_id && String(user.visitor_id).toUpperCase().startsWith('VIS')) {
             participantOrganization = 'outsider';
-            console.log('🌍 Outsider detected from user record (visitor ID)');
+            console.log('Outsider detected from user record (visitor ID)');
           }
         }
       }
@@ -687,10 +687,10 @@ router.post("/register", async (req, res) => {
       }
     }
 
-    console.log('📋 Processed Data:', processedData);
-    console.log('🎟️  Registration ID:', registration_id);
-    console.log('🎪 Event ID:', normalizedEventId);
-    console.log('👥 Registration Type:', normalizedRegistrationType);
+    console.log('Processed Data:', processedData);
+    console.log('Registration ID:', registration_id);
+    console.log('Event ID:', normalizedEventId);
+    console.log('Registration Type:', normalizedRegistrationType);
 
     // For Christ members, add a simple QR string: "registerNumber/eventId"
     if (participantOrganization === 'christ_member') {
@@ -731,7 +731,7 @@ router.post("/register", async (req, res) => {
       // Non-blocking for registration flow
     });
 
-    console.log('✅ Registration saved:', registration);
+    console.log('Registration saved:', registration);
 
     // ===== AUTO-CREATE USER RECORDS FOR TEAMMATES (NEW) =====
     // Ensure teammates have their own user records in the users table
@@ -741,9 +741,9 @@ router.post("/register", async (req, res) => {
     );
     
     if (result.failed > 0) {
-      console.warn(`⚠️ ${result.failed} teammate(s) failed to create user records:`, result.errors);
+      console.warn(`${result.failed} teammate(s) failed to create user records:`, result.errors);
     } else if (result.success > 0) {
-      console.log(`✅ Created/updated user records for ${result.success} teammate(s)`);
+      console.log(`Created/updated user records for ${result.success} teammate(s)`);
     }
 
     // Auto-create Gated visitor pass for outsiders (non-blocking)
@@ -760,7 +760,7 @@ router.post("/register", async (req, res) => {
 
           // If still no Gated event, push this event to Gated now (handles events created before integration)
           if (!gatedEvent) {
-            console.log(`ℹ️  No Gated event found for SOCIO event ${normalizedEventId} — pushing now...`);
+            console.log(`No Gated event found for SOCIO event ${normalizedEventId} — pushing now...`);
             try {
               // Fetch organiser info for the push
               const organiser = await queryOne('users', { where: { email: event.created_by || event.organizer_email } });
@@ -777,7 +777,7 @@ router.post("/register", async (req, res) => {
                 gatedEvent = await resolveGatedEvent(event.fest);
               }
             } catch (pushErr) {
-              console.error(`❌ Failed to on-demand push event to Gated:`, pushErr.message);
+              console.error(`Failed to on-demand push event to Gated:`, pushErr.message);
             }
           }
 
@@ -805,13 +805,13 @@ router.post("/register", async (req, res) => {
                 gated_verify_url: getGatedVerifyUrl(gatedVisitor.id),
               };
               await update('registrations', { qr_code_data: updatedQrData }, { registration_id });
-              console.log(`🎫 Created Gated visitor pass for outsider participant`);
+              console.log(`Created Gated visitor pass for outsider participant`);
             }
           } else {
-            console.log(`ℹ️  No approved Gated event found for SOCIO event ${normalizedEventId} — outsider registered without gate pass`);
+            console.log(`No approved Gated event found for SOCIO event ${normalizedEventId} — outsider registered without gate pass`);
           }
         } catch (gatedError) {
-          console.error('❌ Failed to create Gated visitor pass:', gatedError.message);
+          console.error('Failed to create Gated visitor pass:', gatedError.message);
           // Non-blocking — SOCIO registration proceeds regardless
         }
       })();
@@ -836,7 +836,7 @@ router.post("/register", async (req, res) => {
           const eventTitle = event.title || "Event";
           
           const notifPayload = {
-            title: "Registration Confirmed 🎟️",
+            title: "Registration Confirmed",
             body: `You're all set for ${eventTitle}! View your ticket in the app.`,
             actionUrl: `/event/${normalizedEventId}`,
             data: {

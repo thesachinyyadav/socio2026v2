@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/context/EventContext";
 import { dayjs } from "@/lib/dateUtils";
+import { downloadGatedPass } from "@/lib/gatedPass";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 
@@ -57,7 +58,7 @@ export default function TicketPage() {
   const [isOutsider, setIsOutsider] = useState(false);
   const [gatedReady, setGatedReady] = useState(false);
   const [gatedPollTimeout, setGatedPollTimeout] = useState(false);
-  const [printing, setPrinting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const ticketRef = useRef<HTMLDivElement>(null);
 
@@ -140,18 +141,30 @@ export default function TicketPage() {
     return () => clearInterval(interval);
   }, [isOutsider, gatedReady, registrationId, fetchQR]);
 
-  const handlePrint = () => {
-    setPrinting(true);
-    setTimeout(() => {
-      window.print();
-      setPrinting(false);
-    }, 100);
-  };
-
   const participantName =
     registration?.individual_name ||
     registration?.team_leader_name ||
     "Participant";
+
+  // Download the official GATED entry pass — identical layout to the
+  // Profile-page QR download (see lib/gatedPass.ts).
+  const handleDownload = async () => {
+    if (!qrImage || downloading) return;
+    setDownloading(true);
+    try {
+      await downloadGatedPass({
+        qrImage,
+        eventTitle: event?.title || "Event",
+        participantName,
+        registrationId,
+        isOutsider,
+      });
+    } catch (err) {
+      console.error("Gate pass download failed:", err);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const teamName = registration?.team_name;
   const regType = registration?.registration_type;
@@ -406,16 +419,28 @@ export default function TicketPage() {
         {/* Action buttons - hidden during print */}
         <div className="no-print max-w-3xl mx-auto px-4 pb-10">
           <div className="flex flex-wrap gap-3">
-            {/* Download / Print button */}
+            {/* Download gate pass button */}
             <button
-              onClick={handlePrint}
-              disabled={printing}
+              onClick={handleDownload}
+              disabled={downloading || !qrImage}
               className="flex items-center gap-2 bg-[#154CB3] text-white px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-[#063168] transition-colors shadow disabled:opacity-60"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-              Save / Print Ticket
+              {downloading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                  Download Pass
+                </>
+              )}
             </button>
 
             {/* Add to calendar */}

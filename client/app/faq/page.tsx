@@ -14,12 +14,37 @@ export default function FAQPage() {
     const iconClass = "w-5 h-5 mr-3";
     
     switch (iconName) {
+      case "account":
+        return (
+          <svg className={iconClass} fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"/>
+          </svg>
+        );
+      case "events":
+        return (
+          <svg className={iconClass} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd"/>
+          </svg>
+        );
+      case "registration":
+        return (
+          <svg className={iconClass} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/>
+          </svg>
+        );
+      case "technical":
+        return (
+          <svg className={iconClass} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.31 7.781a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.993 6.993 0 017 3.461l.84-1.657zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
+          </svg>
+        );
       case "organizer":
         return (
           <svg className={iconClass} fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zM4.78 15.435A21.95 21.95 0 0110 15c1.845 0 3.64-.226 5.36-.652a.75.75 0 01.518 1.408A20.69 20.69 0 0110 16.5c-1.195 0-2.37-.084-3.5-.248a1.5 1.5 0 01-.72-2.817z" clipRule="evenodd"/>
           </svg>
         );
+      case "general":
       default:
         return (
           <svg className={iconClass} fill="currentColor" viewBox="0 0 20 20">
@@ -30,11 +55,11 @@ export default function FAQPage() {
   };
 
   const faqCategories = [
-    { id: "general", name: "General", icon: "❓" },
-    { id: "account", name: "Account & Login", icon: "👤" },
-    { id: "events", name: "Events", icon: "📅" },
-    { id: "registration", name: "Registration", icon: "✅" },
-    { id: "technical", name: "Technical", icon: "⚙️" },
+    { id: "general", name: "General", icon: "general" },
+    { id: "account", name: "Account & Login", icon: "account" },
+    { id: "events", name: "Events", icon: "events" },
+    { id: "registration", name: "Registration", icon: "registration" },
+    { id: "technical", name: "Technical", icon: "technical" },
     { id: "organizer", name: "Organizers", icon: "organizer" }
   ];
 
@@ -214,7 +239,7 @@ export default function FAQPage() {
             <div className="text-sm text-gray-600">Questions Solved</div>
           </div>
           <div className="text-center p-4 bg-yellow-50 rounded-lg">
-            <div className="text-lg font-black text-yellow-600 mb-1">ASAP</div>
+            <div className="text-lg font-black text-yellow-600 mb-1">&lt; 24 hrs</div>
             <div className="text-sm text-gray-600">Our team will get back to you at the earliest</div>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
@@ -287,15 +312,6 @@ export default function FAQPage() {
                       <p className="text-gray-700 leading-relaxed">
                         {faq.answer}
                       </p>
-                      <div className="mt-4 flex items-center text-sm text-gray-500">
-                        <span>Was this helpful?</span>
-                        <button className="ml-3 text-green-600 hover:text-green-700">
-                          👍 Yes
-                        </button>
-                        <button className="ml-2 text-red-600 hover:text-red-700">
-                          👎 No
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -318,56 +334,8 @@ export default function FAQPage() {
           </div>
         </div>
 
-        {/* Popular Topics */}
-        <div className="mt-16 mb-12">
-          <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-6 text-center">
-            Most Popular Topics
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all">
-              <div className="w-12 h-12 bg-[#154CB3] rounded-full flex items-center justify-center mb-2">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd"/>
-                </svg>
-              </div>
-              <h3 className="font-bold text-gray-800 mb-2">Getting Started</h3>
-              <p className="text-gray-600 text-sm mb-3">Learn the basics of using SOCIO</p>
-              <button 
-                onClick={() => setSelectedCategory("general")}
-                className="text-[#154CB3] hover:underline text-sm"
-              >
-                View Questions →
-              </button>
-            </div>
-            
-            <div className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all">
-              <div className="text-2xl mb-2">🎫</div>
-              <h3 className="font-bold text-gray-800 mb-2">Event Registration</h3>
-              <p className="text-gray-600 text-sm mb-3">How to register and manage events</p>
-              <button 
-                onClick={() => setSelectedCategory("registration")}
-                className="text-[#154CB3] hover:underline text-sm"
-              >
-                View Questions →
-              </button>
-            </div>
-            
-            <div className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all">
-              <div className="text-2xl mb-2">⚙️</div>
-              <h3 className="font-bold text-gray-800 mb-2">Technical Issues</h3>
-              <p className="text-gray-600 text-sm mb-3">Troubleshoot common problems</p>
-              <button 
-                onClick={() => setSelectedCategory("technical")}
-                className="text-[#154CB3] hover:underline text-sm"
-              >
-                View Questions →
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* CTA Section */}
-        <div className="bg-[#154CB3] text-white p-6 sm:p-8 rounded-lg text-center">
+        <div className="mt-16 bg-[#154CB3] text-white p-6 sm:p-8 rounded-lg text-center">
           <h2 className="text-xl sm:text-2xl font-bold mb-4">
             Didn't Find Your Answer?
           </h2>

@@ -1,15 +1,6 @@
 "use client";
 
 import React, { useMemo, useState, useCallback } from "react";
-
-const CAMPUSES = [
-  "Central Campus (Main)",
-  "Bannerghatta Road Campus",
-  "Yeshwanthpur Campus",
-  "Kengeri Campus",
-  "Delhi NCR Campus",
-  "Pune Lavasa Campus"
-];
 import Link from "next/link";
 import {
   AreaChart,
@@ -47,6 +38,7 @@ import {
   Grid3X3,
 } from "lucide-react";
 import OrganiserHistoryModal from "./OrganiserHistoryModal";
+import { christCampuses } from "@/app/lib/eventFormSchema";
 import {
   addThemedChartsSheet,
   addStructuredSummarySheet,
@@ -266,47 +258,84 @@ export default function AdminDashboardView({
   }, [dateRange, cutoff]);
 
   const campuses = useMemo(() => {
-    const fromUsers = users.map((u) => u.campus).filter(Boolean) as string[];
-    return Array.from(new Set([...CAMPUSES, ...fromUsers])).sort();
+    // Start from the shared canonical campus list (same source the create-event
+    // form uses) so every campus is always selectable, in canonical order.
+    const fromUsers = (users.map((u) => u.campus).filter(Boolean) as string[])
+      .filter((c) => c.trim().toLowerCase() !== "unknown campus");
+    const extras = Array.from(new Set(fromUsers))
+      .filter((c) => !christCampuses.includes(c))
+      .sort((a, b) => a.localeCompare(b));
+    return [...christCampuses, ...extras];
   }, [users]);
   const allDepts = useMemo(() => Array.from(new Set(events.map((e) => e.organizing_dept).filter(Boolean) as string[])).sort(), [events]);
 
-  // Filtered data
-  const filteredEvents = useMemo(() => {
-    return events.filter((e) => {
-      const d = new Date(e.created_at);
-      const ok = d >= cutoff && (!endCutoff || d <= endCutoff);
-      
-      const matchCampus = campusFilter === "all" || (() => {
-        const campusUsers = new Set(users.filter((u) => u.campus === campusFilter).map((u) => u.email));
-        return extractCreatorEmails(e.created_by).some(email => campusUsers.has(email));
-      })();
+  // Campus/department scoping (no date filter) — drives KPI values, sparklines,
+  // the over-time chart, and previous-period comparisons so they all respect
+  // the campus + department dropdowns.
+  const matchingEventIds = useMemo(() => {
+    if (campusFilter === "all" && deptFilter === "all") return null;
+    let campusUserEmails: Set<string> | null = null;
+    if (campusFilter !== "all") {
+      campusUserEmails = new Set(
+        users
+          .filter((u) => u.campus === campusFilter)
+          .map((u) => (u.email || "").toLowerCase())
+      );
+    }
+    return new Set(
+      events
+        .filter((e) => {
+          const matchCampus =
+            campusFilter === "all" ||
+            extractCreatorEmails(e.created_by).some((em) => campusUserEmails!.has(em));
+          const matchDept = deptFilter === "all" || e.organizing_dept === deptFilter;
+          return matchCampus && matchDept;
+        })
+        .map((e) => e.event_id)
+    );
+  }, [events, users, campusFilter, deptFilter]);
 
-      const matchDept = deptFilter === "all" || e.organizing_dept === deptFilter;
-
-      return ok && matchCampus && matchDept;
-    });
-  }, [events, cutoff, endCutoff, campusFilter, deptFilter, users]);
-
-  const filteredRegs = useMemo(
-    () => registrations.filter((r) => new Date(r.created_at) >= cutoff && (!endCutoff || new Date(r.created_at) <= endCutoff)),
-    [registrations, cutoff, endCutoff]
+  const eventsByFilter = useMemo(
+    () => (matchingEventIds ? events.filter((e) => matchingEventIds.has(e.event_id)) : events),
+    [events, matchingEventIds]
+  );
+  const regsByFilter = useMemo(
+    () => (matchingEventIds ? registrations.filter((r) => matchingEventIds.has(r.event_id)) : registrations),
+    [registrations, matchingEventIds]
+  );
+  const usersByFilter = useMemo(
+    () => (campusFilter === "all" ? users : users.filter((u) => u.campus === campusFilter)),
+    [users, campusFilter]
   );
 
-  const filteredUsers = useMemo(() => users.filter((u) => new Date(u.created_at) >= cutoff), [users, cutoff]);
+  // Date-window filtered data
+  const filteredEvents = useMemo(
+    () => eventsByFilter.filter((e) => { const d = new Date(e.created_at); return d >= cutoff && (!endCutoff || d <= endCutoff); }),
+    [eventsByFilter, cutoff, endCutoff]
+  );
+
+  const filteredRegs = useMemo(
+    () => regsByFilter.filter((r) => { const d = new Date(r.created_at); return d >= cutoff && (!endCutoff || d <= endCutoff); }),
+    [regsByFilter, cutoff, endCutoff]
+  );
+
+  const filteredUsers = useMemo(
+    () => usersByFilter.filter((u) => new Date(u.created_at) >= cutoff),
+    [usersByFilter, cutoff]
+  );
 
   // Previous period
   const prevEvents = useMemo(
-    () => events.filter((e) => { const d = new Date(e.created_at); return d >= prevCutoff.start && d < prevCutoff.end; }),
-    [events, prevCutoff]
+    () => eventsByFilter.filter((e) => { const d = new Date(e.created_at); return d >= prevCutoff.start && d < prevCutoff.end; }),
+    [eventsByFilter, prevCutoff]
   );
   const prevRegs = useMemo(
-    () => registrations.filter((r) => { const d = new Date(r.created_at); return d >= prevCutoff.start && d < prevCutoff.end; }),
-    [registrations, prevCutoff]
+    () => regsByFilter.filter((r) => { const d = new Date(r.created_at); return d >= prevCutoff.start && d < prevCutoff.end; }),
+    [regsByFilter, prevCutoff]
   );
   const prevUsers = useMemo(
-    () => users.filter((u) => { const d = new Date(u.created_at); return d >= prevCutoff.start && d < prevCutoff.end; }),
-    [users, prevCutoff]
+    () => usersByFilter.filter((u) => { const d = new Date(u.created_at); return d >= prevCutoff.start && d < prevCutoff.end; }),
+    [usersByFilter, prevCutoff]
   );
 
   const growthPct = (curr: number, prev: number) => (prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100);
@@ -352,12 +381,12 @@ export default function AdminDashboardView({
         : bucketStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       result.push({
         label,
-        Registrations: registrations.filter((r) => { const d = new Date(r.created_at); return d >= bucketStart && d < bucketEnd; }).length,
-        Events: events.filter((e) => { const d = new Date(e.created_at); return d >= bucketStart && d < bucketEnd; }).length,
+        Registrations: regsByFilter.filter((r) => { const d = new Date(r.created_at); return d >= bucketStart && d < bucketEnd; }).length,
+        Events: eventsByFilter.filter((e) => { const d = new Date(e.created_at); return d >= bucketStart && d < bucketEnd; }).length,
       });
     }
     return result;
-  }, [dateRange, registrations, events]);
+  }, [dateRange, regsByFilter, eventsByFilter]);
 
   // Dept bar data
   const deptData = useMemo(() => {
@@ -589,19 +618,19 @@ export default function AdminDashboardView({
   const kpiCards = [
     {
       label: "TOTAL USERS",
-      value: users.length,
+      value: usersByFilter.length,
       sub: "vs. previous period",
       growth: growthPct(filteredUsers.length, prevUsers.length),
       icon: <Users className="w-4 h-4" />,
-      spark: spark(users),
+      spark: spark(usersByFilter),
     },
     {
       label: "TOTAL EVENTS",
-      value: events.length,
+      value: eventsByFilter.length,
       sub: "Active instances",
       growth: growthPct(filteredEvents.length, prevEvents.length),
       icon: <CalendarDays className="w-4 h-4" />,
-      spark: spark(events),
+      spark: spark(eventsByFilter),
     },
     {
       label: "REGISTRATIONS",
@@ -609,7 +638,7 @@ export default function AdminDashboardView({
       sub: "New this period",
       growth: growthPct(filteredRegs.length, prevRegs.length),
       icon: <ClipboardList className="w-4 h-4" />,
-      spark: spark(registrations),
+      spark: spark(regsByFilter),
     },
     {
       label: "AVG / EVENT",
@@ -724,35 +753,35 @@ export default function AdminDashboardView({
         </div>
 
         {/* Campus dropdown */}
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-2 cursor-pointer">
-          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+        <div className="relative flex items-center bg-white border border-slate-200 rounded-lg">
+          <Building2 className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
           <select
             value={campusFilter}
             onChange={(e) => setCampusFilter(e.target.value)}
             aria-label="Campus filter"
             title="Campus filter"
-            className="text-[11px] text-slate-600 bg-transparent outline-none appearance-none pr-4"
+            className="text-[11px] text-slate-600 bg-transparent outline-none appearance-none cursor-pointer pl-9 pr-8 py-2"
           >
             <option value="all">All Campuses</option>
             {campuses.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 -ml-3" />
+          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-3 pointer-events-none" />
         </div>
 
         {/* Dept dropdown */}
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-2 cursor-pointer">
-          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+        <div className="relative flex items-center bg-white border border-slate-200 rounded-lg">
+          <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
           <select
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
             aria-label="Department filter"
             title="Department filter"
-            className="text-[11px] text-slate-600 bg-transparent outline-none appearance-none pr-4"
+            className="text-[11px] text-slate-600 bg-transparent outline-none appearance-none cursor-pointer pl-9 pr-8 py-2"
           >
             <option value="all">All Departments</option>
             {allDepts.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 -ml-3" />
+          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-3 pointer-events-none" />
         </div>
 
         {/* Export */}

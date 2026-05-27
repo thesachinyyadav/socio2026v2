@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import gsap from "gsap";
+import ScrollTrigger from "gsap/ScrollTrigger";
 import { useAuth } from "../../../context/AuthContext";
 
 const CTA = () => {
@@ -29,22 +30,32 @@ const CTA = () => {
   
 
   useEffect(() => {
-    const elements = ctaRef.current?.querySelectorAll(
-      "h1, p, button"
-    ) as NodeListOf<HTMLElement>;
-    elements?.forEach((el: HTMLElement, index: number) => {
-      gsap.from(el, {
-        opacity: 0,
-        y: 30,
-        duration: 0.8,
-        delay: index * 0.2,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ctaRef.current,
-          start: "top 80%",
-        },
-      });
-    });
+    gsap.registerPlugin(ScrollTrigger);
+
+    const ctx = gsap.context(() => {
+      // Only fade in the text — buttons stay always visible so they can never
+      // get stuck hidden if the ScrollTrigger reveal doesn't fire.
+      const elements = ctaRef.current?.querySelectorAll(
+        "h1, p"
+      ) as NodeListOf<HTMLElement>;
+      if (elements?.length) {
+        gsap.from(elements, {
+          opacity: 0,
+          y: 30,
+          duration: 0.8,
+          stagger: 0.2,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: ctaRef.current,
+            start: "top 85%",
+          },
+        });
+      }
+    }, ctaRef);
+
+    // Recompute trigger positions now that this lazy-loaded section is in the DOM,
+    // otherwise the stale start position prevents the reveal from ever firing.
+    ScrollTrigger.refresh();
 
     const buttons = ctaRef.current?.querySelectorAll(
       "button"
@@ -59,14 +70,7 @@ const CTA = () => {
     });
 
     return () => {
-      buttons?.forEach((button: HTMLButtonElement) => {
-        button.removeEventListener("mouseenter", () => {
-          gsap.to(button, { scale: 1.05, duration: 0.3, ease: "power2.out" });
-        });
-        button.removeEventListener("mouseleave", () => {
-          gsap.to(button, { scale: 1, duration: 0.3, ease: "power2.out" });
-        });
-      });
+      ctx.revert();
     };
   }, []);
 

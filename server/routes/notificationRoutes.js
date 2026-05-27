@@ -1283,7 +1283,7 @@ router.post(
 
       const overrideTitle = req.body?.title;
       const overrideMessage = req.body?.message;
-      const title = (overrideTitle || "🧪 SOCIO Test Notification").toString().slice(0, 100);
+      const title = (overrideTitle || "SOCIO Test Notification").toString().slice(0, 100);
       const message = (overrideMessage || `Hello ${targetEmail} — this is a self-test fired at ${new Date().toLocaleTimeString()}.`).toString().slice(0, 500);
 
       const insertPayload = {

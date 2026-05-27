@@ -65,12 +65,12 @@ if (isServerless) {
 
     console.log("[ValkeyQueue] BullMQ Notification Queue initialized.");
   } catch (err) {
-    console.error("❌ [ValkeyQueue] Initialization failed:", err.message);
+    console.error("[ValkeyQueue] Initialization failed:", err.message);
     notificationQueue = null;
   }
 } else {
   console.warn(
-    "⚠️ [ValkeyQueue] No VALKEY_URL or REDIS_URL configured. Falling back to synchronous push execution."
+    "[ValkeyQueue] No VALKEY_URL or REDIS_URL configured. Falling back to synchronous push execution."
   );
 }
 

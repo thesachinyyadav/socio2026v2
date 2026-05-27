@@ -463,4 +463,50 @@ router.post(
   }
 );
 
+// ---------------------------------------------------------------------------
+// DELETE /api/venue-bookings/:id
+// Lets the organizer who created a booking cancel it. The row is removed from
+// the database entirely. Only the requester (or a masteradmin) may cancel.
+// ---------------------------------------------------------------------------
+router.delete(
+  "/venue-bookings/:id",
+  authenticateUser,
+  getUserInfo(),
+  checkRoleExpiration,
+  async (req, res) => {
+    try {
+      const user = req.userInfo;
+      const { id } = req.params;
+
+      // Fetch the booking
+      const { data: rows, error: fetchErr } = await supabase
+        .from("venue_bookings")
+        .select("id, requested_by")
+        .eq("id", id)
+        .limit(1);
+      if (fetchErr) throw fetchErr;
+
+      const booking = rows?.[0];
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+      // Only the organizer who created it (or a masteradmin) may cancel it
+      const isOwner = booking.requested_by === user.email;
+      if (!isOwner && !user.is_masteradmin) {
+        return res.status(403).json({ error: "Not authorized to cancel this booking" });
+      }
+
+      const { error: deleteErr } = await supabase
+        .from("venue_bookings")
+        .delete()
+        .eq("id", id);
+      if (deleteErr) throw deleteErr;
+
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[VenueBookings] DELETE /:id error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 export default router;

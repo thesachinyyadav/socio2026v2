@@ -21,9 +21,13 @@ import {
 import {
   Activity,
   Brain,
+  Building2,
   CalendarRange,
+  ChevronDown,
   Clock3,
   Download,
+  GraduationCap,
+  Layers,
   Loader2,
   RefreshCw,
   ShieldAlert,
@@ -36,8 +40,10 @@ import {
 import {
   fetchMasterAdminAnalytics,
   type AnalyticsKpi,
+  type AnalyticsQuery,
   type MasterAdminAnalyticsBundle,
 } from "@/lib/masterAdminAnalyticsApi";
+import { christCampuses, organizingSchools, getDepartmentOptionsForSchool } from "@/app/lib/eventFormSchema";
 import {
   addStructuredSummarySheet,
   addStructuredTableSheet,
@@ -170,6 +176,9 @@ export default function DataExplorerDashboard() {
   const [customEnd, setCustomEnd] = useState("");
   const [appliedCustomStart, setAppliedCustomStart] = useState("");
   const [appliedCustomEnd, setAppliedCustomEnd] = useState("");
+  const [campusFilter, setCampusFilter] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("");
+  const [deptFilter, setDeptFilter] = useState("");
 
   const [bundle, setBundle] = useState<MasterAdminAnalyticsBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -177,15 +186,16 @@ export default function DataExplorerDashboard() {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const query = useMemo(() => {
-    if (appliedCustomStart || appliedCustomEnd) {
-      return {
-        start: appliedCustomStart || undefined,
-        end: appliedCustomEnd || undefined,
-      };
-    }
-    return { days: Number(preset) };
-  }, [appliedCustomEnd, appliedCustomStart, preset]);
+  const query = useMemo<AnalyticsQuery>(() => {
+    const base: AnalyticsQuery =
+      appliedCustomStart || appliedCustomEnd
+        ? { start: appliedCustomStart || undefined, end: appliedCustomEnd || undefined }
+        : { days: Number(preset) };
+    if (campusFilter) base.campus = campusFilter;
+    if (schoolFilter) base.school = schoolFilter;
+    if (deptFilter) base.department = deptFilter;
+    return base;
+  }, [appliedCustomEnd, appliedCustomStart, preset, campusFilter, schoolFilter, deptFilter]);
 
   const canApplyCustomRange =
     Boolean(customStart) &&
@@ -218,6 +228,32 @@ export default function DataExplorerDashboard() {
   useEffect(() => {
     void loadAnalytics(false);
   }, [loadAnalytics]);
+
+  // Hierarchy (same logic as the create-event form): department options come
+  // from the selected school's department list; with no school chosen, show
+  // every department across all schools. The option value is the department
+  // *label* — exactly what create-event stores in `organizing_dept`.
+  const departmentOptionsForFilter = useMemo(() => {
+    const list = schoolFilter
+      ? getDepartmentOptionsForSchool(schoolFilter)
+      : organizingSchools.flatMap((school) => getDepartmentOptionsForSchool(school.value));
+    const seen = new Set<string>();
+    const labels: string[] = [];
+    for (const option of list) {
+      if (!seen.has(option.label)) {
+        seen.add(option.label);
+        labels.push(option.label);
+      }
+    }
+    return labels;
+  }, [schoolFilter]);
+
+  // Clear a selected department that doesn't belong to the newly chosen school.
+  useEffect(() => {
+    if (!schoolFilter || !deptFilter) return;
+    const allowed = new Set(getDepartmentOptionsForSchool(schoolFilter).map((option) => option.label));
+    if (!allowed.has(deptFilter)) setDeptFilter("");
+  }, [schoolFilter, deptFilter]);
 
   const monthlyTrend = useMemo(
     () =>
@@ -748,34 +784,86 @@ export default function DataExplorerDashboard() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white/80 p-3.5">
-                <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Quick Range</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Ready-made windows for fast comparisons.</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Filter By</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Drill down by campus, then school, then department.</p>
                   </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(["30", "90", "180", "365"] as DatePreset[]).map((value) => (
+                  {(campusFilter || schoolFilter || deptFilter) && (
                     <button
-                      key={value}
                       type="button"
                       onClick={() => {
-                        setPreset(value);
-                        setCustomStart("");
-                        setCustomEnd("");
-                        setAppliedCustomStart("");
-                        setAppliedCustomEnd("");
+                        setCampusFilter("");
+                        setSchoolFilter("");
+                        setDeptFilter("");
                       }}
-                      className={classNames(
-                        "min-w-[72px] rounded-xl border px-4 py-2 text-xs font-semibold transition-all",
-                        preset === value && !appliedCustomStart && !appliedCustomEnd
-                          ? "border-[#154CB3] bg-[#154CB3] text-white shadow-sm"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                      )}
+                      className="text-xs font-semibold text-[#154CB3] hover:underline"
                     >
-                      {value} Days
+                      Clear
                     </button>
-                  ))}
+                  )}
+                </div>
+                <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Campus</label>
+                    <div className="relative flex items-center rounded-xl border border-slate-200 bg-white">
+                      <Building2 className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-slate-400" />
+                      <select
+                        value={campusFilter}
+                        onChange={(event) => setCampusFilter(event.target.value)}
+                        aria-label="Campus filter"
+                        className="w-full cursor-pointer appearance-none bg-transparent py-2 pl-9 pr-8 text-xs text-slate-700 outline-none"
+                      >
+                        <option value="">All Campuses</option>
+                        {christCampuses.map((campus) => (
+                          <option key={campus} value={campus}>
+                            {campus}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">School</label>
+                    <div className="relative flex items-center rounded-xl border border-slate-200 bg-white">
+                      <GraduationCap className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-slate-400" />
+                      <select
+                        value={schoolFilter}
+                        onChange={(event) => setSchoolFilter(event.target.value)}
+                        aria-label="School filter"
+                        className="w-full cursor-pointer appearance-none bg-transparent py-2 pl-9 pr-8 text-xs text-slate-700 outline-none"
+                      >
+                        <option value="">All Schools</option>
+                        {organizingSchools.map((school) => (
+                          <option key={school.value} value={school.value}>
+                            {school.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Department</label>
+                    <div className="relative flex items-center rounded-xl border border-slate-200 bg-white">
+                      <Layers className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-slate-400" />
+                      <select
+                        value={deptFilter}
+                        onChange={(event) => setDeptFilter(event.target.value)}
+                        aria-label="Department filter"
+                        className="w-full cursor-pointer appearance-none bg-transparent py-2 pl-9 pr-8 text-xs text-slate-700 outline-none"
+                      >
+                        <option value="">All Departments</option>
+                        {departmentOptionsForFilter.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -853,6 +941,33 @@ export default function DataExplorerDashboard() {
                   >
                     Apply Range
                   </button>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Quick Range</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {(["30", "90", "180", "365"] as DatePreset[]).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setPreset(value);
+                        setCustomStart("");
+                        setCustomEnd("");
+                        setAppliedCustomStart("");
+                        setAppliedCustomEnd("");
+                      }}
+                      className={classNames(
+                        "min-w-[64px] rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all",
+                        preset === value && !appliedCustomStart && !appliedCustomEnd
+                          ? "border-[#154CB3] bg-[#154CB3] text-white shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                      )}
+                    >
+                      {value} Days
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>

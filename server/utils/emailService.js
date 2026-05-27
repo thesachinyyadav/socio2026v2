@@ -23,7 +23,7 @@ const appLink = (pathname) => new URL(pathname, `${appOrigin}/`).toString();
  * @param {string} visitorId - Visitor ID (for outsiders only)
  */
 export async function sendWelcomeEmail(email, name, isOutsider = false, visitorId = null) {
-  if (!resend) { console.warn('⚠️ Resend not configured — skipping welcome email'); return { success: true }; }
+  if (!resend) { console.warn('Resend not configured — skipping welcome email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
     
@@ -42,7 +42,7 @@ export async function sendWelcomeEmail(email, name, isOutsider = false, visitorI
 
     const memberSection = !isOutsider ? `
       <div style="background: #f0f9ff; border-left: 4px solid #154CB3; padding: 20px; margin: 24px 0;">
-        <p style="color: #1e40af; font-weight: 600; font-size: 15px; margin: 0 0 8px 0;">You're all set! 🎉</p>
+        <p style="color: #1e40af; font-weight: 600; font-size: 15px; margin: 0 0 8px 0;">You're all set!</p>
         <p style="color: #475569; font-size: 14px; margin: 0; line-height: 1.6;">
           Discover events, register instantly, and get updates directly — no middlemen, no hassle.
         </p>
@@ -167,7 +167,7 @@ ${appOrigin}
  * @param {string|null} qrImageBase64 - Optional base64 data URL of QR code image
  */
 export async function sendRegistrationEmail(email, name, event, registrationId, qrImageBase64 = null) {
-  if (!resend) { console.warn('⚠️ Resend not configured — skipping registration email'); return { success: true }; }
+  if (!resend) { console.warn('Resend not configured — skipping registration email'); return { success: true }; }
   try {
     const firstName = name ? name.split(' ')[0] : 'there';
     const ticketUrl = appLink('/profile');

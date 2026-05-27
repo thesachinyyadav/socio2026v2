@@ -5,70 +5,63 @@ import Link from "next/link";
 import Footer from "../../_components/Home/Footer";
 
 export default function MissionPage() {
-  // Icon renderer function
-  const renderIcon = (iconName: string) => {
-    const iconClass = "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4";
-    
-    switch (iconName) {
-      case "target":
-        return (
-          <div className={`${iconClass} bg-[#154CB3]`}>
-            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zM4.78 15.435A21.95 21.95 0 0110 15c1.845 0 3.64-.226 5.36-.652a.75.75 0 01.518 1.408A20.69 20.69 0 0110 16.5c-1.195 0-2.37-.084-3.5-.248a1.5 1.5 0 01-.72-2.817z" clipRule="evenodd"/>
-            </svg>
-          </div>
-        );
-      case "innovation":
-        return (
-          <div className={`${iconClass} bg-[#FFCC00]`}>
-            <svg className="w-8 h-8 text-[#063168]" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd"/>
-            </svg>
-          </div>
-        );
-      case "community":
-        return (
-          <div className={`${iconClass} bg-green-500`}>
-            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
-            </svg>
-          </div>
-        );
-      default:
-        return (
-          <div className={`${iconClass} bg-gray-400`}>
-            <span className="text-white text-xl font-bold">{iconName.charAt(0).toUpperCase()}</span>
-          </div>
-        );
-    }
-  };
-
   const missionPoints = [
     {
       title: "Eliminate FOMO",
       description: "No student should miss out on opportunities because they didn't know about them. We ensure every event reaches the right audience.",
-      icon: "target",
-      impact: "95% of students now discover events they're interested in"
+      impact: "95% of students now discover events they're interested in",
+      accent: "blue",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="12" cy="12" r="5" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+        </svg>
+      ),
     },
     {
-      title: "Simplify Participation", 
-      description: "From discovery to registration to attendance - we make the entire journey seamless and intuitive.",
-      icon: "innovation",
-      impact: "Registration time reduced from 10 minutes to under 1 minute"
+      title: "Simplify Participation",
+      description: "From discovery to registration to attendance — we make the entire journey seamless and intuitive.",
+      impact: "Registration time reduced from 10 minutes to under 1 minute",
+      accent: "yellow",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L4.5 13.5h6L11 22l8.5-11.5h-6L13 2z" />
+        </svg>
+      ),
     },
     {
       title: "Empower Organizers",
       description: "Give event organizers the tools they need to create, promote, and manage successful events effortlessly.",
-      icon: "innovation",
-      impact: "Event attendance increased by 40% on average"
+      impact: "Event attendance increased by 40% on average",
+      accent: "purple",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+      ),
     },
     {
       title: "Build Community",
       description: "Foster connections between students, clubs, and departments to create a more vibrant campus ecosystem.",
-      icon: "community",
-      impact: "2000+ students connected across 5+ campuses"
-    }
-  ];
+      impact: "20,000+ students connected across 5+ campuses",
+      accent: "green",
+      icon: (
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
+  ] as const;
+
+  const accentStyles: Record<string, { bar: string; iconBg: string; iconColor: string; impactBg: string; impactBar: string; impactText: string }> = {
+    blue:   { bar: "bg-[#154CB3]", iconBg: "bg-blue-50",   iconColor: "text-[#154CB3]", impactBg: "bg-blue-50/70",   impactBar: "border-[#154CB3]",  impactText: "text-[#154CB3]" },
+    yellow: { bar: "bg-[#FFCC00]", iconBg: "bg-yellow-50", iconColor: "text-[#B58A00]", impactBg: "bg-yellow-50/70", impactBar: "border-[#FFCC00]",  impactText: "text-[#8a6d00]" },
+    purple: { bar: "bg-purple-500", iconBg: "bg-purple-50", iconColor: "text-purple-600", impactBg: "bg-purple-50/70", impactBar: "border-purple-500", impactText: "text-purple-700" },
+    green:  { bar: "bg-green-500",  iconBg: "bg-green-50",  iconColor: "text-green-600",  impactBg: "bg-green-50/70",  impactBar: "border-green-500",  impactText: "text-green-700" },
+  };
 
   const visionElements = [
     {
@@ -212,27 +205,39 @@ export default function MissionPage() {
             </h2>
             <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {missionPoints.map((point, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
-                <div className="flex items-start mb-4">
-                  <div className="text-3xl mr-4 mt-1">{point.icon}</div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            {missionPoints.map((point, index) => {
+              const styles = accentStyles[point.accent];
+              return (
+                <div
+                  key={index}
+                  className="group relative bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col"
+                >
+                  <span className={`absolute inset-x-0 top-0 h-1 ${styles.bar}`} />
+                  <div className="flex items-start gap-4 mb-4">
+                    <div
+                      className={`shrink-0 w-12 h-12 rounded-xl ${styles.iconBg} ${styles.iconColor} flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}
+                    >
+                      {point.icon}
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-[#063168] pt-1.5 leading-tight">
                       {point.title}
                     </h3>
-                    <p className="text-gray-600 mb-4">
-                      {point.description}
+                  </div>
+                  <p className="text-gray-600 leading-relaxed mb-5 flex-grow">
+                    {point.description}
+                  </p>
+                  <div className={`${styles.impactBg} border-l-4 ${styles.impactBar} px-4 py-3 rounded-r-lg`}>
+                    <p className={`${styles.impactText} text-sm font-semibold flex items-start gap-2`}>
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>{point.impact}</span>
                     </p>
-                    <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded">
-                      <p className="text-green-800 text-sm font-medium">
-                        Impact: {point.impact}
-                      </p>
-                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -245,13 +250,13 @@ export default function MissionPage() {
             </h2>
             <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
           </div>
-            <div className="max-w-4xl mx-auto bg-[#FFCC00]/10 border-l-4 border-[#FFCC00] p-6 sm:p-8 rounded-xl">
+            <div className="max-w-4xl mx-auto bg-[#FFCC00]/10 border-l-4 border-[#FFCC00] p-6 sm:p-8 rounded-xl mb-8 sm:mb-12">
               <p className="text-xl sm:text-2xl text-gray-800 font-medium mb-4">
-                A world where every student feels connected, informed, and empowered 
+                A world where every student feels connected, informed, and empowered
                 to make the most of their campus experience.
               </p>
               <p className="text-gray-600">
-                We envision campuses where opportunities are abundant, accessible, and inclusive – 
+                We envision campuses where opportunities are abundant, accessible, and inclusive –
                 where technology serves as a bridge, not a barrier, to meaningful experiences.
               </p>
             </div>
@@ -351,7 +356,7 @@ export default function MissionPage() {
               <div className="text-sm text-gray-600">Campuses Served</div>
             </div>
             <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="text-3xl font-black text-green-600 mb-2">2000+</div>
+              <div className="text-3xl font-black text-green-600 mb-2">20,000+</div>
               <div className="text-sm text-gray-600">Active Students</div>
             </div>
             <div className="bg-white p-6 rounded-xl shadow-sm">

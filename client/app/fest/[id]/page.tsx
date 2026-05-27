@@ -82,6 +82,25 @@ const formatStatusLabel = (value: unknown, fallback = "Unknown"): string => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
+// Status is purely a function of the fest's dates, so derive it live on the
+// client. The API stores the status at create/edit time and can serve a stale
+// value (e.g. a fest stamped "upcoming" before its opening date stays
+// "upcoming" once that date passes), so we recompute rather than trust it.
+const deriveFestStatus = (
+  openingDate?: string,
+  closingDate?: string,
+  fallback?: string
+): string | undefined => {
+  const opening = openingDate ? dayjs(openingDate).startOf("day") : null;
+  const closing = closingDate ? dayjs(closingDate).startOf("day") : opening;
+  const today = dayjs().startOf("day");
+
+  if (!opening?.isValid() && !closing?.isValid()) return fallback;
+  if (opening?.isValid() && today.isBefore(opening)) return "upcoming";
+  if (closing?.isValid() && today.isAfter(closing)) return "past";
+  return "ongoing";
+};
+
 const formatPlatformLabel = (value: unknown, fallback = "Link"): string => {
   const text = String(value ?? "").trim();
   if (!text) return fallback;
@@ -253,7 +272,7 @@ const FestPage = () => {
             department: apiFest.organizing_dept,
             imageUrl: apiFest.fest_image_url,
             venue: apiFest.venue,
-            status: apiFest.status,
+            status: deriveFestStatus(apiFest.opening_date, apiFest.closing_date, apiFest.status),
             registrationDeadline: apiFest.registration_deadline ? formatDateFull(apiFest.registration_deadline) : undefined,
             timeline: apiFest.timeline || [],
             sponsors: apiFest.sponsors || [],

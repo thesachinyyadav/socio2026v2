@@ -112,25 +112,25 @@ if (connectionString) {
 
     redisClient.on("ready", () => {
       isValkeyAvailable = true;
-      console.log("✅ [ValkeyCache] Valkey connection is stable and ready.");
+      console.log("[ValkeyCache] Valkey connection is stable and ready.");
     });
 
     redisClient.on("error", (error) => {
       isValkeyAvailable = false;
-      console.warn("⚠️ [ValkeyCache] Connection error:", error.message || error);
+      console.warn("[ValkeyCache] Connection error:", error.message || error);
     });
 
     redisClient.on("close", () => {
       isValkeyAvailable = false;
-      console.warn("⚠️ [ValkeyCache] Connection closed.");
+      console.warn("[ValkeyCache] Connection closed.");
     });
   } catch (initError) {
-    console.error("❌ [ValkeyCache] Initialization failed:", initError.message);
+    console.error("[ValkeyCache] Initialization failed:", initError.message);
     redisClient = null;
   }
 } else {
   console.warn(
-    "⚠️ [ValkeyCache] No VALKEY_URL or REDIS_URL configured in environment. Gracefully falling back to high-performance in-memory cache."
+    "[ValkeyCache] No VALKEY_URL or REDIS_URL configured in environment. Gracefully falling back to high-performance in-memory cache."
   );
 }
 
@@ -148,7 +148,7 @@ export async function cacheGet(key) {
       }
       return value;
     } catch (error) {
-      console.error(`❌ [ValkeyCache] Read failure for key "${key}":`, error.message);
+      console.error(`[ValkeyCache] Read failure for key "${key}":`, error.message);
     }
   }
 
@@ -174,7 +174,7 @@ export async function cacheSet(key, value, ttlSeconds) {
       }
       return true;
     } catch (error) {
-      console.error(`❌ [ValkeyCache] Write failure for key "${key}":`, error.message);
+      console.error(`[ValkeyCache] Write failure for key "${key}":`, error.message);
     }
   }
 
@@ -192,7 +192,7 @@ export async function cacheDel(key) {
       await redisClient.del(key);
       return true;
     } catch (error) {
-      console.error(`❌ [ValkeyCache] Deletion failure for key "${key}":`, error.message);
+      console.error(`[ValkeyCache] Deletion failure for key "${key}":`, error.message);
     }
   }
 
@@ -220,7 +220,7 @@ export async function cacheDelPattern(pattern) {
       } while (cursor !== "0");
       return keysDeleted;
     } catch (error) {
-      console.error(`❌ [ValkeyCache] Pattern deletion failure for "${pattern}":`, error.message);
+      console.error(`[ValkeyCache] Pattern deletion failure for "${pattern}":`, error.message);
     }
   }
 
