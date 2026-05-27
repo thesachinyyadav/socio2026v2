@@ -1,6 +1,6 @@
 import { supabase } from "../config/database.js";
 import { sendPushToAll, sendPushToEmail } from "./webPushService.js";
-import { sendOneSignalToAll, sendOneSignalToEmail } from "./oneSignalService.js";
+import { sendOneSignalToAll, sendOneSignalToEmail, sendOneSignalToEmails } from "./oneSignalService.js";
 import { cacheGet, safeParse } from "../services/cacheService.js";
 
 /**
@@ -44,7 +44,7 @@ export async function createAndPushNotification(payload) {
         deep_link: resolvedLink,
         priority,
         metadata,
-        is_broadcast: false,
+        is_broadcast: shouldBroadcast ? true : false,
         read: false
       })
       .select();
@@ -60,12 +60,28 @@ export async function createAndPushNotification(payload) {
 
     // 2. Trigger Push Notification either to one user or to all users.
     if (shouldBroadcast) {
-      console.log("[NotificationHelper] Broadcasting notification to all users", {
-        title,
-        notificationId,
-      });
+      console.log("[BROADCAST_START]", { title, resolvedType });
 
+      // Fetch all users to broadcast to
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('email');
+
+      if (usersError) {
+        console.error("[BROADCAST_FAILURE] Failed to query users:", usersError);
+        return { success: false, error: usersError };
+      }
+
+      const allEmails = [...new Set((users || [])
+        .map(u => u.email ? u.email.trim().toLowerCase() : "")
+        .filter(email => !!email))];
+
+      console.log("[BROADCAST_USERS]", { count: allEmails.length });
+      console.log("[BROADCAST USERS COUNT]", allEmails.length);
+
+      // Trigger parallel dispatches: Web Push and OneSignal
       const results = await Promise.allSettled([
+        // A. Web Push to All
         sendPushToAll({
           title,
           body: message,
@@ -77,17 +93,37 @@ export async function createAndPushNotification(payload) {
           timestamp: Date.now(),
           ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
         }),
-        sendOneSignalToAll({
-          title,
-          body: message,
-          actionUrl: resolvedLink,
-          data: {
-            notificationId,
-            category: resolvedType,
-            priority,
-            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
-          },
-        }),
+        // B. OneSignal chunked dispatch
+        (async () => {
+          console.log("[ONESIGNAL_BATCH] Starting chunked OneSignal dispatch");
+          const ONESIGNAL_BATCH_SIZE = 100;
+          const batches = [];
+          for (let i = 0; i < allEmails.length; i += ONESIGNAL_BATCH_SIZE) {
+            batches.push(allEmails.slice(i, i + ONESIGNAL_BATCH_SIZE));
+          }
+          
+          const batchPromises = batches.map(batch => {
+            console.log(`[ONESIGNAL_BATCH] Sending batch of size ${batch.length}`);
+            return sendOneSignalToEmails(batch, {
+              title,
+              body: message,
+              actionUrl: resolvedLink,
+              data: {
+                notificationId,
+                category: resolvedType,
+                priority,
+                ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
+              },
+            });
+          });
+
+          const batchResults = await Promise.allSettled(batchPromises);
+          const successCount = batchResults.filter(
+            r => r.status === "fulfilled" && r.value?.success
+          ).length;
+          console.log(`[ONESIGNAL_BATCH] Completed chunked dispatch: ${successCount}/${batches.length} batches succeeded.`);
+          return { success: successCount > 0, batchesSent: successCount, totalBatches: batches.length };
+        })()
       ]);
 
       const webPushVal = results[0].status === "fulfilled" ? results[0].value : { success: false, error: results[0].reason };
@@ -96,6 +132,12 @@ export async function createAndPushNotification(payload) {
       console.log("[PUSH_RESULTS]", results);
       console.log("[WEB_PUSH_RESULT]", webPushVal);
       console.log("[ONESIGNAL_RESULT]", oneSignalVal);
+
+      if (webPushVal.success && oneSignalVal.success) {
+        console.log("[BROADCAST_SUCCESS]", { notificationId });
+      } else {
+        console.warn("[BROADCAST_FAILURE] Partially failed or failed broadcast dispatch", { webPushVal, oneSignalVal });
+      }
 
       return {
         success: true,
