@@ -855,27 +855,24 @@ export default function CreateClubForm({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-semibold text-[#29364a]">{entityLabel} Registrations</p>
-                <span
-                  className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    registrationsOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-                  }`}
-                >
-                  {registrationsOpen ? "open" : "closed"}
-                </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold text-[#4d6078]">
-                  {registrationsOpen ? "ON" : "OFF"}
+                <span
+                  className={`text-[10px] font-semibold ${
+                    registrationsOpen ? "text-green-700" : "text-red-600"
+                  }`}
+                >
+                  {registrationsOpen ? "OPEN" : "CLOSED"}
                 </span>
                 <button
                   type="button"
                   onClick={() => setRegistrationsOpen((prev) => !prev)}
-                  aria-label={`Registrations ${registrationsOpen ? "on" : "off"}`}
+                  aria-label={`Registrations ${registrationsOpen ? "open" : "closed"}`}
                   aria-pressed={registrationsOpen}
-                  className={`relative h-6 w-11 cursor-pointer rounded-full border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#1f57c3]/40 ${
+                  className={`relative h-6 w-11 cursor-pointer rounded-full border transition-colors duration-200 focus:outline-none focus:ring-2 ${
                     registrationsOpen
-                      ? "border-[#1f57c3] bg-[#1f57c3]"
-                      : "border-[#b7c2d2] bg-[#c2ccda]"
+                      ? "border-green-600 bg-green-600 focus:ring-green-500/40"
+                      : "border-red-500 bg-red-500 focus:ring-red-500/40"
                   }`}
                 >
                   <span
@@ -917,7 +914,10 @@ export default function CreateClubForm({
                 <label className="block text-[11px] font-semibold text-[#29364a]">
                   {entityLabel} Editors <span className="text-red-500">*</span>
                 </label>
-                <p className="text-[10px] text-[#6d7f95]">Add editor emails only</p>
+                <p className="text-[10px] text-[#6d7f95]">
+                  {entityLabel} editors can edit the {entityLabel.toLowerCase()} information and
+                  view applicant lists.
+                </p>
               </div>
               <button
                 type="button"
@@ -958,10 +958,15 @@ export default function CreateClubForm({
             ref={rolesDropdownRef}
             className="relative rounded-md border border-[#d3dbe6] bg-[#f4f6f8] px-3 py-2"
           >
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-[11px] font-semibold text-[#29364a]">
-                Roles Available {registrationsOpen ? <span className="text-red-500">*</span> : null}
-              </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <label className="text-[11px] font-semibold text-[#29364a]">
+                  Roles Available {registrationsOpen ? <span className="text-red-500">*</span> : null}
+                </label>
+                <p className="mt-0.5 text-[10px] text-[#6d7f95]">
+                  Add the roles members can apply for. These show up on the club application form.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowRolesMenu((prev) => !prev)}
@@ -972,22 +977,20 @@ export default function CreateClubForm({
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {roleRows.length === 0 ? (
-                <span className="text-[10px] font-medium text-[#5d708a]">
-                  No roles selected yet.
-                </span>
+                <span className="text-[10px] font-medium text-[#5d708a]">No roles added yet.</span>
               ) : null}
               {roleRows.map((row) => (
                 <span
                   key={row.id}
-                  className="inline-flex items-center gap-1 rounded-full border border-[#9aa8bb] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#1f2f46]"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#c7d0db] bg-white px-2.5 py-1 text-[10px] font-semibold text-[#1f2f46]"
                 >
                   {row.value}
                   <button
                     type="button"
                     onClick={() => removeRoleRow(row.id)}
-                    className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-red-500/45 bg-red-500/15 text-base font-bold leading-none text-red-800 transition-colors duration-200 hover:border-red-600/70 hover:bg-red-600/25 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+                    className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-sm font-bold leading-none text-red-800 transition-colors duration-200 hover:border-red-600/60 hover:bg-red-600/20 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
                     aria-label={`Remove role ${row.value}`}
                   >
                     ×
