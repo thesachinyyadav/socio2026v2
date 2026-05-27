@@ -6,10 +6,10 @@ const appUrl =
   process.env.APP_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.FRONTEND_URL ||
-  "https://sociodev.vercel.app";
+  "https://app.withsocio.com";
 
 if (!process.env.APP_URL && !process.env.NEXT_PUBLIC_APP_URL && !process.env.FRONTEND_URL) {
-  console.warn('APP_URL/NEXT_PUBLIC_APP_URL not set. Falling back to https://sociodev.vercel.app for email links.');
+  console.warn('APP_URL/NEXT_PUBLIC_APP_URL not set. Falling back to https://app.withsocio.com for email links.');
 }
 
 const appOrigin = appUrl.replace(/\/$/, '');

@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { cacheGet, cacheSet, cacheDel, safeParse, safeStringify } from "../services/cacheService.js";
 
 let vapidConfigured = false;
 
@@ -28,11 +29,38 @@ function initializeVapid() {
 // Memory-only subscription store
 // Key: normalized email (lowercase), Value: Array of subscription objects
 const subscriptionStore = new Map();
+const PUSH_SUBSCRIBERS_INDEX_KEY = "push:subscribers:index";
+
+function subscriptionKey(email) {
+  return `push:subscriptions:${email}`;
+}
+
+async function loadSubscriberIndex() {
+  const cached = safeParse(await cacheGet(PUSH_SUBSCRIBERS_INDEX_KEY));
+  return Array.isArray(cached) ? cached : [];
+}
+
+async function persistSubscriberIndex(emails) {
+  await cacheSet(PUSH_SUBSCRIBERS_INDEX_KEY, safeStringify([...new Set(emails)]));
+}
+
+async function loadCachedSubscriptions(email) {
+  const cached = safeParse(await cacheGet(subscriptionKey(email)));
+  return Array.isArray(cached) ? cached : [];
+}
+
+async function persistCachedSubscriptions(email, subscriptions) {
+  if (!subscriptions || subscriptions.length === 0) {
+    await cacheDel(subscriptionKey(email));
+    return;
+  }
+  await cacheSet(subscriptionKey(email), safeStringify(subscriptions));
+}
 
 /**
  * Registers an in-memory push subscription for a user.
  */
-export function addSubscription(email, subscription) {
+export async function addSubscription(email, subscription) {
   if (!email || !subscription || !subscription.endpoint) return;
   const normalizedEmail = email.toLowerCase().trim();
   
@@ -52,12 +80,20 @@ export function addSubscription(email, subscription) {
     userSubs[index] = subscription;
     console.log(`[PUSH] Refreshed in-memory subscription for ${normalizedEmail}.`);
   }
+
+  await persistCachedSubscriptions(normalizedEmail, userSubs);
+
+  const subscriberIndex = await loadSubscriberIndex();
+  if (!subscriberIndex.includes(normalizedEmail)) {
+    subscriberIndex.push(normalizedEmail);
+    await persistSubscriberIndex(subscriberIndex);
+  }
 }
 
 /**
  * Unregisters an in-memory push subscription for a user.
  */
-export function removeSubscription(email, endpoint) {
+export async function removeSubscription(email, endpoint) {
   if (!email || !endpoint) return;
   const normalizedEmail = email.toLowerCase().trim();
   
@@ -71,25 +107,64 @@ export function removeSubscription(email, endpoint) {
     }
     console.log(`[PUSH] Removed in-memory subscription for ${normalizedEmail}`);
   }
+
+  const cachedSubs = await loadCachedSubscriptions(normalizedEmail);
+  const filteredCached = cachedSubs.filter(s => s.endpoint !== endpoint);
+  await persistCachedSubscriptions(normalizedEmail, filteredCached);
+
+  if (filteredCached.length === 0) {
+    const subscriberIndex = await loadSubscriberIndex();
+    const nextIndex = subscriberIndex.filter(entry => entry !== normalizedEmail);
+    await persistSubscriberIndex(nextIndex);
+  }
 }
 
 /**
  * Gets all registered subscriptions for a user email.
  */
-export function getSubscriptionsForEmail(email) {
+export async function getSubscriptionsForEmail(email) {
   if (!email) return [];
   const normalizedEmail = email.toLowerCase().trim();
-  return subscriptionStore.get(normalizedEmail) || [];
+  const inMemory = subscriptionStore.get(normalizedEmail);
+  if (inMemory && inMemory.length > 0) {
+    return inMemory;
+  }
+
+  const cached = await loadCachedSubscriptions(normalizedEmail);
+  if (cached.length > 0) {
+    subscriptionStore.set(normalizedEmail, cached);
+  }
+  return cached;
 }
 
 /**
  * Gets all active subscriptions across all users.
  */
-export function getAllSubscriptions() {
+export async function getAllSubscriptions() {
   const all = [];
+  const seen = new Set();
+
   for (const userSubs of subscriptionStore.values()) {
-    all.push(...userSubs);
+    for (const sub of userSubs) {
+      if (!sub?.endpoint || seen.has(sub.endpoint)) continue;
+      seen.add(sub.endpoint);
+      all.push(sub);
+    }
   }
+
+  const subscriberIndex = await loadSubscriberIndex();
+  for (const email of subscriberIndex) {
+    const cachedSubs = await loadCachedSubscriptions(email);
+    if (cachedSubs.length > 0 && !subscriptionStore.has(email)) {
+      subscriptionStore.set(email, cachedSubs);
+    }
+    for (const sub of cachedSubs) {
+      if (!sub?.endpoint || seen.has(sub.endpoint)) continue;
+      seen.add(sub.endpoint);
+      all.push(sub);
+    }
+  }
+
   return all;
 }
 
@@ -174,12 +249,17 @@ function buildAndroidPayload(payload) {
  * Removes a stale/expired subscription from the in-memory store by endpoint URL.
  * Called automatically when webpush returns 410 or 404.
  */
-function purgeStaleEndpoint(endpoint) {
+async function purgeStaleEndpoint(endpoint) {
   for (const [email, userSubs] of subscriptionStore.entries()) {
     const idx = userSubs.findIndex(s => s.endpoint === endpoint);
     if (idx !== -1) {
       userSubs.splice(idx, 1);
       if (userSubs.length === 0) subscriptionStore.delete(email);
+      await persistCachedSubscriptions(email, userSubs);
+      if (userSubs.length === 0) {
+        const subscriberIndex = await loadSubscriberIndex();
+        await persistSubscriberIndex(subscriberIndex.filter(entry => entry !== email));
+      }
       console.log(`[PUSH] Purged stale endpoint for ${email} (status 410/404)`);
       break;
     }
@@ -244,12 +324,14 @@ export async function sendPush(payload, subscription) {
   try {
     await webpush.sendNotification(subscription, stringifiedPayload, pushOptions);
     console.log(`[PUSH] Delivery success → endpoint: ${endpoint.substring(0, 50)}...`);
+    console.log("[WEB_PUSH_RESPONSE]", { success: true });
     return { success: true };
   } catch (error) {
     // ── Stale / invalid subscription (permanent) ─────────────────────────────
     if (error.statusCode === 410 || error.statusCode === 404) {
       console.log(`[PUSH] Subscription expired/invalid (status ${error.statusCode}). Purging from store.`);
-      purgeStaleEndpoint(endpoint);
+      await purgeStaleEndpoint(endpoint);
+      console.error("[WEB_PUSH_ERROR]", error.message || error);
       return { success: false, error: error.message, statusCode: error.statusCode, purged: true };
     }
 
@@ -261,14 +343,17 @@ export async function sendPush(payload, subscription) {
       try {
         await webpush.sendNotification(subscription, stringifiedPayload, pushOptions);
         console.log(`[PUSH] Retry delivery success → endpoint: ${endpoint.substring(0, 50)}...`);
+        console.log("[WEB_PUSH_RESPONSE]", { success: true, retried: true });
         return { success: true, retried: true };
       } catch (retryError) {
         console.error(`[PUSH] Retry failed → endpoint: ${endpoint.substring(0, 50)}... | Error:`, retryError.message || retryError);
+        console.error("[WEB_PUSH_ERROR]", retryError.message || retryError);
         return { success: false, error: retryError.message, statusCode: retryError.statusCode };
       }
     }
 
     console.error(`[PUSH] Delivery failed → endpoint: ${endpoint.substring(0, 50)}... | Error:`, error.message || error);
+    console.error("[WEB_PUSH_ERROR]", error.message || error);
     return {
       success: false,
       error: error.message || String(error),
@@ -282,8 +367,10 @@ export async function sendPush(payload, subscription) {
  * Uses Promise.allSettled for parallel delivery — avoids N×sequential HTTP calls.
  */
 export async function sendPushToEmail(email, payload) {
+  console.log("[WEB_PUSH_START]");
   if (!email) {
     console.warn("[PUSH] No email supplied to sendPushToEmail. Bypassing Web Push.");
+    console.error("[WEB_PUSH_ERROR]", "Email is required");
     return { success: false, error: "Email is required" };
   }
 
@@ -292,9 +379,10 @@ export async function sendPushToEmail(email, payload) {
     console.log("[WEB_PUSH_EXECUTING]", normalizedEmail);
     console.log(`[PUSH] sendPushToEmail started for ${normalizedEmail}`);
     
-    const userSubs = getSubscriptionsForEmail(normalizedEmail);
+    const userSubs = await getSubscriptionsForEmail(normalizedEmail);
     if (userSubs.length === 0) {
       console.log(`[PUSH] No active subscriptions found for ${normalizedEmail}`);
+      console.log("[WEB_PUSH_RESPONSE]", { success: true, sent: 0 });
       return { success: true, sent: 0 };
     }
 
@@ -310,6 +398,7 @@ export async function sendPushToEmail(email, payload) {
     ).length;
 
     console.log(`[PUSH] sendPushToEmail complete. Sent ${successCount}/${userSubs.length} notifications to ${normalizedEmail}`);
+    console.log("[WEB_PUSH_RESPONSE]", { success: true, sent: successCount });
     return { success: true, sent: successCount };
   } catch (err) {
     console.error(`[PUSH] sendPushToEmail error for ${email}:`, err);
@@ -326,7 +415,7 @@ export async function sendPushToAll(payload) {
   try {
     console.log("[PUSH] sendPushToAll started");
     
-    const allSubs = getAllSubscriptions();
+    const allSubs = await getAllSubscriptions();
     if (allSubs.length === 0) {
       console.log("[PUSH] No active subscriptions in memory for broadcast.");
       return { success: true, sent: 0 };

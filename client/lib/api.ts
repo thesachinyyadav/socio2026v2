@@ -527,14 +527,18 @@ export async function createNotification(notificationData: {
   message?: string;
   type?: string;
 }) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert(notificationData)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return data;
+  // Use server API to ensure push delivery (OneSignal + WebPush) happens.
+  const res = await fetch('/api/notifications/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(notificationData),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to create notification (${res.status})`);
+  }
+  const json = await res.json();
+  return json.notification;
 }
 
 // Export supabase client for direct use if needed

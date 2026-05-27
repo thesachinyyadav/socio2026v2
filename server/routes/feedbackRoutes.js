@@ -8,6 +8,7 @@ import {
   extractCreatorEmails,
 } from "../middleware/authMiddleware.js";
 import { sendPushToEmail } from "../utils/webPushService.js";
+import { sendOneSignalToEmail } from "../utils/oneSignalService.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -112,12 +113,30 @@ router.post(
       if (updateError) throw updateError;
 
       for (const email of emails) {
-        sendPushToEmail(email, {
+        const normalizedEmail = email.toLowerCase().trim();
+        const pushPayload = {
           title: `Feedback for ${event.title}`,
           body: `How was the event? Please share your feedback — it only takes a minute.`,
           tag: `feedback_${eventId}`,
           actionUrl: `/feedback/${eventId}`,
-        }).catch(() => {});
+        };
+
+        Promise.allSettled([
+          sendPushToEmail(normalizedEmail, pushPayload),
+          sendOneSignalToEmail(normalizedEmail, {
+            title: pushPayload.title,
+            body: pushPayload.body,
+            actionUrl: pushPayload.actionUrl,
+            data: {
+              tag: pushPayload.tag,
+              category: "feedback_form",
+            }
+          })
+        ]).then((results) => {
+          console.log("[PUSH_RESULTS]", results);
+        }).catch((err) => {
+          console.error("Feedback push dispatch error:", err);
+        });
       }
 
       console.log(

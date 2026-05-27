@@ -1,6 +1,6 @@
 import { supabase } from "../config/database.js";
-import { sendPushToEmail } from "./webPushService.js";
-import { sendOneSignalToEmail } from "./oneSignalService.js";
+import { sendPushToAll, sendPushToEmail } from "./webPushService.js";
+import { sendOneSignalToAll, sendOneSignalToEmail } from "./oneSignalService.js";
 import { cacheGet, safeParse } from "../services/cacheService.js";
 
 /**
@@ -10,6 +10,8 @@ import { cacheGet, safeParse } from "../services/cacheService.js";
 export async function createAndPushNotification(payload) {
   const {
     user_email,
+    broadcast = false,
+    is_broadcast,
     title,
     message,
     type = 'info',
@@ -24,13 +26,14 @@ export async function createAndPushNotification(payload) {
 
   const resolvedType = category || type;
   const resolvedLink = deep_link || action_url || "/notifications";
+  const shouldBroadcast = broadcast || is_broadcast || !user_email;
 
   try {
     // 1. Insert into database
     const { data: insertedRows, error } = await supabase
       .from('notifications')
       .insert({
-        user_email,
+        user_email: shouldBroadcast ? null : user_email,
         title,
         message,
         type: resolvedType,
@@ -55,7 +58,55 @@ export async function createAndPushNotification(payload) {
 
     const notificationId = insertedRows && insertedRows.length > 0 ? insertedRows[0].id : null;
 
-    // 2. Trigger Push Notification to the user via parallel dispatch (both OneSignal & Web Push)
+    // 2. Trigger Push Notification either to one user or to all users.
+    if (shouldBroadcast) {
+      console.log("[NotificationHelper] Broadcasting notification to all users", {
+        title,
+        notificationId,
+      });
+
+      const results = await Promise.allSettled([
+        sendPushToAll({
+          title,
+          body: message,
+          tag: notificationId,
+          notificationId,
+          actionUrl: resolvedLink,
+          category: resolvedType,
+          priority,
+          timestamp: Date.now(),
+          ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
+        }),
+        sendOneSignalToAll({
+          title,
+          body: message,
+          actionUrl: resolvedLink,
+          data: {
+            notificationId,
+            category: resolvedType,
+            priority,
+            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
+          },
+        }),
+      ]);
+
+      const webPushVal = results[0].status === "fulfilled" ? results[0].value : { success: false, error: results[0].reason };
+      const oneSignalVal = results[1].status === "fulfilled" ? results[1].value : { success: false, error: results[1].reason };
+
+      console.log("[PUSH_RESULTS]", results);
+      console.log("[WEB_PUSH_RESULT]", webPushVal);
+      console.log("[ONESIGNAL_RESULT]", oneSignalVal);
+
+      return {
+        success: true,
+        data: insertedRows[0],
+        delivery: {
+          webPush: webPushVal,
+          oneSignal: oneSignalVal,
+        },
+      };
+    }
+
     if (user_email) {
       const normalizedEmail = user_email.toLowerCase().trim();
       const cachedPlatform = safeParse(await cacheGet(`user:platform:${normalizedEmail}`));
@@ -66,18 +117,7 @@ export async function createAndPushNotification(payload) {
         title
       });
 
-      const [oneSignalResult, webPushResult] = await Promise.allSettled([
-        sendOneSignalToEmail(normalizedEmail, {
-          title,
-          body: message,
-          actionUrl: resolvedLink,
-          data: {
-            notificationId,
-            category: resolvedType,
-            priority,
-            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
-          }
-        }),
+      const results = await Promise.allSettled([
         sendPushToEmail(normalizedEmail, {
           title,
           body:           message,
@@ -89,11 +129,24 @@ export async function createAndPushNotification(payload) {
           timestamp:      Date.now(),
           userEmail:      normalizedEmail,
           ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
+        }),
+        sendOneSignalToEmail(normalizedEmail, {
+          title,
+          body: message,
+          actionUrl: resolvedLink,
+          data: {
+            notificationId,
+            category: resolvedType,
+            priority,
+            ...(metadata && Object.keys(metadata).length > 0 ? metadata : {}),
+          }
         })
       ]);
 
-      const oneSignalVal = oneSignalResult.status === "fulfilled" ? oneSignalResult.value : { success: false, error: oneSignalResult.reason };
-      const webPushVal = webPushResult.status === "fulfilled" ? webPushResult.value : { success: false, error: webPushResult.reason };
+      console.log("[PUSH_RESULTS]", results);
+
+      const webPushVal = results[0].status === "fulfilled" ? results[0].value : { success: false, error: results[0].reason };
+      const oneSignalVal = results[1].status === "fulfilled" ? results[1].value : { success: false, error: results[1].reason };
 
       console.log("[WEB_PUSH_RESULT]", webPushVal);
       console.log("[ONESIGNAL_RESULT]", oneSignalVal);
@@ -104,7 +157,7 @@ export async function createAndPushNotification(payload) {
       });
     }
 
-    return { success: true, data: insertedRows[0] };
+    return { success: true, data: insertedRows[0], delivery: null };
   } catch (err) {
     console.error("[NotificationHelper] Fatal Error:", err);
     return { success: false, error: err };

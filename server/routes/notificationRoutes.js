@@ -19,6 +19,7 @@ import {
   safeParse,
 } from "../services/cacheService.js";
 import { sendOneSignalToEmail, sendOneSignalToAll } from "../utils/oneSignalService.js";
+import { createAndPushNotification } from "../utils/notificationHelper.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -48,7 +49,7 @@ router.post(
       console.log(`[PUSH] Subscribing user ${email} with endpoint: ${subscription.endpoint}`);
 
       // Register subscription in the memory-only store on the backend
-      addSubscription(email, subscription);
+      await addSubscription(email, subscription);
 
       return res.status(201).json({ message: "Push subscription registered in-memory" });
     } catch (err) {
@@ -77,7 +78,7 @@ router.delete(
       console.log(`[PUSH] Unsubscribing user ${email} with endpoint: ${subscription.endpoint}`);
 
       // Remove subscription from the memory-only store on the backend
-      removeSubscription(email, subscription.endpoint);
+      await removeSubscription(email, subscription.endpoint);
 
       return res.json({ message: "Push subscription removed from in-memory" });
     } catch (err) {
@@ -256,10 +257,15 @@ router.post(
       return res.status(400).json({ error: "title and message are required", reqId });
     }
 
+    console.log("[ADMIN_NOTIFICATION_TRIGGERED]", {
+      title,
+      email: "all_users",
+      timestamp: Date.now()
+    });
+
     const resolvedType = category || type;
     const resolvedLink = deepLink || action_url || null;
-
-    const insertPayload = {
+    const result = await createAndPushNotification({
       title,
       message,
       type: resolvedType,
@@ -270,74 +276,22 @@ router.post(
       deep_link: resolvedLink,
       priority: priority || "high",
       metadata: metadata || {},
-      user_email: null,
-      is_broadcast: true,
-      read: false,
-    };
-    notifLog.info(reqId, "DB insert (broadcast) payload", insertPayload);
+      broadcast: true,
+    });
 
-    const { data, error } = await supabase
-      .from('notifications')
-      .insert(insertPayload)
-      .select();
-
-    if (error) {
-      notifLog.error(reqId, "Supabase insert error", error);
+    if (!result?.success) {
+      notifLog.error(reqId, "Broadcast helper failed", result?.error);
       return res.status(500).json({
-        error: `Supabase insert failed: ${error.message || error.code || 'unknown'}`,
+        error: result?.error?.message || result?.error || "Failed to create broadcast notification",
         reqId,
-        supabase: { code: error.code, hint: error.hint, details: error.details },
       });
     }
 
-    console.log("[ADMIN_NOTIFICATION_CREATED]");
-
-    const dataRow = Array.isArray(data) && data.length > 0 ? data[0] : null;
-    if (!dataRow) {
-      notifLog.error(reqId, "Insert returned no rows.");
-      return res.status(500).json({ error: "Insert succeeded but returned no rows (check RLS / select grants).", reqId });
-    }
-    notifLog.info(reqId, `DB insert success id=${dataRow.id}`);
-
-    console.log("[PUSH_DISPATCH_START]", {
-      email: "all_users",
-      title
-    });
-
-    const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
-      sendPushToAll({
-        title,
-        body:           message,
-        tag:            dataRow.id,
-        notificationId: dataRow.id,
-        actionUrl:      resolvedLink || "/notifications",
-        category:       resolvedType,
-        priority:       priority || "high",
-        timestamp:      Date.now(),
-      }),
-      sendOneSignalToAll({
-        title,
-        body: message,
-        actionUrl: resolvedLink || "/notifications",
-        reqId,
-        data: {
-          notificationId: dataRow.id,
-          category: resolvedType,
-          priority: priority || "high",
-          ...(metadata || {}),
-        },
-      })
-    ]);
-
-    const webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
-    const oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
-
-    notifLog.info(reqId, "Parallel broadcast results:", { webPushResult, oneSignalResult });
-
-    notifLog.info(reqId, `broadcast complete id=${dataRow.id} title="${title}"`);
+    const dataRow = result.data || null;
+    notifLog.info(reqId, `broadcast complete id=${dataRow?.id} title="${title}"`, result.delivery || undefined);
     return res.status(201).json({
       notification: dataRow,
-      delivery: { webPush: webPushResult, oneSignal: oneSignalResult },
+      delivery: result.delivery || null,
       reqId,
     });
   } catch (error) {
@@ -345,6 +299,30 @@ router.post(
     return res.status(500).json({ error: error?.message || "Failed to send broadcast notification", reqId });
   }
 });
+
+  // ─── CREATE: Single Notification (DB + Push)
+  // Centralized endpoint so clients can create a notification that also triggers push delivery.
+  router.post(
+    "/notifications/create",
+    authenticateUser,
+    getUserInfo(),
+    async (req, res) => {
+      try {
+        const payload = req.body || {};
+        if (!payload.user_email) payload.user_email = normalizeEmail(req.userInfo?.email);
+        if (!payload.user_email) return res.status(400).json({ error: "user_email is required" });
+
+        const result = await createAndPushNotification(payload);
+        if (!result || result.success === false) {
+          return res.status(500).json({ error: result?.error || "Failed to create and push notification" });
+        }
+        return res.status(201).json({ notification: result.data || null, ok: true });
+      } catch (err) {
+        console.error("/notifications/create fatal:", err);
+        return res.status(500).json({ error: err?.message || "Failed to create notification" });
+      }
+    }
+  );
 
 // ─── ADMIN: EVENT BLAST NOTIFICATION ─────────────────────────────────────────────
 // POST endpoint to let the admin panel send blasts to registered participants of a specific event.
@@ -401,88 +379,35 @@ router.post(
       const resolvedType = category || type;
       const resolvedLink = deepLink || action_url || `/event/${event_id}`;
 
-      // 2. Insert individual notifications in database for each attendee
-      const insertPayloads = emailList.map(email => ({
-        title,
-        message,
-        type: resolvedType,
-        category: resolvedType,
-        event_id: event_id || null,
-        event_title: event_title || null,
-        action_url: resolvedLink,
-        deep_link: resolvedLink,
-        priority: priority || "high",
-        metadata: metadata || {},
-        user_email: email,
-        is_broadcast: false,
-        read: false,
-      }));
+      // 2. Create and push one notification per attendee through the centralized helper
+      const dispatchResults = await Promise.all(
+        emailList.map(async (email) => {
+          console.log("[PUSH_DISPATCH_START]", { email, title });
 
-      const { data: insertedRows, error: insertError } = await supabase
-        .from('notifications')
-        .insert(insertPayloads)
-        .select();
-
-      if (insertError) {
-        notifLog.error(reqId, "Failed to insert event blast notifications in DB", insertError);
-        return res.status(500).json({ error: "Failed to insert event blast notifications in DB", reqId });
-      }
-
-      console.log("[ADMIN_NOTIFICATION_CREATED]");
-
-      // Map inserted notification IDs to user emails
-      const notifIdMap = {};
-      (insertedRows || []).forEach(row => {
-        if (row.user_email) {
-          notifIdMap[row.user_email.toLowerCase().trim()] = row.id;
-        }
-      });
-
-      // 3. Dispatch parallel push notifications to each attendee
-      const promises = emailList.map(async (email) => {
-        const notifId = notifIdMap[email] || null;
-
-        console.log("[PUSH_DISPATCH_START]", {
-          email,
-          title
-        });
-
-        const [oneSignalResultSettled, webPushResultSettled] = await Promise.allSettled([
-          sendOneSignalToEmail(email, {
+          const result = await createAndPushNotification({
             title,
-            body: message,
-            actionUrl: resolvedLink,
-            data: {
-              notificationId: notifId,
-              category: resolvedType,
-              priority: priority || "high",
-              eventId: event_id,
+            message,
+            type: resolvedType,
+            category: resolvedType,
+            event_id: event_id || null,
+            event_title: event_title || null,
+            action_url: resolvedLink,
+            deep_link: resolvedLink,
+            priority: priority || "high",
+            metadata: {
               ...(metadata || {}),
-            }
-          }),
-          sendPushToEmail(email, {
-            title,
-            body:           message,
-            tag:            notifId,
-            notificationId: notifId,
-            actionUrl:      resolvedLink,
-            category:       resolvedType,
-            priority:       priority || "high",
-            timestamp:      Date.now(),
-            userEmail:      email,
-          })
-        ]);
+              eventId: event_id,
+            },
+            user_email: email,
+          });
 
-        const oneSignalVal = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
-        const webPushVal = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
+          if (!result?.success) {
+            notifLog.error(reqId, "Event blast helper failed", { email, error: result?.error });
+          }
 
-        console.log("[WEB_PUSH_RESULT]", webPushVal);
-        console.log("[ONESIGNAL_RESULT]", oneSignalVal);
-
-        return { email, oneSignal: oneSignalVal, webPush: webPushVal };
-      });
-
-      const dispatchResults = await Promise.all(promises);
+          return { email, ...result };
+        })
+      );
 
       return res.status(201).json({
         ok: true,
@@ -638,51 +563,27 @@ router.post(
       }
 
       // Send as broadcast
-      const { data, error } = await supabase
-        .from("notifications")
-        .insert({
-          title: tpl.title,
-          message: tpl.message,
-          type: tpl.type,
-          event_id: event.event_id,
-          event_title: event.title,
-          action_url: `/event/${event.event_id}`,
-          user_email: null,
-          is_broadcast: true,
-          read: false,
-        })
-        .select()
-        .single();
+      const result = await createAndPushNotification({
+        title: tpl.title,
+        message: tpl.message,
+        type: tpl.type,
+        category: "event",
+        event_id: event.event_id,
+        event_title: event.title,
+        action_url: `/event/${event.event_id}`,
+        deep_link: `/event/${event.event_id}`,
+        priority: "high",
+        broadcast: true,
+      });
 
-      if (error) throw error;
+      if (!result?.success) {
+        throw new Error(result?.error?.message || result?.error || "Failed to create event reminder notification");
+      }
 
-      // Trigger parallel dispatch to both Web Push and OneSignal
-      const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
-        sendPushToAll({
-          title:          tpl.title,
-          body:           tpl.message,
-          tag:            data.id,
-          notificationId: data.id,
-          actionUrl:      `/event/${event.event_id}`,
-          category:       "event",
-          priority:       "high",
-          timestamp:      Date.now(),
-        }),
-        sendOneSignalToAll({
-          title: tpl.title,
-          body: tpl.message,
-          actionUrl: `/event/${event.event_id}`,
-          data: { notificationId: data.id, eventId: event.event_id }
-        })
-      ]);
-
-      const webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
-      const oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
-
-      console.log(`[EVENT-REMINDER] Parallel dispatch results:`, { webPushResult, oneSignalResult });
-
+      const data = result.data;
+      console.log(`[EVENT-REMINDER] Broadcast helper delivery:`, result.delivery || null);
       console.log(`[EVENT-REMINDER] Organiser ${req.userInfo.email} sent "${template}" for event "${event.title}" (id: ${data.id})`);
-      return res.status(201).json({ notification: data, template: template });
+      return res.status(201).json({ notification: data, template: template, delivery: result.delivery || null });
     } catch (error) {
       console.error("Error sending event reminder:", error);
       return res.status(500).json({ error: "Failed to send event reminder" });
@@ -959,6 +860,12 @@ router.post("/notifications", async (req, res) => {
       return res.status(400).json({ error: "title, message, and user_email are required", reqId });
     }
 
+    console.log("[ADMIN_NOTIFICATION_TRIGGERED]", {
+      title,
+      email: targetEmail,
+      timestamp: Date.now()
+    });
+
     const resolvedType = category || type || 'info';
     const resolvedLink = deepLink || action_url || null;
 
@@ -1226,76 +1133,32 @@ export async function sendBroadcastNotification({ title, message, type = 'info',
   console.log('[BROADCAST] Creating single broadcast notification:', { title, event_id });
 
   try {
-    const { data, error } = await supabase
-      .from('notifications')
-      .insert({
-        title,
-        message,
-        type: category || type,
-        category: category || type,
-        event_id,
-        event_title,
-        action_url: deepLink || action_url,
-        deep_link: deepLink || action_url,
-        priority,
-        metadata,
-        user_email: null,
-        is_broadcast: true,
-        read: false
-      })
-      .select();
-
-    if (error) {
-      console.error("[SUPABASE INSERT ERROR]", JSON.stringify(error, null, 2));
-      throw error;
-    }
-
-    console.log("[ADMIN_NOTIFICATION_CREATED]");
-
-    const dataRow = data && data.length > 0 ? data[0] : null;
-    if (!dataRow) {
-      console.error("[SUPABASE INSERT ERROR] Insert succeeded but returned no rows.");
-      throw new Error("Insert succeeded but returned no rows.");
-    }
-    console.log("[SUPABASE INSERT SUCCESS]", JSON.stringify(dataRow, null, 2));
-
-    console.log("[PUSH_DISPATCH_START]", {
-      email: "all_users",
-      title
+    const result = await createAndPushNotification({
+      title,
+      message,
+      type,
+      category,
+      event_id,
+      event_title,
+      action_url,
+      deep_link: deepLink,
+      priority,
+      metadata,
+      broadcast: true,
     });
 
-    // Trigger parallel dispatch to both Web Push and OneSignal
-    const [webPushResultSettled, oneSignalResultSettled] = await Promise.allSettled([
-      sendPushToAll({
-        title,
-        body:           message,
-        tag:            dataRow.id,
-        notificationId: dataRow.id,
-        actionUrl:      deepLink || action_url || "/notifications",
-        category:       category || type || "info",
-        priority:       priority || "high",
-        timestamp:      Date.now(),
-      }),
-      sendOneSignalToAll({
-        title,
-        body: message,
-        actionUrl: deepLink || action_url || "/notifications",
-        data: { notificationId: dataRow.id, category: category || type, priority, ...metadata }
-      })
-    ]);
+    if (!result?.success) {
+      console.error("[BROADCAST] Helper failed", result?.error);
+      throw new Error(result?.error?.message || result?.error || "Failed to create broadcast notification");
+    }
 
-    const webPushResult = webPushResultSettled.status === "fulfilled" ? webPushResultSettled.value : { success: false, error: webPushResultSettled.reason };
-    const oneSignalResult = oneSignalResultSettled.status === "fulfilled" ? oneSignalResultSettled.value : { success: false, error: oneSignalResultSettled.reason };
-
-    console.log(`[BROADCAST] Created 1 broadcast row (id: ${dataRow.id}) — delivery:`, {
-      webPush: webPushResult,
-      oneSignal: oneSignalResult,
-    });
+    const dataRow = result.data;
+    console.log(`[BROADCAST] Created 1 broadcast row (id: ${dataRow.id}) — delivery:`, result.delivery || null);
 
     return {
       success: true,
       notificationId: dataRow.id,
-      delivery: { webPush: webPushResult, oneSignal: oneSignalResult },
+      delivery: result.delivery || null,
     };
 
   } catch (error) {
@@ -1516,6 +1379,8 @@ router.get("/notifications/diagnostics", async (req, res) => {
       vapidPublicKey: process.env.VAPID_PUBLIC_KEY ? "configured" : "missing",
       vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ? "configured" : "missing",
       vapidSubject: process.env.VAPID_SUBJECT || "mailto:thesocio.blr@gmail.com",
+      oneSignalAppId: process.env.ONESIGNAL_APP_ID ? "configured" : "missing",
+      oneSignalRestApiKey: process.env.ONESIGNAL_REST_API_KEY ? "configured" : "missing",
     },
     queueReady: isQueueReady(),
     timestamp: new Date().toISOString(),
