@@ -109,36 +109,6 @@ export default function MissionPage() {
     }
   ];
 
-  const goals = [
-    {
-      timeframe: "Short Term (2025)",
-      objectives: [
-        "Expand to 10+ university campuses",
-        "Integrate with existing university systems",
-        "Launch mobile app with offline capabilities",
-        "Introduce AI-powered event recommendations"
-      ]
-    },
-    {
-      timeframe: "Medium Term (2026-2027)",
-      objectives: [
-        "Serve 100,000+ students nationwide",
-        "Partner with 50+ universities",
-        "Launch inter-campus event sharing",
-        "Develop event analytics for institutions"
-      ]
-    },
-    {
-      timeframe: "Long Term (2028+)",
-      objectives: [
-        "Become the standard for campus event management",
-        "Expand to international universities",
-        "Create alumni networking features",
-        "Build the ultimate campus ecosystem platform"
-      ]
-    }
-  ];
-
   return (
     <div className="min-h-screen bg-white">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -310,36 +280,6 @@ export default function MissionPage() {
           </div>
         </div>
 
-        {/* Goals & Roadmap */}
-        <div className="mb-16">
-          <div className="text-center mb-10">
-            <p className="text-sm font-bold text-[#154CB3] uppercase tracking-widest mb-2">Goals</p>
-            <h2 className="text-2xl sm:text-3xl font-black text-[#063168] mb-2">
-              Our Roadmap
-            </h2>
-            <div className="mt-3 w-16 h-1 bg-[#FFCC00] mx-auto rounded-full" />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {goals.map((goal, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="text-center mb-6">
-                  <h3 className="text-lg font-bold text-[#154CB3] mb-2">
-                    {goal.timeframe}
-                  </h3>
-                  <div className="w-12 h-1 bg-[#154CB3] mx-auto rounded-full"></div>
-                </div>
-                <ul className="space-y-3">
-                  {goal.objectives.map((objective, objIndex) => (
-                    <li key={objIndex} className="flex items-start">
-                      <div className="w-2 h-2 bg-[#FFCC00] rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                      <span className="text-gray-700 text-sm">{objective}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Impact Metrics */}
         <div className="mb-16 bg-gray-50 p-6 sm:p-12 rounded-2xl border border-gray-200">
