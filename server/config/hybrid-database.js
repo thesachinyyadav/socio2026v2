@@ -13,23 +13,23 @@ let sqliteDb = null;
 
 // Try to initialize MySQL first, fallback to SQLite if needed
 export async function initializeDatabase() {
-  console.log('🚀 Initializing database...');
+  console.log('Initializing database...');
   
   try {
     // Try MySQL first
     await initializeMySQL();
     dbType = 'mysql';
-    console.log('✅ Using MySQL database');
+    console.log('Using MySQL database');
   } catch (mysqlError) {
-    console.warn('⚠️  MySQL connection failed:', mysqlError.message);
-    console.log('🔄 Falling back to SQLite...');
+    console.warn('MySQL connection failed:', mysqlError.message);
+    console.log('Falling back to SQLite...');
     
     try {
       initializeSQLite();
       dbType = 'sqlite';
-      console.log('✅ Using SQLite database (fallback)');
+      console.log('Using SQLite database (fallback)');
     } catch (sqliteError) {
-      console.error('❌ Both MySQL and SQLite failed:', sqliteError.message);
+      console.error('Both MySQL and SQLite failed:', sqliteError.message);
       throw new Error('Database initialization failed');
     }
   }
@@ -166,7 +166,7 @@ async function createMySQLTables() {
     )
   `);
 
-  console.log('✅ MySQL tables created successfully');
+  console.log('MySQL tables created successfully');
 }
 
 function createSQLiteTables() {
@@ -252,7 +252,7 @@ function createSQLiteTables() {
     )
   `);
 
-  console.log('✅ SQLite tables created successfully');
+  console.log('SQLite tables created successfully');
 }
 
 // Helper functions that work with both databases

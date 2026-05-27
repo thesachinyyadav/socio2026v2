@@ -237,9 +237,9 @@ const isVercelRuntime = process.env.VERCEL === '1';
 
 if (!isVercelRuntime) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server is running on port ${PORT}`);
-    console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
-    console.log(`🗄️  Database: Supabase (${process.env.SUPABASE_URL ? 'configured' : 'MISSING — set SUPABASE_URL'})`);
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`Upload directory: ${path.join(__dirname, 'uploads')}`);
+    console.log(`Database: Supabase (${process.env.SUPABASE_URL ? 'configured' : 'MISSING — set SUPABASE_URL'})`);
   });
 }
 

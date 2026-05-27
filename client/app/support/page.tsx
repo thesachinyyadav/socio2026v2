@@ -11,21 +11,13 @@ const SupportPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const supportCategories = [
-    { id: "all", name: "All Topics", count: 24 },
-    { id: "account", name: "Account & Login", count: 6 },
-    { id: "events", name: "Events & Registration", count: 8 },
-    { id: "technical", name: "Technical Issues", count: 5 },
-    { id: "mobile", name: "Mobile App", count: 3 },
-    { id: "organizer", name: "Event Organizers", count: 2 }
-  ];
-
   const supportArticles = [
     {
       id: 1,
       category: "account",
       title: "How to create a SOCIO account",
       description: "Step-by-step guide to setting up your student account",
+      content: "Navigate to the sign-in page and authenticate using your official @christuniversity.in email address. A secure magic link will be delivered to your inbox for verification. Once verified, complete your profile with your register number and department to gain full access to the platform.",
       readTime: "3 min read",
       helpful: 89
     },
@@ -34,6 +26,7 @@ const SupportPage = () => {
       category: "account",
       title: "Forgot password? Reset it here",
       description: "Quick steps to recover your account access",
+      content: "SOCIO operates on a passwordless authentication system, eliminating the need for traditional password resets. To regain access, request a new magic link from the sign-in page using your registered college email. Delivery typically occurs within a minute; if it is not visible, please review your spam or junk folder.",
       readTime: "2 min read",
       helpful: 156
     },
@@ -42,6 +35,7 @@ const SupportPage = () => {
       category: "events",
       title: "How to register for events",
       description: "Complete guide to event registration and payment",
+      content: "Select an event from the Discover page and click Register to begin the registration process. Complete any organiser-defined fields and finalise payment for paid events through the integrated checkout. Upon confirmation, your unique QR ticket is generated and made available under Registered Events in your Profile.",
       readTime: "4 min read",
       helpful: 234
     },
@@ -50,6 +44,7 @@ const SupportPage = () => {
       category: "events",
       title: "Managing your event registrations",
       description: "View, modify, or cancel your event bookings",
+      content: "Your Profile page provides a consolidated view of all event registrations, including current status and QR codes for entry. Cancellations are permitted up to 24 hours prior to the event start time and can be initiated using the cancel action adjacent to each registration entry.",
       readTime: "3 min read",
       helpful: 142
     },
@@ -58,6 +53,7 @@ const SupportPage = () => {
       category: "events",
       title: "QR code attendance system",
       description: "How the QR attendance tracking works",
+      content: "Each event registration generates a unique QR code that serves as your digital pass for venue entry. Authorised volunteers scan this code at check-in, recording attendance in real time and reflecting it instantly within your Profile, thereby eliminating manual sign-in procedures.",
       readTime: "2 min read",
       helpful: 98
     },
@@ -66,6 +62,7 @@ const SupportPage = () => {
       category: "technical",
       title: "App not loading properly",
       description: "Troubleshoot common loading issues",
+      content: "For most loading issues, begin by performing a hard refresh (Ctrl/Cmd + Shift + R) and verifying network stability. Clearing your browser cache or updating to the latest version of Chrome, Edge, or Safari resolves the majority of cases. Should the issue persist, please report it through the Contact page for technical assistance.",
       readTime: "3 min read",
       helpful: 67
     },
@@ -74,6 +71,7 @@ const SupportPage = () => {
       category: "technical",
       title: "Notification settings",
       description: "Customize your event notifications",
+      content: "Enable browser notifications from your Profile to receive timely updates on event reminders, schedule modifications, and official announcements. Granular controls are available within the same panel, allowing you to manage or disable non-essential notifications as required.",
       readTime: "2 min read",
       helpful: 45
     },
@@ -82,6 +80,7 @@ const SupportPage = () => {
       category: "organizer",
       title: "How to create and manage events",
       description: "Complete guide for event organizers",
+      content: "Authorised organisers can draft an event from the Manage tab by providing the title, date, venue, and category, after which it is submitted to the relevant HOD and Dean for approval. Once approved and published, the dashboard offers comprehensive tools for tracking registrations, recording attendance, and exporting participant data.",
       readTime: "8 min read",
       helpful: 78
     },
@@ -90,10 +89,23 @@ const SupportPage = () => {
       category: "mobile",
       title: "Download the SOCIO mobile app",
       description: "Get the app for iOS and Android",
+      content: "The SOCIO mobile application is available for both Android and iOS platforms and can be downloaded from the App Download page on this site. Signing in with your registered college email synchronises all event registrations and account data across web and mobile seamlessly.",
       readTime: "1 min read",
       helpful: 234
     }
   ];
+
+  const supportCategories = useMemo(() => {
+    const countBy = (id: string) => supportArticles.filter(a => a.category === id).length;
+    return [
+      { id: "all",       name: "All Topics",           count: supportArticles.length },
+      { id: "account",   name: "Account & Login",      count: countBy("account") },
+      { id: "events",    name: "Events & Registration", count: countBy("events") },
+      { id: "technical", name: "Technical Issues",     count: countBy("technical") },
+      { id: "mobile",    name: "Mobile App",           count: countBy("mobile") },
+      { id: "organizer", name: "Event Organizers",     count: countBy("organizer") },
+    ];
+  }, [supportArticles]);
 
   const filteredArticles = supportArticles.filter(article => {
     const matchesCategory = selectedCategory === "all" || article.category === selectedCategory;
@@ -320,27 +332,16 @@ const SupportPage = () => {
             <div className="space-y-4">
               {filteredArticles.map((article) => (
                 <div key={article.id} className="bg-gray-50 border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-lg font-bold text-gray-800 hover:text-[#154CB3] cursor-pointer">
-                      {article.title}
-                    </h4>
-                    <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
-                      {article.readTime}
-                    </span>
-                  </div>
-                  <p className="text-gray-600 mb-4 text-sm">
+                  <h4 className="text-lg font-bold text-gray-800 mb-2">
+                    {article.title}
+                  </h4>
+                  <p className="text-gray-600 mb-3 text-sm">
                     {article.description}
                   </p>
-                  <div className="flex justify-between items-center">
-                    <button className="text-[#154CB3] hover:underline font-medium text-sm">
-                      Read Article →
-                    </button>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
-                      {article.helpful} found this helpful
-                    </div>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-gray-700 text-sm leading-relaxed">
+                      {article.content}
+                    </p>
                   </div>
                 </div>
               ))}

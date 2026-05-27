@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     revalidateTag("events");
-    console.log("🔄 Cache revalidated for tag: events");
+    console.log("Cache revalidated for tag: events");
 
     return NextResponse.json(data, { status: response.status });
   } catch (error: any) {

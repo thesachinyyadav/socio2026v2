@@ -221,6 +221,9 @@ export type AnalyticsQuery = {
   days?: number;
   start?: string;
   end?: string;
+  campus?: string;
+  school?: string;
+  department?: string;
 };
 
 function buildQueryString(query: AnalyticsQuery): string {
@@ -228,6 +231,9 @@ function buildQueryString(query: AnalyticsQuery): string {
   if (query.days) params.set("days", String(query.days));
   if (query.start) params.set("start", query.start);
   if (query.end) params.set("end", query.end);
+  if (query.campus) params.set("campus", query.campus);
+  if (query.school) params.set("school", query.school);
+  if (query.department) params.set("department", query.department);
   const queryString = params.toString();
   return queryString ? `?${queryString}` : "";
 }

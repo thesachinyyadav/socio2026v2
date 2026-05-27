@@ -138,8 +138,8 @@ data, hard-to-reproduce bugs, and broken user sessions.
 
 Error responses shown to users must be helpful, not diagnostic.
 
-✅ `"Registration could not be completed. Please try again."`
-❌ `"duplicate key value violates unique constraint \"registrations_pkey\""`
+`"Registration could not be completed. Please try again."`
+`"duplicate key value violates unique constraint \"registrations_pkey\""`
 
 - Strip `error.message`, `error.details`, database column names, and table
   names from all API responses before they reach the client.

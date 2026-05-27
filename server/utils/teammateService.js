@@ -22,7 +22,7 @@ export async function createOrUpdateTeammateUsers(teamList, organizationType = '
 
   for (const teammate of teamList) {
     if (!teammate?.email) {
-      console.warn('⚠️ Teammate missing email, skipping:', teammate);
+      console.warn('Teammate missing email, skipping:', teammate);
       continue;
     }
 
@@ -35,7 +35,7 @@ export async function createOrUpdateTeammateUsers(teamList, organizationType = '
       });
 
       if (existingUser) {
-        console.log(`👤 Teammate user already exists: ${normalizedEmail} (ID: ${existingUser.id})`);
+        console.log(`Teammate user already exists: ${normalizedEmail} (ID: ${existingUser.id})`);
         createdUsers.push({
           ...existingUser,
           isNew: false,
@@ -57,10 +57,10 @@ export async function createOrUpdateTeammateUsers(teamList, organizationType = '
               departmentId = existingData.department_id || null;
               campus = existingData.campus || null;
               course = existingData.course || null;
-              console.log(`📍 Found existing data for register # ${teammate.registerNumber}: dept=${departmentId}, campus=${campus}`);
+              console.log(`Found existing data for register # ${teammate.registerNumber}: dept=${departmentId}, campus=${campus}`);
             }
           } catch (lookupError) {
-            console.warn(`⚠️ Could not lookup data for register # ${teammate.registerNumber}:`, lookupError.message);
+            console.warn(`Could not lookup data for register # ${teammate.registerNumber}:`, lookupError.message);
           }
         }
 
@@ -80,7 +80,7 @@ export async function createOrUpdateTeammateUsers(teamList, organizationType = '
           updated_at: new Date().toISOString(),
         });
 
-        console.log(`✅ New teammate user created: ${normalizedEmail} (ID: ${newUser.id}) - campus: ${campus}, dept: ${departmentId}`);
+        console.log(`New teammate user created: ${normalizedEmail} (ID: ${newUser.id}) - campus: ${campus}, dept: ${departmentId}`);
         createdUsers.push({
           ...newUser,
           isNew: true,
@@ -89,7 +89,7 @@ export async function createOrUpdateTeammateUsers(teamList, organizationType = '
       }
     } catch (error) {
       const errorMsg = `Error creating/updating user for teammate ${normalizedEmail}: ${error.message}`;
-      console.error(`❌ ${errorMsg}`);
+      console.error(`${errorMsg}`);
       errors.push({
         email: normalizedEmail,
         name: teammate.name,
@@ -99,7 +99,7 @@ export async function createOrUpdateTeammateUsers(teamList, organizationType = '
   }
 
   if (errors.length > 0) {
-    console.warn(`⚠️ Failed to process ${errors.length} teammate(s):`, errors);
+    console.warn(`Failed to process ${errors.length} teammate(s):`, errors);
   }
 
   return {

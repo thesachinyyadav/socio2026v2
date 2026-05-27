@@ -60,7 +60,7 @@ export async function ensureGatedOrganiser(email, fullName, department) {
     department: department || 'SOCIO Platform',
   }]);
 
-  console.log(`✅ Created Gated organiser account for ${email}: ${created.id}`);
+  console.log(`Created Gated organiser account for ${email}: ${created.id}`);
   return created.id;
 }
 
@@ -85,7 +85,7 @@ export async function ensureGatedOrganiser(email, fullName, department) {
  */
 export async function pushEventToGated(socioEvent, organiserEmail, organiserName) {
   if (!isGatedEnabled()) {
-    console.warn('⚠️  Gated integration not configured — skipping event push');
+    console.warn('Gated integration not configured — skipping event push');
     return null;
   }
 
@@ -122,14 +122,14 @@ export async function pushEventToGated(socioEvent, organiserEmail, organiserName
         updated_at: new Date().toISOString(),
       }, { id: existing.id });
 
-      console.log(`🔄 Updated Gated event_request for SOCIO event "${socioEvent.title}" (${existing.id})`);
+      console.log(`Updated Gated event_request for SOCIO event "${socioEvent.title}" (${existing.id})`);
       return updated?.[0] || existing;
     } else {
       // Insert new request as pending first
       requestData.status = 'pending';
       const [created] = await gatedInsert('event_requests', [requestData]);
 
-      console.log(`📤 Pushed SOCIO event "${socioEvent.title}" to Gated event_requests (${created.id})`);
+      console.log(`Pushed SOCIO event "${socioEvent.title}" to Gated event_requests (${created.id})`);
 
       // Auto-approve SOCIO-sourced requests so the DB trigger creates the events row.
       // This allows outsider registrations to immediately get a Gated visitor pass.
@@ -138,16 +138,16 @@ export async function pushEventToGated(socioEvent, organiserEmail, organiserName
           status: 'approved',
           approved_at: new Date().toISOString(),
         }, { id: created.id });
-        console.log(`✅ Auto-approved Gated event_request ${created.id} (SOCIO-sourced)`);
+        console.log(`Auto-approved Gated event_request ${created.id} (SOCIO-sourced)`);
       } catch (approveErr) {
-        console.error(`⚠️  Failed to auto-approve Gated event_request ${created.id}:`, approveErr.message);
+        console.error(`Failed to auto-approve Gated event_request ${created.id}:`, approveErr.message);
         // Non-fatal — CSO can still approve manually
       }
 
       return created;
     }
   } catch (error) {
-    console.error(`❌ Failed to push event "${socioEvent.title}" to Gated:`, error.message);
+    console.error(`Failed to push event "${socioEvent.title}" to Gated:`, error.message);
     throw error;
   }
 }
@@ -171,7 +171,7 @@ export async function pushEventToGated(socioEvent, organiserEmail, organiserName
  */
 export async function pushFestToGated(socioFest, organiserEmail, organiserName) {
   if (!isGatedEnabled()) {
-    console.warn('⚠️  Gated integration not configured — skipping fest push');
+    console.warn('Gated integration not configured — skipping fest push');
     return null;
   }
 
@@ -206,13 +206,13 @@ export async function pushFestToGated(socioFest, organiserEmail, organiserName) 
         updated_at: new Date().toISOString(),
       }, { id: existing.id });
 
-      console.log(`🔄 Updated Gated event_request for SOCIO fest "${socioFest.fest_title}" (${existing.id})`);
+      console.log(`Updated Gated event_request for SOCIO fest "${socioFest.fest_title}" (${existing.id})`);
       return updated?.[0] || existing;
     } else {
       requestData.status = 'pending';
       const [created] = await gatedInsert('event_requests', [requestData]);
 
-      console.log(`📤 Pushed SOCIO fest "${socioFest.fest_title}" to Gated event_requests (${created.id})`);
+      console.log(`Pushed SOCIO fest "${socioFest.fest_title}" to Gated event_requests (${created.id})`);
 
       // Auto-approve SOCIO-sourced fest requests so the DB trigger creates the events row.
       try {
@@ -220,15 +220,15 @@ export async function pushFestToGated(socioFest, organiserEmail, organiserName) 
           status: 'approved',
           approved_at: new Date().toISOString(),
         }, { id: created.id });
-        console.log(`✅ Auto-approved Gated event_request for fest ${created.id} (SOCIO-sourced)`);
+        console.log(`Auto-approved Gated event_request for fest ${created.id} (SOCIO-sourced)`);
       } catch (approveErr) {
-        console.error(`⚠️  Failed to auto-approve Gated fest request ${created.id}:`, approveErr.message);
+        console.error(`Failed to auto-approve Gated fest request ${created.id}:`, approveErr.message);
       }
 
       return created;
     }
   } catch (error) {
-    console.error(`❌ Failed to push fest "${socioFest.fest_title}" to Gated:`, error.message);
+    console.error(`Failed to push fest "${socioFest.fest_title}" to Gated:`, error.message);
     throw error;
   }
 }
@@ -253,12 +253,12 @@ export async function resolveGatedEvent(socioEventId) {
     });
 
     if (!request) {
-      console.log(`ℹ️  No Gated event_request found for SOCIO ID: ${socioEventId}`);
+      console.log(`No Gated event_request found for SOCIO ID: ${socioEventId}`);
       return null;
     }
 
     if (request.status !== 'approved') {
-      console.log(`ℹ️  Gated event_request for "${socioEventId}" is ${request.status} — not yet approved`);
+      console.log(`Gated event_request for "${socioEventId}" is ${request.status} — not yet approved`);
       return null;
     }
 
@@ -268,13 +268,13 @@ export async function resolveGatedEvent(socioEventId) {
     });
 
     if (!gatedEvent) {
-      console.warn(`⚠️  Gated event_request ${request.id} is approved but no events row found`);
+      console.warn(`Gated event_request ${request.id} is approved but no events row found`);
       return null;
     }
 
     return gatedEvent;
   } catch (error) {
-    console.error(`❌ Failed to resolve Gated event for SOCIO ID "${socioEventId}":`, error.message);
+    console.error(`Failed to resolve Gated event for SOCIO ID "${socioEventId}":`, error.message);
     return null;
   }
 }
@@ -307,7 +307,7 @@ export async function createGatedVisitor({
   gatedEventId,
 }) {
   if (!isGatedEnabled()) {
-    console.warn('⚠️  Gated integration not configured — skipping visitor creation');
+    console.warn('Gated integration not configured — skipping visitor creation');
     return null;
   }
 
@@ -326,10 +326,10 @@ export async function createGatedVisitor({
       status: 'approved', // Auto-approved since event is already approved in Gated
     }]);
 
-    console.log(`🎫 Created Gated visitor pass for ${name} (${visitor.id})`);
+    console.log(`Created Gated visitor pass for ${name} (${visitor.id})`);
     return visitor;
   } catch (error) {
-    console.error(`❌ Failed to create Gated visitor for ${name}:`, error.message);
+    console.error(`Failed to create Gated visitor for ${name}:`, error.message);
     throw error;
   }
 }
@@ -372,11 +372,11 @@ export async function shouldPushEventToGated(event, queryOneFn) {
       const fest = await queryOneFn('fest', { where: { fest_id: event.fest } });
       if (fest && (fest.allow_outsiders === true || fest.allow_outsiders === 'true')) {
         // Fest already covers outsiders — skip individual push
-        console.log(`ℹ️  Event "${event.title}" is under fest "${event.fest}" which already handles outsiders — skipping individual push`);
+        console.log(`Event "${event.title}" is under fest "${event.fest}" which already handles outsiders — skipping individual push`);
         return false;
       }
     } catch (e) {
-      console.warn(`⚠️  Could not check fest for event "${event.title}":`, e.message);
+      console.warn(`Could not check fest for event "${event.title}":`, e.message);
     }
   }
 

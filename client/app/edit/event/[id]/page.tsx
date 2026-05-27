@@ -623,7 +623,7 @@ export default function EditEventPage() {
     // DEBUG: Log what we're sending
     console.log("=== EDIT EVENT FORM DATA ===");
     console.log("formData.eventTitle:", formData.eventTitle);
-    console.log("📁 FILE HANDLING:");
+    console.log("FILE HANDLING:");
     console.log(`  formData.imageFile instanceof File: ${formData.imageFile instanceof File}`);
     console.log(`  formData.imageFile: ${formData.imageFile}`);
     console.log(`  existingImageFileUrl: ${existingImageFileUrl}`);

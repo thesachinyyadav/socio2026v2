@@ -15,7 +15,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // Initialize database - just verify connection for Supabase
 export async function initializeDatabase() {
   try {
-    console.log('🔍 Connecting to Supabase...');
+    console.log('Connecting to Supabase...');
     
     // Test connection by querying users table
     const { data, error } = await supabase.from('users').select('count', { count: 'exact', head: true });
@@ -24,19 +24,19 @@ export async function initializeDatabase() {
       throw error;
     }
     
-    console.log('✅ Supabase connection successful');
-    console.log(`📍 Connected to: ${supabaseUrl}`);
+    console.log('Supabase connection successful');
+    console.log(`Connected to: ${supabaseUrl}`);
     
     return true;
   } catch (error) {
-    console.error('❌ Supabase connection error:', error.message);
+    console.error('Supabase connection error:', error.message);
     throw error;
   }
 }
 
 // DEBUG: Log Supabase connection status
 if (!supabaseServiceKey) {
-  console.warn('⚠️ WARNING: SUPABASE_SERVICE_ROLE_KEY not loaded from environment. Using fallback.');
+  console.warn('WARNING: SUPABASE_SERVICE_ROLE_KEY not loaded from environment. Using fallback.');
   console.warn('This will cause authentication failures on all database operations!');
 }
 
@@ -119,7 +119,7 @@ export async function insert(table, data) {
 
 // Helper function to update data
 export async function update(table, data, where) {
-  console.log(`📝 Executing UPDATE on table "${table}"`);
+  console.log(`Executing UPDATE on table "${table}"`);
   console.log(`   WHERE: ${JSON.stringify(where)}`);
   console.log(`   DATA fields: ${Object.keys(data).join(', ')}`);
   
@@ -132,14 +132,14 @@ export async function update(table, data, where) {
   const { data: result, error } = await query.select();
   
   if (error) {
-    console.error(`❌ UPDATE ERROR on ${table}:`, error);
+    console.error(`UPDATE ERROR on ${table}:`, error);
     throw error;
   }
   
   if (!result || result.length === 0) {
-    console.warn(`⚠️ UPDATE returned empty result for ${table}`);
+    console.warn(`UPDATE returned empty result for ${table}`);
   } else {
-    console.log(`✅ UPDATE successful: ${result.length} row(s) affected`);
+    console.log(`UPDATE successful: ${result.length} row(s) affected`);
   }
   
   return result;
@@ -180,7 +180,7 @@ export async function remove(table, where) {
 export async function executeQuery(query, params = []) {
   // For Supabase, we use the query builder instead of raw SQL
   // This is a compatibility layer - convert common patterns
-  console.warn('⚠️ executeQuery called - use Supabase query methods instead');
+  console.warn('executeQuery called - use Supabase query methods instead');
   return [];
 }
 

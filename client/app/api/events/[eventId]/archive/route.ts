@@ -35,9 +35,9 @@ export async function PATCH(
       return NextResponse.json(data, { status: response.status });
     }
 
-    // ✅ Revalidate cache after successful archive
+    // Revalidate cache after successful archive
     revalidateTag("events");
-    console.log("🔄 Cache revalidated for tag: events");
+    console.log("Cache revalidated for tag: events");
 
     return NextResponse.json(data, { status: 200 });
   } catch (error: any) {

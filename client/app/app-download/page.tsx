@@ -66,8 +66,22 @@ const ComingSoon = () => {
         
         <div className="w-20 h-1 bg-[#FFCC00] mx-auto mb-8"></div>
         
-        <h2 className="text-xl md:text-2xl text-[#063168] mb-4 font-medium">
-          Our full mobile experience is coming soon 🚀
+        <h2 className="text-xl md:text-2xl text-[#063168] mb-4 font-medium inline-flex items-center justify-center gap-2">
+          Our full mobile experience is coming soon
+          <svg
+            className="w-6 h-6 inline-block"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"
+            />
+          </svg>
         </h2>
         
         <p className="text-[#1e1e1eb6] text-base md:text-lg mb-8 max-w-2xl mx-auto">
@@ -115,28 +129,9 @@ const ComingSoon = () => {
               <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path>
               <path d="M12 6V12L16 14"></path>
             </svg>
-            <span className="text-[#063168] font-medium">Estimated launch: April 2026</span>
+            <span className="text-[#063168] font-medium">Estimated launch: June 2026</span>
           </div>
         </div>
-      </div>
-      
-      {/* Newsletter signup (optional) */}
-      <div className="mt-16 bg-white p-8 rounded-lg shadow-md max-w-xl w-full relative z-10">
-        <h3 className="text-xl font-bold text-[#063168] mb-4">Get Early Access</h3>
-        <p className="text-[#1e1e1eb6] mb-6">Sign up to be notified when the app launches and get early access to beta features.</p>
-        <form className="flex flex-col sm:flex-row gap-3">
-          <input 
-            type="email" 
-            placeholder="Your email address" 
-            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#3D75BD]"
-          />
-          <button 
-            type="button"
-            className="bg-[#FFCC00] hover:bg-[#FFCC00]/90 text-[#063168] font-medium py-2.5 px-6 rounded-md transition-all duration-300"
-          >
-            Notify Me
-          </button>
-        </form>
       </div>
     </div>
   );

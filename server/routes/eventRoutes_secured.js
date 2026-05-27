@@ -39,13 +39,13 @@ router.get("/debug/health", async (req, res) => {
     return res.json({
       status: "ok",
       supabase: "connected",
-      message: "✅ Supabase connection is working"
+      message: "Supabase connection is working"
     });
   } catch (error) {
     return res.status(500).json({
       status: "error",
       supabase: "disconnected",
-      message: "❌ Supabase connection failed",
+      message: "Supabase connection failed",
       error: error.message
     });
   }
@@ -70,8 +70,8 @@ if (debugRoutesEnabled) {
           isMasterAdmin: req.userInfo.is_masteradmin,
           isSupport: req.userInfo.is_support,
           message: req.userInfo.is_organiser 
-            ? "✅ You have organiser privileges" 
-            : "❌ You do NOT have organiser privileges. Contact admin to enable.",
+            ? "You have organiser privileges" 
+            : "You do NOT have organiser privileges. Contact admin to enable.",
           roles: {
             organiser: req.userInfo.is_organiser,
             masteradmin: req.userInfo.is_masteradmin,
@@ -784,7 +784,7 @@ router.post(
         return res.status(400).json({ error: "Title is required and must be a non-empty string." });
       }
 
-      console.log("✅ Title validation passed:", title);
+      console.log("Title validation passed:", title);
 
       // Generate slug-based ID from title
       let event_id = title
@@ -809,7 +809,7 @@ router.post(
         });
       }
 
-      console.log("✅ Event ID uniqueness checked");
+      console.log("Event ID uniqueness checked");
 
       // Handle file uploads
       const files = req.files;
@@ -817,46 +817,46 @@ router.post(
       // Upload Event Image
       if (files?.eventImage && files.eventImage[0]) {
         try {
-          console.log(`📁 Uploading eventImage: ${files.eventImage[0].originalname}`);
+          console.log(`Uploading eventImage: ${files.eventImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.eventImage[0], "event-images", event_id);
           uploadedFilePaths.image = result?.publicUrl || null;
-          console.log(`✅ Event image uploaded: ${uploadedFilePaths.image}`);
+          console.log(`Event image uploaded: ${uploadedFilePaths.image}`);
         } catch (imgError) {
-          console.error("❌ Event image upload failed:", imgError.message);
+          console.error("Event image upload failed:", imgError.message);
           throw new Error(`Failed to upload event image: ${imgError.message}`);
         }
       } else {
-        console.log("⚠️  No event image provided (optional)");
+        console.log("No event image provided (optional)");
       }
 
       // Upload Banner Image
       if (files?.bannerImage && files.bannerImage[0]) {
         try {
-          console.log(`📁 Uploading bannerImage: ${files.bannerImage[0].originalname}`);
+          console.log(`Uploading bannerImage: ${files.bannerImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", event_id);
           uploadedFilePaths.banner = result?.publicUrl || null;
-          console.log(`✅ Banner image uploaded: ${uploadedFilePaths.banner}`);
+          console.log(`Banner image uploaded: ${uploadedFilePaths.banner}`);
         } catch (bannerError) {
-          console.error("❌ Banner image upload failed:", bannerError.message);
+          console.error("Banner image upload failed:", bannerError.message);
           // Don't throw - banner is optional
         }
       } else {
-        console.log("⚠️  No banner image provided (optional)");
+        console.log("No banner image provided (optional)");
       }
 
       // Upload PDF
       if (files?.pdfFile && files.pdfFile[0]) {
         try {
-          console.log(`📁 Uploading pdfFile: ${files.pdfFile[0].originalname}`);
+          console.log(`Uploading pdfFile: ${files.pdfFile[0].originalname}`);
           const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", event_id);
           uploadedFilePaths.pdf = result?.publicUrl || null;
-          console.log(`✅ PDF uploaded: ${uploadedFilePaths.pdf}`);
+          console.log(`PDF uploaded: ${uploadedFilePaths.pdf}`);
         } catch (pdfError) {
-          console.error("❌ PDF upload failed:", pdfError.message);
+          console.error("PDF upload failed:", pdfError.message);
           // Don't throw - PDF is optional
         }
       } else {
-        console.log("⚠️  No PDF provided (optional)");
+        console.log("No PDF provided (optional)");
       }
 
       // Parse and validate JSON fields
@@ -922,7 +922,7 @@ router.post(
           ? [req.userInfo?.email, festCreatorEmail]
           : [req.userInfo?.email];
 
-      console.log("✅ JSON fields parsed successfully");
+      console.log("JSON fields parsed successfully");
       console.log("About to insert event into database with:", {
         event_id,
         title: title?.trim(),
@@ -988,7 +988,7 @@ router.post(
         throw new Error("Event was not created successfully (no rows returned from insert).");
       }
 
-      console.log("✅ Event inserted successfully:", event_id);
+      console.log("Event inserted successfully:", event_id);
 
       // Notify IT managers if IT support was requested (non-blocking)
       const itEnabled = req.body.it_enabled === "true" || req.body.it_enabled === true;
@@ -1016,7 +1016,7 @@ router.post(
               await supabase.from("notifications").insert(notifications);
             }
           } catch (notifErr) {
-            console.error("❌ Failed to send IT support notifications:", notifErr.message);
+            console.error("Failed to send IT support notifications:", notifErr.message);
           }
         })();
       }
@@ -1031,12 +1031,12 @@ router.post(
           event_title: title,
           action_url: `/event/${event_id}`
         }).then(() => {
-          console.log(`✅ Sent notifications for new event: ${title}`);
+          console.log(`Sent notifications for new event: ${title}`);
         }).catch((notifError) => {
-          console.error('❌ Failed to send event notifications:', notifError);
+          console.error('Failed to send event notifications:', notifError);
         });
       } else {
-        console.log(`ℹ️ Notifications skipped for event ${event_id} (draft or notifications disabled).`);
+        console.log(`Notifications skipped for event ${event_id} (draft or notifications disabled).`);
       }
 
       // Push to UniversityGated if outsiders are enabled (non-blocking)
@@ -1050,13 +1050,13 @@ router.post(
                 req.userInfo?.email || req.body.organizer_email,
                 req.userInfo?.name || 'SOCIO Organiser'
               );
-              console.log(`✅ Pushed event "${title}" to UniversityGated`);
+              console.log(`Pushed event "${title}" to UniversityGated`);
             } catch (gatedError) {
-              console.error(`❌ Failed to push event to Gated:`, gatedError.message);
+              console.error(`Failed to push event to Gated:`, gatedError.message);
             }
           }
         }).catch((err) => {
-          console.error('❌ Error checking Gated push eligibility:', err.message);
+          console.error('Error checking Gated push eligibility:', err.message);
         });
       }
 
@@ -1067,8 +1067,8 @@ router.post(
       });
 
     } catch (error) {
-      console.error("❌ Server error POST /api/events:", error);
-      console.error("🔴 Detailed error info:", {
+      console.error("Server error POST /api/events:", error);
+      console.error("Detailed error info:", {
         message: error.message,
         stack: error.stack,
         code: error.code,
@@ -1227,7 +1227,7 @@ router.put(
         pdf: event.pdf_url,
       };
 
-      console.log("📁 Initial file paths from existing event:");
+      console.log("Initial file paths from existing event:");
       console.log(`  image: ${uploadedFilePaths.image}`);
       console.log(`  banner: ${uploadedFilePaths.banner}`);
       console.log(`  pdf: ${uploadedFilePaths.pdf}`);
@@ -1235,52 +1235,52 @@ router.put(
       // Handle file uploads if new files are provided
       try {
         if (files?.eventImage && files.eventImage[0]) {
-          console.log(`📤 Uploading new event image: ${files.eventImage[0].originalname}`);
+          console.log(`Uploading new event image: ${files.eventImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.eventImage[0], "event-images", eventId);
           if (result?.publicUrl) {
-            console.log(`✅ Event image uploaded successfully: ${result.publicUrl}`);
+            console.log(`Event image uploaded successfully: ${result.publicUrl}`);
             uploadedFilePaths.image = result.publicUrl;
           } else {
-            console.warn(`⚠️ Event image upload returned no URL - keeping existing image`);
+            console.warn(`Event image upload returned no URL - keeping existing image`);
           }
         } else if (req.body.removeImageFile === "true") {
-          console.log(`🗑️ Event image removal requested.`);
+          console.log(`Event image removal requested.`);
           uploadedFilePaths.image = null;
         }
 
         if (files?.bannerImage && files.bannerImage[0]) {
-          console.log(`📤 Uploading new banner image: ${files.bannerImage[0].originalname}`);
+          console.log(`Uploading new banner image: ${files.bannerImage[0].originalname}`);
           const result = await uploadFileToSupabase(files.bannerImage[0], "event-banners", eventId);
           if (result?.publicUrl) {
-            console.log(`✅ Banner image uploaded successfully: ${result.publicUrl}`);
+            console.log(`Banner image uploaded successfully: ${result.publicUrl}`);
             uploadedFilePaths.banner = result.publicUrl;
           } else {
-            console.warn(`⚠️ Banner image upload returned no URL - keeping existing banner`);
+            console.warn(`Banner image upload returned no URL - keeping existing banner`);
           }
         } else if (req.body.removeBannerFile === "true") {
-          console.log(`🗑️ Banner image removal requested.`);
+          console.log(`Banner image removal requested.`);
           uploadedFilePaths.banner = null;
         }
         
         if (files?.pdfFile && files.pdfFile[0]) {
-          console.log(`📤 Uploading new PDF: ${files.pdfFile[0].originalname}`);
+          console.log(`Uploading new PDF: ${files.pdfFile[0].originalname}`);
           const result = await uploadFileToSupabase(files.pdfFile[0], "event-pdfs", eventId);
           if (result?.publicUrl) {
-            console.log(`✅ PDF uploaded successfully: ${result.publicUrl}`);
+            console.log(`PDF uploaded successfully: ${result.publicUrl}`);
             uploadedFilePaths.pdf = result.publicUrl;
           } else {
-            console.warn(`⚠️ PDF upload returned no URL - keeping existing PDF`);
+            console.warn(`PDF upload returned no URL - keeping existing PDF`);
           }
         } else if (req.body.removePdfFile === "true") {
-          console.log(`🗑️ PDF removal requested.`);
+          console.log(`PDF removal requested.`);
           uploadedFilePaths.pdf = null;
         }
       } catch (fileError) {
-        console.error("❌ File upload error during event update:", fileError.message);
+        console.error("File upload error during event update:", fileError.message);
         throw fileError; // Re-throw to be caught by main try-catch
       }
 
-      console.log("📁 Updated file paths after upload:");
+      console.log("Updated file paths after upload:");
       console.log(`  image: ${uploadedFilePaths.image}`);
       console.log(`  banner: ${uploadedFilePaths.banner}`);
       console.log(`  pdf: ${uploadedFilePaths.pdf}`);
@@ -1511,7 +1511,7 @@ router.put(
         ...draftOverridePayload
       };
 
-      console.log("🔄 UPDATE DATA - File URLs being saved to database:");
+      console.log("UPDATE DATA - File URLs being saved to database:");
       console.log(`  event_image_url: ${updateData.event_image_url}`);
       console.log(`  banner_url: ${updateData.banner_url}`);
       console.log(`  pdf_url: ${updateData.pdf_url}`);
@@ -1566,33 +1566,33 @@ router.put(
         })
           .then(() => {
             console.log(
-              `✅ Sent publish notifications for updated event: ${eventTitle}`
+              `Sent publish notifications for updated event: ${eventTitle}`
             );
           })
           .catch((notifError) => {
             console.error(
-              "❌ Failed to send publish notifications during update:",
+              "Failed to send publish notifications during update:",
               notifError
             );
           });
       };
 
-      console.log("💾 Database update result:");
+      console.log("Database update result:");
       if (updated && updated.length > 0) {
-        console.log(`✅ Event updated successfully`);
+        console.log(`Event updated successfully`);
         console.log(`  Saved image URL: ${updated[0].event_image_url}`);
         console.log(`  Saved banner URL: ${updated[0].banner_url}`);
         console.log(`  Saved PDF URL: ${updated[0].pdf_url}`);
       }
 
       if (!updated || updated.length === 0) {
-        console.warn("⚠️ Update query returned no data, fetching event from database...");
+        console.warn("Update query returned no data, fetching event from database...");
         try {
           const refetchedEvent = await queryOne("events", { where: { event_id: eventId } });
           if (!refetchedEvent) {
             throw new Error("Could not fetch updated event after update");
           }
-          console.log(`✅ Event updated and refetched successfully: ${eventId}`);
+          console.log(`Event updated and refetched successfully: ${eventId}`);
           notifyPublishIfNeeded(refetchedEvent);
           
           // Push to UniversityGated if outsiders were enabled/changed (non-blocking)
@@ -1605,13 +1605,13 @@ router.put(
                     req.userInfo?.email || req.body.organizer_email,
                     req.userInfo?.name || 'SOCIO Organiser'
                   );
-                  console.log(`✅ Pushed updated event "${refetchedEvent.title}" to UniversityGated`);
+                  console.log(`Pushed updated event "${refetchedEvent.title}" to UniversityGated`);
                 } catch (gatedError) {
-                  console.error(`❌ Failed to push updated event to Gated:`, gatedError.message);
+                  console.error(`Failed to push updated event to Gated:`, gatedError.message);
                 }
               }
             }).catch((err) => {
-              console.error('❌ Error checking Gated push eligibility on update:', err.message);
+              console.error('Error checking Gated push eligibility on update:', err.message);
             });
           }
 
@@ -1622,7 +1622,7 @@ router.put(
             id_changed: newEventId !== eventId
           });
         } catch (refetchError) {
-          console.error("❌ Failed to refetch event after update:", refetchError.message);
+          console.error("Failed to refetch event after update:", refetchError.message);
           throw new Error("Event update failed - could not verify update");
         }
       }
@@ -1641,13 +1641,13 @@ router.put(
                 req.userInfo?.email || req.body.organizer_email,
                 req.userInfo?.name || 'SOCIO Organiser'
               );
-              console.log(`✅ Pushed updated event "${updatedEvent.title}" to UniversityGated`);
+              console.log(`Pushed updated event "${updatedEvent.title}" to UniversityGated`);
             } catch (gatedError) {
-              console.error(`❌ Failed to push updated event to Gated:`, gatedError.message);
+              console.error(`Failed to push updated event to Gated:`, gatedError.message);
             }
           }
         }).catch((err) => {
-          console.error('❌ Error checking Gated push eligibility on update:', err.message);
+          console.error('Error checking Gated push eligibility on update:', err.message);
         });
       }
 
@@ -1659,8 +1659,8 @@ router.put(
       });
 
     } catch (error) {
-      console.error("❌ Server error PUT /api/events/:eventId:", error);
-      console.error("🔴 Detailed error info:", {
+      console.error("Server error PUT /api/events/:eventId:", error);
+      console.error("Detailed error info:", {
         message: error.message,
         stack: error.stack,
         code: error.code,
@@ -1679,7 +1679,7 @@ router.put(
       
       // More detailed logging for debugging
       if (error.message && error.message.includes('Supabase')) {
-        console.error("🔴 Supabase-specific error detected - checking connectivity...");
+        console.error("Supabase-specific error detected - checking connectivity...");
       }
       
       return res.status(500).json({

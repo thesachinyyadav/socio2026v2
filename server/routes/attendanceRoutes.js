@@ -622,7 +622,7 @@ router.post(
           const eventTitle = event?.title || "Event";
           
           const notifPayload = {
-            title: "Attendance Marked ✅",
+            title: "Attendance Marked",
             body: `You have successfully checked in for ${eventTitle}. Enjoy the event!`,
             actionUrl: `/event/${eventId}`,
             data: {

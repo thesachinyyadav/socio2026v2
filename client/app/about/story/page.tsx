@@ -387,7 +387,7 @@ const StoryPage = () => {
               <div className="text-sm text-blue-100">Campuses Connected</div>
             </div>
             <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl">
-              <div className="text-3xl font-black mb-2">2000+</div>
+              <div className="text-3xl font-black mb-2">20,000+</div>
               <div className="text-sm text-green-100">Active Students</div>
             </div>
             <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-6 rounded-xl">

@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 /* ─── Types ───────────────────────────────────────────── */
 interface Message { role: "user" | "assistant"; content: string }
 interface QA { question: string; answer: string }
+interface UsageInfo { limit: number; used: number; remaining: number }
 
 /* ─── Q&A Data ────────────────────────────────────────── */
 const GLOBAL_QA: QA[] = [
@@ -138,6 +139,8 @@ export default function ChatBot() {
   const [isTyping,      setIsTyping]      = useState(false);
   const [isUnavailable, setIsUnavailable] = useState(false);
   const [showPulse,     setShowPulse]     = useState(true);
+  const [usage,         setUsage]         = useState<UsageInfo | null>(null);
+  const [limitReached,  setLimitReached]  = useState(false);
   const endRef        = useRef<HTMLDivElement>(null);
   const inputRef      = useRef<HTMLInputElement>(null);
   const typingVersion = useRef(0);
@@ -150,13 +153,57 @@ export default function ChatBot() {
     return m;
   }, [allQA]);
 
+  const parseUsageFromHeaders = useCallback((headers: Headers): UsageInfo | null => {
+    const limit = Number(headers.get("X-AI-Limit"));
+    const used = Number(headers.get("X-AI-Used"));
+    const remaining = Number(headers.get("X-AI-Remaining"));
+    if (!Number.isFinite(limit) || !Number.isFinite(used) || !Number.isFinite(remaining)) return null;
+    return { limit, used, remaining };
+  }, []);
+
+  const applyUsage = useCallback((info: UsageInfo | null) => {
+    if (!info) return;
+    setUsage(info);
+    setLimitReached(info.remaining <= 0);
+  }, []);
+
+  const loadUsage = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/chat", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const headerUsage = parseUsageFromHeaders(res.headers);
+      if (headerUsage) {
+        applyUsage(headerUsage);
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.limit === "number") {
+        applyUsage({
+          limit: data.limit,
+          used: data.used ?? 0,
+          remaining: data.remaining ?? Math.max(0, data.limit - (data.used ?? 0)),
+        });
+      }
+    } catch {
+      // silent — usage UI is best-effort
+    }
+  }, [applyUsage, parseUsageFromHeaders]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
   useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 150);
-  }, [isOpen]);
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 150);
+      loadUsage();
+    }
+  }, [isOpen, loadUsage]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setIsOpen(false); };
@@ -169,7 +216,10 @@ export default function ChatBot() {
     setMessages([]);
     setInput("");
     setIsUnavailable(false);
-  }, [pathname]);
+    if (isOpen) {
+      loadUsage();
+    }
+  }, [pathname, isOpen, loadUsage]);
 
   // Character-by-character typing — abortable via typingVersion
   const typeMessage = useCallback(async (content: string) => {
@@ -196,19 +246,31 @@ export default function ChatBot() {
     const trimmed = text.trim();
     if (!trimmed || isThinking) return;
 
-    setMessages(prev => [...prev, { role: "user", content: trimmed }]);
-    setInput("");
-    setIsThinking(true);
-
-    // Local Q&A match first
+    // Local Q&A match first (free, doesn't count against quota)
     const key = normalize(trimmed);
     const local = qaMap.get(key);
     if (local) {
-      await new Promise(r => setTimeout(r, 350)); // brief "thinking" pause
+      setMessages(prev => [...prev, { role: "user", content: trimmed }]);
+      setInput("");
+      setIsThinking(true);
+      await new Promise(r => setTimeout(r, 350));
       setIsThinking(false);
       await typeMessage(local);
       return;
     }
+
+    // For AI-backed questions, block if daily limit is hit
+    if (limitReached) {
+      setMessages(prev => [...prev, { role: "user", content: trimmed }]);
+      setInput("");
+      const dailyLimit = usage?.limit ?? 5;
+      await typeMessage(`You've used all ${dailyLimit} of your daily AI questions. Please pick a preset question below or come back tomorrow.`);
+      return;
+    }
+
+    setMessages(prev => [...prev, { role: "user", content: trimmed }]);
+    setInput("");
+    setIsThinking(true);
 
     // AI fallback
     try {
@@ -226,12 +288,26 @@ export default function ChatBot() {
         body: JSON.stringify({ message: trimmed, context: { page: pathname } }),
       });
 
+      const headerUsage = parseUsageFromHeaders(res.headers);
       const data = await res.json().catch(() => ({}));
       setIsThinking(false);
 
+      const usageFromBody: UsageInfo | null = data?.usage && typeof data.usage.limit === "number"
+        ? {
+            limit: data.usage.limit,
+            used: data.usage.used ?? 0,
+            remaining: data.usage.remaining ?? Math.max(0, data.usage.limit - (data.usage.used ?? 0)),
+          }
+        : null;
+      applyUsage(headerUsage || usageFromBody);
+
       if (!res.ok) {
         const errMsg = (data.error || data.details || "").toLowerCase();
-        if (UNAVAILABLE_KEYWORDS.some(k => errMsg.includes(k)) || res.status === 429 || res.status === 503) {
+        if (res.status === 429) {
+          setLimitReached(true);
+          const dailyLimit = (headerUsage?.limit ?? usageFromBody?.limit ?? usage?.limit ?? 5);
+          await typeMessage(`You've used all ${dailyLimit} of your daily AI questions. Please pick a preset question below or come back tomorrow.`);
+        } else if (UNAVAILABLE_KEYWORDS.some(k => errMsg.includes(k)) || res.status === 503) {
           setIsUnavailable(true);
         } else {
           await typeMessage("I couldn't get an answer right now. Try a preset question or rephrase.");
@@ -258,6 +334,9 @@ export default function ChatBot() {
   };
 
   const showPresets = messages.length === 0 && !isThinking && !isTyping;
+  const showLimitPresets = limitReached && !isThinking && !isTyping;
+  const remainingCount = usage?.remaining ?? null;
+  const limitCount = usage?.limit ?? 5;
 
   if (pathname.startsWith("/statuscheck")) return null;
 
@@ -289,6 +368,20 @@ export default function ChatBot() {
                       isUnavailable ? "bg-amber-300" : (isThinking || isTyping) ? "bg-blue-200 animate-pulse" : "bg-emerald-300"
                     }`} />
                     {isUnavailable ? "Taking a break" : isThinking ? "Thinking…" : isTyping ? "Typing…" : "Online"}
+                    {remainingCount !== null && (
+                      <span
+                        className={`ml-1 px-1.5 py-[1px] rounded-full text-[10px] font-medium ${
+                          remainingCount <= 0
+                            ? "bg-red-500/30 text-red-50"
+                            : remainingCount <= 2
+                              ? "bg-amber-300/30 text-amber-50"
+                              : "bg-white/20 text-blue-50"
+                        }`}
+                        title={`${remainingCount} of ${limitCount} AI chatbot questions left today`}
+                      >
+                        {remainingCount}/{limitCount} AI chatbot
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -329,7 +422,7 @@ export default function ChatBot() {
               {/* Conversation */}
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[82%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
+                  <div className={`max-w-[82%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed whitespace-pre-wrap break-words overflow-hidden ${
                     msg.role === "user"
                       ? "bg-[#154CB3] text-white rounded-br-sm"
                       : "bg-white text-gray-700 rounded-bl-sm shadow-sm"
@@ -353,7 +446,12 @@ export default function ChatBot() {
               {/* Unavailable banner */}
               {isUnavailable && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
-                  <p className="text-sm text-amber-700 font-medium">SocioAssist is resting right now 🌙</p>
+                  <p className="text-sm text-amber-700 font-medium inline-flex items-center gap-1.5">
+                    SocioAssist is resting right now
+                    <svg className="w-4 h-4 inline-block" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                  </p>
                   <p className="text-xs text-amber-500 mt-1">Try a preset question or come back in a bit.</p>
                   {!showPresets && (
                     <div className="mt-3 grid grid-cols-2 gap-1.5">
@@ -365,6 +463,24 @@ export default function ChatBot() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Daily limit reached — show preset questions */}
+              {showLimitPresets && !isUnavailable && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                  <p className="text-sm text-[#154CB3] font-semibold text-center">Daily AI limit reached</p>
+                  <p className="text-xs text-gray-600 mt-1 text-center">
+                    You've used all {limitCount} AI questions for today. Pick a preset question below — these are free.
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-1.5">
+                    {presets.map(q => (
+                      <button key={q} onClick={() => handleQuestion(q)}
+                        className="text-left text-[11px] bg-white border border-blue-200 rounded-lg px-2.5 py-2 text-gray-600 hover:border-[#154CB3] hover:text-[#154CB3] transition-colors leading-snug">
+                        {q}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -381,9 +497,10 @@ export default function ChatBot() {
                   ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  disabled={isThinking || isTyping || isUnavailable}
+                  disabled={isThinking || isTyping || isUnavailable || limitReached}
                   placeholder={
-                    isUnavailable ? "Unavailable right now…"
+                    limitReached ? "Daily AI limit reached — use a preset"
+                    : isUnavailable ? "Unavailable right now…"
                     : isThinking  ? "Thinking…"
                     : isTyping    ? "Typing…"
                     : "Ask me anything…"
@@ -392,7 +509,7 @@ export default function ChatBot() {
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || isThinking || isTyping || isUnavailable}
+                  disabled={!input.trim() || isThinking || isTyping || isUnavailable || limitReached}
                   className="w-9 h-9 bg-[#154CB3] text-white rounded-xl flex items-center justify-center flex-shrink-0 hover:bg-[#0f3a7a] transition disabled:opacity-35 disabled:cursor-not-allowed"
                   aria-label="Send"
                 >

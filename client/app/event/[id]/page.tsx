@@ -365,7 +365,7 @@ export default function Page() {
     };
     
     // DEBUG: Log custom fields to see if they're coming through
-    console.log('🔍 EVENT PAGE - Custom Fields Debug:', {
+    console.log('EVENT PAGE - Custom Fields Debug:', {
       eventId: foundEvent.event_id,
       rawCustomFields: foundEvent.custom_fields,
       processedCustomFields: finalEventData.custom_fields,
@@ -431,7 +431,7 @@ export default function Page() {
         })
         .then(data => {
           if (data.event) {
-            // 🔒 CHECK IF EVENT IS ARCHIVED
+            // CHECK IF EVENT IS ARCHIVED
             const isEventArchived = data.event.is_archived === true;
             const isUserOrganizerOrAdmin = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
@@ -463,7 +463,7 @@ export default function Page() {
     }
 
     if (foundEvent) {
-      // 🔒 CHECK IF EVENT IS ARCHIVED
+      // CHECK IF EVENT IS ARCHIVED
       const isEventArchived = foundEvent.is_archived === true;
       const isUserOrganizerOrAdmin = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 

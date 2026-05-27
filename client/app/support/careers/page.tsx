@@ -143,15 +143,15 @@ const CareersPage = () => {
             <h3 className="text-xl font-bold text-[#063168] mb-4">How the process works</h3>
             <ol className="space-y-4">
               {applicationSteps.map((step, index) => (
-                <li key={step.title} className="flex gap-4">
-                  <span className="h-10 w-10 flex items-center justify-center rounded-full bg-[#FFCC00] text-[#063168] font-bold">
+                <li key={step.title} className="flex items-start gap-4">
+                  <span className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full bg-[#FFCC00] text-[#063168] font-bold text-sm leading-none aspect-square">
                     {index + 1}
                   </span>
-                  <div>
-                    <h4 className="text-base font-semibold text-[#154CB3]">
+                  <div className="pt-1">
+                    <h4 className="text-base font-semibold text-[#154CB3] leading-tight">
                       {step.title}
                     </h4>
-                    <p className="text-sm text-gray-600 leading-relaxed">
+                    <p className="text-sm text-gray-600 leading-relaxed mt-1">
                       {step.detail}
                     </p>
                   </div>

@@ -571,6 +571,7 @@ function WeekCalendar({
   const todayStr = ymd(new Date());
   const currentWeekStartStr = ymd(startOfWeek(new Date()));
   const canGoPrev = ymd(addDays(weekStart, -7)) >= currentWeekStartStr;
+  const [infoBooking, setInfoBooking] = useState<VenueBooking | null>(null);
 
   // Strip out bookings from before today
   const visibleBookings = bookings.filter(b => b.date >= todayStr);
@@ -696,7 +697,11 @@ function WeekCalendar({
                   return (
                     <div
                       key={bi}
-                      title={`${b.booking_title || b.full_name || "Booking"} · ${formatTime12(b.start_time)}–${formatTime12(b.end_time)}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); setInfoBooking(b); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setInfoBooking(b); } }}
+                      title={`${b.booking_title || b.full_name || "Booking"}${b.requested_by ? ` · ${b.requested_by}` : ""} · ${formatTime12(b.start_time)}–${formatTime12(b.end_time)}`}
                       style={{
                         position: "absolute",
                         left: 3, right: 3,
@@ -706,7 +711,8 @@ function WeekCalendar({
                         borderRadius: 4,
                         padding: "2px 5px",
                         zIndex: 2,
-                        pointerEvents: "none",
+                        pointerEvents: "auto",
+                        cursor: "pointer",
                         overflow: "hidden",
                       }}
                     >
@@ -768,6 +774,47 @@ function WeekCalendar({
       {venueName && (
         <div className="px-5 py-2.5 border-t border-gray-200 bg-gray-50 text-xs text-gray-400">
           Approved bookings for <span className="font-semibold text-gray-600">{venueName}</span> are public. Your pending and rejected bookings are private. Click an empty slot to book.
+        </div>
+      )}
+
+      {infoBooking && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
+          onClick={() => setInfoBooking(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between px-5 py-4 border-b border-gray-200">
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">Approved booking</p>
+                <p className="text-base font-semibold text-gray-900">{infoBooking.booking_title || "Booking"}</p>
+              </div>
+              <button onClick={() => setInfoBooking(null)} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5">
+                <IconX />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Requested by</p>
+                {infoBooking.full_name && <p className="text-gray-900 font-medium">{infoBooking.full_name}</p>}
+                {infoBooking.requested_by ? (
+                  <a href={`mailto:${infoBooking.requested_by}`} className="text-[#154CB3] hover:underline break-all">
+                    {infoBooking.requested_by}
+                  </a>
+                ) : (
+                  <p className="text-gray-400">Not available</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">When</p>
+                <p className="text-gray-700">
+                  {infoBooking.date} · {formatTime12(infoBooking.start_time)} – {formatTime12(infoBooking.end_time)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -953,6 +1000,8 @@ function MyBookingsView({ session }: { session: any }) {
   const [loading,  setLoading]  = useState(false);
   const [fetchErr, setFetchErr] = useState<string | null>(null);
   const [page,     setPage]     = useState(1);
+  const [cancelTarget, setCancelTarget] = useState<MyBooking | null>(null);
+  const [cancelling,   setCancelling]   = useState(false);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -969,6 +1018,30 @@ function MyBookingsView({ session }: { session: any }) {
       .catch(e => setFetchErr(e.message || "Failed to load bookings"))
       .finally(() => setLoading(false));
   }, [session?.access_token]);
+
+  async function confirmCancel() {
+    if (!cancelTarget || !session?.access_token) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`${API_URL}/api/venue-bookings/${cancelTarget.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error || "Could not cancel booking.");
+        return;
+      }
+      setUpcoming(prev => prev.filter(b => b.id !== cancelTarget.id));
+      setPast(prev     => prev.filter(b => b.id !== cancelTarget.id));
+      toast.success("Booking cancelled.");
+      setCancelTarget(null);
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   const rows       = sub === "upcoming" ? upcoming : past;
   const totalPages = Math.max(1, Math.ceil(rows.length / MY_BOOKINGS_PAGE_SIZE));
@@ -1042,6 +1115,14 @@ function MyBookingsView({ session }: { session: any }) {
                       </p>
                     )}
                   </div>
+                  {sub === "upcoming" && r.status !== "rejected" && (
+                    <button
+                      onClick={() => setCancelTarget(r)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 border border-red-200 bg-white hover:bg-red-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -1067,6 +1148,46 @@ function MyBookingsView({ session }: { session: any }) {
             </div>
           )}
         </>
+      )}
+
+      {cancelTarget && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
+          onClick={() => !cancelling && setCancelTarget(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200">
+              <p className="text-base font-semibold text-gray-900">Cancel booking?</p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600">
+                This will permanently remove{" "}
+                <span className="font-semibold text-gray-900">{cancelTarget.title}</span>
+                {cancelTarget.venue?.name ? ` at ${cancelTarget.venue.name}` : ""} on{" "}
+                {cancelTarget.date}. This cannot be undone.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-200 bg-gray-50 flex gap-2.5 justify-end">
+              <button
+                onClick={() => setCancelTarget(null)}
+                disabled={cancelling}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Keep booking
+              </button>
+              <button
+                onClick={confirmCancel}
+                disabled={cancelling}
+                className="px-5 py-2 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cancelling ? "Cancelling…" : "Cancel booking"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1214,7 +1335,14 @@ function AnyAvailableView({ session, userData, entityId, entityType }: { session
                   {pagedFree.map(({ venue }) => (
                     <li key={venue.id} className="flex items-center gap-3 px-4 py-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{venue.name}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{venue.name}</p>
+                          {venue.is_approval_needed && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold whitespace-nowrap">
+                              Requires approval
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-400">{venue.location}{venue.capacity != null ? ` · cap ${venue.capacity}` : ""}</p>
                       </div>
                       <button
@@ -1252,7 +1380,14 @@ function AnyAvailableView({ session, userData, entityId, entityType }: { session
                 <ul className="divide-y divide-gray-100">
                   {pagedOccupied.map(({ venue, conflict }) => (
                     <li key={venue.id} className="px-4 py-3">
-                      <p className="text-sm font-semibold text-gray-900">{venue.name}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="text-sm font-semibold text-gray-900">{venue.name}</p>
+                        {venue.is_approval_needed && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold whitespace-nowrap">
+                            Requires approval
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-red-500 mt-0.5">
                         {conflict?.end_time === "capacity"
                           ? `Below minimum capacity (${venue.capacity})`
