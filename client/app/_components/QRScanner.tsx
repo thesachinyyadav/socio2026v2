@@ -161,16 +161,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
         html5QrCode = new Html5Qrcode("qr-reader");
         html5QrCode.start(
-          { 
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
+          { facingMode: "environment" },
           {
             fps: 30, // 30 FPS for smoother scans matching sociomobile
             qrbox: (width, height) => {
               const size = Math.min(width, height) * 0.70; // Slightly larger scan box matching mobile app
               return { width: size, height: size };
+            },
+            videoConstraints: {
+              facingMode: "environment",
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
             }
           },
           async (qrCodeMessage) => {
