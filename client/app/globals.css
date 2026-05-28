@@ -62,3 +62,197 @@ html, body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Volunteer Dashboard / Scanner UI (copied and polished from sociomobilev2) */
+
+.scan-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100vh;
+  background: #F8FAFF;
+  padding-bottom: 2rem;
+}
+
+.scan-main-column {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.scan-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 24px 16px 128px;
+  background: #011F7B;
+  color: #FFFFFF;
+  position: relative;
+  border-bottom-left-radius: 40px;
+  border-bottom-right-radius: 40px;
+}
+
+.scan-count-badge {
+  font-size: 13px; 
+  font-weight: 600; 
+  color: #FFFFFF; 
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.scan-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  background: #F8FAFC;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid #E2E8F0;
+  transition: all 0.3s ease;
+}
+
+.scan-viewport-success {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  border: 3px solid #10B981 !important;
+}
+
+.scan-viewport-duplicate {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+  border: 3px solid #F59E0B !important;
+}
+
+.scan-viewport-error {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  border: 3px solid #EF4444 !important;
+}
+
+.scan-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.scan-corner {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-color: #FFBA09;
+  border-style: solid;
+}
+
+.scan-corner-tl { top: 12%; left: 12%; border-width: 5px 0 0 5px; border-top-left-radius: 12px; }
+.scan-corner-tr { top: 12%; right: 12%; border-width: 5px 5px 0 0; border-top-right-radius: 12px; }
+.scan-corner-bl { bottom: 12%; left: 12%; border-width: 0 0 5px 5px; border-bottom-left-radius: 12px; }
+.scan-corner-br { bottom: 12%; right: 12%; border-width: 0 5px 5px 0; border-bottom-right-radius: 12px; }
+
+.scan-line {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, #FFBA09 50%, transparent 100%);
+  top: 12%;
+  animation: scan-sweep-web 2.5s ease-in-out infinite alternate;
+  will-change: top;
+  box-shadow: 0 0 10px rgba(255,186,9,0.8);
+  z-index: 10;
+}
+
+@keyframes scan-sweep-web {
+  0%   { top: 12%; }
+  100% { top: 88%; }
+}
+
+.scan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #FFFFFF;
+  border: 1px solid rgba(1,31,123,0.06);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(1,31,123,0.03);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scan-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(1,31,123,0.08);
+}
+
+.scan-row:active {
+  transform: scale(0.985);
+}
+
+.scan-row-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.scan-row-success .scan-row-icon { background: rgba(16,185,129,0.10); color: #10B981; }
+.scan-row-duplicate .scan-row-icon { background: rgba(245,158,11,0.10); color: #F59E0B; }
+.scan-row-error .scan-row-icon { background: rgba(239,68,68,0.10); color: #EF4444; }
+
+/* Participant Details Sheet */
+.participant-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.participant-sheet {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 500px;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 16px 24px 32px;
+  box-shadow: 0 -10px 40px rgba(1,31,123,0.15);
+  animation: slide-up-web 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-up-web {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.participant-sheet::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(1,31,123,0.12);
+  margin: 0 auto 20px;
+}
+
+.participant-sheet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
