@@ -136,7 +136,6 @@ export default function Page() {
 
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
   const [isRegistering, setIsRegistering] = useState(false);
@@ -629,11 +628,7 @@ export default function Page() {
           body: JSON.stringify(payload),
         });
         if (response.ok) {
-          const regData = await response.json().catch(() => ({}));
-          setShowSuccessModal(true);
-          setUserRegisteredEventIds((prev) => [...prev, eventData.id]);
-          const regId = regData?.registration?.registration_id;
-          if (regId) setUserRegistrationIdMap(prev => ({ ...prev, [eventData.id]: regId }));
+          router.push("/profile");
         } else {
           const errorData = await response.json();
           setRegistrationApiError(
@@ -832,69 +827,6 @@ export default function Page() {
         >
           Go to Homepage
         </Link>
-      </div>
-    );
-  }
-
-  if (showSuccessModal) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-xl border-2 border-gray-200 text-center max-w-md w-full">
-          <div className="bg-green-100 text-green-800 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-8 h-8"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4.5 12.75l6 6 9-13.5"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-[#063168] mb-4">
-            Registration Successful!
-          </h2>
-          <p className="text-gray-600 mb-6">
-            You have successfully registered for {eventData.title}.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-around gap-4">
-            <button
-              onClick={() => router.push("/Discover")}
-              className="bg-[#154CB3] cursor-pointer text-white py-2 px-6 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors"
-            >
-              Back to Discover
-            </button>
-            {eventData.whatsappLink && (
-              <a
-                href={eventData.whatsappLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-green-200 text-green-600 py-2 px-6 rounded-full font-medium hover:bg-green-300 transition-colors flex items-center justify-center gap-2"
-              >
-                Join Whatsapp Group
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className="w-4 h-4"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                  />
-                </svg>
-              </a>
-            )}
-          </div>
-        </div>
       </div>
     );
   }
