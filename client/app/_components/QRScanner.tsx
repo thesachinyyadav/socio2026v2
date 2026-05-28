@@ -161,11 +161,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
         html5QrCode = new Html5Qrcode("qr-reader");
         html5QrCode.start(
-          { facingMode: "environment" },
+          { 
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
           {
-            fps: 15,
+            fps: 30, // 30 FPS for smoother scans matching sociomobile
             qrbox: (width, height) => {
-              const size = Math.min(width, height) * 0.65;
+              const size = Math.min(width, height) * 0.70; // Slightly larger scan box matching mobile app
               return { width: size, height: size };
             }
           },
@@ -179,7 +183,48 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           }
         )
         .then(() => {
-          if (isMounted) setHasPermission(true);
+          if (!isMounted) return;
+          setHasPermission(true);
+
+          // Apply post-start video track constraints for continuous autofocus and exposure
+          try {
+            const videoElement = targetElement.querySelector("video");
+            const stream = videoElement?.srcObject as MediaStream;
+            const track = stream?.getVideoTracks()[0];
+            if (track) {
+              const capabilities = track.getCapabilities?.() || {};
+              const currentConstraints = track.getConstraints();
+              const advanced: any[] = [];
+
+              // 1. Autofocus Optimization
+              const focusModes = (capabilities as any).focusMode || [];
+              if (focusModes.includes('continuous')) {
+                advanced.push({ focusMode: 'continuous' });
+              } else if (focusModes.includes('continuous-video')) {
+                advanced.push({ focusMode: 'continuous-video' });
+              } else if (focusModes.includes('continuous-picture')) {
+                advanced.push({ focusMode: 'continuous-picture' });
+              }
+
+              // 2. Continuous Exposure Optimization
+              const exposureModes = (capabilities as any).exposureMode || [];
+              if (exposureModes.includes('continuous')) {
+                advanced.push({ exposureMode: 'continuous' });
+              }
+
+              if (advanced.length > 0 || currentConstraints) {
+                track.applyConstraints({
+                  ...currentConstraints,
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                  frameRate: { ideal: 30 },
+                  advanced: advanced.length > 0 ? advanced : undefined
+                }).catch(e => console.warn('[QRScanner] Failed to apply track constraints', e));
+              }
+            }
+          } catch (err) {
+            console.warn('[QRScanner] Failed to apply advanced track constraints', err);
+          }
         })
         .catch((err) => {
           console.error("Error starting camera stream:", err);
