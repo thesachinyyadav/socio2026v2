@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "@/context/AuthContext";
 import { 
@@ -17,7 +17,6 @@ import {
   Mail,
   Calendar,
   Clock,
-  MapPin,
   ShieldCheck
 } from "lucide-react";
 
@@ -74,9 +73,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   // Clicked participant detail drawer state
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
 
-  // Live checked-in list states
-  const [participants, setParticipants] = useState<any[]>([]);
-  const [isFetchingParticipants, setIsFetchingParticipants] = useState(false);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
@@ -93,42 +89,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }, 1500);
   };
 
-  // Fetch checked-in participants from database
-  const fetchParticipants = async () => {
-    if (!session?.access_token) return;
-    try {
-      setIsFetchingParticipants(true);
-      const res = await fetch(`${API_URL}/api/events/${eventId}/participants`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Filter for checked-in attendees and sort by marked_at descending (newest first)
-        const checkedInList = (data.participants || [])
-          .filter((p: any) => p.attendance_status === "attended")
-          .sort((a: any, b: any) => {
-            const timeA = a.marked_at ? new Date(a.marked_at).getTime() : 0;
-            const timeB = b.marked_at ? new Date(b.marked_at).getTime() : 0;
-            return timeB - timeA;
-          });
-        setParticipants(checkedInList);
-      }
-    } catch (e) {
-      console.error("Error fetching participants list:", e);
-    } finally {
-      setIsFetchingParticipants(false);
-    }
-  };
-
-  // Initial fetch of check-ins
+  // Cleanup timers on unmount
   useEffect(() => {
-    fetchParticipants();
     return () => {
       if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current);
     };
-  }, [eventId, session?.access_token]);
+  }, []);
 
   // Global timing-based keydown interceptor for HID physical scanner devices
   useEffect(() => {
@@ -300,7 +266,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       message,
       timestamp: new Date()
     };
-    setRecentScans(prev => [newItem, ...prev].slice(0, 5));
+    setRecentScans(prev => [newItem, ...prev]);
   };
 
   const startScanning = async () => {
@@ -357,9 +323,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           message
         );
 
-        // Fetch updated list of checked-in participants
-        fetchParticipants();
-
         if (onScanSuccess) {
           onScanSuccess(result);
         }
@@ -414,9 +377,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     setError(null);
   };
 
-  // Pagination calculations
-  const totalPages = Math.ceil(participants.length / ITEMS_PER_PAGE) || 1;
-  const paginatedParticipants = participants.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  // Pagination calculations based on local session scans
+  const totalPages = Math.ceil(recentScans.length / ITEMS_PER_PAGE) || 1;
+  const paginatedScans = recentScans.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const handlePrevPage = () => {
     if (page > 1) setPage(page - 1);
@@ -436,37 +399,39 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         
         {/* Left Column: QR Scanner View Card */}
         <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-[460px]">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[#011F7B] to-[#0d34a8] text-white p-5 flex items-center justify-between shadow-sm">
-            <div>
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <QrCode className="w-5.5 h-5.5 text-[#FFBA09] animate-pulse" />
-                Live Camera Scanner
-              </h3>
-              <p className="text-xs text-blue-100/80 mt-1">{eventTitle}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className="text-blue-100 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
-                title={soundEnabled ? "Mute beep sounds" : "Unmute beep sounds"}
-              >
-                {soundEnabled ? <Volume2 className="w-5.5 h-5.5" /> : <VolumeX className="w-5.5 h-5.5" />}
-              </button>
-              {!disableClose && onClose && (
+          {/* Header (Hidden in embedded mode to avoid stacked navy headers) */}
+          {!embedded && (
+            <div className="bg-gradient-to-r from-[#011F7B] to-[#0d34a8] text-white p-5 flex items-center justify-between shadow-sm">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <QrCode className="w-5.5 h-5.5 text-[#FFBA09] animate-pulse" />
+                  Live Camera Scanner
+                </h3>
+                <p className="text-xs text-blue-100/80 mt-1">{eventTitle}</p>
+              </div>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    stopScanning();
-                    onClose?.();
-                  }}
-                  className="text-white hover:text-gray-200 transition-colors p-1.5 rounded-lg hover:bg-white/10"
-                  aria-label="Close scanner"
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className="text-blue-100 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
+                  title={soundEnabled ? "Mute beep sounds" : "Unmute beep sounds"}
                 >
-                  <X className="w-6 h-6" />
+                  {soundEnabled ? <Volume2 className="w-5.5 h-5.5" /> : <VolumeX className="w-5.5 h-5.5" />}
                 </button>
-              )}
+                {!disableClose && onClose && (
+                  <button
+                    onClick={() => {
+                      stopScanning();
+                      onClose?.();
+                    }}
+                    className="text-white hover:text-gray-200 transition-colors p-1.5 rounded-lg hover:bg-white/10"
+                    aria-label="Close scanner"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Scanner View Area */}
           <div className="p-6 flex-1 flex flex-col justify-center">
@@ -487,25 +452,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               </div>
 
               <div className="text-center mt-5 mb-5">
-                <p className="text-slate-600 text-sm font-semibold flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <p className="text-slate-600 text-sm font-semibold flex items-center justify-center">
                   Align attendee QR code inside the frame
                 </p>
               </div>
 
-              <div className="flex gap-4 w-full max-w-sm">
+              <div className="flex gap-3 w-full max-w-sm">
                 <button
                   onClick={clearResult}
-                  className="flex-1 py-2.5 px-4 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition-colors active:scale-98"
+                  className="flex-1 py-2.5 px-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition-colors active:scale-98 text-xs"
                 >
                   Clear Status
                 </button>
                 <button
                   onClick={stopScanning}
-                  className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors active:scale-98 shadow-sm flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors active:scale-98 shadow-sm flex items-center justify-center gap-1 text-xs"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                   Stop Camera
+                </button>
+                <button
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className="py-2.5 px-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition-colors active:scale-98 flex items-center justify-center"
+                  title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
+                >
+                  {soundEnabled ? <Volume2 className="w-4.5 h-4.5" /> : <VolumeX className="w-4.5 h-4.5" />}
                 </button>
               </div>
             </div>
@@ -540,13 +511,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                   </div>
                 )}
 
-                <button
-                  onClick={startScanning}
-                  className="px-6 py-3 bg-[#011F7B] hover:bg-[#1E3FAB] text-white rounded-xl font-semibold transition-all shadow-md flex items-center gap-2 transform active:scale-95"
-                >
-                  <Camera className="w-5 h-5" />
-                  Start Camera Feed
-                </button>
+                <div className="flex gap-3 items-center">
+                  <button
+                    onClick={startScanning}
+                    className="px-6 py-3 bg-[#011F7B] hover:bg-[#1E3FAB] text-white rounded-xl font-semibold transition-all shadow-md flex items-center gap-2 transform active:scale-95 text-sm"
+                  >
+                    <Camera className="w-4.5 h-4.5" />
+                    Start Camera Feed
+                  </button>
+                  <button
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    className="p-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition-colors active:scale-98 flex items-center justify-center"
+                    title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
+                  >
+                    {soundEnabled ? <Volume2 className="w-4.5 h-4.5" /> : <VolumeX className="w-4.5 h-4.5" />}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -584,35 +564,25 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Recent Checked-in list styled like sociomobilev2 */}
+        {/* Right Column: Local session-level scans list */}
         <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-[460px]">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div>
               <h3 className="font-bold text-slate-800 text-sm tracking-wider uppercase m-0">Recent Scans</h3>
-              <p className="text-xs text-slate-500 mt-1">Live attendee logs. Click any record to view details.</p>
+              <p className="text-xs text-slate-500 mt-1">Scans in the current session. Click any record to view details.</p>
             </div>
             <button
-              onClick={fetchParticipants}
-              className={`p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors ${
-                isFetchingParticipants ? 'animate-spin' : ''
-              }`}
-              title="Refresh attendance list"
-              disabled={isFetchingParticipants}
+              onClick={() => setRecentScans([])}
+              className="px-2.5 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+              title="Clear session scans log"
             >
-              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
+              Clear Logs
             </button>
           </div>
 
           <div className="p-6 flex-1 flex flex-col justify-between">
             <div className="space-y-3">
-              {isFetchingParticipants && participants.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <div className="w-8 h-8 border-4 border-t-[#011F7B] border-slate-200 rounded-full animate-spin mb-4" />
-                  <p className="text-xs font-semibold">Loading logs...</p>
-                </div>
-              ) : participants.length === 0 ? (
+              {recentScans.length === 0 ? (
                 <div className="text-center py-20 text-slate-400">
                   <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-inner">
                     <Check className="w-6 h-6 animate-pulse" />
@@ -623,7 +593,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                   </p>
                 </div>
               ) : (
-                paginatedParticipants.map((p) => {
+                paginatedScans.map((item) => {
                   const getInitials = (name: string) => {
                     return (name || "A")
                       .split(" ")
@@ -632,27 +602,46 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                       .join("")
                       .toUpperCase();
                   };
-                  const displayName = p.registration_type === "individual"
-                    ? (p.individual_name || "Individual Attendee")
-                    : (p.team_name || p.team_leader_name || "Team Attendee");
                   
-                  const displayId = p.registration_type === "individual"
-                    ? p.individual_register_number
-                    : p.team_leader_register_number;
-
-                  const timeStr = p.marked_at
-                    ? new Date(p.marked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                  const displayName = item.name || "Attendee";
+                  const displayId = item.registrationId;
+                  const timeStr = item.timestamp
+                    ? new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                     : "TBD";
+
+                  // Colors and badges based on status
+                  let rowIconClass = "scan-row-success";
+                  let badgeText = "Verified";
+                  let badgeClass = "scan-row-badge";
+
+                  if (item.status === 'duplicate') {
+                    rowIconClass = "scan-row-duplicate";
+                    badgeText = "Recheck";
+                    badgeClass = "scan-row-badge scan-row-badge-duplicate";
+                  } else if (item.status === 'error') {
+                    rowIconClass = "scan-row-error";
+                    badgeText = "Error";
+                    badgeClass = "scan-row-badge scan-row-badge-error";
+                  }
 
                   return (
                     <div
-                      key={p.id}
-                      onClick={() => setSelectedRow(p)}
+                      key={item.id}
+                      onClick={() => {
+                        // Adapt the structure to open the Participant details sheet
+                        setSelectedRow({
+                          registration_type: "individual", // fallback to individual
+                          individual_name: displayName,
+                          individual_register_number: displayId,
+                          individual_email: item.email || "No Email",
+                          marked_at: item.timestamp.toISOString(),
+                        });
+                      }}
                       className="scan-row"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         {/* Status colored icon/avatar */}
-                        <div className="scan-row-icon scan-row-success">
+                        <div className={`scan-row-icon ${rowIconClass}`}>
                           <span className="text-[13px] font-black">
                             {getInitials(displayName)}
                           </span>
@@ -660,14 +649,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                         <div className="min-w-0">
                           <p className="font-bold text-slate-800 text-[14px] truncate">{displayName}</p>
                           <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                            {displayId ? `${displayId} • ` : ""}<span className="capitalize">{p.registration_type}</span>
+                            {displayId ? `${displayId}` : ""}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3.5 shrink-0 ml-2">
                         <div className="scan-row-right">
-                          <span className="scan-row-badge">
-                            Verified
+                          <span className={badgeClass}>
+                            {badgeText}
                           </span>
                           <span className="scan-row-time mt-1">
                             {timeStr}
@@ -682,10 +671,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             </div>
 
             {/* Pagination Controls */}
-            {participants.length > 0 && (
+            {recentScans.length > 0 && (
               <div className="border-t border-slate-100 pt-5 mt-5 flex items-center justify-between text-xs">
                 <span className="text-slate-500 font-semibold">
-                  Showing {(page - 1) * ITEMS_PER_PAGE + 1} - {Math.min(page * ITEMS_PER_PAGE, participants.length)} of {participants.length}
+                  Showing {(page - 1) * ITEMS_PER_PAGE + 1} - {Math.min(page * ITEMS_PER_PAGE, recentScans.length)} of {recentScans.length}
                 </span>
                 
                 <div className="flex gap-2">

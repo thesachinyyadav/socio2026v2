@@ -256,3 +256,16 @@ html, body {
   gap: 20px;
 }
 
+/* Custom HTML5-QRCode Viewport cover and border overrides */
+#qr-reader {
+  border: none !important;
+  background: transparent !important;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+

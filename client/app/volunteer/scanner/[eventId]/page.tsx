@@ -145,46 +145,6 @@ export default function VolunteerScannerPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFF] flex flex-col font-sans">
-      {/* ── Standard TopBar (White) ── */}
-      <header className="sticky top-0 left-0 right-0 z-50 bg-white border-b border-[#E2E8F0] shadow-sm">
-        <div className="max-w-7xl mx-auto h-16 flex items-center justify-between px-4 sm:px-6">
-          {/* Left: Profile Avatar */}
-          <div className="flex-1 flex justify-start">
-            <Link href="/profile" className="shrink-0 block">
-              <div className="w-[34px] h-[34px] rounded-full overflow-hidden ring-[2.5px] ring-[#011F7B] shadow-sm bg-[#011F7B] flex items-center justify-center">
-                {userData?.avatar_url && !imgError ? (
-                  <Image
-                    src={userData.avatar_url}
-                    alt={userData.name || "User"}
-                    width={34}
-                    height={34}
-                    className="w-full h-full object-cover"
-                    onError={() => setImgError(true)}
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="text-[13px] font-black text-white drop-shadow-sm">
-                    {userData?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
-                  </span>
-                )}
-              </div>
-            </Link>
-          </div>
-          
-          {/* Center: SOCIO in Blue */}
-          <span className="text-[18px] font-black tracking-tight text-[#011F7B]">
-            SOCIO
-          </span>
-          
-          {/* Right: Notification Bell in Blue */}
-          <div className="flex-1 flex justify-end">
-            <Link href="/notifications" className="relative text-[#011F7B] p-1.5 -mr-1.5 active:scale-95 transition-transform">
-              <Bell className="w-5.5 h-5.5" />
-            </Link>
-          </div>
-        </div>
-      </header>
-
       {/* ── Navy Event Header Card ── */}
       <div className="bg-[#011F7B] text-white pt-6 pb-24 rounded-b-[40px] px-4 shadow-md">
         <div className="max-w-7xl mx-auto flex flex-col gap-4">
