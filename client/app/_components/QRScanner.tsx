@@ -66,6 +66,20 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const scannerRef = useRef<QrScanner | null>(null);
   const { session, userData } = useAuth();
 
+  // Check if camera device is available on mount without triggering permission prompt
+  useEffect(() => {
+    QrScanner.hasCamera()
+      .then(hasCam => {
+        if (!hasCam) {
+          setHasPermission(false);
+          setError("No camera detected on this device.");
+        }
+      })
+      .catch(err => {
+        console.warn("Camera availability check failed:", err);
+      });
+  }, []);
+
   // Global timing-based keydown interceptor for HID physical scanner devices
   useEffect(() => {
     let buffer = "";
@@ -106,7 +120,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
-  }, [session?.access_token, isScanning]); // Re-register if scanner state changes to keep it fresh
+  }, [session?.access_token, isScanning]);
 
   // Camera stream mounting and scanner initialization lifecycle
   useEffect(() => {
@@ -131,11 +145,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
       );
 
-      activeScanner.start().catch((err) => {
-        console.error("Error starting camera stream:", err);
-        setError("Failed to start camera. Please allow camera access in browser settings and try again.");
-        setIsScanning(false);
-      });
+      activeScanner.start()
+        .then(() => {
+          setHasPermission(true);
+        })
+        .catch((err) => {
+          console.error("Error starting camera stream:", err);
+          setHasPermission(false);
+          setError("Camera access is required to scan QR codes. Please allow camera access in browser settings and try again.");
+          setIsScanning(false);
+        });
 
       scannerRef.current = activeScanner;
     }
@@ -208,23 +227,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     setRecentScans(prev => [newItem, ...prev].slice(0, 5));
   };
 
-  const checkCameraPermission = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(track => track.stop());
-      setHasPermission(true);
-      return true;
-    } catch (err) {
-      console.error("Camera permission denied:", err);
-      setHasPermission(false);
-      setError("Camera access is required to scan QR codes. Please allow camera access in your settings and try again.");
-      return false;
-    }
-  };
-
   const startScanning = async () => {
-    const hasCamera = await checkCameraPermission();
-    if (!hasCamera) return;
+    setError(null);
+    setScanResult(null);
     setIsScanning(true);
   };
 
