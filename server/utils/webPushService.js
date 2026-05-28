@@ -152,16 +152,26 @@ export async function getAllSubscriptions() {
     }
   }
 
-  const subscriberIndex = await loadSubscriberIndex();
+  let subscriberIndex = [];
+  try {
+    subscriberIndex = await loadSubscriberIndex();
+  } catch (err) {
+    console.error("[PUSH] Failed to load subscriber index from cache:", err);
+  }
+
   for (const email of subscriberIndex) {
-    const cachedSubs = await loadCachedSubscriptions(email);
-    if (cachedSubs.length > 0 && !subscriptionStore.has(email)) {
-      subscriptionStore.set(email, cachedSubs);
-    }
-    for (const sub of cachedSubs) {
-      if (!sub?.endpoint || seen.has(sub.endpoint)) continue;
-      seen.add(sub.endpoint);
-      all.push(sub);
+    try {
+      const cachedSubs = await loadCachedSubscriptions(email);
+      if (cachedSubs.length > 0 && !subscriptionStore.has(email)) {
+        subscriptionStore.set(email, cachedSubs);
+      }
+      for (const sub of cachedSubs) {
+        if (!sub?.endpoint || seen.has(sub.endpoint)) continue;
+        seen.add(sub.endpoint);
+        all.push(sub);
+      }
+    } catch (err) {
+      console.error(`[PUSH] Failed to load/process subscriptions for email ${email}:`, err);
     }
   }
 

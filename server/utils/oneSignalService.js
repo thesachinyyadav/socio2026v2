@@ -107,6 +107,66 @@ export async function sendOneSignalToEmail(email, notifPayload) {
 }
 
 /**
+ * Sends a push notification to a list of users identified by their emails (external_ids).
+ *
+ * @param {string[]} emails - Array of user email addresses.
+ * @param {object} notifPayload - The notification content.
+ * @returns {Promise<object>} Result status.
+ */
+export async function sendOneSignalToEmails(emails, notifPayload) {
+  const appId = process.env.ONESIGNAL_APP_ID;
+  const apiKey = process.env.ONESIGNAL_REST_API_KEY;
+
+  if (!appId || !apiKey) {
+    console.warn("[ONESIGNAL] Credentials missing. Bypassing native push.");
+    return { success: false, error: "OneSignal credentials missing" };
+  }
+
+  const { title, body: rawBody, actionUrl, data: extraDataInput } = notifPayload || {};
+  const body = rawBody || notifPayload?.message || "";
+
+  const extraData = {
+    actionUrl: actionUrl || "/notifications",
+    deepLink: actionUrl || "/notifications",
+    ...(extraDataInput || {})
+  };
+
+  const payload = {
+    app_id: appId,
+    include_aliases: {
+      external_id: emails
+    },
+    target_channel: "push",
+    headings: { en: title },
+    contents: { en: body },
+    data: extraData || {}
+  };
+
+  try {
+    const response = await fetch("https://api.onesignal.com/notifications", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Authorization": `Key ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const resJson = await response.json();
+
+    if (!response.ok) {
+      console.error("[ONESIGNAL] Batch delivery failed:", resJson);
+      return { success: false, error: resJson };
+    }
+
+    return { success: true, result: resJson };
+  } catch (error) {
+    console.error("[ONESIGNAL] Batch delivery error:", error);
+    return { success: false, error: error.message || error };
+  }
+}
+
+/**
  * Sends a broadcast push notification to all subscribed users.
  *
  * @param {object} payload - The notification content.
