@@ -152,7 +152,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         .catch((err) => {
           console.error("Error starting camera stream:", err);
           setHasPermission(false);
-          setError("Camera access is required to scan QR codes. Please allow camera access in browser settings and try again.");
+          const errorMsg = err?.message || String(err) || "Unknown error";
+          setError(`Camera error: ${errorMsg}. Please ensure your camera is not in use by Zoom/Teams and allow browser access.`);
           setIsScanning(false);
         });
 
@@ -390,10 +391,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                 <p className="text-gray-600 text-sm mb-4">
                   Scan participant QR codes to mark attendance instantly.
                 </p>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs font-semibold text-[#154CB3] mb-4">
-                  <Usb className="w-3.5 h-3.5" />
-                  External USB scanner supported
-                </div>
               </div>
 
               {hasPermission === false && (
@@ -427,12 +424,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               </div>
 
               {/* Scan Status */}
-              <div className="text-center mb-4 flex flex-col items-center gap-1">
+              <div className="text-center mb-4">
                 <p className="text-gray-600 text-sm font-semibold">
                   Position QR code within the frame
-                </p>
-                <p className="text-xs text-gray-400">
-                  (Or scan directly with your USB scanner device)
                 </p>
               </div>
 
