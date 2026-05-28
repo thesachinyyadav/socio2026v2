@@ -1185,3 +1185,422 @@ export async function buildHodAnalyticsSnapshot(query = {}, department) {
   setCachedPayload(hodCacheKey, payload);
   return payload;
 }
+
+// Campus-wide budget aggregation from the approvals table.
+// Financial data lives in approvals.budget_items; campus scope is
+// organizing_campus_snapshot, department is organizing_department_snapshot,
+// and a fest link is type='fest' (event_or_fest_id) or parent_fest_id.
+function getCampusFinancials(approvals, campus, festTitleById, schoolFilter = "", departmentFilter = "") {
+  const campusLc = String(campus || "").trim().toLowerCase();
+  const schoolLc = String(schoolFilter || "").trim().toLowerCase();
+  const deptLc = String(departmentFilter || "").trim().toLowerCase();
+  const matches = (approvals || []).filter((a) => {
+    if (String(a.organizing_campus_snapshot || "").trim().toLowerCase() !== campusLc) return false;
+    if (schoolLc && String(a.organizing_school_snapshot || "").trim().toLowerCase() !== schoolLc) return false;
+    if (deptLc && String(a.organizing_department_snapshot || "").trim().toLowerCase() !== deptLc) return false;
+    return true;
+  });
+
+  const lineTotal = (items) =>
+    (Array.isArray(items) ? items : []).reduce(
+      (sum, b) => sum + (Number(b.quantity) || 0) * (Number(b.unitPrice) || 0),
+      0
+    );
+
+  let totalBudget = 0;
+  let itemCount = 0;
+  const deptMap = new Map();
+  const festMap = new Map();
+
+  for (const a of matches) {
+    const items = Array.isArray(a.budget_items) ? a.budget_items : [];
+    const subtotal = lineTotal(items);
+    totalBudget += subtotal;
+    itemCount += items.length;
+
+    const dept = normalizeText(a.organizing_department_snapshot, "Unknown");
+    deptMap.set(dept, (deptMap.get(dept) || 0) + subtotal);
+
+    const festId = a.type === "fest" ? a.event_or_fest_id : a.parent_fest_id;
+    const festKey = festId || "__standalone__";
+    const festLabel = festId ? festTitleById.get(festId) || festId : "Standalone events";
+    const existing = festMap.get(festKey) || { fest: festLabel, total: 0 };
+    existing.total += subtotal;
+    festMap.set(festKey, existing);
+  }
+
+  const byDepartment = [...deptMap.entries()]
+    .map(([department, total]) => ({ department, total: round(total, 2) }))
+    .sort((a, b) => b.total - a.total);
+
+  const byFest = [...festMap.values()]
+    .map((f) => ({ fest: f.fest, total: round(f.total, 2) }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    totalBudget: round(totalBudget, 2),
+    itemCount,
+    approvalCount: matches.length,
+    byDepartment,
+    byFest,
+  };
+}
+
+export async function buildCampusDirectorAnalyticsSnapshot(query = {}, campus) {
+  const range = parseRange(query);
+  const schoolFilter = normalizeFilterValue(query.school);
+  const departmentFilter = normalizeFilterValue(query.department);
+  const campusLc = String(campus || "").trim().toLowerCase();
+  const cacheKey = `campusdir::${campusLc || "all"}::${schoolFilter.toLowerCase() || "all"}::${departmentFilter.toLowerCase() || "all"}::${getCacheKey(range)}`;
+  const cached = getCachedPayload(cacheKey);
+  if (cached) return cached;
+
+  const [users, events, fests, registrations, attendanceRows, approvals, feedbacks] =
+    await Promise.all([
+      queryAll("users"),
+      queryAll("events"),
+      queryAll("fests"),
+      queryAll("registrations"),
+      queryAll("attendance_status"),
+      queryAll("approvals"),
+      queryAll("feedbacks"),
+    ]);
+
+  const matchesCampus = (val) => String(val || "").trim().toLowerCase() === campusLc;
+
+  // Fests hosted at this campus, plus a fest_id → title lookup for financials.
+  const campusFestIds = new Set(
+    fests.filter((f) => matchesCampus(f.campus_hosted_at)).map((f) => f.fest_id).filter(Boolean)
+  );
+  const festTitleById = new Map(
+    fests.filter((f) => f.fest_id).map((f) => [f.fest_id, f.fest_title || f.fest_id])
+  );
+
+  // Events hosted at this campus, plus events belonging to a campus-hosted fest.
+  const campusEventIds = new Set(
+    events
+      .filter((e) => matchesCampus(e.campus_hosted_at) || (e.fest_id && campusFestIds.has(e.fest_id)))
+      .map((e) => e.event_id)
+      .filter(Boolean)
+  );
+
+  // Normalize fests as event-like rows so they appear alongside events (HOD pattern).
+  const festsAsEvents = fests.map((f) => ({
+    event_id: f.fest_id,
+    title: f.fest_title,
+    category: f.category || "Fest",
+    department: f.organizing_dept,
+    organizing_dept: f.organizing_dept,
+    organizing_school: f.organizing_school,
+    event_date: f.opening_date,
+    created_by: f.created_by,
+  }));
+
+  const normalized = normalizeData(
+    users,
+    [...events, ...festsAsEvents],
+    registrations,
+    attendanceRows
+  );
+
+  const campusEventIdSet = new Set([...campusEventIds, ...campusFestIds]);
+  let campusEvents = normalized.events.filter((e) => campusEventIdSet.has(e.eventId));
+  let campusStudents = normalized.students.filter((s) => matchesCampus(s.campus));
+
+  // Optional drill-down within the campus by school, then department.
+  if (departmentFilter) {
+    const d = departmentFilter.toLowerCase();
+    campusStudents = campusStudents.filter((s) => s.department.toLowerCase() === d);
+    campusEvents = campusEvents.filter((e) => e.department.toLowerCase() === d);
+  }
+  if (schoolFilter) {
+    const sc = schoolFilter.toLowerCase();
+    campusStudents = campusStudents.filter((s) => (s.school || "Unknown").toLowerCase() === sc);
+    campusEvents = campusEvents.filter((e) => (e.school || "Unknown").toLowerCase() === sc);
+  }
+
+  // Event id set narrowed by the active school/department filters (subset of campus events).
+  const scopedEventIdSet = new Set(campusEvents.map((e) => e.eventId));
+  const campusStudentIds = new Set(campusStudents.map((s) => s.studentId));
+
+  // TWO SCOPES (same pattern as the HOD / master snapshots):
+  //   studentScopeRegs — registrations by campus students → KPIs & student analytics.
+  //   eventScopeRegs   — all registrations for scoped events → event & time analytics.
+  const studentScopeRegs = normalized.registrations.filter((r) => campusStudentIds.has(r.studentId));
+  const eventScopeRegs = normalized.registrations.filter((r) => scopedEventIdSet.has(r.eventId));
+
+  const currentStudentRows = studentScopeRegs.filter((r) => inRange(r.registeredAt, range.current));
+  const previousStudentRows = studentScopeRegs.filter((r) => inRange(r.registeredAt, range.previous));
+  const currentEventRows = eventScopeRegs.filter((r) => inRange(r.registeredAt, range.current));
+
+  const currentEvents = campusEvents.filter((e) => inRange(e.eventDate, range.current));
+  const effectiveEvents = currentEvents.length > 0 ? currentEvents : campusEvents;
+  const totalStudents = campusStudents.length || campusStudentIds.size;
+
+  const overview = getKpiBundle(currentStudentRows, previousStudentRows, studentScopeRegs, totalStudents);
+  const studentAnalytics = getStudentAnalytics(campusStudents, currentStudentRows, previousStudentRows, effectiveEvents, range.current.end);
+  const eventAnalytics = getEventAnalytics(effectiveEvents, currentEventRows, studentAnalytics);
+  const departmentAnalytics = getDepartmentAnalytics(campusStudents, currentEvents, currentEventRows, studentAnalytics);
+  const timeAnalytics = getTimeAnalytics(eventScopeRegs);
+  const insights = buildInsights({ overview, studentAnalytics, eventAnalytics, departmentAnalytics, timeAnalytics });
+  const financials = getCampusFinancials(approvals, campus, festTitleById, schoolFilter, departmentFilter);
+
+  // Audience split + average feedback across the scoped events.
+  let insiders = 0, outsiders = 0;
+  for (const r of registrations) {
+    if (!scopedEventIdSet.has(String(r.event_id || ""))) continue;
+    if (r.participant_organization === "outsider") outsiders += 1;
+    else insiders += 1;
+  }
+
+  let fbTotal = 0, fbCount = 0;
+  for (const f of feedbacks) {
+    if (!scopedEventIdSet.has(String(f.event_id || ""))) continue;
+    for (const arr of Object.values(f.data || {})) {
+      if (!Array.isArray(arr)) continue;
+      for (const v of arr) {
+        if (typeof v === "number" && v > 0) { fbTotal += v; fbCount += 1; }
+      }
+    }
+  }
+  const avgFeedback = fbCount > 0 ? round(fbTotal / fbCount, 1) : 0;
+
+  // Scoped event/fest counts reflect the active school/department filters.
+  let scopedEventsCount = 0, scopedFestsCount = 0;
+  for (const id of scopedEventIdSet) {
+    if (campusFestIds.has(id)) scopedFestsCount += 1;
+    else scopedEventsCount += 1;
+  }
+
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    campus,
+    filters: { school: schoolFilter || null, department: departmentFilter || null },
+    range: {
+      current: { start: range.current.start.toISOString(), end: range.current.end.toISOString() },
+      previous: { start: range.previous.start.toISOString(), end: range.previous.end.toISOString() },
+    },
+    dataQuality: {
+      students: campusStudents.length,
+      events: scopedEventsCount,
+      fests: scopedFestsCount,
+      registrations: eventScopeRegs.length,
+      currentPeriodRegistrations: currentEventRows.length,
+    },
+    overview: { ...overview, insights },
+    students: studentAnalytics,
+    events: eventAnalytics,
+    departments: departmentAnalytics,
+    time: timeAnalytics,
+    audience: { insiders, outsiders },
+    feedback: { avgFeedback },
+    financials,
+  };
+
+  setCachedPayload(cacheKey, payload);
+  return payload;
+}
+
+// Campus-wide school → department → fest → events tree for the Campus Director
+// drill-down. Independent of the school/department filters; scoped only by the
+// date range (events whose event_date falls in the window). Built from raw rows
+// because normalizeData() drops fest_id.
+export async function buildCampusDirectorHierarchy(query = {}, campus) {
+  const range = parseRange(query);
+  const campusLc = String(campus || "").trim().toLowerCase();
+  const cacheKey = `campushier::${campusLc || "all"}::${getCacheKey(range)}`;
+  const cached = getCachedPayload(cacheKey);
+  if (cached) return cached;
+
+  const [events, fests, registrations, attendanceRows, approvals, feedbacks] =
+    await Promise.all([
+      queryAll("events"),
+      queryAll("fests"),
+      queryAll("registrations"),
+      queryAll("attendance_status"),
+      queryAll("approvals"),
+      queryAll("feedbacks"),
+    ]);
+
+  const matchesCampus = (val) => String(val || "").trim().toLowerCase() === campusLc;
+
+  const campusFestIds = new Set(
+    fests.filter((f) => matchesCampus(f.campus_hosted_at)).map((f) => f.fest_id).filter(Boolean)
+  );
+  const festById = new Map(fests.filter((f) => f.fest_id).map((f) => [String(f.fest_id), f]));
+
+  // Campus events within the date range (respect the date window via event_date).
+  const campusEvents = events.filter((e) => {
+    const inCampus = matchesCampus(e.campus_hosted_at) || (e.fest_id && campusFestIds.has(e.fest_id));
+    return inCampus && inRange(toDate(e.event_date), range.current);
+  });
+
+  // Per-event registration / audience aggregates.
+  const regsByEvent = new Map();
+  for (const r of registrations) {
+    const eid = String(r.event_id || "");
+    if (!eid) continue;
+    const cur = regsByEvent.get(eid) || { regs: 0, insiders: 0, outsiders: 0 };
+    cur.regs += 1;
+    if (r.participant_organization === "outsider") cur.outsiders += 1;
+    else cur.insiders += 1;
+    regsByEvent.set(eid, cur);
+  }
+
+  // Attended count per event (attendance_status carries event_id directly).
+  const attendedByEvent = new Map();
+  for (const a of attendanceRows) {
+    if (String(a.status || "").toLowerCase() !== "attended") continue;
+    const eid = String(a.event_id || "");
+    if (!eid) continue;
+    attendedByEvent.set(eid, (attendedByEvent.get(eid) || 0) + 1);
+  }
+
+  // Average feedback score per event from the jsonb `data` arrays of numbers.
+  const feedbackByEvent = new Map();
+  for (const f of feedbacks) {
+    const eid = String(f.event_id || "");
+    if (!eid) continue;
+    let total = 0, count = 0;
+    for (const arr of Object.values(f.data || {})) {
+      if (!Array.isArray(arr)) continue;
+      for (const v of arr) if (typeof v === "number" && v > 0) { total += v; count += 1; }
+    }
+    if (count > 0) feedbackByEvent.set(eid, { total, count });
+  }
+
+  // Budget per fest (and per standalone school+dept) from campus-scoped approvals.
+  const lineTotal = (items) =>
+    (Array.isArray(items) ? items : []).reduce(
+      (s, b) => s + (Number(b.quantity) || 0) * (Number(b.unitPrice) || 0),
+      0
+    );
+  const budgetByFest = new Map();
+  const budgetByStandalone = new Map(); // deptLc -> total (for non-fest approvals)
+  for (const a of approvals) {
+    if (!matchesCampus(a.organizing_campus_snapshot)) continue;
+    const subtotal = lineTotal(a.budget_items);
+    if (!subtotal) continue;
+    const festId = a.type === "fest" ? a.event_or_fest_id : a.parent_fest_id;
+    if (festId) {
+      budgetByFest.set(String(festId), (budgetByFest.get(String(festId)) || 0) + subtotal);
+    } else {
+      const deptLc = String(a.organizing_department_snapshot || "").trim().toLowerCase();
+      budgetByStandalone.set(deptLc, (budgetByStandalone.get(deptLc) || 0) + subtotal);
+    }
+  }
+
+  // Attribute each event to a department → fest. The school grouping is derived
+  // on the client from the canonical schema (department → school), so we do NOT
+  // trust the raw organizing_school here — only the department is grouped.
+  const attributionOf = (e) => {
+    const festId = e.fest_id ? String(e.fest_id) : null;
+    if (festId && festById.has(festId)) {
+      const f = festById.get(festId);
+      return {
+        festKey: festId,
+        festId,
+        festName: f.fest_title || festId,
+        openingDate: f.opening_date || null,
+        dept: normalizeText(f.organizing_dept, "Unknown"),
+        standalone: false,
+      };
+    }
+    const dept = normalizeText(e.organizing_dept, "Unknown");
+    return {
+      festKey: `__standalone__::${dept}`,
+      festId: null,
+      festName: "Standalone events",
+      openingDate: null,
+      dept,
+      standalone: true,
+    };
+  };
+
+  // deptMap: department -> Map(festKey -> festNode)
+  const deptMap = new Map();
+  for (const e of campusEvents) {
+    const eid = String(e.event_id || "");
+    const attr = attributionOf(e);
+    const reg = regsByEvent.get(eid) || { regs: 0, insiders: 0, outsiders: 0 };
+    const attended = attendedByEvent.get(eid) || 0;
+    const fb = feedbackByEvent.get(eid);
+    const eventNode = {
+      eventId: eid,
+      title: normalizeText(e.title, "Untitled event"),
+      category: normalizeText(e.category, "Uncategorized"),
+      date: e.event_date || null,
+      registrations: reg.regs,
+      attended,
+      attendanceRate: round(percent(attended, reg.regs), 1),
+      insiders: reg.insiders,
+      outsiders: reg.outsiders,
+      feedback: { count: fb ? fb.count : 0, score: fb ? round(fb.total / fb.count, 1) : 0 },
+    };
+
+    if (!deptMap.has(attr.dept)) deptMap.set(attr.dept, new Map());
+    const festMap = deptMap.get(attr.dept);
+    if (!festMap.has(attr.festKey)) {
+      festMap.set(attr.festKey, {
+        festId: attr.festId,
+        name: attr.festName,
+        openingDate: attr.openingDate,
+        standalone: attr.standalone,
+        dept: attr.dept,
+        eventList: [],
+      });
+    }
+    festMap.get(attr.festKey).eventList.push(eventNode);
+  }
+
+  const sumBy = (arr, key) => arr.reduce((s, x) => s + (x[key] || 0), 0);
+
+  const departments = [...deptMap.entries()]
+    .map(([department, festMap]) => {
+      const festList = [...festMap.values()]
+        .map((fn) => {
+          const registrations = sumBy(fn.eventList, "registrations");
+          const attended = sumBy(fn.eventList, "attended");
+          const budgetTotal = fn.standalone
+            ? round(budgetByStandalone.get(fn.dept.toLowerCase()) || 0, 2)
+            : round(budgetByFest.get(String(fn.festId)) || 0, 2);
+          return {
+            festId: fn.festId,
+            name: fn.name,
+            openingDate: fn.openingDate,
+            standalone: fn.standalone,
+            events: fn.eventList.length,
+            registrations,
+            attended,
+            attendanceRate: round(percent(attended, registrations), 1),
+            budgetTotal,
+            eventList: fn.eventList.sort((a, b) => b.attended - a.attended),
+          };
+        })
+        .sort((a, b) => b.attended - a.attended);
+
+      const registrations = sumBy(festList, "registrations");
+      const attended = sumBy(festList, "attended");
+      return {
+        department,
+        fests: festList.length,
+        events: sumBy(festList, "events"),
+        registrations,
+        attended,
+        attendanceRate: round(percent(attended, registrations), 1),
+        budgetTotal: round(sumBy(festList, "budgetTotal"), 2),
+        festList,
+      };
+    })
+    .sort((a, b) => b.attended - a.attended);
+
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    campus,
+    range: { start: range.current.start.toISOString(), end: range.current.end.toISOString() },
+    departments,
+  };
+
+  setCachedPayload(cacheKey, payload);
+  return payload;
+}

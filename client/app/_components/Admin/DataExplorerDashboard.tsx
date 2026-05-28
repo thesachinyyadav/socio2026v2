@@ -52,6 +52,7 @@ import {
   downloadWorkbook,
 } from "@/lib/xlsxTheme";
 import toast from "react-hot-toast";
+import InfoHint from "./InfoHint";
 
 type DatePreset = "30" | "90" | "180" | "365";
 
@@ -765,11 +766,12 @@ export default function DataExplorerDashboard() {
         <div className="bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_52%,#f3f7ff_100%)] p-4 sm:p-5">
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
             <div className="space-y-3">
-              <div>
+              <div className="flex items-center gap-2">
                 <p className="text-xl font-bold tracking-tight text-slate-900">Analytics Data Explorer</p>
-                <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                  Explore participation, event quality, and student behavior without jumping between separate reports.
-                </p>
+                <InfoHint
+                  label="Analytics Data Explorer"
+                  text="Explore participation, event quality, and student behavior without jumping between separate reports."
+                />
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -793,9 +795,13 @@ export default function DataExplorerDashboard() {
 
               <div className="rounded-2xl border border-slate-200 bg-white/80 p-3.5">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="flex items-center gap-1.5">
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Filter By</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Drill down by campus, then school, then department.</p>
+                    <InfoHint
+                      size="sm"
+                      label="Filter By"
+                      text="Drill down by campus, then school, then department."
+                    />
                   </div>
                   {(campusFilter || schoolFilter || deptFilter || appliedCampusFilter || appliedSchoolFilter || appliedDeptFilter) && (
                     <button
@@ -900,9 +906,13 @@ export default function DataExplorerDashboard() {
 
             <div className="rounded-2xl border border-slate-200 bg-white/90 p-3.5 sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Custom Range</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Choose exact dates and apply once ready.</p>
+                  <InfoHint
+                    size="sm"
+                    label="Custom Range"
+                    text="Choose exact dates and apply once ready."
+                  />
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -1014,9 +1024,12 @@ export default function DataExplorerDashboard() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <SectionCard>
           <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
+            <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900">Monthly Engagement Trend</h3>
-              <p className="text-xs text-slate-500">Tracks registrations, attendance quality, and momentum for strategic planning.</p>
+              <InfoHint
+                label="Monthly Engagement Trend"
+                text="Tracks registrations, attendance quality, and momentum for strategic planning."
+              />
             </div>
             <span className={classNames("rounded-full px-2 py-1 text-xs font-semibold", bundle.overview.growthRate >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
               Growth {bundle.overview.growthRate >= 0 ? "+" : ""}
@@ -1041,9 +1054,12 @@ export default function DataExplorerDashboard() {
         </SectionCard>
 
         <SectionCard>
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900">Drop-off Funnel</h3>
-            <p className="text-xs text-slate-500">Shows conversion from registration to attendance to feedback completion.</p>
+            <InfoHint
+              label="Drop-off Funnel"
+              text="Shows conversion from registration to attendance to feedback completion."
+            />
           </div>
 
           {funnelData.length === 0 ? (
@@ -1066,9 +1082,12 @@ export default function DataExplorerDashboard() {
 
       <div className="grid grid-cols-1 gap-6">
         <SectionCard>
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900">Event Category Performance</h3>
-            <p className="text-xs text-slate-500">Compares category-level success and helps prioritize programming strategy.</p>
+            <InfoHint
+              label="Event Category Performance"
+              text="Compares category-level success and helps prioritize programming strategy."
+            />
           </div>
 
           {bundle.events.categoryPerformance.length === 0 ? (
@@ -1090,9 +1109,12 @@ export default function DataExplorerDashboard() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <SectionCard>
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900">Department Analytics</h3>
-            <p className="text-xs text-slate-500">Participation rates, hosted events, and engagement score by department.</p>
+            <InfoHint
+              label="Department Analytics"
+              text="Participation rates, hosted events, and engagement score by department."
+            />
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -1132,9 +1154,12 @@ export default function DataExplorerDashboard() {
 
         <SectionCard>
           <div className="mb-4 flex items-center justify-between gap-2">
-            <div>
+            <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900">Insights Engine</h3>
-              <p className="text-xs text-slate-500">Automated intelligence generated from live platform data.</p>
+              <InfoHint
+                label="Insights Engine"
+                text="Automated intelligence generated from live platform data."
+              />
             </div>
             <Brain className="h-5 w-5 text-[#154CB3]" />
           </div>
@@ -1171,9 +1196,12 @@ export default function DataExplorerDashboard() {
       <SectionCard>
         <div className="mb-4 flex items-center gap-2">
           <Activity className="h-4 w-4 text-[#154CB3]" />
-          <div>
+          <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900">Advanced Analytics Graphs</h3>
-            <p className="text-xs text-slate-500">Student engagement, event performance, departments, timing behavior, and retention intelligence.</p>
+            <InfoHint
+              label="Advanced Analytics Graphs"
+              text="Student engagement, event performance, departments, timing behavior, and retention intelligence."
+            />
           </div>
         </div>
 
