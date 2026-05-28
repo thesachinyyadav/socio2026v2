@@ -54,11 +54,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   embedded = false,
   disableClose = false,
 }) => {
-  const [scannerMode, setScannerMode] = useState<'camera' | 'hardware'>('camera');
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [hardwareInputValue, setHardwareInputValue] = useState("");
   const [recentScans, setRecentScans] = useState<ScanHistoryItem[]>([]);
-  const [hardwareInputFocused, setHardwareInputFocused] = useState(false);
 
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -67,65 +64,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
-  const hardwareInputRef = useRef<HTMLInputElement>(null);
   const { session, userData } = useAuth();
 
+  // Global timing-based keydown interceptor for HID physical scanner devices
   useEffect(() => {
-    return () => {
-      // Cleanup scanner on unmount
-      if (scannerRef.current) {
-        scannerRef.current.destroy();
-      }
-    };
-  }, []);
-
-  // Sync mode changes to starting/stopping camera
-  useEffect(() => {
-    if (scannerMode === 'hardware') {
-      stopScanning();
-    } else {
-      // Auto-start camera if permissions are active or can be requested
-      startScanning().catch(err => console.log("Camera auto-start deferred:", err));
-    }
-  }, [scannerMode]);
-
-  // Periodically keep input focused when in hardware mode
-  useEffect(() => {
-    if (scannerMode !== 'hardware') return;
-
-    const interval = setInterval(() => {
-      if (document.activeElement !== hardwareInputRef.current) {
-        hardwareInputRef.current?.focus();
-      }
-    }, 1000);
-
-    hardwareInputRef.current?.focus();
-
-    return () => clearInterval(interval);
-  }, [scannerMode]);
-
-  // Global timing-based keydown interceptor for fast USB scanner outputs
-  useEffect(() => {
-    if (scannerMode !== 'hardware') return;
-
     let buffer = "";
     let lastKeyTime = Date.now();
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      // Skip if focused on standard fields except our hardware scanner input field
+      // Ignore if user is typing in standard input/textarea fields
       if (
         target && 
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && 
-        target.id !== 'hardware-scanner-input-field'
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
       ) {
         return;
       }
 
       const now = Date.now();
       
-      // Reset buffer if manual typing is detected (>50ms inter-character delay)
-      if (buffer.length > 0 && now - lastKeyTime > 50) {
+      // Reset buffer if manual typing is detected (>100ms inter-character delay)
+      if (buffer.length > 0 && now - lastKeyTime > 100) {
         buffer = "";
       }
       
@@ -137,7 +96,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           e.preventDefault();
           handleQRScan(trimmed);
           buffer = "";
-          setHardwareInputValue("");
         }
       } else if (e.key.length === 1) {
         buffer += e.key;
@@ -148,9 +106,52 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
-  }, [scannerMode, session?.access_token]);
+  }, [session?.access_token, isScanning]); // Re-register if scanner state changes to keep it fresh
 
-  // Audio synthesizer chime generator
+  // Camera stream mounting and scanner initialization lifecycle
+  useEffect(() => {
+    let activeScanner: QrScanner | null = null;
+
+    if (isScanning && videoRef.current) {
+      setError(null);
+      setScanResult(null);
+
+      activeScanner = new QrScanner(
+        videoRef.current,
+        async (result) => {
+          const data = typeof result === "string" ? result : result?.data;
+          if (data) {
+            await handleQRScan(data);
+          }
+        },
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          preferredCamera: 'environment',
+        }
+      );
+
+      activeScanner.start().catch((err) => {
+        console.error("Error starting camera stream:", err);
+        setError("Failed to start camera. Please allow camera access in browser settings and try again.");
+        setIsScanning(false);
+      });
+
+      scannerRef.current = activeScanner;
+    }
+
+    return () => {
+      if (activeScanner) {
+        activeScanner.stop();
+        activeScanner.destroy();
+      }
+      if (scannerRef.current === activeScanner) {
+        scannerRef.current = null;
+      }
+    };
+  }, [isScanning]);
+
+  // Audio synthesizer beep player
   const playBeep = (type: 'success' | 'duplicate' | 'error') => {
     if (!soundEnabled) return;
     try {
@@ -164,7 +165,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       gain.connect(ctx.destination);
       
       if (type === 'success') {
-        // High pitch pleasant double beep
         osc.frequency.setValueAtTime(880, ctx.currentTime);
         gain.gain.setValueAtTime(0.08, ctx.currentTime);
         osc.start();
@@ -179,13 +179,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         osc2.start(ctx.currentTime + 0.1);
         osc2.stop(ctx.currentTime + 0.2);
       } else if (type === 'duplicate') {
-        // Low warning beep
         osc.frequency.setValueAtTime(440, ctx.currentTime);
         gain.gain.setValueAtTime(0.12, ctx.currentTime);
         osc.start();
         osc.stop(ctx.currentTime + 0.25);
       } else {
-        // Low buzzer for error
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(150, ctx.currentTime);
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
@@ -219,52 +217,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     } catch (err) {
       console.error("Camera permission denied:", err);
       setHasPermission(false);
-      setError("Camera access is required to scan QR codes. Please allow camera access and try again.");
+      setError("Camera access is required to scan QR codes. Please allow camera access in your settings and try again.");
       return false;
     }
   };
 
   const startScanning = async () => {
-    if (!videoRef.current) return;
-
     const hasCamera = await checkCameraPermission();
     if (!hasCamera) return;
-
-    try {
-      setIsScanning(true);
-      setError(null);
-      setScanResult(null);
-
-      // Initialize QR scanner
-      scannerRef.current = new QrScanner(
-        videoRef.current,
-        async (result) => {
-          const data = typeof result === "string" ? result : result?.data;
-          if (data) {
-            await handleQRScan(data);
-          }
-        },
-        {
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-          preferredCamera: 'environment', // Use back camera on mobile
-        }
-      );
-
-      await scannerRef.current.start();
-    } catch (err: any) {
-      console.error("Error starting scanner:", err);
-      setError("Failed to start camera. Please try again.");
-      setIsScanning(false);
-    }
+    setIsScanning(true);
   };
 
   const stopScanning = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop();
-      scannerRef.current.destroy();
-      scannerRef.current = null;
-    }
     setIsScanning(false);
   };
 
@@ -273,7 +237,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
     try {
       // Pause camera scanning temporarily to process
-      if (scannerRef.current && scannerMode === 'camera') {
+      if (scannerRef.current) {
         scannerRef.current.stop();
       }
 
@@ -319,13 +283,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
 
         // Auto-resume camera scanning after 3 seconds
-        if (scannerMode === 'camera') {
-          setTimeout(() => {
-            if (scannerRef.current && isScanning) {
-              scannerRef.current.start().catch(err => console.error("Auto-resume failed:", err));
-            }
-          }, 3000);
-        }
+        setTimeout(() => {
+          if (scannerRef.current && isScanning) {
+            scannerRef.current.start().catch(err => console.error("Auto-resume failed:", err));
+          }
+        }, 3000);
       } else {
         const errorMsg = result.error || "Failed to process QR code";
         setError(errorMsg);
@@ -340,13 +302,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           errorMsg
         );
 
-        if (scannerMode === 'camera') {
-          setTimeout(() => {
-            if (scannerRef.current && isScanning) {
-              scannerRef.current.start().catch(err => console.error("Error-resume failed:", err));
-            }
-          }, 2000);
-        }
+        setTimeout(() => {
+          if (scannerRef.current && isScanning) {
+            scannerRef.current.start().catch(err => console.error("Error-resume failed:", err));
+          }
+        }, 2000);
       }
     } catch (err: any) {
       console.error("Error processing QR scan:", err);
@@ -363,24 +323,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         networkErrorMsg
       );
 
-      if (scannerMode === 'camera') {
-        setTimeout(() => {
-          if (scannerRef.current && isScanning) {
-            scannerRef.current.start().catch(e => console.error("Catch-resume failed:", e));
-          }
-        }, 2000);
-      }
-    }
-  };
-
-  const handleHardwareInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const value = hardwareInputValue.trim();
-      if (value) {
-        handleQRScan(value);
-        setHardwareInputValue("");
-      }
+      setTimeout(() => {
+        if (scannerRef.current && isScanning) {
+          scannerRef.current.start().catch(e => console.error("Catch-resume failed:", e));
+        }
+      }, 2000);
     }
   };
 
@@ -428,152 +375,76 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           <p className="text-sm text-blue-100 mt-1">{eventTitle}</p>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="flex bg-slate-100 p-1 border-b border-slate-200">
-          <button
-            onClick={() => setScannerMode('camera')}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
-              scannerMode === 'camera'
-                ? 'bg-white text-[#154CB3] shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Camera className="w-4 h-4" />
-            Camera Scanner
-          </button>
-          <button
-            onClick={() => setScannerMode('hardware')}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
-              scannerMode === 'hardware'
-                ? 'bg-white text-[#154CB3] shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Usb className="w-4 h-4" />
-            Hardware Scanner
-          </button>
-        </div>
-
         {/* Content */}
         <div className="p-6">
-          {scannerMode === 'camera' ? (
-            /* CAMERA SCANNER VIEW */
-            !isScanning ? (
-              <div className="text-center">
-                <div className="mb-4">
-                  <QrCode className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h4 className="text-lg font-semibold text-gray-800 mb-2">QR Code Scanner</h4>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Scan participant QR codes to mark attendance instantly
-                  </p>
-                </div>
-
-                {hasPermission === false && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                    <p className="text-red-700 text-sm">
-                      Camera permission is required to scan QR codes. Please allow camera access in your browser settings and try again.
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  onClick={startScanning}
-                  className="px-6 py-3 bg-[#154CB3] text-white rounded-lg hover:bg-[#063168] transition-colors flex items-center gap-2 mx-auto"
-                >
-                  <Camera className="w-5 h-5" />
-                  Start Scanning
-                </button>
-              </div>
-            ) : (
-              <div>
-                {/* Camera View */}
-                <div className="relative mb-4">
-                  <video
-                    ref={videoRef}
-                    className="w-full rounded-lg bg-black"
-                    style={{ aspectRatio: '1/1' }}
-                  />
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute inset-4 border-2 border-white rounded-lg opacity-50"></div>
-                  </div>
-                </div>
-
-                {/* Scan Status */}
-                <div className="text-center mb-4">
-                  <p className="text-gray-600 text-sm">
-                    Position QR code within the frame
-                  </p>
-                </div>
-
-                {/* Controls */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={clearResult}
-                    className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={stopScanning}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Stop
-                  </button>
-                </div>
-              </div>
-            )
-          ) : (
-            /* HARDWARE SCANNER VIEW */
-            <div 
-              onClick={() => hardwareInputRef.current?.focus()}
-              className="cursor-pointer border border-dashed border-slate-200 rounded-xl p-6 bg-slate-50 flex flex-col items-center justify-center relative overflow-hidden transition-all hover:bg-slate-100 min-h-[260px]"
-            >
-              {/* Dotted matrix pattern */}
-              <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'radial-gradient(#CBD5E1 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
-              
-              <div className="relative z-10 text-center flex flex-col items-center">
-                <div className="relative mb-4 flex items-center justify-center">
-                  {/* Glowing Pulse Rings */}
-                  <div className="absolute w-20 h-20 bg-blue-100 rounded-full animate-pulse-soft opacity-60" />
-                  <div className="absolute w-28 h-28 bg-blue-50 rounded-full animate-pulse-soft opacity-30" />
-                  
-                  <div className="w-16 h-16 bg-gradient-to-tr from-[#154CB3] to-[#3b82f6] rounded-full flex items-center justify-center shadow-lg text-white">
-                    <Usb className="w-8 h-8 animate-bounce-soft" />
-                  </div>
-                </div>
-
-                <h4 className="text-base font-bold text-slate-800 mb-1">
-                  Hardware Scanner Active
-                </h4>
-                <p className="text-xs text-slate-500 max-w-xs mb-4">
-                  Connect your USB/Bluetooth scanner gun and scan a QR code. Click anywhere on this card to refocus.
+          {!isScanning ? (
+            <div className="text-center">
+              <div className="mb-4">
+                <QrCode className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h4 className="text-lg font-semibold text-gray-800 mb-2">QR Code Scanner</h4>
+                <p className="text-gray-600 text-sm mb-4">
+                  Scan participant QR codes to mark attendance instantly.
                 </p>
-
-                {/* Status Indicator Pill */}
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition-all border ${
-                  hardwareInputFocused
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                    : 'bg-amber-50 border-amber-200 text-amber-700 animate-pulse'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${hardwareInputFocused ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                  {hardwareInputFocused ? 'Ready for scan input' : 'Click to focus scanner'}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs font-semibold text-[#154CB3] mb-4">
+                  <Usb className="w-3.5 h-3.5" />
+                  External USB scanner supported
                 </div>
+              </div>
 
-                {/* Input field for keyboard emulation fallback */}
-                <div className="mt-4 w-full max-w-[240px]">
-                  <input
-                    ref={hardwareInputRef}
-                    id="hardware-scanner-input-field"
-                    type="text"
-                    placeholder="Scan or type registration ID..."
-                    value={hardwareInputValue}
-                    onChange={(e) => setHardwareInputValue(e.target.value)}
-                    onKeyDown={handleHardwareInputKeyDown}
-                    onFocus={() => setHardwareInputFocused(true)}
-                    onBlur={() => setHardwareInputFocused(false)}
-                    className="w-full text-center text-sm font-semibold tracking-wider uppercase px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#154CB3] focus:border-transparent placeholder:normal-case placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400"
-                  />
+              {hasPermission === false && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                  <p className="text-red-700 text-sm">
+                    Camera permission is required to scan QR codes. Please allow camera access in your browser settings and try again.
+                  </p>
                 </div>
+              )}
+
+              <button
+                onClick={startScanning}
+                className="px-6 py-3 bg-[#154CB3] text-white rounded-lg hover:bg-[#063168] transition-colors flex items-center gap-2 mx-auto"
+              >
+                <Camera className="w-5 h-5" />
+                Start Camera Scanner
+              </button>
+            </div>
+          ) : (
+            <div>
+              {/* Camera View */}
+              <div className="relative mb-4">
+                <video
+                  ref={videoRef}
+                  className="w-full rounded-lg bg-black"
+                  style={{ aspectRatio: '1/1' }}
+                />
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-4 border-2 border-white rounded-lg opacity-50"></div>
+                </div>
+              </div>
+
+              {/* Scan Status */}
+              <div className="text-center mb-4 flex flex-col items-center gap-1">
+                <p className="text-gray-600 text-sm font-semibold">
+                  Position QR code within the frame
+                </p>
+                <p className="text-xs text-gray-400">
+                  (Or scan directly with your USB scanner device)
+                </p>
+              </div>
+
+              {/* Controls */}
+              <div className="flex gap-3">
+                <button
+                  onClick={clearResult}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={stopScanning}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Stop Camera
+                </button>
               </div>
             </div>
           )}
@@ -649,4 +520,3 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     </div>
   );
 };
-
