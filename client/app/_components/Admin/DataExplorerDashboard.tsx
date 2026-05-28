@@ -179,6 +179,9 @@ export default function DataExplorerDashboard() {
   const [campusFilter, setCampusFilter] = useState("");
   const [schoolFilter, setSchoolFilter] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
+  const [appliedCampusFilter, setAppliedCampusFilter] = useState("");
+  const [appliedSchoolFilter, setAppliedSchoolFilter] = useState("");
+  const [appliedDeptFilter, setAppliedDeptFilter] = useState("");
 
   const [bundle, setBundle] = useState<MasterAdminAnalyticsBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,17 +194,22 @@ export default function DataExplorerDashboard() {
       appliedCustomStart || appliedCustomEnd
         ? { start: appliedCustomStart || undefined, end: appliedCustomEnd || undefined }
         : { days: Number(preset) };
-    if (campusFilter) base.campus = campusFilter;
-    if (schoolFilter) base.school = schoolFilter;
-    if (deptFilter) base.department = deptFilter;
+    if (appliedCampusFilter) base.campus = appliedCampusFilter;
+    if (appliedSchoolFilter) base.school = appliedSchoolFilter;
+    if (appliedDeptFilter) base.department = appliedDeptFilter;
     return base;
-  }, [appliedCustomEnd, appliedCustomStart, preset, campusFilter, schoolFilter, deptFilter]);
+  }, [appliedCustomEnd, appliedCustomStart, preset, appliedCampusFilter, appliedSchoolFilter, appliedDeptFilter]);
 
   const canApplyCustomRange =
     Boolean(customStart) &&
     Boolean(customEnd) &&
     customStart <= customEnd &&
     (customStart !== appliedCustomStart || customEnd !== appliedCustomEnd);
+
+  const canApplyFilters =
+    campusFilter !== appliedCampusFilter ||
+    schoolFilter !== appliedSchoolFilter ||
+    deptFilter !== appliedDeptFilter;
 
   const loadAnalytics = useCallback(
     async (silent = false) => {
@@ -789,13 +797,16 @@ export default function DataExplorerDashboard() {
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Filter By</p>
                     <p className="mt-0.5 text-xs text-slate-500">Drill down by campus, then school, then department.</p>
                   </div>
-                  {(campusFilter || schoolFilter || deptFilter) && (
+                  {(campusFilter || schoolFilter || deptFilter || appliedCampusFilter || appliedSchoolFilter || appliedDeptFilter) && (
                     <button
                       type="button"
                       onClick={() => {
                         setCampusFilter("");
                         setSchoolFilter("");
                         setDeptFilter("");
+                        setAppliedCampusFilter("");
+                        setAppliedSchoolFilter("");
+                        setAppliedDeptFilter("");
                       }}
                       className="text-xs font-semibold text-[#154CB3] hover:underline"
                     >
@@ -864,6 +875,25 @@ export default function DataExplorerDashboard() {
                       <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-slate-400" />
                     </div>
                   </div>
+                </div>
+                <div className="mt-2.5 flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppliedCampusFilter(campusFilter);
+                      setAppliedSchoolFilter(schoolFilter);
+                      setAppliedDeptFilter(deptFilter);
+                    }}
+                    disabled={!canApplyFilters}
+                    className={classNames(
+                      "rounded-xl px-4 py-2 text-xs font-semibold transition-colors",
+                      canApplyFilters
+                        ? "bg-[#154CB3] text-white hover:bg-[#0f3f95]"
+                        : "cursor-not-allowed bg-slate-200 text-slate-400"
+                    )}
+                  >
+                    Apply Filters
+                  </button>
                 </div>
               </div>
             </div>

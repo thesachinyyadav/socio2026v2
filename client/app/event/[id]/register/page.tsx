@@ -98,60 +98,6 @@ const isCampusAllowed = (
   );
 };
 
-// Helper function to generate Google Calendar URL
-const generateGoogleCalendarUrl = (eventTitle: string, eventDate: string, eventTime?: string): string | null => {
-  try {
-    const dateObj = dayjs(eventDate);
-    
-    let startDateTime: string;
-    let endDateTime: string;
-    
-    if (eventTime) {
-      // Parse the time (format: HH:mm or HH:mm AM/PM)
-      const timeMatch = (eventTime as string).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-      if (timeMatch) {
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const period = timeMatch[3]?.toUpperCase();
-        
-        // Convert to 24-hour format if AM/PM is present
-        if (period === 'PM' && hours < 12) {
-          hours += 12;
-        } else if (period === 'AM' && hours === 12) {
-          hours = 0;
-        }
-        
-        const startDate = dateObj.hour(hours).minute(minutes);
-        const endDate = startDate.add(1, 'hour'); // Default 1 hour duration
-        
-        startDateTime = startDate.format('YYYYMMDDTHHmmss');
-        endDateTime = endDate.format('YYYYMMDDTHHmmss');
-      } else {
-        // If time parsing fails, use date only
-        startDateTime = dateObj.format('YYYYMMDD');
-        endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
-      }
-    } else {
-      // No time provided, use all-day event format
-      startDateTime = dateObj.format('YYYYMMDD');
-      endDateTime = dateObj.add(1, 'day').format('YYYYMMDD');
-    }
-    
-    // Build Google Calendar URL
-    const baseUrl = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_BASE_URL!;
-    const params = new URLSearchParams({
-      text: eventTitle,
-      dates: `${startDateTime}/${endDateTime}`,
-      details: `Register for ${eventTitle} on SOCIO platform`
-    });
-    
-    return `${baseUrl}&${params.toString()}`;
-  } catch (error) {
-    console.error('Error generating calendar URL:', error);
-    return null;
-  }
-};
-
 const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
@@ -186,8 +132,6 @@ const Page = () => {
     customFields: {},
   });
   const [customFieldResponses, setCustomFieldResponses] = useState<Record<string, string | number>>({});
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(
     null
   );
@@ -616,14 +560,7 @@ const Page = () => {
         setSubmitLoading(false);
 
         if (response.ok) {
-          const responseData = await response.json();
-          const regId = responseData.registration?.registration_id;
-          if (regId && eventId) {
-            router.push(`/event/${eventId}/ticket/${regId}`);
-          } else {
-            setRegistrationId(regId || null);
-            setShowSuccessMessage(true);
-          }
+          router.push("/profile");
         } else {
           const errorData = await response.json();
           setRegistrationError(
@@ -709,102 +646,6 @@ const Page = () => {
             Go to Homepage
           </Link>
         )}
-      </div>
-    );
-  }
-
-  if (showSuccessMessage) {
-    return (
-      <div>
-        <div className="min-h-[80vh] flex items-center justify-center p-4">
-          <div className="bg-white p-6 sm:p-8 rounded-xl border-2 border-gray-200 text-center w-full max-w-md shadow-lg">
-            <div className="bg-green-100 text-green-800 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-8 h-8"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4.5 12.75l6 6 9-13.5"
-                />
-              </svg>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#063168] mb-4">
-              Registration successful!
-            </h2>
-            <p className="text-gray-600 mb-6">
-              You have successfully registered for {selectedEvent.title}.
-            </p>
-
-            <div className="flex flex-col sm:flex-row justify-around gap-3">
-              <Link href={`/Discover`} className="w-full sm:w-auto">
-                <button className="w-full bg-[#154CB3] text-white py-2 px-6 rounded-full font-medium hover:bg-[#154cb3eb] transition-colors">
-                  Back to Discover
-                </button>
-              </Link>
-              <button
-                onClick={() => {
-                  const calendarUrl = generateGoogleCalendarUrl(
-                    selectedEvent.title,
-                    selectedEvent.event_date,
-                    selectedEvent.event_time
-                  );
-                  if (calendarUrl) {
-                    window.open(calendarUrl, '_blank');
-                  }
-                }}
-                className="w-full sm:w-auto bg-blue-100 text-blue-600 py-2 px-6 rounded-full font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className="w-4 h-4"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-                  />
-                </svg>
-                Add to Calendar
-              </button>
-              {selectedEvent.whatsapp_invite_link && (
-                <a
-                  href={selectedEvent.whatsapp_invite_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full sm:w-auto"
-                >
-                  <button className="w-full bg-green-200 text-green-600 py-2 px-6 rounded-full font-medium hover:bg-green-300 transition-colors flex items-center justify-center gap-2">
-                    Join Whatsapp Group
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={1.5}
-                      stroke="currentColor"
-                      className="w-4 h-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                      />
-                    </svg>
-                  </button>
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
     );
   }

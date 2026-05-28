@@ -1346,9 +1346,11 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
 
     const dedupedRegistrations = Array.from(uniqueByRegistrationId.values());
     const registrationByEventId = new Map();
+    const createdAtByEventId = new Map();
     for (const reg of dedupedRegistrations) {
       if (!registrationByEventId.has(reg.event_id)) {
         registrationByEventId.set(reg.event_id, reg.registration_id);
+        createdAtByEventId.set(reg.event_id, reg.created_at || null);
       }
     }
 
@@ -1375,7 +1377,15 @@ router.get("/registrations/user/:registerId/events", async (req, res) => {
       name: evt.title,
       date: evt.event_date,
       department: evt.organizing_dept,
+      registered_at: createdAtByEventId.get(evt.event_id) || null,
     }));
+
+    // Most recently registered first
+    events.sort((a, b) => {
+      const ta = a.registered_at ? new Date(a.registered_at).getTime() : 0;
+      const tb = b.registered_at ? new Date(b.registered_at).getTime() : 0;
+      return tb - ta;
+    });
 
     return res.status(200).json({
       events,
