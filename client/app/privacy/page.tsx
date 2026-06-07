@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
               <p>
                 This Terms of Use and Privacy Policy (&quot;Agreement&quot;) governs your access to and use of the SOCIO platform,
                 accessible at https://app.withsocio.com/ (&quot;Platform&quot;), which is owned, operated, and managed by
-                SOCIO FOUNDERS (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). The privacy policy applies to all the users who render to our services,
+                Sociosphere Private Limited (CIN: U58202KA2026PTC221977) (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). The privacy policy applies to all the users who render to our services,
                 offering a choice to choose the data we collect, use and share as described in the Privacy Policy,
                 Cookie Policy, Setting and our Help Center.
               </p>

@@ -5,6 +5,7 @@ export function OrganizationJsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "SOCIO",
+    legalName: "Sociosphere Private Limited",
     url: SITE_URL,
     logo: `${SITE_URL}/favicon.svg`,
     description:

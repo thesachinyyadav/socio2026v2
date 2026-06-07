@@ -110,8 +110,9 @@ export default function Footer() {
         </div>
 
         {/* Copyright */}
-        <div className="mt-14 pt-6 border-t border-white/15 flex justify-center items-center">
+        <div className="mt-14 pt-6 border-t border-white/15 flex flex-col items-center gap-1">
           <p className="text-sm text-white/50">© {currentYear} SOCIO. All rights reserved.</p>
+          <p className="text-xs text-white/30">A product of Sociosphere Private Limited</p>
         </div>
       </div>
     </footer>

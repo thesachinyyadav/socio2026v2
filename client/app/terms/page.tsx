@@ -31,7 +31,7 @@ export default function TermsOfService() {
               </p>
               <p>
                 These Terms and Conditions (&quot;Terms&quot;) constitute a legally binding agreement between you and the SOCIO
-                platform, operated by its founders (&quot;SOCIO&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), governing your access to and use of
+                platform, operated by Sociosphere Private Limited (CIN: U58202KA2026PTC221977) (&quot;Sociosphere&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), governing your access to and use of
                 https://app.withsocio.com/ (&quot;Platform&quot;).
               </p>
               <p>

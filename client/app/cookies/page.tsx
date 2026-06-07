@@ -21,7 +21,7 @@ export default function CookiePolicy() {
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-[#063168] m-0">1. Introduction</h2>
               <p>
-                This Cookie Policy explains how SOCIO (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) uses cookies and similar technologies when
+                This Cookie Policy explains how Sociosphere Private Limited (CIN: U58202KA2026PTC221977), operating the SOCIO platform (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;), uses cookies and similar technologies when
                 you access or use the SOCIO platform available at https://app.withsocio.com/ (&quot;Platform&quot;).
               </p>
               <p>
