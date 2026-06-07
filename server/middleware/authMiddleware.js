@@ -222,6 +222,18 @@ export const requireDean = (req, res, next) => {
   return next();
 };
 
+export const requireCampusDirector = (req, res, next) => {
+  if (!req.userInfo) {
+    return res.status(401).json({ error: 'User info not available' });
+  }
+  if (!req.userInfo.is_campus_director && !req.userInfo.is_masteradmin) {
+    console.warn(`[CampusDirector] Access denied for ${req.userInfo.email} - Campus Director privileges required`);
+    return res.status(403).json({ error: 'Access denied: Campus Director privileges required' });
+  }
+  console.log(`[CampusDirector] Access granted to ${req.userInfo.email}`);
+  return next();
+};
+
 /**
  * Middleware to check if user owns the resource (for updates/deletes)
  * @param {string} table - Database table name (e.g., 'events', 'fest')

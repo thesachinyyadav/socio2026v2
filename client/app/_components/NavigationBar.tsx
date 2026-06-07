@@ -72,7 +72,7 @@ type RoleAction = {
   key: string;
   label: string;
   href: string;
-  variant: "admin" | "cfo" | "dean" | "hod" | "accounts" | "organiser" | "student_organiser" | "venue" | "support" | "catering" | "stalls" | "it" | "clubs";
+  variant: "admin" | "cfo" | "dean" | "hod" | "campus_director" | "accounts" | "organiser" | "student_organiser" | "venue" | "support" | "catering" | "stalls" | "it" | "clubs";
 };
 
 function NavigationBar() {
@@ -115,6 +115,7 @@ function NavigationBar() {
   const isCfo = Boolean((userData as any)?.is_cfo);
   const isDean = Boolean((userData as any)?.is_dean);
   const isHod = Boolean((userData as any)?.is_hod);
+  const isCampusDirector = Boolean((userData as any)?.is_campus_director);
   const isOrganiser = Boolean(userData?.is_organiser);
   const isSupport = Boolean(userData?.is_support);
   const isVenueManager = Boolean((userData as any)?.is_venue_manager);
@@ -189,6 +190,7 @@ function NavigationBar() {
   if (isCfo) roleActions.push({ key: "cfo", label: "CFO", href: "/cfo", variant: "cfo" });
   if (isDean) roleActions.push({ key: "dean", label: "Dean", href: "/dean", variant: "dean" });
   if (isHod) roleActions.push({ key: "hod", label: "HOD", href: "/hod", variant: "hod" });
+  if (isCampusDirector) roleActions.push({ key: "campus_director", label: "Campus Director", href: "/campus-director", variant: "campus_director" });
   if (isOrganiser) roleActions.push({ key: "organiser", label: "Organiser", href: "/manage", variant: "organiser" });
   if (!isOrganiser && isStudentOrganiser) roleActions.push({ key: "student_organiser", label: "Student Organiser", href: "/manage", variant: "student_organiser" });
   if (isSupport) roleActions.push({ key: "support", label: "Support", href: "/support/inbox", variant: "support" });
@@ -208,6 +210,7 @@ function NavigationBar() {
     cfo:       "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     dean:      "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     hod:       "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
+    campus_director: "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     accounts:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     organiser:          "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
     student_organiser:  "border-[#154CB3]/45 text-[#154CB3] hover:bg-[#f3f3f3]",
@@ -224,6 +227,7 @@ function NavigationBar() {
     cfo:       "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     dean:      "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     hod:       "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
+    campus_director: "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     accounts:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     organiser:          "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",
     student_organiser:  "border-[#154CB3]/30 text-[#154CB3] hover:bg-[#154CB3]/10",

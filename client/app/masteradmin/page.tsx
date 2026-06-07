@@ -51,6 +51,7 @@ import {
 const AdminDashboardView = dynamic(() => import("../_components/Admin/AdminDashboardView"), { ssr: false, loading: () => <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#154CB3]" /></div> });
 const ApprovalsManager = dynamic(() => import("../_components/Admin/ApprovalsManager"), { ssr: false, loading: () => <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#154CB3]" /></div> });
 import { deleteClub, ClubRecord } from "@/app/actions/clubs";
+import InfoHint from "@/app/_components/Admin/InfoHint";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
 const ITEMS_PER_PAGE = 20;
@@ -746,6 +747,12 @@ function MasterAdminPageInner() {
         fetchAllCaterers();
         fetchedOnce.current.add("caterers");
       }
+    } else {
+      // Tabs like dataExplorer/insights/approvals/settings/roles render
+      // self-contained components and don't drive the page-level `isLoading`
+      // flag. Clear it so the full-page spinner doesn't hang on hard refresh.
+      // (users/events/fests/clubs re-set isLoading via their dedicated effects.)
+      setIsLoading(false);
     }
   }, [activeTab, isMasterAdmin, authToken]);
 
@@ -1750,10 +1757,13 @@ function MasterAdminPageInner() {
         {activeTab === "insights" && (
           <div className="space-y-6">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Performance Insights</h2>
-              <p className="text-sm text-gray-500 mb-0">
-                Deep analytics with filters, trends, top performers, role and pricing distributions, and CSV exports.
-              </p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900">Performance Insights</h2>
+                <InfoHint
+                  label="Performance Insights"
+                  text="Deep analytics with filters, trends, top performers, role and pricing distributions, and CSV exports."
+                />
+              </div>
             </div>
 
             {isLoading ? (
@@ -1795,8 +1805,13 @@ function MasterAdminPageInner() {
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-1">Venue Management</h2>
-                  <p className="text-sm text-gray-500">Add, edit, or remove campus venues. Organisers see these when booking after approval.</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-gray-900">Venue Management</h2>
+                    <InfoHint
+                      label="Venue Management"
+                      text="Add, edit, or remove campus venues. Organisers see these when booking after approval."
+                    />
+                  </div>
                 </div>
                 <Link
                   href="/bookvenue"
@@ -3042,8 +3057,13 @@ function MasterAdminPageInner() {
         {activeTab === "report" && (
           <div className="space-y-6">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Generate Report</h2>
-              <p className="text-sm text-gray-500 mb-4">Generate comprehensive Excel reports for accreditation submissions.</p>
+              <div className="flex items-center gap-2 mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Generate Report</h2>
+                <InfoHint
+                  label="Generate Report"
+                  text="Generate comprehensive Excel reports for accreditation submissions."
+                />
+              </div>
               <div className="flex gap-3">
                 <button
                   onClick={() => { setReportMode("fest"); setSelectedEventIds(new Set()); setSelectedReportFest(""); setSelectedAccreditation(""); }}
@@ -3734,9 +3754,12 @@ function MasterAdminPageInner() {
           <div className="space-y-6">
             {/* Header */}
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Catering Management</h2>
-                <p className="text-sm text-gray-500">Add and manage catering vendors. Catering IDs are auto-generated from the vendor name.</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900">Catering Management</h2>
+                <InfoHint
+                  label="Catering Management"
+                  text="Add and manage catering vendors. Catering IDs are auto-generated from the vendor name."
+                />
               </div>
             </div>
 

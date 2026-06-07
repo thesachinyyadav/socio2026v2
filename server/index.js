@@ -42,6 +42,7 @@ import venueBookingRoutes from "./routes/venueBookingRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import hodAnalyticsRoutes from "./routes/hodAnalyticsRoutes.js";
 import deanAnalyticsRoutes from "./routes/deanAnalyticsRoutes.js";
+import campusDirectorAnalyticsRoutes from "./routes/campusDirectorAnalyticsRoutes.js";
 import cateringRoutes from "./routes/cateringRoutes.js";
 import stallBookingRoutes from "./routes/stallBookingRoutes.js";
 import feedbackRoutes from "./routes/feedbackRoutes.js";
@@ -213,6 +214,7 @@ app.use("/api/statuscheck", statuscheckRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/hod-analytics", hodAnalyticsRoutes);
 app.use("/api/dean-analytics", deanAnalyticsRoutes);
+app.use("/api/campus-director-analytics", campusDirectorAnalyticsRoutes);
 app.use("/api/volunteer", volunteerRoutes);
 app.use("/api/clubs", clubRoutes);
 
