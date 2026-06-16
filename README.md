@@ -1,4 +1,4 @@
-# SOCIO V2 Deployed/Tested
+# SOCIO V2 Deployed/Tested Ready to integrate
 
 Socio is a university event and operations platform for Christ University. It covers the public event discovery experience, event and fest management, registrations, QR tickets, attendance, approvals, support workflows, and several role-gated operational portals.
 
