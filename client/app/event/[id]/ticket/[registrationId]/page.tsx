@@ -50,10 +50,11 @@ export default function TicketPage() {
   const { allEvents } = useEvents();
   const { session, isLoading: authIsLoading } = useAuth();
   const accessToken = session?.access_token;
-  const authHeaders = useMemo<HeadersInit>(
-    () => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    [accessToken]
-  );
+  const authHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    return headers;
+  }, [accessToken]);
 
   const [event, setEvent] = useState<any>(null);
   const [registration, setRegistration] = useState<any>(null);
