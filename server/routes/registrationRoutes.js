@@ -110,6 +110,57 @@ const countParticipantsInRegistration = (registration) => {
   return 1;
 };
 
+// ── Access helpers for registration data ─────────────────────────────────────
+const ELEVATED_REGISTRATION_ROLES = [
+  "is_masteradmin",
+  "is_organiser",
+  "is_hod",
+  "is_dean",
+  "is_cfo",
+  "is_campus_director",
+  "is_support",
+  "is_accounts_office",
+];
+
+const hasElevatedRegistrationRole = (user) =>
+  ELEVATED_REGISTRATION_ROLES.some((role) => Boolean(user?.[role]));
+
+const normLower = (value) => String(value || "").trim().toLowerCase();
+const normUpper = (value) => String(value || "").trim().toUpperCase();
+
+// True if the signed-in user is the individual, team leader or a teammate on this registration
+const userOwnsRegistration = (user, registration) => {
+  if (!user || !registration) return false;
+
+  const email = normLower(user.email);
+  const regNum = normUpper(user.register_number || user.visitor_id);
+
+  const emails = [registration.user_email, registration.individual_email, registration.team_leader_email].map(normLower);
+  const numbers = [registration.individual_register_number, registration.team_leader_register_number].map(normUpper);
+
+  if (email && emails.includes(email)) return true;
+  if (regNum && numbers.includes(regNum)) return true;
+
+  let teammates = registration.teammates;
+  if (typeof teammates === "string") {
+    try {
+      teammates = JSON.parse(teammates || "[]");
+    } catch (_error) {
+      teammates = [];
+    }
+  }
+  if (!Array.isArray(teammates)) return false;
+
+  return teammates.some(
+    (tm) =>
+      (email && normLower(tm?.email) === email) ||
+      (regNum && normUpper(tm?.registerNumber) === regNum)
+  );
+};
+
+const REGISTRATION_OWNERSHIP_COLUMNS =
+  "user_email, individual_email, team_leader_email, individual_register_number, team_leader_register_number, teammates";
+
 // Get registrations for an event (or all registrations if no event_id)
 router.get(
   "/registrations",
@@ -324,7 +375,7 @@ router.get(
 });
 
 // Register for an event
-router.post("/register", async (req, res) => {
+router.post("/register", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     // Removed: console.log that exposed PII (names, emails, register numbers)
     // Privacy protection: Sensitive user data is not logged
@@ -396,6 +447,18 @@ router.post("/register", async (req, res) => {
       : normalizedRegistrationType === "individual"
       ? individual_email || user_email || null
       : team_leader_email || user_email || null;
+
+    // A user may only register themselves (organisers/admins may register on behalf of others)
+    if (!hasElevatedRegistrationRole(req.userInfo)) {
+      const authEmail = normLower(req.userInfo?.email);
+      const claimedEmail = normLower(participantEmail);
+      if (!authEmail || (claimedEmail && claimedEmail !== authEmail)) {
+        return res.status(403).json({
+          error: "You can only register using your own account",
+          code: "REGISTRATION_IDENTITY_MISMATCH",
+        });
+      }
+    }
 
     let participantUser = null;
     if (participantEmail) {
@@ -1271,7 +1334,7 @@ router.post(
 );
 
 // Get registration by ID
-router.get("/registrations/:registrationId", async (req, res) => {
+router.get("/registrations/:registrationId", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { registrationId } = req.params;
 
@@ -1281,6 +1344,10 @@ router.get("/registrations/:registrationId", async (req, res) => {
 
     if (!registration) {
       return res.status(404).json({ error: "Registration not found" });
+    }
+
+    if (!hasElevatedRegistrationRole(req.userInfo) && !userOwnsRegistration(req.userInfo, registration)) {
+      return res.status(403).json({ error: "You are not authorized to view this registration" });
     }
 
     return res.status(200).json({
@@ -1306,17 +1373,21 @@ router.get("/registrations/:registrationId", async (req, res) => {
 });
 
 // Get QR code image for a registration
-router.get("/registrations/:registrationId/qr-code", async (req, res) => {
+router.get("/registrations/:registrationId/qr-code", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { registrationId } = req.params;
 
     const registration = await queryOne("registrations", {
-      select: "qr_code_data, event_id",
+      select: `qr_code_data, event_id, ${REGISTRATION_OWNERSHIP_COLUMNS}`,
       where: { registration_id: registrationId },
     });
 
     if (!registration) {
       return res.status(404).json({ error: "Registration not found" });
+    }
+
+    if (!hasElevatedRegistrationRole(req.userInfo) && !userOwnsRegistration(req.userInfo, registration)) {
+      return res.status(403).json({ error: "You are not authorized to view this QR code" });
     }
 
     if (!registration.qr_code_data) {
@@ -1345,17 +1416,21 @@ router.get("/registrations/:registrationId/qr-code", async (req, res) => {
 });
 
 // Check if gated visitor pass is ready for an outsider registration
-router.get("/registrations/:registrationId/gated-status", async (req, res) => {
+router.get("/registrations/:registrationId/gated-status", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { registrationId } = req.params;
 
     const registration = await queryOne("registrations", {
-      select: "qr_code_data, participant_organization",
+      select: `qr_code_data, participant_organization, ${REGISTRATION_OWNERSHIP_COLUMNS}`,
       where: { registration_id: registrationId },
     });
 
     if (!registration) {
       return res.status(404).json({ error: "Registration not found" });
+    }
+
+    if (!hasElevatedRegistrationRole(req.userInfo) && !userOwnsRegistration(req.userInfo, registration)) {
+      return res.status(403).json({ error: "You are not authorized to view this registration" });
     }
 
     const qrData =
@@ -1491,12 +1566,18 @@ router.delete("/registrations/:registrationId", (req, res, next) => {
 });
 
 // Get events registered by a user based on registration number
-router.get("/registrations/user/:registerId/events", async (req, res) => {
+router.get("/registrations/user/:registerId/events", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { registerId } = req.params;
 
     if (!registerId) {
       return res.status(400).json({ error: "Registration ID is required" });
+    }
+
+    // Users may only list their own registrations (elevated roles may look up anyone)
+    const ownRegNum = normUpper(req.userInfo?.register_number || req.userInfo?.visitor_id);
+    if (!hasElevatedRegistrationRole(req.userInfo) && (!ownRegNum || ownRegNum !== normUpper(registerId))) {
+      return res.status(403).json({ error: "You can only view your own registrations" });
     }
 
     const registerIdStr = String(registerId).trim();

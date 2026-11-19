@@ -493,7 +493,8 @@ export default function Page() {
     if (userData && userData.register_number && !authIsLoading) {
       setLoadingUserRegistrations(true);
       fetch(
-        `${API_URL}/api/registrations/user/${userData.register_number}/events`
+        `${API_URL}/api/registrations/user/${userData.register_number}/events`,
+        { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined }
       )
         .then((res) =>
           res.ok ? res.json() : Promise.resolve({ events: [] })
@@ -517,7 +518,7 @@ export default function Page() {
       setUserRegisteredEventIds([]);
       setLoadingUserRegistrations(false);
     }
-  }, [userData, authIsLoading]);
+  }, [userData, authIsLoading, session?.access_token]);
 
   const handleRegistration = async () => {
     if (
@@ -624,7 +625,10 @@ export default function Page() {
         };
         const response = await fetch(`${API_URL}/api/register`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
           body: JSON.stringify(payload),
         });
         if (response.ok) {

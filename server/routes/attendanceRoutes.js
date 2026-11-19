@@ -233,10 +233,19 @@ router.post("/events/:eventId/attendance", authenticateUser, getUserInfo(), chec
   }
 });
 
-router.post("/events/:eventId/teammate-attendance", async (req, res) => {
+router.post("/events/:eventId/teammate-attendance", authenticateUser, getUserInfo(), checkRoleExpiration, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { registrationId, teammateRegisterNumber, status, markedBy = "admin" } = req.body;
+    const { registrationId, teammateRegisterNumber, status } = req.body;
+    const actor = req.userInfo;
+
+    // Same privilege gate as bulk attendance marking
+    if (!actor?.is_organiser && !actor?.is_masteradmin && !actor?.is_hod && !actor?.is_dean) {
+      console.log(`[SecurityAudit] Unauthorized teammate attendance: ${actor?.email} → event ${eventId}`);
+      return res.status(403).json({ error: "Access denied: organiser privileges required." });
+    }
+    // Never trust a client-supplied identity for the audit trail
+    const markedBy = actor.email || "admin";
 
     if (!registrationId || !teammateRegisterNumber) {
       return res.status(400).json({

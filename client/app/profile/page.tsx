@@ -195,7 +195,8 @@ const StudentProfile = () => {
           }
 
           const response = await fetch(
-            `${API_URL}/api/registrations/user/${userData.register_number}/events`
+            `${API_URL}/api/registrations/user/${userData.register_number}/events`,
+            { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined }
           );
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -252,7 +253,7 @@ const StudentProfile = () => {
 
       fetchRegisteredEvents();
     }
-  }, [userData]);
+  }, [userData, session?.access_token]);
 
   const handleLogout = async () => {
     await signOut();

@@ -184,9 +184,21 @@ router.get(
   }
 );
 
-router.get("/:email", async (req, res) => {
+router.get("/:email", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { email } = req.params;
+
+    // Users may read their own profile; elevated roles may read anyone's
+    const requester = req.userInfo;
+    const isSelf = String(requester?.email || "").toLowerCase() === String(email || "").toLowerCase();
+    const isElevated = [
+      "is_masteradmin", "is_organiser", "is_hod", "is_dean", "is_cfo",
+      "is_campus_director", "is_support", "is_accounts_office",
+    ].some((role) => Boolean(requester?.[role]));
+    if (!isSelf && !isElevated) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
     const user = await queryOne("users", { where: { email } });
     
     if (!user) {
@@ -766,49 +778,7 @@ router.patch("/:email/tour-seen", authenticateUser, async (req, res) => {
   }
 });
 
-// Update user campus (self-service for Christ members)
-router.patch("/:email/campus", async (req, res) => {
-  try {
-    const { email } = req.params;
-    const { campus } = req.body;
-
-    if (!campus || typeof campus !== 'string' || campus.trim() === '') {
-      return res.status(400).json({ error: 'Campus must be a non-empty string' });
-    }
-
-    const validCampuses = [
-      'Central Campus (Main)',
-      'Bannerghatta Road Campus',
-      'Yeshwanthpur Campus',
-      'Kengeri Campus',
-      'Delhi NCR Campus',
-      'Pune Lavasa Campus'
-    ];
-
-    if (!validCampuses.includes(campus.trim())) {
-      return res.status(400).json({ error: 'Invalid campus selection' });
-    }
-
-    const existingUser = await queryOne('users', { where: { email } });
-    if (!existingUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const { data: updatedUser, error } = await supabase
-      .from('users')
-      .update({ campus: campus.trim() })
-      .eq('email', email)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    console.log(`Campus updated for ${email}: ${campus}`);
-    return res.status(200).json({ user: updatedUser, message: 'Campus updated successfully' });
-  } catch (error) {
-    console.error('Error updating campus:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// NOTE: An unauthenticated PATCH /:email/campus duplicate was removed here.
+// Use the authenticated PUT /:email/campus route above.
 
 export default router;
