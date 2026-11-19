@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -48,7 +48,12 @@ export default function TicketPage() {
   const registrationId = params?.registrationId as string;
 
   const { allEvents } = useEvents();
-  const { session } = useAuth();
+  const { session, isLoading: authIsLoading } = useAuth();
+  const accessToken = session?.access_token;
+  const authHeaders = useMemo<HeadersInit>(
+    () => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    [accessToken]
+  );
 
   const [event, setEvent] = useState<any>(null);
   const [registration, setRegistration] = useState<any>(null);
@@ -71,20 +76,27 @@ export default function TicketPage() {
   }, [allEvents, eventId]);
 
   const fetchQR = useCallback(async () => {
-    const res = await fetch(`${API_URL}/api/registrations/${registrationId}/qr-code`);
+    const res = await fetch(`${API_URL}/api/registrations/${registrationId}/qr-code`, { headers: authHeaders });
     if (res.ok) {
       const data = await res.json();
       setQrImage(data.qrCodeImage);
     }
-  }, [registrationId]);
+  }, [registrationId, authHeaders]);
 
-  // Load registration
+  // Load registration (requires a signed-in session)
   useEffect(() => {
     if (!registrationId) return;
+    if (!accessToken) {
+      if (!authIsLoading) {
+        setError("Please sign in to view this ticket.");
+        setLoading(false);
+      }
+      return;
+    }
 
     const load = async () => {
       try {
-        const regRes = await fetch(`${API_URL}/api/registrations/${registrationId}`);
+        const regRes = await fetch(`${API_URL}/api/registrations/${registrationId}`, { headers: authHeaders });
         if (!regRes.ok) throw new Error("Registration not found");
         const regData = await regRes.json();
         const reg = regData.registration;
@@ -106,7 +118,7 @@ export default function TicketPage() {
     };
 
     load();
-  }, [registrationId, fetchQR]);
+  }, [registrationId, fetchQR, accessToken, authIsLoading, authHeaders]);
 
   // Poll for gated pass if outsider and not yet ready
   useEffect(() => {
@@ -118,7 +130,7 @@ export default function TicketPage() {
     const interval = setInterval(async () => {
       attempts++;
       try {
-        const res = await fetch(`${API_URL}/api/registrations/${registrationId}/gated-status`);
+        const res = await fetch(`${API_URL}/api/registrations/${registrationId}/gated-status`, { headers: authHeaders });
         if (res.ok) {
           const data = await res.json();
           if (data.gated_ready) {

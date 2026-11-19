@@ -175,10 +175,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // Fetch user data. We must wait for this if we want to avoid the skeleton-flicker/hang.
           try {
-            let existingUser = await fetchUserData(currentSession.user.email!);
+            let existingUser = await fetchUserData(currentSession.user.email!, currentSession.access_token);
             if (!existingUser) {
               await createOrUpdateUser(currentSession.user, currentSession.access_token);
-              existingUser = await fetchUserData(currentSession.user.email!);
+              existingUser = await fetchUserData(currentSession.user.email!, currentSession.access_token);
             }
             if (
               existingUser &&
@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(newSession);
         persistSession(newSession);
         if (newSession?.user?.email) {
-          void fetchUserData(newSession.user.email);
+          void fetchUserData(newSession.user.email, newSession.access_token);
         } else {
           setUserData(null);
         }
@@ -231,10 +231,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         void (async () => {
           await createOrUpdateUser(newSession.user, newSession.access_token);
 
-          let fetchedUser = await fetchUserData(newSession.user.email!);
+          let fetchedUser = await fetchUserData(newSession.user.email!, newSession.access_token);
           if (!fetchedUser) {
             await new Promise((resolve) => setTimeout(resolve, 150));
-            fetchedUser = await fetchUserData(newSession.user.email!);
+            fetchedUser = await fetchUserData(newSession.user.email!, newSession.access_token);
           }
 
           if (
@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (event === "USER_UPDATED" && newSession) {
         setSession(newSession);
         persistSession(newSession);
-        void fetchUserData(newSession.user.email!);
+        void fetchUserData(newSession.user.email!, newSession.access_token);
       } else if (event === "TOKEN_REFRESHED" && newSession) {
         setSession(newSession);
         persistSession(newSession);
@@ -355,7 +355,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const fetchUserData = async (email: string) => {
+  const fetchUserData = async (email: string, accessToken?: string) => {
     if (!email) {
       setUserData(null);
       return null;
@@ -367,6 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`, {
         signal: controller.signal,
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
       });
       clearTimeout(timeoutId);
 
@@ -458,7 +459,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (newSession) {
               setSession(newSession);
               persistSession(newSession);
-              void fetchUserData(newSession.user.email!);
+              void fetchUserData(newSession.user.email!, newSession.access_token);
             }
             setIsLoading(false);
           }).catch(() => {

@@ -184,9 +184,21 @@ router.get(
   }
 );
 
-router.get("/:email", async (req, res) => {
+router.get("/:email", authenticateUser, getUserInfo(), async (req, res) => {
   try {
     const { email } = req.params;
+
+    // Users may read their own profile; elevated roles may read anyone's
+    const requester = req.userInfo;
+    const isSelf = String(requester?.email || "").toLowerCase() === String(email || "").toLowerCase();
+    const isElevated = [
+      "is_masteradmin", "is_organiser", "is_hod", "is_dean", "is_cfo",
+      "is_campus_director", "is_support", "is_accounts_office",
+    ].some((role) => Boolean(requester?.[role]));
+    if (!isSelf && !isElevated) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
     const user = await queryOne("users", { where: { email } });
     
     if (!user) {

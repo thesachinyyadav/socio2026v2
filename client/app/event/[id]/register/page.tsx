@@ -101,7 +101,7 @@ const isCampusAllowed = (
 const Page = () => {
   const routeParams = useParams();
   const router = useRouter();
-  const { userData, isLoading: authIsLoading } = useAuth();
+  const { userData, session, isLoading: authIsLoading } = useAuth();
   const API_URL = process.env.NEXT_PUBLIC_API_URL!.replace(/\/api\/?$/, "");
   const isAdminOrOrganizer = Boolean(userData?.is_organiser || userData?.is_masteradmin);
 
@@ -553,6 +553,7 @@ const Page = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
           },
           body: JSON.stringify(payload),
         });
