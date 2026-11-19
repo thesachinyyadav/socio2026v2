@@ -35,10 +35,7 @@ const fileSchema = (
         const file = files[0];
         if (file.size > maxSize) {
           ctx.addIssue({
-            code: z.ZodIssueCode.too_big,
-            maximum: maxSize,
-            type: "array",
-            inclusive: true,
+            code: z.ZodIssueCode.custom,
             message: `Max file size is ${maxSize / (1024 * 1024)}MB.`,
           });
         }
