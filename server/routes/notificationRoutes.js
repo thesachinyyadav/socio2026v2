@@ -835,9 +835,13 @@ router.patch("/notifications/mark-read", async (req, res) => {
 
 // ─── CREATE INDIVIDUAL NOTIFICATION ─────────────────────────────────────────────
 
-router.post("/notifications", async (req, res) => {
+router.post("/notifications", authenticateUser, getUserInfo(), checkRoleExpiration, async (req, res) => {
   const reqId = newReqId();
   try {
+    // Only organisers / admins may send direct notifications (matches AdminNotifications UI)
+    if (!req.userInfo?.is_organiser && !req.userInfo?.is_masteradmin) {
+      return res.status(403).json({ error: "Access denied: organiser or admin privileges required", reqId });
+    }
     notifLog.info(reqId, "Incoming individual notification request", { body: req.body });
     const {
       title,
